@@ -53,7 +53,7 @@ rm -rf build/ dist/ *.egg-info/
 ### Core Modules
 - **`dataflow/convert/`** – Format conversion between LabelMe, COCO, YOLO
   - `base.py` – `BaseConverter` with common utilities (bbox conversion, normalization, JSON/TXT I/O, batch utilities)
-  - `batch.py` – Batch conversion utilities (`batch_process_conversion`, `batch_convert_with_combined_option`, `find_matching_conversion_pairs`)
+  - `batch.py` – Batch conversion utilities (`batch_process_conversion`, `find_matching_conversion_pairs`, `validate_conversion_directories`)
   - Six concrete converters: `*_to_*.py` implementing specific format transformations
   - Six batch converters: `batch_*` functions for each conversion direction
   - All functions are imported in `__init__.py` for easy access via `dataflow.convert.*`
@@ -115,7 +115,7 @@ To add batch processing to an existing or new converter:
    - Name: `batch_[source]_to_[target]()` (e.g., `batch_coco_to_yolo`)
    - Parameters: File pairs list, required arguments, output path
    - Implementation: Process each pair with error handling and progress display
-   - For COCO output: Support both per-file and combined modes
+   - For COCO output: Always create a single COCO file
 
 3. **Update converter `__init__.py`**:
    - Import the batch function
@@ -123,17 +123,17 @@ To add batch processing to an existing or new converter:
 
 4. **Update CLI command** in `dataflow/cli.py`:
    - Add `@click.option('--batch', is_flag=True, ...)`
-   - For COCO output: Add `@click.option('--combined', is_flag=True, ...)`
+   - For COCO output: Batch mode always creates a single COCO file
    - Implement batch mode logic:
      - Validate directories
      - Find matching pairs
-     - Determine output mode (directory vs. file)
+     - Determine output mode (directory for YOLO/LabelMe outputs, file for COCO outputs)
      - Call appropriate batch function
    - Maintain single-file mode compatibility
 
 5. **Test batch functionality**:
    - Create test directories with multiple files
-   - Test both per-file and combined output modes (if applicable)
+   - Test single COCO file output for COCO output formats, per-file output for other formats
    - Test error handling (skip invalid files)
 
 ### Batch Visualization Implementation
@@ -153,13 +153,13 @@ The batch visualization feature extends existing `visualize` subcommands with a 
 ### Batch Conversion Implementation
 The batch conversion feature extends all 6 conversion commands with `--batch` flag. Key components:
 
-- **CLI Structure**: Add `@click.option('--batch', is_flag=True, help='Batch mode: process directories instead of single files')` to conversion commands. For COCO output formats, add `@click.option('--combined', is_flag=True, help='In batch mode, combine all annotations into a single COCO file')`
+- **CLI Structure**: Add `@click.option('--batch', is_flag=True, help='Batch mode: process directories instead of single files')` to conversion commands. For COCO output formats (`yolo2coco`, `labelme2coco`), batch mode always creates a single COCO file.
 - **File Matching**: `find_matching_conversion_pairs()` from `dataflow/convert/batch.py` matches files based on conversion needs (images + annotations, or annotations only)
 - **Validation**: `validate_conversion_directories()` ensures directories exist and contain relevant files
 - **Batch Processing**: `batch_process_conversion()` orchestrates the batch loop with progress display and error skipping
   - For conversions with images: Match images and annotations by filename
   - For conversions without images: Process annotation files directly
-  - Output modes: Per-file output (directory) or combined output (single file, COCO only)
+  - Output modes: For YOLO and LabelMe output formats, creates per-file outputs (directory). For COCO output formats (`yolo2coco`, `labelme2coco`), creates a single COCO JSON file.
 - **Conversion-Specific Functions**: Each converter has a corresponding `batch_*` function (e.g., `batch_coco_to_yolo`, `batch_labelme_to_coco`)
 - **Error Handling**: Skip files with errors, continue processing others with progress reporting
 - **Flexible Arguments**: Support both image-based and image-free conversions with appropriate CLI parameter validation
@@ -174,4 +174,4 @@ Tests are self‑contained scripts that create temporary images and annotation f
 - The library is Linux‑oriented (assumes POSIX paths).
 - OpenCV is required for visualization; Pillow is required for image size detection.
 - Optional dependencies (`pycocotools`, `torch`, `torvision`) are only needed for extended functionality (marked as `full` extra).
-- Recent improvements include batch conversion support for all format conversions, YOLO visualization fixes (correct bounding box drawing), and enhanced batch navigation.
+- Recent improvements include simplified COCO conversion (yolo2coco and labelme2coco now always create single COCO files in batch mode), batch conversion support for all format conversions, YOLO visualization fixes (correct bounding box drawing), and enhanced batch navigation.

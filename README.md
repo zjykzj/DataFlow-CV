@@ -109,21 +109,15 @@ dataflow convert coco2labelme annotation.json image.jpg output.json
 dataflow convert coco2yolo images/ annotations/ output/ --batch --class-names classes.txt
 # Creates output/ directory with .txt files for each image
 
-# YOLO to COCO (batch mode - per file)
-dataflow convert yolo2coco images/ labels/ classes.txt output/ --batch
-# Creates output/ directory with .json files for each image
-
-# YOLO to COCO (batch mode - combined COCO file)
-dataflow convert yolo2coco images/ labels/ classes.txt combined_coco.json --batch --combined
+# YOLO to COCO (batch mode)
+dataflow convert yolo2coco images/ labels/ classes.txt output.json --batch
 # Creates a single COCO JSON file with all images and annotations
+# If output is a directory, creates coco_annotations.json inside it
 
-# LabelMe to COCO (batch mode - per file)
-dataflow convert labelme2coco annotations/ output/ --batch
-# Creates output/ directory with .json files for each LabelMe file
-
-# LabelMe to COCO (batch mode - combined COCO file)
-dataflow convert labelme2coco annotations/ combined_coco.json --batch --combined
+# LabelMe to COCO (batch mode)
+dataflow convert labelme2coco annotations/ output.json --batch
 # Creates a single COCO JSON file with all LabelMe annotations
+# If output is a directory, creates coco_annotations.json inside it
 
 # COCO to LabelMe (batch mode)
 dataflow convert coco2labelme images/ annotations/ output/ --batch
@@ -194,7 +188,7 @@ pairs = [
 ]
 dataflow.convert.batch_coco_to_yolo(pairs, ["cat", "dog"], "output_dir/")
 
-# Example: Batch LabelMe to COCO (combined file)
+# Example: Batch LabelMe to COCO (single COCO file)
 labelme_files = ["labelme1.json", "labelme2.json", "labelme3.json"]
 pairs = [(f, f) for f in labelme_files]  # Same file for input and annotation
 dataflow.convert.batch_labelme_to_coco(pairs, "combined_coco.json")

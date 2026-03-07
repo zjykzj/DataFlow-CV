@@ -87,12 +87,9 @@ def example_batch_yolo_to_coco():
         print(f"YOLO directory: {yolo_dir}")
 
         # Batch convert using CLI (simulated)
-        print("\nBatch conversion options:")
-        print("1. Per-file mode (separate COCO files):")
-        print(f"   dataflow convert yolo2coco {tmpdir} {yolo_dir} classes.txt {tmpdir / 'output_per_file'} --batch")
-
-        print("\n2. Combined mode (single COCO file):")
-        print(f"   dataflow convert yolo2coco {tmpdir} {yolo_dir} classes.txt {tmpdir / 'combined_coco.json'} --batch --combined")
+        print("\nBatch conversion (always creates single COCO file):")
+        print(f"   dataflow convert yolo2coco {tmpdir} {yolo_dir} classes.txt {tmpdir / 'coco_output.json'} --batch")
+        print(f"   # If output is a directory, creates coco_annotations.json inside it")
 
         # Actually perform batch conversion using Python API
         print("\nPerforming batch conversion with Python API...")
@@ -103,30 +100,27 @@ def example_batch_yolo_to_coco():
             for name in class_names:
                 f.write(f"{name}\n")
 
-        # Perform per-file batch conversion
-        output_dir = tmpdir / "coco_output"
-        output_dir.mkdir()
-
-        # Find matching pairs
-        from dataflow.convert.batch import find_matching_conversion_pairs
-        pairs = find_matching_conversion_pairs(str(tmpdir), str(yolo_dir), '.txt')
+        # Perform batch conversion using batch_yolo_to_coco (single COCO file)
+        output_file = tmpdir / "coco_output.json"
 
         print(f"\nFound {len(pairs)} image-annotation pairs:")
         for img_path, ann_path in pairs:
             print(f"  {Path(img_path).name} ↔ {Path(ann_path).name}")
 
-        # Convert each pair
-        successful = 0
-        for img_path, ann_path in pairs:
-            output_file = output_dir / f"{Path(img_path).stem}.json"
-            try:
-                convert.yolo_to_coco(ann_path, img_path, class_names, str(output_file))
-                print(f"  ✓ Converted: {Path(img_path).name} → {output_file.name}")
-                successful += 1
-            except Exception as e:
-                print(f"  ✗ Error converting {Path(img_path).name}: {e}")
+        # Perform batch conversion (creates single COCO file)
+        try:
+            convert.batch_yolo_to_coco(pairs, class_names, str(output_file))
+            print(f"  ✓ Created single COCO file: {output_file.name}")
 
-        print(f"\nSuccessfully converted {successful}/{len(pairs)} files to {output_dir}")
+            # Show summary
+            with open(output_file, 'r') as f:
+                coco_data = json.load(f)
+                print(f"  Contains {len(coco_data.get('images', []))} images")
+                print(f"  Contains {len(coco_data.get('annotations', []))} annotations")
+                print(f"  Contains {len(coco_data.get('categories', []))} categories")
+
+        except Exception as e:
+            print(f"  ✗ Error creating COCO file: {e}")
         print()
 
 
@@ -165,12 +159,9 @@ def example_batch_labelme_to_coco():
 
         print(f"Created 3 LabelMe annotation files in {labelme_dir}")
 
-        print("\nBatch conversion options:")
-        print("1. Per-file mode (separate COCO files):")
-        print(f"   dataflow convert labelme2coco {labelme_dir} {tmpdir / 'coco_output'} --batch")
-
-        print("\n2. Combined mode (single COCO file):")
-        print(f"   dataflow convert labelme2coco {labelme_dir} {tmpdir / 'combined_coco.json'} --batch --combined")
+        print("\nBatch conversion (always creates single COCO file):")
+        print(f"   dataflow convert labelme2coco {labelme_dir} {tmpdir / 'coco_output.json'} --batch")
+        print(f"   # If output is a directory, creates coco_annotations.json inside it")
 
         # Actually perform combined batch conversion using Python API
         print("\nPerforming combined batch conversion with Python API...")
@@ -309,7 +300,7 @@ def example_batch_utility_functions():
    """)
 
     print("\n3. batch_convert_with_combined_option()")
-    print("   Batch conversion with combined output support")
+    print("   Batch conversion with combined output support (legacy)")
     print("""
    batch_convert_with_combined_option(
        pairs,
@@ -319,6 +310,8 @@ def example_batch_utility_functions():
        combined=False,            # Whether to combine outputs
        **kwargs
    )
+   # Note: CLI no longer uses --combined flag for COCO outputs
+   # batch mode always creates single COCO files for yolo2coco and labelme2coco
    """)
 
     print("\n4. Available batch conversion functions:")
@@ -353,7 +346,7 @@ def main():
     print("=" * 60)
     print("• Progress display: Shows current file and completion percentage")
     print("• Error handling: Skips files with errors, continues processing")
-    print("• Flexible output: Per-file or combined output modes")
+    print("• Flexible output: Per-file output for YOLO/LabelMe, single COCO files for yolo2coco/labelme2coco")
     print("• Smart pairing: Automatically matches images and annotations")
     print("• Memory efficient: Processes files one at a time")
     print()
