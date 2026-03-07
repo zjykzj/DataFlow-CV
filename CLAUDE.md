@@ -50,8 +50,9 @@ rm -rf build/ dist/ *.egg-info/
   - Six concrete converters: `*_to_*.py` implementing specific format transformations
   - All converters are imported in `__init__.py` for easy access via `dataflow.convert.*`
 - **`dataflow/visualize/`** – Annotation visualization
-  - `base.py` – `BaseVisualizer` with common drawing utilities
+  - `base.py` – `BaseVisualizer` with common drawing utilities and batch navigation
   - Three visualizers: `coco_vis.py`, `yolo_vis.py`, `labelme_vis.py`
+  - `batch.py` – Batch processing utilities (`find_matching_pairs`, `batch_process_images`)
   - Uses OpenCV for drawing; imports `cv2` only when needed
 - **`dataflow/cli.py`** – Click‑based CLI with two command groups:
   - `convert` – subcommands for each conversion direction (e.g., `coco2yolo`, `labelme2coco`)
@@ -92,16 +93,18 @@ rm -rf build/ dist/ *.egg-info/
 5. Write test in `tests/visualize/test_visualize.py`
 
 ### Batch Visualization Implementation
-The batch visualization feature extends existing `visualize` subcommands with a `--batch` flag:
+The batch visualization feature extends existing `visualize` subcommands with a `--batch` flag. Key components:
 
-1. **CLI Structure**: Add `@click.option('--batch', is_flag=True, help='Batch mode: process directories instead of single files')` to visualization commands
-2. **File Matching**: Use `find_matching_pairs()` from `dataflow/visualize/batch.py` to match images and annotations by basename
-3. **Navigation**: `BaseVisualizer.show_batch_navigation()` provides interactive controls (←/→ arrows, 'q' to quit)
-4. **Batch Processing**:
-   - For COCO/LabelMe: Match `.jpg/.png` images with `.json` annotations
-   - For YOLO: Match `.jpg/.png` images with `.txt` annotations, class names from single file
-   - Save mode: If `--save` path is directory, outputs are saved as `{basename}_vis.jpg`
-5. **Error Handling**: Skip files with errors, continue processing others with warnings
+- **CLI Structure**: Add `@click.option('--batch', is_flag=True, help='Batch mode: process directories instead of single files')` to visualization commands
+- **File Matching**: `find_matching_pairs()` from `dataflow/visualize/batch.py` matches images and annotations by basename (supports common image extensions)
+- **Validation**: `validate_batch_directories()` ensures directories exist and contain relevant files
+- **Navigation**: `BaseVisualizer.show_batch_navigation()` provides interactive controls (←/→ arrows, 'a'/'d' keys, 'q' to quit) with progress overlay
+- **Batch Processing**: `batch_process_images()` orchestrates the batch loop, handling errors, saving outputs, and navigation
+  - For COCO/LabelMe: Match `.jpg/.png` images with `.json` annotations
+  - For YOLO: Match `.jpg/.png` images with `.txt` annotations, class names from single file
+  - Save mode: If `--save` path is directory, outputs are saved as `{basename}_vis.jpg`
+- **Error Handling**: Skip files with errors, continue processing others with warnings
+- **Recent Improvements**: YOLO visualization fixes ensure correct bounding box drawing and batch navigation works smoothly
 
 ### Configuration Updates
 Modify `DEFAULT_CONFIG` in `config.py`. All settings are grouped under `visualization`, `conversion`, `paths`, or `batch`. Changes apply globally.
@@ -113,3 +116,4 @@ Tests are self‑contained scripts that create temporary images and annotation f
 - The library is Linux‑oriented (assumes POSIX paths).
 - OpenCV is required for visualization; Pillow is required for image size detection.
 - Optional dependencies (`pycocotools`, `torch`, `torchvision`) are only needed for extended functionality (marked as `full` extra).
+- Recent improvements include YOLO visualization fixes (correct bounding box drawing) and enhanced batch navigation.

@@ -1,15 +1,36 @@
 # DataFlow-CV
 
-> **Where Vibe Coding meets CV data.** 🌊  
+> **Where Vibe Coding meets CV data.** 🌊
 > Convert & visualize datasets. Built with the flow of Claude Code.
 
-A data processing library for computer vision datasets, focusing on format conversion and visualization.
+![Python Version](https://img.shields.io/badge/python-3.8%20|%203.9%20|%203.10%20|%203.11%20|%203.12-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-0.1.0-orange)
+![Development Status](https://img.shields.io/badge/status-alpha-yellow)
+
+A data processing library for computer vision datasets, focusing on format conversion and visualization between LabelMe, COCO, and YOLO formats. Provides both a CLI and Python API.
+
+## Table of Contents
+
+- [Features](#features)
+- [Supported Formats](#supported-formats)
+- [Quick Start](#quick-start)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Command Line Interface](#command-line-interface)
+  - [Python API](#python-api)
+- [Project Structure](#project-structure)
+- [Requirements](#requirements)
+- [Development](#development)
+- [License](#license)
 
 ## Features
 
 - **Format Conversion**: Convert between LabelMe, COCO, and YOLO formats
 - **Single-Image Visualization**: Visualize annotations on individual images
-- **Simple CLI**: Easy-to-use command-line interface
+- **Batch Visualization**: Process entire directories with interactive navigation
+- **Simple CLI**: Easy-to-use command-line interface with intuitive subcommands
+- **Python API**: Programmatic access to all conversion and visualization functions
 
 ## Supported Formats
 
@@ -17,11 +38,33 @@ A data processing library for computer vision datasets, focusing on format conve
 - **COCO**: JSON format for object detection
 - **YOLO**: TXT format with normalized coordinates
 
+## Quick Start
+
+1. Install the library:
+   ```bash
+   pip install -e .
+   ```
+
+2. Convert a COCO annotation to YOLO format:
+   ```bash
+   dataflow convert coco2yolo image.jpg annotation.json output.txt --class-names classes.txt
+   ```
+
+3. Visualize a YOLO annotation:
+   ```bash
+   dataflow visualize yolo image.jpg label.txt classes.txt --show
+   ```
+
+See the full [Usage](#usage) section for more examples.
+
 ## Installation
 
 ```bash
-# Install from source
+# Install from source (development mode)
 pip install -e .
+
+# Install with optional dependencies (pycocotools, torch, torchvision)
+pip install -e .[full]
 
 # Or install directly (after release)
 # pip install dataflow-cv
@@ -109,13 +152,26 @@ dataflow/
     ├── base.py              # Visualizer base class
     ├── labelme_vis.py
     ├── coco_vis.py
-    └── yolo_vis.py
+    ├── yolo_vis.py
+    └── batch.py             # Batch processing utilities
 ```
 
 ## Requirements
 
 - Python 3.8 or higher
 - Linux environment (POSIX compatible)
+- OpenCV (opencv-python) for visualization
+- Pillow for image size detection
+- NumPy for numerical operations
+- Click for CLI
+
+## Development
+
+For detailed development instructions, see [CLAUDE.md](CLAUDE.md). Key commands:
+
+- Run tests: `python -m tests.convert.test_convert`
+- Build distribution: `python -m build`
+- Install with optional dependencies: `pip install -e .[full]`
 
 ## License
 
