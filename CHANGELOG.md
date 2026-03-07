@@ -28,7 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Fixed build warnings related to license format and classifiers
+- Fixed license configuration in pyproject.toml (use `{text = "MIT"}` format)
+- Added custom develop command to enable `python setup.py develop` for editable installation
 - Note: `pip install -e .` may not work due to setuptools compatibility issues; use `python setup.py develop` instead
+  - With editable installation, use `python -m dataflow.cli` instead of `dataflow` command
 
 ## [0.1.0] - 2026-03-06
 

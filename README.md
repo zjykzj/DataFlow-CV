@@ -66,12 +66,14 @@ See the full [Usage](#usage) section for more examples.
 ## Installation
 
 ```bash
-# Install from source (regular installation)
+# Install from source (regular installation - recommended)
 pip install .
+# This creates the 'dataflow' CLI command
 
 # For development (editable installation)
 python setup.py develop
-# Note: pip install -e . may not work due to setuptools compatibility issues
+# Note: pip install -e . may not work due to setuptools compatibility issues.
+# With editable installation, use 'python -m dataflow.cli' instead of 'dataflow' command
 
 # Install with optional dependencies (pycocotools, torch, torchvision)
 pip install .[full]
