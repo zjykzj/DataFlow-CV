@@ -103,6 +103,9 @@ def visualize_yolo(image_path: str, yolo_txt_path: str, class_names: List[str]) 
         # Get color for this class
         color = BaseVisualizer.get_color(class_idx, len(class_names))
 
+        # Debug output
+        print(f"  YOLO bbox: class={class_idx}({label}), xyxy=[{int(x1)},{int(y1)},{int(x2)},{int(y2)}] from normalized: {xc:.6f},{yc:.6f},{w:.6f},{h:.6f}")
+
         # Draw bounding box
         image = BaseVisualizer.draw_bbox(
             image,

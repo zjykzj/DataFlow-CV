@@ -2,9 +2,13 @@
 Command-line interface for DataFlow.
 """
 
+import os
+# Set Qt environment variables before any imports to suppress warnings
+os.environ.setdefault('QT_QPA_FONTDIR', '/usr/share/fonts')
+os.environ.setdefault('QT_LOGGING_RULES', '*.debug=false;qt.*=false')
+
 import click
 import sys
-import os
 from pathlib import Path
 
 # Import modules

@@ -157,34 +157,52 @@ def batch_process_images(
                 output_dir.mkdir(parents=True, exist_ok=True)
                 output_path = output_dir / f"{Path(img_path).stem}_vis.jpg"
 
+                # Ensure .jpg extension
+                if not str(output_path).lower().endswith('.jpg'):
+                    output_path = output_path.with_suffix('.jpg')
+
                 import cv2
-                success = cv2.imwrite(str(output_path), result)
-                if success:
-                    print(f"  Saved to: {output_path}")
-                else:
-                    print(f"  Warning: Failed to save {output_path}")
+                try:
+                    success = cv2.imwrite(str(output_path), result)
+                    if success:
+                        print(f"  Saved to: {output_path}")
+                    else:
+                        print(f"  Warning: Failed to save {output_path} - cv2.imwrite returned False")
+                        # Try alternative extension
+                        alt_path = output_path.with_suffix('.jpeg')
+                        success = cv2.imwrite(str(alt_path), result)
+                        if success:
+                            print(f"  Saved to alternative path: {alt_path}")
+                except Exception as e:
+                    print(f"  Error saving image: {e}")
 
             if show:
                 from .base import BaseVisualizer
-                key = BaseVisualizer.show_batch_navigation(
-                    result,
-                    f"{format_name} Visualization",
-                    current_idx,
-                    len(pairs)
-                )
+                # Interactive navigation loop for current image
+                while True:
+                    # Show image with navigation
+                    key = BaseVisualizer.show_batch_navigation(
+                        result,
+                        f"{format_name} Visualization",
+                        current_idx,
+                        len(pairs)
+                    )
 
-                if key == 'q':
-                    print("Batch visualization stopped by user.")
-                    break
-                elif key == 'left' and current_idx > 0:
-                    current_idx -= 1
-                    continue
-                elif key == 'right':
-                    current_idx += 1
-                    continue
-                else:
-                    # Stay on current image
-                    continue
+                    if key == 'q':
+                        print("Batch visualization stopped by user.")
+                        return  # Exit entire batch processing
+                    elif key == 'left' and current_idx > 0:
+                        current_idx -= 1
+                        break  # Exit inner loop to process previous image
+                    elif key == 'right' or key == 'next':
+                        current_idx += 1
+                        break  # Exit inner loop to process next image
+                    elif key == 'other':
+                        # Stay on current image, continue inner loop
+                        continue
+                    else:
+                        # Unknown key, continue waiting
+                        continue
             else:
                 # Non-interactive mode, move to next
                 current_idx += 1

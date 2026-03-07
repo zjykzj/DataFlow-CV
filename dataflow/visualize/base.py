@@ -2,6 +2,12 @@
 Base visualizer class for DataFlow.
 """
 
+import os
+# Set Qt environment variables before importing cv2 to suppress warnings
+os.environ['QT_QPA_FONTDIR'] = '/usr/share/fonts'
+os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.*=false'
+# Suppress specific font warnings
+os.environ['QT_QPA_NO_FONTDATABASE'] = '1'
 import cv2
 import numpy as np
 from typing import Tuple, List, Dict, Any
@@ -39,7 +45,7 @@ class BaseVisualizer:
 
         Args:
             image: Input image
-            bbox: [x1, y1, x2, y2] or [x1, y1, w, h]
+            bbox: [x1, y1, x2, y2] (top-left and bottom-right corners)
             color: BGR color tuple
             thickness: Line thickness
             label: Optional label text
@@ -47,20 +53,10 @@ class BaseVisualizer:
         Returns:
             Image with bounding box drawn
         """
-        # Convert bbox format if needed
-        if len(bbox) == 4:
-            # Assume [x1, y1, w, h] or [x1, y1, x2, y2]
-            if bbox[2] < 10 and bbox[3] < 10:  # Likely normalized or small width/height
-                # Might be [x1, y1, x2, y2]
-                x1, y1, x2, y2 = bbox
-            else:
-                # Assume [x1, y1, w, h]
-                x1, y1, w, h = bbox
-                x2 = x1 + w
-                y2 = y1 + h
-        else:
+        if len(bbox) != 4:
             raise ValueError(f"Invalid bbox format: {bbox}")
 
+        x1, y1, x2, y2 = bbox
         # Convert to integers
         x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
 
@@ -159,7 +155,7 @@ class BaseVisualizer:
         window_name,
         current_idx,
         total,
-        instructions="← previous | → next | q quit"
+        instructions="← previous | → next | q quit | Enter next"
     ):
         """
         Display image with navigation controls and wait for key press.
@@ -174,6 +170,9 @@ class BaseVisualizer:
         Returns:
             Key pressed ('left', 'right', 'q', or 'other')
         """
+        # Close any existing windows to avoid accumulation
+        cv2.destroyAllWindows()
+
         # Add progress and instructions to window title
         progress = f" ({current_idx + 1}/{total})"
         full_title = f"{window_name}{progress}"
@@ -215,16 +214,37 @@ class BaseVisualizer:
 
         # Show image
         cv2.imshow(full_title, display_image)
+        cv2.waitKey(1)  # Allow window to update
 
         # Wait for key press
-        key = cv2.waitKey(0) & 0xFF
+        while True:
+            key = cv2.waitKey(0)
+            key_code = key & 0xFF
 
-        # Map key codes to actions
-        if key == ord('q'):
-            return 'q'
-        elif key == 81 or key == ord('a'):  # Left arrow or 'a'
-            return 'left'
-        elif key == 83 or key == ord('d'):  # Right arrow or 'd'
-            return 'right'
-        else:
+            # Map key codes to actions
+            if key_code == ord('q'):
+                cv2.destroyAllWindows()
+                return 'q'
+            elif key_code == ord('a'):  # 'a' for left
+                cv2.destroyAllWindows()
+                return 'left'
+            elif key_code == ord('d'):  # 'd' for right
+                cv2.destroyAllWindows()
+                return 'right'
+            elif key_code == 13 or key_code == 10:  # Enter key
+                cv2.destroyAllWindows()
+                return 'right'
+            elif key_code == 32:  # Space key
+                cv2.destroyAllWindows()
+                return 'right'
+            elif key_code == 0:  # Extended key (arrows)
+                ext_code = (key >> 8) & 0xFF
+                if ext_code == 81:  # Left arrow
+                    cv2.destroyAllWindows()
+                    return 'left'
+                elif ext_code == 83:  # Right arrow
+                    cv2.destroyAllWindows()
+                    return 'right'
+            # Unknown key, return 'other'
+            cv2.destroyAllWindows()
             return 'other'
