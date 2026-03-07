@@ -142,12 +142,35 @@ class BaseVisualizer:
             image: Image to save
             save_path: Path to save image
         """
-        output_dir = Path(save_path).parent
+        from pathlib import Path
+        save_path_obj = Path(save_path)
+
+        # Ensure parent directory exists
+        output_dir = save_path_obj.parent
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        success = cv2.imwrite(save_path, image)
-        if not success:
-            raise ValueError(f"Failed to save image to {save_path}")
+        # Ensure file has a valid image extension
+        valid_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
+        original_suffix = save_path_obj.suffix.lower()
+        if original_suffix not in valid_extensions:
+            # Add .jpg extension if no valid extension
+            save_path_obj = save_path_obj.with_suffix('.jpg')
+            save_path = str(save_path_obj)
+
+        try:
+            success = cv2.imwrite(save_path, image)
+            if not success:
+                # Try with different extensions if .jpg fails
+                for ext in ['.png', '.jpeg', '.bmp']:
+                    if ext != save_path_obj.suffix.lower():
+                        alt_path = save_path_obj.with_suffix(ext)
+                        success = cv2.imwrite(str(alt_path), image)
+                        if success:
+                            raise ValueError(f"Failed to save image to {save_path}, but saved to {alt_path}")
+                raise ValueError(f"Failed to save image to {save_path} - cv2.imwrite returned False")
+        except Exception as e:
+            # Re-raise with more context
+            raise ValueError(f"Failed to save image to {save_path}: {e}")
 
     @staticmethod
     def show_batch_navigation(

@@ -22,6 +22,9 @@ def visualize_yolo(image_path: str, yolo_txt_path: str, class_names: List[str]) 
     Returns:
         Image with annotations drawn
     """
+    import sys
+    print(f"DEBUG visualize_yolo ENTER: image='{image_path}', yolo='{yolo_txt_path}'", file=sys.stderr, flush=True)
+    print(f"DEBUG visualize_yolo ENTER stdout", flush=True)
     # Validate paths
     if not Path(image_path).exists():
         raise FileNotFoundError(f"Image not found: {image_path}")

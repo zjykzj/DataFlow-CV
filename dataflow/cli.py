@@ -269,12 +269,16 @@ def coco(image_path, annotation_path, save, show, class_names, batch):
 def yolo(image_path, annotation_path, class_names_path, save, show, batch):
     """Visualize YOLO annotation(s)."""
     try:
+        import sys
+        print(f"DEBUG yolo args: save={repr(save)}, show={show}, batch={batch}", file=sys.stderr, flush=True)
+        # Common imports for both modes
+        from pathlib import Path
+        from .visualize.base import BaseVisualizer
+        from .visualize.yolo_vis import visualize_yolo
+
         if batch:
             # Batch mode: process directories
-            from pathlib import Path
             from .visualize.batch import find_matching_pairs, validate_batch_directories
-            from .visualize.base import BaseVisualizer
-            from .visualize.yolo_vis import visualize_yolo
 
             # Load class names (single file for entire batch)
             with open(class_names_path, 'r') as f:
@@ -299,16 +303,46 @@ def yolo(image_path, annotation_path, class_names_path, save, show, batch):
                 progress = f"[{current_idx + 1}/{len(pairs)}]"
                 click.echo(f"{progress} Processing: {Path(img_path).name} ↔ {Path(ann_path).name}")
 
+                import sys
+                print(f"DEBUG cli: before visualize_yolo", file=sys.stderr, flush=True)
+                click.echo(f"DEBUG cli: before visualize_yolo")
+
                 result = visualize_yolo(img_path, ann_path, classes)
 
                 if save:
-                    # If save is a directory, save with original filename
+                    import sys
+                    print(f"DEBUG cli: save={save}, result shape={result.shape if result is not None else 'None'}", file=sys.stderr, flush=True)
+                    # Determine if save path is a directory or file
                     save_path = Path(save)
-                    if save_path.is_dir():
+                    print(f"DEBUG cli: save_path={save_path}, exists={save_path.exists()}", file=sys.stderr, flush=True)
+
+                    # Check if it's a directory or should be treated as one
+                    is_directory = False
+                    if save_path.exists():
+                        is_directory = save_path.is_dir()
+                    else:
+                        # If path doesn't exist, check if it looks like a directory
+                        # (ends with slash, has no extension, or parent doesn't exist)
+                        save_str = str(save)
+                        valid_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
+                        has_image_ext = save_path.suffix.lower() in valid_extensions
+                        ends_with_slash = save_str.endswith('/') or save_str.endswith('\\')
+
+                        if ends_with_slash or not has_image_ext:
+                            # Treat as directory
+                            is_directory = True
+                            # Create the directory
+                            save_path.mkdir(parents=True, exist_ok=True)
+
+                    if is_directory:
                         output_path = save_path / f"{Path(img_path).stem}_vis.jpg"
                     else:
                         output_path = save_path
+                        # Ensure parent directory exists
+                        output_path.parent.mkdir(parents=True, exist_ok=True)
 
+                    # Convert to absolute path to avoid issues with relative paths
+                    output_path = output_path.absolute()
                     BaseVisualizer.save_image(result, str(output_path))
                     click.echo(f"  Saved to: {output_path}")
 
@@ -341,8 +375,7 @@ def yolo(image_path, annotation_path, class_names_path, save, show, batch):
             result = visualize_yolo(image_path, annotation_path, classes)
 
             if save:
-                import cv2
-                cv2.imwrite(save, result)
+                BaseVisualizer.save_image(result, save)
                 click.echo(f"Saved visualization to {save}")
 
             if show:
