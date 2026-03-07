@@ -82,7 +82,7 @@ rm -rf build/ dist/ *.egg-info/
 1. Create `dataflow/convert/newformat_to_targetformat.py`
 2. Implement conversion logic (use `BaseConverter` helpers)
 3. Add the function to `dataflow/convert/__init__.py`
-4. Add CLI command in `dataflow/cli.py` under the `@convert_cmd.group`
+4. Add CLI command in `dataflow/cli.py` under the `@convert.group`
 5. Write corresponding test in `tests/convert/test_convert.py`
 
 ### Adding a New Visualizer

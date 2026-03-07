@@ -44,12 +44,12 @@ def main():
 
 # Conversion commands
 @main.group(context_settings={'help_option_names': ['-h', '--help']})
-def convert_cmd():
+def convert():
     """Convert between different annotation formats."""
     pass
 
 
-@convert_cmd.command()
+@convert.command()
 @click.argument('image_path', type=click.Path(exists=True))
 @click.argument('coco_json_path', type=click.Path(exists=True))
 @click.argument('output_txt_path', type=click.Path())
@@ -72,7 +72,7 @@ def coco2yolo(image_path, coco_json_path, output_txt_path, class_names):
         sys.exit(1)
 
 
-@convert_cmd.command()
+@convert.command()
 @click.argument('image_path', type=click.Path(exists=True))
 @click.argument('yolo_txt_path', type=click.Path(exists=True))
 @click.argument('class_names_path', type=click.Path(exists=True))
@@ -91,7 +91,7 @@ def yolo2coco(image_path, yolo_txt_path, class_names_path, output_json_path):
         sys.exit(1)
 
 
-@convert_cmd.command()
+@convert.command()
 @click.argument('labelme_json_path', type=click.Path(exists=True))
 @click.argument('output_json_path', type=click.Path())
 def labelme2coco(labelme_json_path, output_json_path):
@@ -105,7 +105,7 @@ def labelme2coco(labelme_json_path, output_json_path):
         sys.exit(1)
 
 
-@convert_cmd.command()
+@convert.command()
 @click.argument('coco_json_path', type=click.Path(exists=True))
 @click.argument('image_path', type=click.Path(exists=True))
 @click.argument('output_json_path', type=click.Path())
@@ -120,7 +120,7 @@ def coco2labelme(coco_json_path, image_path, output_json_path):
         sys.exit(1)
 
 
-@convert_cmd.command()
+@convert.command()
 @click.argument('labelme_json_path', type=click.Path(exists=True))
 @click.argument('output_txt_path', type=click.Path())
 @click.option('--class-names', type=click.Path(exists=True),
@@ -142,7 +142,7 @@ def labelme2yolo(labelme_json_path, output_txt_path, class_names):
         sys.exit(1)
 
 
-@convert_cmd.command()
+@convert.command()
 @click.argument('yolo_txt_path', type=click.Path(exists=True))
 @click.argument('image_path', type=click.Path(exists=True))
 @click.argument('class_names_path', type=click.Path(exists=True))
