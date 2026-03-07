@@ -1,0 +1,252 @@
+"""
+Command-line interface for DataFlow.
+"""
+
+import click
+import sys
+import os
+from pathlib import Path
+
+# Import modules
+try:
+    from . import convert
+    from . import visualize
+    from .config import get_config
+    from . import __version__
+except ImportError as e:
+    print(f"Error importing modules: {e}")
+    print("Make sure you're in the correct environment and dependencies are installed.")
+    sys.exit(1)
+
+
+def print_version(ctx, param, value):
+    if not value or ctx.resilient_parsing:
+        return
+    click.echo(f"dataflow-cv version {__version__}")
+    ctx.exit()
+
+
+@click.group(context_settings={'help_option_names': ['-h', '--help']})
+@click.option('--version', '-v', is_flag=True, callback=print_version,
+              expose_value=False, is_eager=True, help='Show the version and exit.')
+def main():
+    """
+    DataFlow - A data processing library for computer vision datasets.
+
+    Supports format conversion and visualization for LabelMe, COCO, and YOLO formats.
+    """
+    pass
+
+
+# Conversion commands
+@main.group(context_settings={'help_option_names': ['-h', '--help']})
+def convert_cmd():
+    """Convert between different annotation formats."""
+    pass
+
+
+@convert_cmd.command()
+@click.argument('image_path', type=click.Path(exists=True))
+@click.argument('coco_json_path', type=click.Path(exists=True))
+@click.argument('output_txt_path', type=click.Path())
+@click.option('--class-names', type=click.Path(exists=True),
+              help='Path to class names file (one per line)')
+def coco2yolo(image_path, coco_json_path, output_txt_path, class_names):
+    """Convert COCO annotation to YOLO format."""
+    try:
+        if class_names:
+            with open(class_names, 'r') as f:
+                classes = [line.strip() for line in f if line.strip()]
+        else:
+            classes = []
+
+        from .convert.coco_to_yolo import coco_to_yolo
+        coco_to_yolo(coco_json_path, image_path, output_txt_path, classes)
+        click.echo(f"Successfully converted to {output_txt_path}")
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@convert_cmd.command()
+@click.argument('image_path', type=click.Path(exists=True))
+@click.argument('yolo_txt_path', type=click.Path(exists=True))
+@click.argument('class_names_path', type=click.Path(exists=True))
+@click.argument('output_json_path', type=click.Path())
+def yolo2coco(image_path, yolo_txt_path, class_names_path, output_json_path):
+    """Convert YOLO annotation to COCO format."""
+    try:
+        with open(class_names_path, 'r') as f:
+            classes = [line.strip() for line in f if line.strip()]
+
+        from .convert.yolo_to_coco import yolo_to_coco
+        yolo_to_coco(yolo_txt_path, image_path, classes, output_json_path)
+        click.echo(f"Successfully converted to {output_json_path}")
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@convert_cmd.command()
+@click.argument('labelme_json_path', type=click.Path(exists=True))
+@click.argument('output_json_path', type=click.Path())
+def labelme2coco(labelme_json_path, output_json_path):
+    """Convert LabelMe annotation to COCO format."""
+    try:
+        from .convert.labelme_to_coco import labelme_to_coco
+        labelme_to_coco(labelme_json_path, output_json_path)
+        click.echo(f"Successfully converted to {output_json_path}")
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@convert_cmd.command()
+@click.argument('coco_json_path', type=click.Path(exists=True))
+@click.argument('image_path', type=click.Path(exists=True))
+@click.argument('output_json_path', type=click.Path())
+def coco2labelme(coco_json_path, image_path, output_json_path):
+    """Convert COCO annotation to LabelMe format."""
+    try:
+        from .convert.coco_to_labelme import coco_to_labelme
+        coco_to_labelme(coco_json_path, image_path, output_json_path)
+        click.echo(f"Successfully converted to {output_json_path}")
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@convert_cmd.command()
+@click.argument('labelme_json_path', type=click.Path(exists=True))
+@click.argument('output_txt_path', type=click.Path())
+@click.option('--class-names', type=click.Path(exists=True),
+              help='Path to class names file (one per line)')
+def labelme2yolo(labelme_json_path, output_txt_path, class_names):
+    """Convert LabelMe annotation to YOLO format."""
+    try:
+        if class_names:
+            with open(class_names, 'r') as f:
+                classes = [line.strip() for line in f if line.strip()]
+        else:
+            classes = []
+
+        from .convert.labelme_to_yolo import labelme_to_yolo
+        labelme_to_yolo(labelme_json_path, output_txt_path, classes)
+        click.echo(f"Successfully converted to {output_txt_path}")
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@convert_cmd.command()
+@click.argument('yolo_txt_path', type=click.Path(exists=True))
+@click.argument('image_path', type=click.Path(exists=True))
+@click.argument('class_names_path', type=click.Path(exists=True))
+@click.argument('output_json_path', type=click.Path())
+def yolo2labelme(yolo_txt_path, image_path, class_names_path, output_json_path):
+    """Convert YOLO annotation to LabelMe format."""
+    try:
+        with open(class_names_path, 'r') as f:
+            classes = [line.strip() for line in f if line.strip()]
+
+        from .convert.yolo_to_labelme import yolo_to_labelme
+        yolo_to_labelme(yolo_txt_path, image_path, classes, output_json_path)
+        click.echo(f"Successfully converted to {output_json_path}")
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+# Visualization commands
+@main.group(context_settings={'help_option_names': ['-h', '--help']})
+def visualize():
+    """Visualize annotations on images."""
+    pass
+
+
+@visualize.command()
+@click.argument('image_path', type=click.Path(exists=True))
+@click.argument('annotation_path', type=click.Path(exists=True))
+@click.option('--save', type=click.Path(), help='Save visualization to file')
+@click.option('--show/--no-show', default=True, help='Show visualization window')
+@click.option('--class-names', type=click.Path(exists=True),
+              help='Path to class names file (required for YOLO format)')
+def coco(image_path, annotation_path, save, show, class_names):
+    """Visualize COCO annotation."""
+    try:
+        from .visualize.coco_vis import visualize_coco
+        result = visualize_coco(image_path, annotation_path)
+
+        if save:
+            import cv2
+            cv2.imwrite(save, result)
+            click.echo(f"Saved visualization to {save}")
+
+        if show:
+            import cv2
+            cv2.imshow("COCO Visualization", result)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@visualize.command()
+@click.argument('image_path', type=click.Path(exists=True))
+@click.argument('annotation_path', type=click.Path(exists=True))
+@click.argument('class_names_path', type=click.Path(exists=True))
+@click.option('--save', type=click.Path(), help='Save visualization to file')
+@click.option('--show/--no-show', default=True, help='Show visualization window')
+def yolo(image_path, annotation_path, class_names_path, save, show):
+    """Visualize YOLO annotation."""
+    try:
+        with open(class_names_path, 'r') as f:
+            classes = [line.strip() for line in f if line.strip()]
+
+        from .visualize.yolo_vis import visualize_yolo
+        result = visualize_yolo(image_path, annotation_path, classes)
+
+        if save:
+            import cv2
+            cv2.imwrite(save, result)
+            click.echo(f"Saved visualization to {save}")
+
+        if show:
+            import cv2
+            cv2.imshow("YOLO Visualization", result)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@visualize.command()
+@click.argument('image_path', type=click.Path(exists=True))
+@click.argument('annotation_path', type=click.Path(exists=True))
+@click.option('--save', type=click.Path(), help='Save visualization to file')
+@click.option('--show/--no-show', default=True, help='Show visualization window')
+def labelme(image_path, annotation_path, save, show):
+    """Visualize LabelMe annotation."""
+    try:
+        from .visualize.labelme_vis import visualize_labelme
+        result = visualize_labelme(image_path, annotation_path)
+
+        if save:
+            import cv2
+            cv2.imwrite(save, result)
+            click.echo(f"Saved visualization to {save}")
+
+        if show:
+            import cv2
+            cv2.imshow("LabelMe Visualization", result)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
