@@ -27,6 +27,16 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "default_save_dir": str(Path.home() / ".dataflow"),
         "class_names_file": "classes.txt",
     },
+    # Batch visualization settings
+    "batch": {
+        "navigation_keys": {
+            "previous": ["left", "a"],
+            "next": ["right", "d"],
+            "quit": ["q", "escape"]
+        },
+        "instructions_text": "← previous | → next | q quit",
+        "auto_advance_delay": 0,  # ms, 0 for manual navigation
+    },
 }
 
 def get_config() -> Dict[str, Any]:

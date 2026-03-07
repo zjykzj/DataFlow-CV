@@ -167,26 +167,89 @@ def visualize():
 @visualize.command()
 @click.argument('image_path', type=click.Path(exists=True))
 @click.argument('annotation_path', type=click.Path(exists=True))
-@click.option('--save', type=click.Path(), help='Save visualization to file')
+@click.option('--save', type=click.Path(), help='Save visualization to file or directory')
 @click.option('--show/--no-show', default=True, help='Show visualization window')
 @click.option('--class-names', type=click.Path(exists=True),
               help='Path to class names file (required for YOLO format)')
-def coco(image_path, annotation_path, save, show, class_names):
-    """Visualize COCO annotation."""
+@click.option('--batch', is_flag=True, help='Batch mode: process directories instead of single files')
+def coco(image_path, annotation_path, save, show, class_names, batch):
+    """Visualize COCO annotation(s)."""
     try:
-        from .visualize.coco_vis import visualize_coco
-        result = visualize_coco(image_path, annotation_path)
+        if batch:
+            # Batch mode: process directories
+            from pathlib import Path
+            from .visualize.batch import find_matching_pairs, validate_batch_directories
+            from .visualize.base import BaseVisualizer
+            from .visualize.coco_vis import visualize_coco
 
-        if save:
-            import cv2
-            cv2.imwrite(save, result)
-            click.echo(f"Saved visualization to {save}")
+            # Validate directories
+            validate_batch_directories(image_path, annotation_path)
 
-        if show:
-            import cv2
-            cv2.imshow("COCO Visualization", result)
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
+            # Find matching pairs
+            pairs = find_matching_pairs(image_path, annotation_path, '.json')
+
+            if not pairs:
+                click.echo("No matching image-annotation pairs found.")
+                return
+
+            click.echo(f"Found {len(pairs)} image-annotation pairs.")
+
+            # Process in batch mode
+            current_idx = 0
+            while current_idx < len(pairs):
+                img_path, ann_path = pairs[current_idx]
+                progress = f"[{current_idx + 1}/{len(pairs)}]"
+                click.echo(f"{progress} Processing: {Path(img_path).name} ↔ {Path(ann_path).name}")
+
+                result = visualize_coco(img_path, ann_path)
+
+                if save:
+                    # If save is a directory, save with original filename
+                    save_path = Path(save)
+                    if save_path.is_dir():
+                        output_path = save_path / f"{Path(img_path).stem}_vis.jpg"
+                    else:
+                        output_path = save_path
+
+                    BaseVisualizer.save_image(result, str(output_path))
+                    click.echo(f"  Saved to: {output_path}")
+
+                if show:
+                    key = BaseVisualizer.show_batch_navigation(
+                        result,
+                        "COCO Visualization",
+                        current_idx,
+                        len(pairs)
+                    )
+
+                    if key == 'q':
+                        click.echo("Batch visualization stopped by user.")
+                        break
+                    elif key == 'left' and current_idx > 0:
+                        current_idx -= 1
+                    elif key == 'right':
+                        current_idx += 1
+                    # 'other' key stays on current image
+                else:
+                    # Non-interactive mode, just process all
+                    current_idx += 1
+
+        else:
+            # Original single-file mode
+            from .visualize.coco_vis import visualize_coco
+            result = visualize_coco(image_path, annotation_path)
+
+            if save:
+                import cv2
+                cv2.imwrite(save, result)
+                click.echo(f"Saved visualization to {save}")
+
+            if show:
+                import cv2
+                cv2.imshow("COCO Visualization", result)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
+
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
@@ -196,27 +259,94 @@ def coco(image_path, annotation_path, save, show, class_names):
 @click.argument('image_path', type=click.Path(exists=True))
 @click.argument('annotation_path', type=click.Path(exists=True))
 @click.argument('class_names_path', type=click.Path(exists=True))
-@click.option('--save', type=click.Path(), help='Save visualization to file')
+@click.option('--save', type=click.Path(), help='Save visualization to file or directory')
 @click.option('--show/--no-show', default=True, help='Show visualization window')
-def yolo(image_path, annotation_path, class_names_path, save, show):
-    """Visualize YOLO annotation."""
+@click.option('--batch', is_flag=True, help='Batch mode: process directories instead of single files')
+def yolo(image_path, annotation_path, class_names_path, save, show, batch):
+    """Visualize YOLO annotation(s)."""
     try:
-        with open(class_names_path, 'r') as f:
-            classes = [line.strip() for line in f if line.strip()]
+        if batch:
+            # Batch mode: process directories
+            from pathlib import Path
+            from .visualize.batch import find_matching_pairs, validate_batch_directories
+            from .visualize.base import BaseVisualizer
+            from .visualize.yolo_vis import visualize_yolo
 
-        from .visualize.yolo_vis import visualize_yolo
-        result = visualize_yolo(image_path, annotation_path, classes)
+            # Load class names (single file for entire batch)
+            with open(class_names_path, 'r') as f:
+                classes = [line.strip() for line in f if line.strip()]
 
-        if save:
-            import cv2
-            cv2.imwrite(save, result)
-            click.echo(f"Saved visualization to {save}")
+            # Validate directories
+            validate_batch_directories(image_path, annotation_path)
 
-        if show:
-            import cv2
-            cv2.imshow("YOLO Visualization", result)
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
+            # Find matching pairs
+            pairs = find_matching_pairs(image_path, annotation_path, '.txt')
+
+            if not pairs:
+                click.echo("No matching image-annotation pairs found.")
+                return
+
+            click.echo(f"Found {len(pairs)} image-annotation pairs.")
+
+            # Process in batch mode
+            current_idx = 0
+            while current_idx < len(pairs):
+                img_path, ann_path = pairs[current_idx]
+                progress = f"[{current_idx + 1}/{len(pairs)}]"
+                click.echo(f"{progress} Processing: {Path(img_path).name} ↔ {Path(ann_path).name}")
+
+                result = visualize_yolo(img_path, ann_path, classes)
+
+                if save:
+                    # If save is a directory, save with original filename
+                    save_path = Path(save)
+                    if save_path.is_dir():
+                        output_path = save_path / f"{Path(img_path).stem}_vis.jpg"
+                    else:
+                        output_path = save_path
+
+                    BaseVisualizer.save_image(result, str(output_path))
+                    click.echo(f"  Saved to: {output_path}")
+
+                if show:
+                    key = BaseVisualizer.show_batch_navigation(
+                        result,
+                        "YOLO Visualization",
+                        current_idx,
+                        len(pairs)
+                    )
+
+                    if key == 'q':
+                        click.echo("Batch visualization stopped by user.")
+                        break
+                    elif key == 'left' and current_idx > 0:
+                        current_idx -= 1
+                    elif key == 'right':
+                        current_idx += 1
+                    # 'other' key stays on current image
+                else:
+                    # Non-interactive mode, just process all
+                    current_idx += 1
+
+        else:
+            # Original single-file mode
+            with open(class_names_path, 'r') as f:
+                classes = [line.strip() for line in f if line.strip()]
+
+            from .visualize.yolo_vis import visualize_yolo
+            result = visualize_yolo(image_path, annotation_path, classes)
+
+            if save:
+                import cv2
+                cv2.imwrite(save, result)
+                click.echo(f"Saved visualization to {save}")
+
+            if show:
+                import cv2
+                cv2.imshow("YOLO Visualization", result)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
+
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
@@ -225,24 +355,87 @@ def yolo(image_path, annotation_path, class_names_path, save, show):
 @visualize.command()
 @click.argument('image_path', type=click.Path(exists=True))
 @click.argument('annotation_path', type=click.Path(exists=True))
-@click.option('--save', type=click.Path(), help='Save visualization to file')
+@click.option('--save', type=click.Path(), help='Save visualization to file or directory')
 @click.option('--show/--no-show', default=True, help='Show visualization window')
-def labelme(image_path, annotation_path, save, show):
-    """Visualize LabelMe annotation."""
+@click.option('--batch', is_flag=True, help='Batch mode: process directories instead of single files')
+def labelme(image_path, annotation_path, save, show, batch):
+    """Visualize LabelMe annotation(s)."""
     try:
-        from .visualize.labelme_vis import visualize_labelme
-        result = visualize_labelme(image_path, annotation_path)
+        if batch:
+            # Batch mode: process directories
+            from pathlib import Path
+            from .visualize.batch import find_matching_pairs, validate_batch_directories
+            from .visualize.base import BaseVisualizer
+            from .visualize.labelme_vis import visualize_labelme
 
-        if save:
-            import cv2
-            cv2.imwrite(save, result)
-            click.echo(f"Saved visualization to {save}")
+            # Validate directories
+            validate_batch_directories(image_path, annotation_path)
 
-        if show:
-            import cv2
-            cv2.imshow("LabelMe Visualization", result)
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
+            # Find matching pairs
+            pairs = find_matching_pairs(image_path, annotation_path, '.json')
+
+            if not pairs:
+                click.echo("No matching image-annotation pairs found.")
+                return
+
+            click.echo(f"Found {len(pairs)} image-annotation pairs.")
+
+            # Process in batch mode
+            current_idx = 0
+            while current_idx < len(pairs):
+                img_path, ann_path = pairs[current_idx]
+                progress = f"[{current_idx + 1}/{len(pairs)}]"
+                click.echo(f"{progress} Processing: {Path(img_path).name} ↔ {Path(ann_path).name}")
+
+                result = visualize_labelme(img_path, ann_path)
+
+                if save:
+                    # If save is a directory, save with original filename
+                    save_path = Path(save)
+                    if save_path.is_dir():
+                        output_path = save_path / f"{Path(img_path).stem}_vis.jpg"
+                    else:
+                        output_path = save_path
+
+                    BaseVisualizer.save_image(result, str(output_path))
+                    click.echo(f"  Saved to: {output_path}")
+
+                if show:
+                    key = BaseVisualizer.show_batch_navigation(
+                        result,
+                        "LabelMe Visualization",
+                        current_idx,
+                        len(pairs)
+                    )
+
+                    if key == 'q':
+                        click.echo("Batch visualization stopped by user.")
+                        break
+                    elif key == 'left' and current_idx > 0:
+                        current_idx -= 1
+                    elif key == 'right':
+                        current_idx += 1
+                    # 'other' key stays on current image
+                else:
+                    # Non-interactive mode, just process all
+                    current_idx += 1
+
+        else:
+            # Original single-file mode
+            from .visualize.labelme_vis import visualize_labelme
+            result = visualize_labelme(image_path, annotation_path)
+
+            if save:
+                import cv2
+                cv2.imwrite(save, result)
+                click.echo(f"Saved visualization to {save}")
+
+            if show:
+                import cv2
+                cv2.imshow("LabelMe Visualization", result)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
+
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)

@@ -152,3 +152,79 @@ class BaseVisualizer:
         success = cv2.imwrite(save_path, image)
         if not success:
             raise ValueError(f"Failed to save image to {save_path}")
+
+    @staticmethod
+    def show_batch_navigation(
+        image,
+        window_name,
+        current_idx,
+        total,
+        instructions="← previous | → next | q quit"
+    ):
+        """
+        Display image with navigation controls and wait for key press.
+
+        Args:
+            image: Image to display
+            window_name: Window title
+            current_idx: Current index (0-based)
+            total: Total number of images
+            instructions: Navigation instructions
+
+        Returns:
+            Key pressed ('left', 'right', 'q', or 'other')
+        """
+        # Add progress and instructions to window title
+        progress = f" ({current_idx + 1}/{total})"
+        full_title = f"{window_name}{progress}"
+
+        # Create a copy of the image to add instructions overlay
+        display_image = image.copy()
+
+        # Display instructions on the image
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.4
+        thickness = 1
+        color = (255, 255, 255)  # White
+        bg_color = (0, 0, 0)     # Black
+
+        # Calculate text size and position
+        (text_width, text_height), baseline = cv2.getTextSize(
+            instructions, font, font_scale, thickness
+        )
+
+        # Draw background rectangle
+        cv2.rectangle(
+            display_image,
+            (10, display_image.shape[0] - text_height - 20),
+            (10 + text_width + 10, display_image.shape[0] - 10),
+            bg_color,
+            -1
+        )
+
+        # Draw text
+        cv2.putText(
+            display_image,
+            instructions,
+            (15, display_image.shape[0] - 15),
+            font,
+            font_scale,
+            color,
+            thickness
+        )
+
+        # Show image
+        cv2.imshow(full_title, display_image)
+
+        # Wait for key press
+        key = cv2.waitKey(0) & 0xFF
+
+        # Map key codes to actions
+        if key == ord('q'):
+            return 'q'
+        elif key == 81 or key == ord('a'):  # Left arrow or 'a'
+            return 'left'
+        elif key == 83 or key == ord('d'):  # Right arrow or 'd'
+            return 'right'
+        else:
+            return 'other'

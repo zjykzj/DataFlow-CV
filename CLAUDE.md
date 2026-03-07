@@ -91,8 +91,20 @@ rm -rf build/ dist/ *.egg-info/
 4. Add CLI command in `dataflow/cli.py` under `@visualize.group`
 5. Write test in `tests/visualize/test_visualize.py`
 
+### Batch Visualization Implementation
+The batch visualization feature extends existing `visualize` subcommands with a `--batch` flag:
+
+1. **CLI Structure**: Add `@click.option('--batch', is_flag=True, help='Batch mode: process directories instead of single files')` to visualization commands
+2. **File Matching**: Use `find_matching_pairs()` from `dataflow/visualize/batch.py` to match images and annotations by basename
+3. **Navigation**: `BaseVisualizer.show_batch_navigation()` provides interactive controls (←/→ arrows, 'q' to quit)
+4. **Batch Processing**:
+   - For COCO/LabelMe: Match `.jpg/.png` images with `.json` annotations
+   - For YOLO: Match `.jpg/.png` images with `.txt` annotations, class names from single file
+   - Save mode: If `--save` path is directory, outputs are saved as `{basename}_vis.jpg`
+5. **Error Handling**: Skip files with errors, continue processing others with warnings
+
 ### Configuration Updates
-Modify `DEFAULT_CONFIG` in `config.py`. All settings are grouped under `visualization`, `conversion`, or `paths`. Changes apply globally.
+Modify `DEFAULT_CONFIG` in `config.py`. All settings are grouped under `visualization`, `conversion`, `paths`, or `batch`. Changes apply globally.
 
 ### Testing Philosophy
 Tests are self‑contained scripts that create temporary images and annotation files, run the conversion/visualization, and verify outputs. They do not rely on external data. Keep tests independent and clean up after themselves.

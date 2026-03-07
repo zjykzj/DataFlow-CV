@@ -46,6 +46,7 @@ dataflow convert coco2labelme annotation.json image.jpg output.json
 
 #### Visualization
 
+##### Single Image Visualization
 ```bash
 # Visualize COCO annotations
 dataflow visualize coco image.jpg annotation.json --show --save output.jpg
@@ -55,6 +56,19 @@ dataflow visualize yolo image.jpg label.txt classes.txt --show
 
 # Visualize LabelMe annotations
 dataflow visualize labelme image.jpg annotation.json --show
+```
+
+##### Batch Visualization (Process Directories)
+```bash
+# Batch visualize COCO annotations with interactive navigation
+dataflow visualize coco images/ annotations/ --batch --show --save output/
+# Navigation: ← previous, → next, q quit
+
+# Batch visualize YOLO annotations and save all to directory
+dataflow visualize yolo images/ labels/ classes.txt --batch --save output/ --no-show
+
+# Batch visualize LabelMe annotations with both display and save
+dataflow visualize labelme images/ annotations/ --batch --show --save output/
 ```
 
 ### Python API
