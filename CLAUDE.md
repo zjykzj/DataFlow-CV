@@ -46,9 +46,11 @@ rm -rf build/ dist/ *.egg-info/
 
 ### Core Modules
 - **`dataflow/convert/`** – Format conversion between LabelMe, COCO, YOLO
-  - `base.py` – `BaseConverter` with common utilities (bbox conversion, normalization, JSON/TXT I/O)
+  - `base.py` – `BaseConverter` with common utilities (bbox conversion, normalization, JSON/TXT I/O, batch utilities)
+  - `batch.py` – Batch conversion utilities (`batch_process_conversion`, `batch_convert_with_combined_option`, `find_matching_conversion_pairs`)
   - Six concrete converters: `*_to_*.py` implementing specific format transformations
-  - All converters are imported in `__init__.py` for easy access via `dataflow.convert.*`
+  - Six batch converters: `batch_*` functions for each conversion direction
+  - All functions are imported in `__init__.py` for easy access via `dataflow.convert.*`
 - **`dataflow/visualize/`** – Annotation visualization
   - `base.py` – `BaseVisualizer` with common drawing utilities and batch navigation
   - Three visualizers: `coco_vis.py`, `yolo_vis.py`, `labelme_vis.py`
@@ -74,6 +76,9 @@ rm -rf build/ dist/ *.egg-info/
 - `pyproject.toml` – Project metadata, dependencies, entry‑point (`dataflow = dataflow.cli:main`)
 - `README.md` – User documentation with CLI examples and Python API snippets
 - `examples/` – Example scripts for conversion and visualization
+  - `convert/basic_convert.py` – Single-file conversion examples
+  - `convert/batch_convert.py` – Batch conversion examples
+  - `visualize/basic_visualize.py` – Single-image visualization examples
 - `tests/` – Mirror of the main package structure; each test creates temporary files and cleans up
 
 ## Working with the Codebase
@@ -92,6 +97,39 @@ rm -rf build/ dist/ *.egg-info/
 4. Add CLI command in `dataflow/cli.py` under `@visualize.group`
 5. Write test in `tests/visualize/test_visualize.py`
 
+### Adding Batch Support to a Converter
+To add batch processing to an existing or new converter:
+
+1. **Add batch utility functions** to `dataflow/convert/base.py` if needed:
+   - `find_matching_conversion_pairs()`: For matching input-annotation pairs
+   - `validate_conversion_directories()`: For directory validation
+   - `get_image_size_from_source()`: For image dimension extraction
+
+2. **Create batch function** in the converter file:
+   - Name: `batch_[source]_to_[target]()` (e.g., `batch_coco_to_yolo`)
+   - Parameters: File pairs list, required arguments, output path
+   - Implementation: Process each pair with error handling and progress display
+   - For COCO output: Support both per-file and combined modes
+
+3. **Update converter `__init__.py`**:
+   - Import the batch function
+   - Add to `__all__` list
+
+4. **Update CLI command** in `dataflow/cli.py`:
+   - Add `@click.option('--batch', is_flag=True, ...)`
+   - For COCO output: Add `@click.option('--combined', is_flag=True, ...)`
+   - Implement batch mode logic:
+     - Validate directories
+     - Find matching pairs
+     - Determine output mode (directory vs. file)
+     - Call appropriate batch function
+   - Maintain single-file mode compatibility
+
+5. **Test batch functionality**:
+   - Create test directories with multiple files
+   - Test both per-file and combined output modes (if applicable)
+   - Test error handling (skip invalid files)
+
 ### Batch Visualization Implementation
 The batch visualization feature extends existing `visualize` subcommands with a `--batch` flag. Key components:
 
@@ -106,6 +144,20 @@ The batch visualization feature extends existing `visualize` subcommands with a 
 - **Error Handling**: Skip files with errors, continue processing others with warnings
 - **Recent Improvements**: YOLO visualization fixes ensure correct bounding box drawing and batch navigation works smoothly
 
+### Batch Conversion Implementation
+The batch conversion feature extends all 6 conversion commands with `--batch` flag. Key components:
+
+- **CLI Structure**: Add `@click.option('--batch', is_flag=True, help='Batch mode: process directories instead of single files')` to conversion commands. For COCO output formats, add `@click.option('--combined', is_flag=True, help='In batch mode, combine all annotations into a single COCO file')`
+- **File Matching**: `find_matching_conversion_pairs()` from `dataflow/convert/batch.py` matches files based on conversion needs (images + annotations, or annotations only)
+- **Validation**: `validate_conversion_directories()` ensures directories exist and contain relevant files
+- **Batch Processing**: `batch_process_conversion()` orchestrates the batch loop with progress display and error skipping
+  - For conversions with images: Match images and annotations by filename
+  - For conversions without images: Process annotation files directly
+  - Output modes: Per-file output (directory) or combined output (single file, COCO only)
+- **Conversion-Specific Functions**: Each converter has a corresponding `batch_*` function (e.g., `batch_coco_to_yolo`, `batch_labelme_to_coco`)
+- **Error Handling**: Skip files with errors, continue processing others with progress reporting
+- **Flexible Arguments**: Support both image-based and image-free conversions with appropriate CLI parameter validation
+
 ### Configuration Updates
 Modify `DEFAULT_CONFIG` in `config.py`. All settings are grouped under `visualization`, `conversion`, `paths`, or `batch`. Changes apply globally.
 
@@ -115,5 +167,5 @@ Tests are self‑contained scripts that create temporary images and annotation f
 ## Notes
 - The library is Linux‑oriented (assumes POSIX paths).
 - OpenCV is required for visualization; Pillow is required for image size detection.
-- Optional dependencies (`pycocotools`, `torch`, `torchvision`) are only needed for extended functionality (marked as `full` extra).
-- Recent improvements include YOLO visualization fixes (correct bounding box drawing) and enhanced batch navigation.
+- Optional dependencies (`pycocotools`, `torch`, `torvision`) are only needed for extended functionality (marked as `full` extra).
+- Recent improvements include batch conversion support for all format conversions, YOLO visualization fixes (correct bounding box drawing), and enhanced batch navigation.

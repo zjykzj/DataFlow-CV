@@ -27,6 +27,7 @@ A data processing library for computer vision datasets, focusing on format conve
 ## Features
 
 - **Format Conversion**: Convert between LabelMe, COCO, and YOLO formats
+- **Batch Conversion**: Process entire directories with progress display and error handling
 - **Single-Image Visualization**: Visualize annotations on individual images
 - **Batch Visualization**: Process entire directories with interactive navigation
 - **Simple CLI**: Easy-to-use command-line interface with intuitive subcommands
@@ -76,6 +77,7 @@ pip install -e .[full]
 
 #### Format Conversion
 
+##### Single File Conversion
 ```bash
 # COCO to YOLO
 dataflow convert coco2yolo image.jpg annotation.json output.txt --class-names classes.txt
@@ -88,6 +90,41 @@ dataflow convert labelme2coco labelme.json output.json
 
 # COCO to LabelMe
 dataflow convert coco2labelme annotation.json image.jpg output.json
+```
+
+##### Batch Conversion (Process Directories)
+```bash
+# COCO to YOLO (batch mode)
+dataflow convert coco2yolo images/ annotations/ output/ --batch --class-names classes.txt
+# Creates output/ directory with .txt files for each image
+
+# YOLO to COCO (batch mode - per file)
+dataflow convert yolo2coco images/ labels/ classes.txt output/ --batch
+# Creates output/ directory with .json files for each image
+
+# YOLO to COCO (batch mode - combined COCO file)
+dataflow convert yolo2coco images/ labels/ classes.txt combined_coco.json --batch --combined
+# Creates a single COCO JSON file with all images and annotations
+
+# LabelMe to COCO (batch mode - per file)
+dataflow convert labelme2coco annotations/ output/ --batch
+# Creates output/ directory with .json files for each LabelMe file
+
+# LabelMe to COCO (batch mode - combined COCO file)
+dataflow convert labelme2coco annotations/ combined_coco.json --batch --combined
+# Creates a single COCO JSON file with all LabelMe annotations
+
+# COCO to LabelMe (batch mode)
+dataflow convert coco2labelme images/ annotations/ output/ --batch
+# Creates output/ directory with .json files for each image
+
+# LabelMe to YOLO (batch mode)
+dataflow convert labelme2yolo annotations/ output/ --batch --class-names classes.txt
+# Creates output/ directory with .txt files for each LabelMe file
+
+# YOLO to LabelMe (batch mode)
+dataflow convert yolo2labelme images/ labels/ classes.txt output/ --batch
+# Creates output/ directory with .json files for each image
 ```
 
 #### Visualization
@@ -119,6 +156,7 @@ dataflow visualize labelme images/ annotations/ --batch --show --save output/
 
 ### Python API
 
+##### Single File Conversion
 ```python
 import dataflow
 
@@ -131,6 +169,41 @@ image = dataflow.visualize.visualize_coco("image.jpg", "annotation.json")
 image = dataflow.visualize.visualize_yolo("image.jpg", "label.txt", ["cat", "dog"])
 ```
 
+##### Batch Conversion
+```python
+import dataflow
+from pathlib import Path
+
+# Batch conversion functions are available for all formats
+# Example: Batch COCO to YOLO
+pairs = [
+    ("image1.jpg", "annotation1.json"),
+    ("image2.jpg", "annotation2.json"),
+    ("image3.jpg", "annotation3.json")
+]
+dataflow.convert.batch_coco_to_yolo(pairs, ["cat", "dog"], "output_dir/")
+
+# Example: Batch LabelMe to COCO (combined file)
+labelme_files = ["labelme1.json", "labelme2.json", "labelme3.json"]
+pairs = [(f, f) for f in labelme_files]  # Same file for input and annotation
+dataflow.convert.batch_labelme_to_coco(pairs, "combined_coco.json")
+
+# Batch utility functions
+from dataflow.convert.batch import batch_process_conversion, find_matching_conversion_pairs
+
+# Find matching image-annotation pairs
+pairs = dataflow.convert.find_matching_conversion_pairs("images/", "annotations/", ".json")
+
+# Process batch conversion
+dataflow.convert.batch_process_conversion(
+    pairs,
+    dataflow.convert.coco_to_yolo,
+    "output_dir/",
+    needs_image=True,
+    class_names=["cat", "dog"]
+)
+```
+
 ## Project Structure
 
 ```
@@ -141,6 +214,7 @@ dataflow/
 ├── convert/                  # Format conversion module
 │   ├── __init__.py
 │   ├── base.py              # Converter base class
+│   ├── batch.py             # Batch conversion utilities
 │   ├── labelme_to_coco.py
 │   ├── coco_to_labelme.py
 │   ├── labelme_to_yolo.py
@@ -153,7 +227,7 @@ dataflow/
     ├── labelme_vis.py
     ├── coco_vis.py
     ├── yolo_vis.py
-    └── batch.py             # Batch processing utilities
+    └── batch.py             # Batch visualization utilities
 ```
 
 ## Requirements
