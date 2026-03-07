@@ -1,4 +1,7 @@
-# DataFlow
+# DataFlow-CV
+
+> **Where Vibe Coding meets CV data.** 🌊  
+> Convert & visualize datasets. Built with the flow of Claude Code.
 
 A data processing library for computer vision datasets, focusing on format conversion and visualization.
 
