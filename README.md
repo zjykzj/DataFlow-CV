@@ -5,7 +5,7 @@
 
 ![Python Version](https://img.shields.io/badge/python-3.8%20|%203.9%20|%203.10%20|%203.11%20|%203.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-0.1.0-orange)
+![Version](https://img.shields.io/badge/version-0.1.1-orange)
 ![Development Status](https://img.shields.io/badge/status-alpha-yellow)
 
 A data processing library for computer vision datasets, focusing on format conversion and visualization between LabelMe, COCO, and YOLO formats. Provides both a CLI and Python API.
@@ -43,7 +43,11 @@ A data processing library for computer vision datasets, focusing on format conve
 
 1. Install the library:
    ```bash
-   pip install -e .
+   # Regular installation
+   pip install .
+
+   # For development (editable installation)
+   python setup.py develop
    ```
 
 2. Convert a COCO annotation to YOLO format:
@@ -61,11 +65,14 @@ See the full [Usage](#usage) section for more examples.
 ## Installation
 
 ```bash
-# Install from source (development mode)
-pip install -e .
+# Install from source (regular installation)
+pip install .
+
+# For development (editable installation)
+python setup.py develop
 
 # Install with optional dependencies (pycocotools, torch, torchvision)
-pip install -e .[full]
+pip install .[full]
 
 # Or install directly (after release)
 # pip install dataflow-cv

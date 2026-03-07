@@ -11,10 +11,10 @@ Supported formats:
 - COCO: JSON format for object detection and instance segmentation
 - YOLO: TXT format with normalized coordinates
 
-Version: 0.1.0
+Version: 0.1.1
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __author__ = "DataFlow Team"
 
 from . import convert

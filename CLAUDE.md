@@ -10,11 +10,14 @@ DataFlow is a Python library for computer vision dataset processing, focusing on
 
 ### Installation
 ```bash
-# Install in development mode
-pip install -e .
+# Regular installation
+pip install .
+
+# For development (editable installation)
+python setup.py develop
 
 # Install with optional dependencies (pycocotools, torch, torchvision)
-pip install -e .[full]
+pip install .[full]
 ```
 
 ### Running Tests

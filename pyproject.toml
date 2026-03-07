@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dataflow-cv"
-version = "0.1.0"
+version = "0.1.1"
 description = "A data processing library for computer vision datasets"
 readme = "README.md"
 authors = [
@@ -28,10 +28,10 @@ classifiers = [
 ]
 keywords = ["computer-vision", "dataset", "conversion", "visualization", "coco", "yolo", "labelme"]
 dependencies = [
-    "numpy>=1.19.0",
-    "opencv-python>=4.5.0",
-    "Pillow>=8.0.0",
-    "click>=8.0.0",
+    "numpy>=2.0.0",
+    "opencv-python>=4.8.0",
+    "Pillow>=10.0.0",
+    "click>=8.1.0",
 ]
 requires-python = ">=3.8"
 
