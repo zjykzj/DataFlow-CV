@@ -5,7 +5,7 @@ Convert YOLO annotation to LabelMe format.
 import json
 import os
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 
 def yolo_to_labelme(yolo_txt_path: str, image_path: str, class_names: List[str],
@@ -110,3 +110,43 @@ def yolo_to_labelme(yolo_txt_path: str, image_path: str, class_names: List[str],
         json.dump(labelme_data, f, ensure_ascii=False, indent=4)
 
     print(f"Converted {len(shapes)} annotations to LabelMe format")
+
+
+def batch_yolo_to_labelme(pairs: List[Tuple[str, str]], class_names: List[str],
+                          output_dir: str) -> None:
+    """
+    Convert multiple YOLO annotations to LabelMe format.
+
+    Args:
+        pairs: List of (image_path, yolo_txt_path) tuples
+        class_names: List of class names
+        output_dir: Output directory for LabelMe JSON files
+    """
+    if not pairs:
+        raise ValueError("No image-annotation pairs provided")
+
+    successful = 0
+    errors = 0
+
+    for idx, (image_path, yolo_txt_path) in enumerate(pairs):
+        try:
+            # Generate output filename based on image name
+            image_stem = Path(image_path).stem
+            output_json_path = Path(output_dir) / f"{image_stem}.json"
+
+            # Call single conversion function
+            yolo_to_labelme(yolo_txt_path, image_path, class_names, str(output_json_path))
+
+            print(f"[{idx + 1}/{len(pairs)}] Converted: {Path(image_path).name} → {output_json_path.name}")
+            successful += 1
+
+        except Exception as e:
+            print(f"[{idx + 1}/{len(pairs)}] Error processing {Path(image_path).name}: {e}")
+            print("  Skipping...")
+            errors += 1
+            continue
+
+    print(f"\nBatch conversion complete.")
+    print(f"  Successfully converted: {successful}")
+    if errors > 0:
+        print(f"  Errors: {errors}")

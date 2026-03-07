@@ -5,7 +5,7 @@ Convert COCO annotation to YOLO format.
 import json
 import os
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 import numpy as np
 
 from .base import BaseConverter
@@ -117,3 +117,43 @@ def coco_to_yolo(coco_json_path: str, image_path: str, output_txt_path: str,
 
     print(f"Converted {len(annotations)} annotations to YOLO format")
     print(f"Class names used: {class_names}")
+
+
+def batch_coco_to_yolo(pairs: List[Tuple[str, str]], class_names: List[str] = None,
+                       output_dir: str = None) -> None:
+    """
+    Convert multiple COCO annotations to YOLO format.
+
+    Args:
+        pairs: List of (image_path, coco_json_path) tuples
+        class_names: List of class names (optional, will be extracted from COCO if not provided)
+        output_dir: Output directory for YOLO files (optional, required for per-file mode)
+    """
+    if not pairs:
+        raise ValueError("No image-annotation pairs provided")
+
+    successful = 0
+    errors = 0
+
+    for idx, (image_path, coco_json_path) in enumerate(pairs):
+        try:
+            # Generate output filename based on image name
+            image_stem = Path(image_path).stem
+            output_txt_path = Path(output_dir) / f"{image_stem}.txt"
+
+            # Call single conversion function
+            coco_to_yolo(coco_json_path, image_path, str(output_txt_path), class_names)
+
+            print(f"[{idx + 1}/{len(pairs)}] Converted: {Path(image_path).name} → {output_txt_path.name}")
+            successful += 1
+
+        except Exception as e:
+            print(f"[{idx + 1}/{len(pairs)}] Error processing {Path(image_path).name}: {e}")
+            print("  Skipping...")
+            errors += 1
+            continue
+
+    print(f"\nBatch conversion complete.")
+    print(f"  Successfully converted: {successful}")
+    if errors > 0:
+        print(f"  Errors: {errors}")

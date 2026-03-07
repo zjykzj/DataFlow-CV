@@ -52,11 +52,16 @@ def convert():
 @convert.command()
 @click.argument('image_path', type=click.Path(exists=True))
 @click.argument('coco_json_path', type=click.Path(exists=True))
-@click.argument('output_txt_path', type=click.Path())
+@click.argument('output_path', type=click.Path())
 @click.option('--class-names', type=click.Path(exists=True),
               help='Path to class names file (one per line)')
-def coco2yolo(image_path, coco_json_path, output_txt_path, class_names):
-    """Convert COCO annotation to YOLO format."""
+@click.option('--batch', is_flag=True, help='Batch mode: process directories instead of single files')
+def coco2yolo(image_path, coco_json_path, output_path, class_names, batch):
+    """Convert COCO annotation(s) to YOLO format.
+
+    In batch mode (--batch):
+      - Creates separate YOLO files for each image (one .txt per image)
+    """
     try:
         if class_names:
             with open(class_names, 'r') as f:
@@ -64,9 +69,72 @@ def coco2yolo(image_path, coco_json_path, output_txt_path, class_names):
         else:
             classes = []
 
-        from .convert.coco_to_yolo import coco_to_yolo
-        coco_to_yolo(coco_json_path, image_path, output_txt_path, classes)
-        click.echo(f"Successfully converted to {output_txt_path}")
+        from pathlib import Path
+
+        if batch:
+            # Batch mode: process directories
+            from .visualize.batch import find_matching_pairs, validate_batch_directories
+            from .convert.coco_to_yolo import coco_to_yolo, batch_coco_to_yolo
+
+            # Validate directories
+            validate_batch_directories(image_path, coco_json_path)
+
+            # Find matching pairs
+            pairs = find_matching_pairs(image_path, coco_json_path, '.json')
+
+            if not pairs:
+                click.echo("No matching image-annotation pairs found.")
+                return
+
+            click.echo(f"Found {len(pairs)} image-annotation pairs.")
+
+            # Check output path
+            output_path_obj = Path(output_path)
+            if output_path_obj.exists() and not output_path_obj.is_dir():
+                raise ValueError(f"Output path exists but is not a directory: {output_path}")
+
+            # Create output directory if it doesn't exist
+            output_path_obj.mkdir(parents=True, exist_ok=True)
+
+            # Process each pair
+            successful = 0
+            for img_path, ann_path in pairs:
+                # Generate output filename based on image name
+                img_stem = Path(img_path).stem
+                output_txt_path = output_path_obj / f"{img_stem}.txt"
+
+                try:
+                    coco_to_yolo(ann_path, img_path, str(output_txt_path), classes)
+                    click.echo(f"  Converted: {Path(img_path).name} → {output_txt_path.name}")
+                    successful += 1
+                except Exception as e:
+                    click.echo(f"  Error processing {Path(img_path).name}: {e}")
+                    click.echo("  Skipping...")
+
+            click.echo(f"Batch conversion complete. Successfully converted {successful}/{len(pairs)} files to {output_path}")
+        else:
+            # Single file mode
+            from pathlib import Path
+            img_path = Path(image_path)
+            ann_path = Path(coco_json_path)
+
+            # Check if inputs are directories (suggest using --batch)
+            if img_path.is_dir() or ann_path.is_dir():
+                click.echo("Error: Input paths are directories. Did you mean to use --batch flag?")
+                click.echo("  For batch processing: dataflow convert coco2yolo <image_dir> <annotation_dir> <output_dir> --batch --class-names <class_names_file>")
+                sys.exit(1)
+
+            # Handle output path: if it's a directory, generate filename
+            output_path_obj = Path(output_path)
+            if output_path_obj.exists() and output_path_obj.is_dir():
+                # Generate output filename based on image name
+                img_stem = img_path.stem
+                output_path = str(output_path_obj / f"{img_stem}.txt")
+                click.echo(f"Output is a directory, saving to: {output_path}")
+
+            from .convert.coco_to_yolo import coco_to_yolo
+            coco_to_yolo(coco_json_path, image_path, output_path, classes)
+            click.echo(f"Successfully converted to {output_path}")
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
@@ -182,13 +250,106 @@ def yolo2coco(image_path, yolo_txt_path, class_names_path, output_path, batch, c
 
 @convert.command()
 @click.argument('labelme_json_path', type=click.Path(exists=True))
-@click.argument('output_json_path', type=click.Path())
-def labelme2coco(labelme_json_path, output_json_path):
-    """Convert LabelMe annotation to COCO format."""
+@click.argument('output_path', type=click.Path())
+@click.option('--batch', is_flag=True, help='Batch mode: process directory instead of single file')
+@click.option('--combined', is_flag=True, help='In batch mode, combine all annotations into a single COCO file')
+def labelme2coco(labelme_json_path, output_path, batch, combined):
+    """Convert LabelMe annotation(s) to COCO format.
+
+    In batch mode (--batch):
+      - By default: creates separate COCO files for each LabelMe file (one .json per LabelMe file)
+      - With --combined: creates a single COCO file with all images and annotations
+    """
     try:
-        from .convert.labelme_to_coco import labelme_to_coco
-        labelme_to_coco(labelme_json_path, output_json_path)
-        click.echo(f"Successfully converted to {output_json_path}")
+        from pathlib import Path
+
+        if batch:
+            # Batch mode: process directory
+            from .convert.batch import find_matching_conversion_pairs, validate_conversion_directories
+            from .convert.labelme_to_coco import labelme_to_coco, batch_labelme_to_coco
+
+            # Validate directory (no input needed for LabelMe)
+            labelme_path_obj = Path(labelme_json_path)
+            if not labelme_path_obj.exists():
+                raise FileNotFoundError(f"LabelMe path not found: {labelme_json_path}")
+
+            if labelme_path_obj.is_file():
+                raise ValueError(f"LabelMe path is a file, not a directory. Did you mean to omit --batch flag?")
+
+            # Get all LabelMe JSON files in directory
+            labelme_files = list(labelme_path_obj.glob("*.json")) + list(labelme_path_obj.glob("*.JSON"))
+            if not labelme_files:
+                raise ValueError(f"No LabelMe JSON files found in {labelme_json_path}")
+
+            # Create pairs (same file for both input and annotation)
+            pairs = [(str(f), str(f)) for f in labelme_files]
+
+            click.echo(f"Found {len(pairs)} LabelMe annotation files.")
+
+            # Determine output mode
+            output_path_obj = Path(output_path)
+
+            if combined:
+                # Combined mode: single COCO file
+                if output_path_obj.exists() and output_path_obj.is_dir():
+                    # If output is a directory, create default filename
+                    output_json_path = output_path_obj / "coco_annotations.json"
+                else:
+                    # Ensure .json extension
+                    if not str(output_path).lower().endswith('.json'):
+                        output_json_path = Path(str(output_path) + '.json')
+                    else:
+                        output_json_path = output_path_obj
+
+                # Ensure parent directory exists
+                output_json_path.parent.mkdir(parents=True, exist_ok=True)
+
+                try:
+                    batch_labelme_to_coco(pairs, str(output_json_path))
+                    click.echo(f"Combined COCO file saved to: {output_json_path}")
+                except Exception as e:
+                    click.echo(f"Error creating combined COCO file: {e}")
+                    sys.exit(1)
+
+            else:
+                # Per-file mode: multiple COCO files (one per LabelMe file)
+                # Check output path
+                if output_path_obj.exists() and not output_path_obj.is_dir():
+                    raise ValueError(f"Output path exists but is not a directory: {output_path}")
+
+                # Create output directory if it doesn't exist
+                output_path_obj.mkdir(parents=True, exist_ok=True)
+
+                # Process each LabelMe file
+                successful = 0
+                for ann_path in labelme_files:
+                    # Generate output filename based on annotation name
+                    ann_stem = ann_path.stem
+                    output_json_path = output_path_obj / f"{ann_stem}.json"
+
+                    try:
+                        labelme_to_coco(str(ann_path), str(output_json_path))
+                        click.echo(f"  Converted: {ann_path.name} → {output_json_path.name}")
+                        successful += 1
+                    except Exception as e:
+                        click.echo(f"  Error processing {ann_path.name}: {e}")
+                        click.echo("  Skipping...")
+
+                click.echo(f"Batch conversion complete. Successfully converted {successful}/{len(pairs)} files to {output_path}")
+        else:
+            # Single file mode
+            from pathlib import Path
+            labelme_path_obj = Path(labelme_path)
+
+            # Check if input is a directory (suggest using --batch)
+            if labelme_path_obj.is_dir():
+                click.echo("Error: Input path is a directory. Did you mean to use --batch flag?")
+                click.echo("  For batch processing: dataflow convert labelme2coco <labelme_dir> <output_dir> --batch")
+                sys.exit(1)
+
+            from .convert.labelme_to_coco import labelme_to_coco
+            labelme_to_coco(labelme_path, output_path)
+            click.echo(f"Successfully converted to {output_path}")
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
@@ -197,13 +358,73 @@ def labelme2coco(labelme_json_path, output_json_path):
 @convert.command()
 @click.argument('coco_json_path', type=click.Path(exists=True))
 @click.argument('image_path', type=click.Path(exists=True))
-@click.argument('output_json_path', type=click.Path())
-def coco2labelme(coco_json_path, image_path, output_json_path):
-    """Convert COCO annotation to LabelMe format."""
+@click.argument('output_path', type=click.Path())
+@click.option('--batch', is_flag=True, help='Batch mode: process directories instead of single files')
+def coco2labelme(coco_json_path, image_path, output_path, batch):
+    """Convert COCO annotation(s) to LabelMe format.
+
+    In batch mode (--batch):
+      - Creates separate LabelMe files for each image (one .json per image)
+    """
     try:
-        from .convert.coco_to_labelme import coco_to_labelme
-        coco_to_labelme(coco_json_path, image_path, output_json_path)
-        click.echo(f"Successfully converted to {output_json_path}")
+        from pathlib import Path
+
+        if batch:
+            # Batch mode: process directories
+            from .visualize.batch import find_matching_pairs, validate_batch_directories
+            from .convert.coco_to_labelme import coco_to_labelme, batch_coco_to_labelme
+
+            # Validate directories
+            validate_batch_directories(image_path, coco_json_path)
+
+            # Find matching pairs
+            pairs = find_matching_pairs(image_path, coco_json_path, '.json')
+
+            if not pairs:
+                click.echo("No matching image-annotation pairs found.")
+                return
+
+            click.echo(f"Found {len(pairs)} image-annotation pairs.")
+
+            # Check output path
+            output_path_obj = Path(output_path)
+            if output_path_obj.exists() and not output_path_obj.is_dir():
+                raise ValueError(f"Output path exists but is not a directory: {output_path}")
+
+            # Create output directory if it doesn't exist
+            output_path_obj.mkdir(parents=True, exist_ok=True)
+
+            # Process each pair
+            successful = 0
+            for img_path, ann_path in pairs:
+                # Generate output filename based on image name
+                img_stem = Path(img_path).stem
+                output_json_path = output_path_obj / f"{img_stem}.json"
+
+                try:
+                    coco_to_labelme(ann_path, img_path, str(output_json_path))
+                    click.echo(f"  Converted: {Path(img_path).name} → {output_json_path.name}")
+                    successful += 1
+                except Exception as e:
+                    click.echo(f"  Error processing {Path(img_path).name}: {e}")
+                    click.echo("  Skipping...")
+
+            click.echo(f"Batch conversion complete. Successfully converted {successful}/{len(pairs)} files to {output_path}")
+        else:
+            # Single file mode
+            from pathlib import Path
+            img_path = Path(image_path)
+            ann_path = Path(coco_json_path)
+
+            # Check if inputs are directories (suggest using --batch)
+            if img_path.is_dir() or ann_path.is_dir():
+                click.echo("Error: Input paths are directories. Did you mean to use --batch flag?")
+                click.echo("  For batch processing: dataflow convert coco2labelme <image_dir> <annotation_dir> <output_dir> --batch")
+                sys.exit(1)
+
+            from .convert.coco_to_labelme import coco_to_labelme
+            coco_to_labelme(coco_json_path, image_path, output_path)
+            click.echo(f"Successfully converted to {output_path}")
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
@@ -211,11 +432,16 @@ def coco2labelme(coco_json_path, image_path, output_json_path):
 
 @convert.command()
 @click.argument('labelme_json_path', type=click.Path(exists=True))
-@click.argument('output_txt_path', type=click.Path())
+@click.argument('output_path', type=click.Path())
 @click.option('--class-names', type=click.Path(exists=True),
               help='Path to class names file (one per line)')
-def labelme2yolo(labelme_json_path, output_txt_path, class_names):
-    """Convert LabelMe annotation to YOLO format."""
+@click.option('--batch', is_flag=True, help='Batch mode: process directory instead of single file')
+def labelme2yolo(labelme_json_path, output_path, class_names, batch):
+    """Convert LabelMe annotation(s) to YOLO format.
+
+    In batch mode (--batch):
+      - Creates separate YOLO files for each LabelMe file (one .txt per LabelMe file)
+    """
     try:
         if class_names:
             with open(class_names, 'r') as f:
@@ -223,9 +449,70 @@ def labelme2yolo(labelme_json_path, output_txt_path, class_names):
         else:
             classes = []
 
-        from .convert.labelme_to_yolo import labelme_to_yolo
-        labelme_to_yolo(labelme_json_path, output_txt_path, classes)
-        click.echo(f"Successfully converted to {output_txt_path}")
+        from pathlib import Path
+
+        if batch:
+            # Batch mode: process directory
+            from .convert.labelme_to_yolo import labelme_to_yolo, batch_labelme_to_yolo
+
+            # Validate directory
+            labelme_path_obj = Path(labelme_json_path)
+            if not labelme_path_obj.exists():
+                raise FileNotFoundError(f"LabelMe path not found: {labelme_json_path}")
+
+            if labelme_path_obj.is_file():
+                raise ValueError(f"LabelMe path is a file, not a directory. Did you mean to omit --batch flag?")
+
+            # Get all LabelMe JSON files in directory
+            labelme_files = list(labelme_path_obj.glob("*.json")) + list(labelme_path_obj.glob("*.JSON"))
+            if not labelme_files:
+                raise ValueError(f"No LabelMe JSON files found in {labelme_json_path}")
+
+            # Create pairs (same file for both input and annotation)
+            pairs = [(str(f), str(f)) for f in labelme_files]
+
+            click.echo(f"Found {len(pairs)} LabelMe annotation files.")
+
+            # Check output path
+            output_path_obj = Path(output_path)
+            if output_path_obj.exists() and not output_path_obj.is_dir():
+                raise ValueError(f"Output path exists but is not a directory: {output_path}")
+
+            # Create output directory if it doesn't exist
+            output_path_obj.mkdir(parents=True, exist_ok=True)
+
+            # Process each LabelMe file
+            successful = 0
+            for ann_path in labelme_files:
+                # Generate output filename based on annotation name
+                ann_stem = ann_path.stem
+                output_txt_path = output_path_obj / f"{ann_stem}.txt"
+
+                try:
+                    labelme_to_yolo(str(ann_path), str(output_txt_path), classes)
+                    click.echo(f"  Converted: {ann_path.name} → {output_txt_path.name}")
+                    successful += 1
+                except Exception as e:
+                    click.echo(f"  Error processing {ann_path.name}: {e}")
+                    click.echo("  Skipping...")
+
+            click.echo(f"Batch conversion complete. Successfully converted {successful}/{len(pairs)} files to {output_path}")
+            if classes:
+                click.echo(f"Class names used: {classes}")
+        else:
+            # Single file mode
+            from pathlib import Path
+            labelme_path_obj = Path(labelme_path)
+
+            # Check if input is a directory (suggest using --batch)
+            if labelme_path_obj.is_dir():
+                click.echo("Error: Input path is a directory. Did you mean to use --batch flag?")
+                click.echo("  For batch processing: dataflow convert labelme2yolo <labelme_dir> <output_dir> --batch --class-names <class_names_file>")
+                sys.exit(1)
+
+            from .convert.labelme_to_yolo import labelme_to_yolo
+            labelme_to_yolo(labelme_path, output_path, classes)
+            click.echo(f"Successfully converted to {output_path}")
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
@@ -235,16 +522,76 @@ def labelme2yolo(labelme_json_path, output_txt_path, class_names):
 @click.argument('yolo_txt_path', type=click.Path(exists=True))
 @click.argument('image_path', type=click.Path(exists=True))
 @click.argument('class_names_path', type=click.Path(exists=True))
-@click.argument('output_json_path', type=click.Path())
-def yolo2labelme(yolo_txt_path, image_path, class_names_path, output_json_path):
-    """Convert YOLO annotation to LabelMe format."""
+@click.argument('output_path', type=click.Path())
+@click.option('--batch', is_flag=True, help='Batch mode: process directories instead of single files')
+def yolo2labelme(yolo_txt_path, image_path, class_names_path, output_path, batch):
+    """Convert YOLO annotation(s) to LabelMe format.
+
+    In batch mode (--batch):
+      - Creates separate LabelMe files for each image (one .json per image)
+    """
     try:
         with open(class_names_path, 'r') as f:
             classes = [line.strip() for line in f if line.strip()]
 
-        from .convert.yolo_to_labelme import yolo_to_labelme
-        yolo_to_labelme(yolo_txt_path, image_path, classes, output_json_path)
-        click.echo(f"Successfully converted to {output_json_path}")
+        from pathlib import Path
+
+        if batch:
+            # Batch mode: process directories
+            from .visualize.batch import find_matching_pairs, validate_batch_directories
+            from .convert.yolo_to_labelme import yolo_to_labelme, batch_yolo_to_labelme
+
+            # Validate directories
+            validate_batch_directories(image_path, yolo_txt_path)
+
+            # Find matching pairs
+            pairs = find_matching_pairs(image_path, yolo_txt_path, '.txt')
+
+            if not pairs:
+                click.echo("No matching image-annotation pairs found.")
+                return
+
+            click.echo(f"Found {len(pairs)} image-annotation pairs.")
+
+            # Check output path
+            output_path_obj = Path(output_path)
+            if output_path_obj.exists() and not output_path_obj.is_dir():
+                raise ValueError(f"Output path exists but is not a directory: {output_path}")
+
+            # Create output directory if it doesn't exist
+            output_path_obj.mkdir(parents=True, exist_ok=True)
+
+            # Process each pair
+            successful = 0
+            for img_path, ann_path in pairs:
+                # Generate output filename based on image name
+                img_stem = Path(img_path).stem
+                output_json_path = output_path_obj / f"{img_stem}.json"
+
+                try:
+                    yolo_to_labelme(ann_path, img_path, classes, str(output_json_path))
+                    click.echo(f"  Converted: {Path(img_path).name} → {output_json_path.name}")
+                    successful += 1
+                except Exception as e:
+                    click.echo(f"  Error processing {Path(img_path).name}: {e}")
+                    click.echo("  Skipping...")
+
+            click.echo(f"Batch conversion complete. Successfully converted {successful}/{len(pairs)} files to {output_path}")
+        else:
+            # Single file mode
+            from pathlib import Path
+            img_path = Path(image_path)
+            ann_path = Path(yolo_txt_path)
+
+            # Check if inputs are directories (suggest using --batch)
+            if img_path.is_dir() or ann_path.is_dir():
+                click.echo("Error: Input paths are directories. Did you mean to use --batch flag?")
+                click.echo("  For batch processing: dataflow convert yolo2labelme <image_dir> <annotation_dir> <class_names> <output_dir> --batch")
+                sys.exit(1)
+
+            from .convert.yolo_to_labelme import yolo_to_labelme
+            yolo_to_labelme(yolo_txt_path, image_path, classes, output_path)
+            click.echo(f"Successfully converted to {output_path}")
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)

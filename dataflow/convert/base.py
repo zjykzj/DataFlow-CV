@@ -146,3 +146,175 @@ class BaseConverter:
                 raise ValueError(f"Failed to read image: {image_path}")
             height, width = img.shape[:2]
             return width, height
+
+    @staticmethod
+    def get_image_size_from_source(source_path: str) -> Tuple[int, int]:
+        """
+        Get image dimensions from various sources (image file, LabelMe JSON, etc.).
+
+        Args:
+            source_path: Path to image file or annotation file with image dimensions
+
+        Returns:
+            Tuple of (width, height)
+        """
+        from pathlib import Path
+        source_path_obj = Path(source_path)
+
+        # Check if it's an image file
+        image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
+        if source_path_obj.suffix.lower() in image_extensions:
+            return BaseConverter.get_image_size(source_path)
+
+        # Check if it's a LabelMe JSON file
+        if source_path_obj.suffix.lower() == '.json':
+            try:
+                data = BaseConverter.load_json(source_path)
+                if 'imageWidth' in data and 'imageHeight' in data:
+                    return data['imageWidth'], data['imageHeight']
+            except:
+                pass
+
+        # Check if it's a COCO JSON file
+        if source_path_obj.suffix.lower() == '.json':
+            try:
+                data = BaseConverter.load_json(source_path)
+                if 'images' in data and len(data['images']) > 0:
+                    # Return dimensions of first image
+                    img = data['images'][0]
+                    return img.get('width', 0), img.get('height', 0)
+            except:
+                pass
+
+        raise ValueError(f"Cannot determine image dimensions from source: {source_path}")
+
+    @staticmethod
+    def find_matching_pairs_for_conversion(
+        input_dir: str,
+        annotation_dir: str,
+        annotation_ext: str,
+        input_ext: str = None
+    ) -> List[Tuple[str, str]]:
+        """
+        Find matching input-annotation file pairs between directories.
+        For conversions that don't need images, input_dir can be None or empty.
+
+        Args:
+            input_dir: Directory containing input files (images or annotations)
+            annotation_dir: Directory containing annotation files
+            annotation_ext: Expected annotation file extension (e.g., '.json', '.txt')
+            input_ext: Expected input file extension (e.g., '.jpg', '.png').
+                      If None, uses image extensions from config.
+
+        Returns:
+            List of (input_path, annotation_path) tuples
+        """
+        from pathlib import Path
+        from ..config import get_config
+
+        config = get_config()
+        if input_ext is None:
+            # Use image extensions by default
+            input_extensions = config["conversion"]["image_extensions"]
+        else:
+            input_extensions = [input_ext]
+
+        annotation_dir_path = Path(annotation_dir)
+
+        # If no input_dir provided (for labelme2coco, labelme2yolo), just return annotation files
+        if not input_dir or input_dir == annotation_dir:
+            # Return single annotation files (no pairing)
+            pairs = []
+            for ann_path in annotation_dir_path.glob(f"*{annotation_ext}"):
+                if ann_path.is_file():
+                    pairs.append((str(ann_path), str(ann_path)))  # Same file for both
+            # Also check uppercase extension
+            for ann_path in annotation_dir_path.glob(f"*{annotation_ext.upper()}"):
+                if ann_path.is_file():
+                    path_str = str(ann_path)
+                    if (path_str, path_str) not in pairs:
+                        pairs.append((path_str, path_str))
+            return sorted(pairs)
+
+        # Build mapping of basename to input path
+        input_dir_path = Path(input_dir)
+        input_map = {}
+        for ext in input_extensions:
+            for input_path in input_dir_path.glob(f"*{ext}"):
+                if input_path.is_file():
+                    input_map[input_path.stem] = str(input_path)
+            # Also check uppercase extensions
+            for input_path in input_dir_path.glob(f"*{ext.upper()}"):
+                if input_path.is_file():
+                    input_map[input_path.stem] = str(input_path)
+
+        # Find matching annotations
+        pairs = []
+        for ann_path in annotation_dir_path.glob(f"*{annotation_ext}"):
+            if ann_path.is_file():
+                basename = ann_path.stem
+                if basename in input_map:
+                    pairs.append((input_map[basename], str(ann_path)))
+
+        # Also check uppercase extension for annotations
+        for ann_path in annotation_dir_path.glob(f"*{annotation_ext.upper()}"):
+            if ann_path.is_file():
+                basename = ann_path.stem
+                if basename in input_map and (input_map[basename], str(ann_path)) not in pairs:
+                    pairs.append((input_map[basename], str(ann_path)))
+
+        return sorted(pairs)  # Sort for consistent ordering
+
+    @staticmethod
+    def validate_conversion_directories(input_dir: str, annotation_dir: str, needs_input: bool = True) -> None:
+        """
+        Validate that directories exist and contain files for conversion.
+
+        Args:
+            input_dir: Input directory path (images or annotations)
+            annotation_dir: Annotation directory path
+            needs_input: Whether input directory is required (True for image-based conversions)
+
+        Raises:
+            FileNotFoundError: If directories don't exist
+            ValueError: If directories are empty or contain no relevant files
+        """
+        from pathlib import Path
+        from ..config import get_config
+
+        config = get_config()
+        image_extensions = config["conversion"]["image_extensions"]
+
+        annotation_dir_path = Path(annotation_dir)
+
+        if not annotation_dir_path.exists():
+            raise FileNotFoundError(f"Annotation directory not found: {annotation_dir}")
+
+        # Check if annotation directory contains any files
+        if not any(annotation_dir_path.iterdir()):
+            raise ValueError(f"Annotation directory is empty: {annotation_dir}")
+
+        if needs_input:
+            if not input_dir:
+                raise ValueError("Input directory is required for this conversion")
+
+            input_dir_path = Path(input_dir)
+            if not input_dir_path.exists():
+                raise FileNotFoundError(f"Input directory not found: {input_dir}")
+
+            # Check if input directory contains any files
+            if not any(input_dir_path.iterdir()):
+                raise ValueError(f"Input directory is empty: {input_dir}")
+
+            # Check for at least one input file with supported extension
+            has_inputs = False
+            for ext in image_extensions:
+                if any(input_dir_path.glob(f"*{ext}")):
+                    has_inputs = True
+                    break
+                if any(input_dir_path.glob(f"*{ext.upper()}")):
+                    has_inputs = True
+                    break
+
+            if not has_inputs:
+                raise ValueError(f"No supported input files found in {input_dir}. Supported extensions: {image_extensions}")

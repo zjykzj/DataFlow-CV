@@ -5,7 +5,7 @@ Convert COCO annotation to LabelMe format.
 import json
 import os
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 import base64
 
 
@@ -123,3 +123,41 @@ def coco_to_labelme(coco_json_path: str, image_path: str, output_json_path: str)
         json.dump(labelme_data, f, ensure_ascii=False, indent=4)
 
     print(f"Converted {len(shapes)} annotations to LabelMe format")
+
+
+def batch_coco_to_labelme(pairs: List[Tuple[str, str]], output_dir: str) -> None:
+    """
+    Convert multiple COCO annotations to LabelMe format.
+
+    Args:
+        pairs: List of (image_path, coco_json_path) tuples
+        output_dir: Output directory for LabelMe JSON files
+    """
+    if not pairs:
+        raise ValueError("No image-annotation pairs provided")
+
+    successful = 0
+    errors = 0
+
+    for idx, (image_path, coco_json_path) in enumerate(pairs):
+        try:
+            # Generate output filename based on image name
+            image_stem = Path(image_path).stem
+            output_json_path = Path(output_dir) / f"{image_stem}.json"
+
+            # Call single conversion function
+            coco_to_labelme(coco_json_path, image_path, str(output_json_path))
+
+            print(f"[{idx + 1}/{len(pairs)}] Converted: {Path(image_path).name} → {output_json_path.name}")
+            successful += 1
+
+        except Exception as e:
+            print(f"[{idx + 1}/{len(pairs)}] Error processing {Path(image_path).name}: {e}")
+            print("  Skipping...")
+            errors += 1
+            continue
+
+    print(f"\nBatch conversion complete.")
+    print(f"  Successfully converted: {successful}")
+    if errors > 0:
+        print(f"  Errors: {errors}")

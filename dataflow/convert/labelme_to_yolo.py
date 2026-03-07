@@ -5,7 +5,7 @@ Convert LabelMe annotation to YOLO format.
 import json
 import os
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 
 def labelme_to_yolo(labelme_json_path: str, output_txt_path: str,
@@ -129,3 +129,62 @@ def labelme_to_yolo(labelme_json_path: str, output_txt_path: str,
 
     print(f"Converted {len(yolo_annotations)} annotations to YOLO format")
     print(f"Class names used: {class_names}")
+
+
+def batch_labelme_to_yolo(pairs: List[Tuple[str, str]], output_dir: str,
+                          class_names: List[str] = None) -> None:
+    """
+    Convert multiple LabelMe annotations to YOLO format.
+
+    Args:
+        pairs: List of (annotation_path, annotation_path) tuples (both same for LabelMe)
+        output_dir: Output directory for YOLO text files
+        class_names: List of class names (optional, will be extracted from LabelMe if not provided)
+    """
+    if not pairs:
+        raise ValueError("No annotation files provided")
+
+    # First pass: collect all class names if not provided
+    if class_names is None or len(class_names) == 0:
+        class_names = []
+        for ann_path, _ in pairs:
+            try:
+                with open(ann_path, 'r') as f:
+                    labelme_data = json.load(f)
+                shapes = labelme_data.get('shapes', [])
+                for shape in shapes:
+                    label = shape.get('label', '')
+                    if label and label not in class_names:
+                        class_names.append(label)
+            except:
+                pass
+
+        if not class_names:
+            print("Warning: No class names found in any annotation file")
+
+    successful = 0
+    errors = 0
+
+    for idx, (ann_path, _) in enumerate(pairs):
+        try:
+            # Generate output filename based on annotation name
+            ann_stem = Path(ann_path).stem
+            output_txt_path = Path(output_dir) / f"{ann_stem}.txt"
+
+            # Call single conversion function
+            labelme_to_yolo(ann_path, str(output_txt_path), class_names)
+
+            print(f"[{idx + 1}/{len(pairs)}] Converted: {Path(ann_path).name} → {output_txt_path.name}")
+            successful += 1
+
+        except Exception as e:
+            print(f"[{idx + 1}/{len(pairs)}] Error processing {Path(ann_path).name}: {e}")
+            print("  Skipping...")
+            errors += 1
+            continue
+
+    print(f"\nBatch conversion complete.")
+    print(f"  Successfully converted: {successful}")
+    if errors > 0:
+        print(f"  Errors: {errors}")
+    print(f"  Class names used: {class_names}")
