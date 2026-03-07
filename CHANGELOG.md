@@ -21,9 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated installation documentation in README.md and CLAUDE.md:
   - Added `python setup.py develop` for editable installation
   - Changed `pip install -e .` to `pip install .` for regular installation
+- Updated `pyproject.toml`:
+  - Fixed license format to use SPDX expression
+  - Removed deprecated license classifier
+  - Limited setuptools version to <70 for compatibility
 
 ### Fixed
-- None
+- Fixed build warnings related to license format and classifiers
+- Note: `pip install -e .` may not work due to setuptools compatibility issues; use `python setup.py develop` instead
 
 ## [0.1.0] - 2026-03-06
 

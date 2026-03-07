@@ -15,6 +15,7 @@ pip install .
 
 # For development (editable installation)
 python setup.py develop
+# Note: pip install -e . may not work due to setuptools compatibility issues
 
 # Install with optional dependencies (pycocotools, torch, torchvision)
 pip install .[full]
