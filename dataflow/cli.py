@@ -14,11 +14,13 @@ from dataflow.convert.yolo_to_coco import YoloToCocoConverter
 from dataflow.visualize.yolo import YoloVisualizer
 from dataflow.visualize.coco import CocoVisualizer
 from dataflow.config import Config
+from dataflow import __version__
 
 
-@click.group()
+@click.group(context_settings={'help_option_names': ['-h', '--help']}, invoke_without_command=True)
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
 @click.option('--overwrite', is_flag=True, help='Overwrite existing files')
+@click.version_option(version=__version__, prog_name='DataFlow-CV')
 @click.pass_context
 def cli(ctx, verbose, overwrite):
     """DataFlow-CV: Computer vision dataset processing tool."""
@@ -32,6 +34,11 @@ def cli(ctx, verbose, overwrite):
         Config.VERBOSE = True
     if overwrite:
         Config.OVERWRITE_EXISTING = True
+
+    # If no subcommand was invoked, show help
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+        return
 
     if verbose:
         click.echo(f"Verbose mode: {'ON' if verbose else 'OFF'}")
