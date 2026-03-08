@@ -16,6 +16,19 @@ A data processing library for computer vision datasets, focusing on format conve
   - [Table of Contents](#table-of-contents)
   - [Project Structure](#project-structure)
   - [Requirements](#requirements)
+    - [Core Dependencies](#core-dependencies)
+  - [Quick Start](#quick-start)
+    - [Installation](#installation)
+    - [Command Line Usage](#command-line-usage)
+    - [Python API Usage](#python-api-usage)
+    - [CLI Reference](#cli-reference)
+      - [Global Options](#global-options)
+      - [Conversion Commands](#conversion-commands)
+      - [Visualization Commands](#visualization-commands)
+      - [Configuration Command](#configuration-command)
+      - [Getting Help](#getting-help)
+    - [Running Tests](#running-tests)
+    - [Examples](#examples)
   - [License](#license)
 
 ## Project Structure
@@ -30,25 +43,40 @@ dataflow/
 │   ├── base.py             # Converter base class
 │   ├── coco_to_yolo.py     # COCO to YOLO converter
 │   └── yolo_to_coco.py     # YOLO to COCO converter
+└── visualize/              # Annotation visualization module
+    ├── __init__.py
+    ├── base.py            # Visualizer base class
+    ├── yolo.py            # YOLO annotation visualizer
+    └── coco.py            # COCO annotation visualizer
 tests/
 ├── __init__.py
 ├── convert/                # Conversion tests
 │   ├── __init__.py
 │   ├── test_coco_to_yolo.py
 │   └── test_yolo_to_coco.py
+├── visualize/              # Visualization tests
+│   ├── __init__.py
+│   ├── test_yolo.py
+│   └── test_coco.py
 ├── run_tests.py           # Test runner
 samples/
 ├── __init__.py
 ├── cli/                   # CLI usage examples
 │   ├── __init__.py
-│   └── convert/
-│       ├── cli_coco_to_yolo.py
-│       └── cli_yolo_to_coco.py
+│   ├── convert/
+│   │   ├── cli_coco_to_yolo.py
+│   │   └── cli_yolo_to_coco.py
+│   └── visualize/
+│       ├── cli_yolo.py
+│       └── cli_coco.py
 └── api/                   # Python API examples
     ├── __init__.py
-    └── convert/
-        ├── api_coco_to_yolo.py
-        └── api_yolo_to_coco.py
+    ├── convert/
+    │   ├── api_coco_to_yolo.py
+    │   └── api_yolo_to_coco.py
+    └── visualize/
+        ├── api_yolo.py
+        └── api_coco.py
 ```
 
 ## Requirements
@@ -66,8 +94,13 @@ samples/
 ### Installation
 
 ```bash
-# Install
+# Regular installation from source
 pip install .
+
+# Editable installation (development mode)
+# Due to setuptools compatibility, use python setup.py develop (not pip install -e .)
+python setup.py develop
+# After editable installation, use python -m dataflow.cli instead of the dataflow command
 ```
 
 ### Command Line Usage
@@ -75,11 +108,20 @@ pip install .
 Global options: `--verbose` (`-v`) for progress output, `--overwrite` to replace existing files.
 
 ```bash
-# COCO to YOLO conversion
+# COCO to YOLO conversion (use --segmentation for polygon annotations)
 dataflow convert coco2yolo annotations.json output_dir/
+dataflow convert coco2yolo annotations.json output_dir/ --segmentation
 
 # YOLO to COCO conversion
 dataflow convert yolo2coco images/ labels/ classes.names output.json
+
+# Visualize YOLO annotations (use --save to export images)
+dataflow visualize yolo images/ labels/ classes.names
+dataflow visualize yolo images/ labels/ classes.names --save output_dir/
+
+# Visualize COCO annotations (use --save to export images)
+dataflow visualize coco images/ annotations.json
+dataflow visualize coco images/ annotations.json --save output_dir/
 
 # Show configuration
 dataflow config
@@ -87,6 +129,7 @@ dataflow config
 # Get help
 dataflow --help
 dataflow convert coco2yolo --help
+dataflow visualize yolo --help
 ```
 
 See the [CLI Reference](#cli-reference) below for detailed usage.
@@ -96,13 +139,24 @@ See the [CLI Reference](#cli-reference) below for detailed usage.
 ```python
 import dataflow
 
-# COCO to YOLO
+# COCO to YOLO conversion (pass segmentation=True for polygon annotations)
 result = dataflow.coco_to_yolo("annotations.json", "output_dir")
+result = dataflow.coco_to_yolo("annotations.json", "output_dir", segmentation=True)
 print(f"Processed {result['images_processed']} images")
 
-# YOLO to COCO
+# YOLO to COCO conversion
 result = dataflow.yolo_to_coco("images/", "labels/", "classes.names", "output.json")
 print(f"Generated {result['annotations_processed']} annotations")
+
+# Visualize YOLO annotations (save_dir is optional)
+result = dataflow.visualize_yolo("images/", "labels/", "classes.names")
+result = dataflow.visualize_yolo("images/", "labels/", "classes.names", save_dir="output_dir/")
+print(f"Visualized {result['images_processed']} images")
+
+# Visualize COCO annotations (save_dir is optional)
+result = dataflow.visualize_coco("images/", "annotations.json")
+result = dataflow.visualize_coco("images/", "annotations.json", save_dir="output_dir/")
+print(f"Visualized {result['images_processed']} images")
 ```
 
 ### CLI Reference
@@ -132,6 +186,25 @@ dataflow convert yolo2coco IMAGE_DIR YOLO_LABELS_DIR YOLO_CLASS_PATH COCO_JSON_P
 - `YOLO_CLASS_PATH`: Path to YOLO class names file (e.g., `class.names`)
 - `COCO_JSON_PATH`: Path to save COCO JSON file
 
+#### Visualization Commands
+
+**Visualize YOLO annotations**
+```bash
+dataflow visualize yolo IMAGE_DIR LABEL_DIR CLASS_PATH [--save SAVE_DIR]
+```
+- `IMAGE_DIR`: Directory containing image files
+- `LABEL_DIR`: Directory containing YOLO label files (`.txt`)
+- `CLASS_PATH`: Path to class names file (e.g., `class.names`)
+- `--save SAVE_DIR`: Optional directory to save visualized images
+
+**Visualize COCO annotations**
+```bash
+dataflow visualize coco IMAGE_DIR ANNOTATION_JSON [--save SAVE_DIR]
+```
+- `IMAGE_DIR`: Directory containing image files
+- `ANNOTATION_JSON`: Path to COCO JSON annotation file
+- `--save SAVE_DIR`: Optional directory to save visualized images
+
 #### Configuration Command
 ```bash
 dataflow config
@@ -144,6 +217,9 @@ dataflow --help
 dataflow convert --help
 dataflow convert coco2yolo --help
 dataflow convert yolo2coco --help
+dataflow visualize --help
+dataflow visualize yolo --help
+dataflow visualize coco --help
 ```
 
 ### Running Tests
@@ -163,8 +239,10 @@ python tests/run_tests.py -v
 
 Check the `samples/` directory for detailed usage examples:
 
-- `samples/cli/convert/` - CLI usage examples
-- `samples/api/convert/` - Python API examples
+- `samples/cli/convert/` - CLI conversion examples
+- `samples/cli/visualize/` - CLI visualization examples
+- `samples/api/convert/` - Python API conversion examples
+- `samples/api/visualize/` - Python API visualization examples
 
 ## License
 

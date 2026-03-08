@@ -57,6 +57,17 @@ python tests/run_tests.py -v
 python tests/run_tests.py -q
 ```
 
+### Installation
+```bash
+# Regular installation from source
+pip install .
+
+# Editable installation (development mode)
+# Due to setuptools compatibility, use python setup.py develop (not pip install -e .)
+python setup.py develop
+# After editable installation, use python -m dataflow.cli instead of the dataflow command
+```
+
 ### Building Distribution
 ```bash
 # Build wheel and source distribution
@@ -67,20 +78,24 @@ pip install dist/dataflow_cv-*.whl
 ```
 
 ### Command Line Interface
+Global options: `--verbose` (`-v`) for progress output, `--overwrite` to replace existing files.
 ```bash
 # Show help
 dataflow --help
 
-# Convert COCO to YOLO
+# Convert COCO to YOLO (use --segmentation for polygon annotations)
 dataflow convert coco2yolo annotations.json output_dir/
+dataflow convert coco2yolo annotations.json output_dir/ --segmentation
 
 # Convert YOLO to COCO
 dataflow convert yolo2coco images/ labels/ classes.names output.json
 
-# Visualize YOLO annotations
+# Visualize YOLO annotations (use --save to export images)
+dataflow visualize yolo images/ labels/ classes.names
 dataflow visualize yolo images/ labels/ classes.names --save output_dir/
 
-# Visualize COCO annotations
+# Visualize COCO annotations (use --save to export images)
+dataflow visualize coco images/ annotations.json
 dataflow visualize coco images/ annotations.json --save output_dir/
 
 # Show configuration
@@ -91,16 +106,19 @@ dataflow config
 ```python
 import dataflow
 
-# COCO to YOLO conversion
+# COCO to YOLO conversion (pass segmentation=True for polygon annotations)
 result = dataflow.coco_to_yolo("annotations.json", "output_dir")
+result = dataflow.coco_to_yolo("annotations.json", "output_dir", segmentation=True)
 
 # YOLO to COCO conversion
 result = dataflow.yolo_to_coco("images/", "labels/", "classes.names", "output.json")
 
-# Visualize YOLO annotations
+# Visualize YOLO annotations (save_dir is optional)
+result = dataflow.visualize_yolo("images/", "labels/", "classes.names")
 result = dataflow.visualize_yolo("images/", "labels/", "classes.names", save_dir="output_dir/")
 
-# Visualize COCO annotations
+# Visualize COCO annotations (save_dir is optional)
+result = dataflow.visualize_coco("images/", "annotations.json")
 result = dataflow.visualize_coco("images/", "annotations.json", save_dir="output_dir/")
 ```
 
@@ -160,7 +178,9 @@ tests/
 ├── convert/
 │   ├── test_coco_to_yolo.py
 │   └── test_yolo_to_coco.py
-├── visualize/               # Visualization tests (future)
+├── visualize/               # Visualization tests
+│   ├── test_yolo.py
+│   └── test_coco.py
 └── run_tests.py            # Custom test runner
 
 samples/
