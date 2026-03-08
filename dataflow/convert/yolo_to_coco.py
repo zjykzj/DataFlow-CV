@@ -1,222 +1,444 @@
+# -*- coding: utf-8 -*-
+
 """
-Convert YOLO annotation to COCO format.
+@Time    : 2026/3/8 20:40
+@File    : yolo_to_coco.py
+@Author  : zj
+@Description: YOLO to COCO format converter
 """
 
-import json
 import os
-from pathlib import Path
-from typing import List, Dict, Any, Tuple
-from datetime import datetime
+import json
+from typing import Dict, List, Any, Optional, Tuple
+from .base import BaseConverter
+from ..config import Config
 
 
-def yolo_to_coco(images_dir: str, labels_dir: str, class_names_path: str,
-                 output_json_path: str) -> None:
-    """
-    Convert YOLO annotations to COCO format.
+class YoloToCocoConverter(BaseConverter):
+    """Convert YOLO label format to COCO JSON format."""
 
-    Args:
-        images_dir: Directory containing image files
-        labels_dir: Directory containing YOLO .txt annotation files
-        class_names_path: Path to class names file (one per line)
-        output_json_path: Path to save COCO format annotation file
-    """
-    from pathlib import Path
-    from .base import BaseConverter
+    def convert(
+        self,
+        image_dir: str,
+        yolo_labels_dir: str,
+        yolo_class_path: str,
+        coco_json_path: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Convert YOLO labels to COCO JSON format.
 
-    # Validate directories
-    images_path = Path(images_dir)
-    labels_path = Path(labels_dir)
+        Args:
+            image_dir (str): Directory containing image files
+            yolo_labels_dir (str): Directory containing YOLO label files
+            yolo_class_path (str): Path to YOLO class names file
+            coco_json_path (str): Path to save COCO JSON file
+            **kwargs: Additional conversion options
 
-    if not images_path.exists():
-        raise FileNotFoundError(f"Images directory not found: {images_dir}")
-    if not labels_path.exists():
-        raise FileNotFoundError(f"Labels directory not found: {labels_dir}")
+        Returns:
+            Dictionary with conversion statistics
+        """
+        # Validate inputs
+        if not self.validate_input_path(image_dir, is_dir=True):
+            raise ValueError(f"Invalid image directory: {image_dir}")
 
-    # Read class names
-    if not Path(class_names_path).exists():
-        raise FileNotFoundError(f"Class names file not found: {class_names_path}")
+        if not self.validate_input_path(yolo_labels_dir, is_dir=True):
+            raise ValueError(f"Invalid YOLO labels directory: {yolo_labels_dir}")
 
-    with open(class_names_path, 'r') as f:
-        class_names = [line.strip() for line in f if line.strip()]
+        if not self.validate_input_path(yolo_class_path, is_dir=False):
+            raise ValueError(f"Invalid YOLO classes file: {yolo_class_path}")
 
-    if not class_names:
-        raise ValueError("Class names file is empty or contains no valid lines")
+        # Validate and create output directory if needed
+        output_dir = os.path.dirname(coco_json_path)
+        if output_dir and not self.validate_output_path(output_dir, is_dir=True, create=True):
+            raise ValueError(f"Invalid output directory for COCO JSON: {output_dir}")
 
-    # Find all image files
-    image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
-    image_files = []
-    for ext in image_extensions:
-        image_files.extend(images_path.glob(f"*{ext}"))
-        image_files.extend(images_path.glob(f"*{ext.upper()}"))
+        # Read class names
+        class_names = self.read_classes_file(yolo_class_path)
+        if not class_names:
+            raise ValueError(f"No class names found in: {yolo_class_path}")
 
-    if not image_files:
-        raise ValueError(f"No image files found in {images_dir}. Supported extensions: {image_extensions}")
+        self.logger.info(f"Loaded {len(class_names)} class names from: {yolo_class_path}")
 
-    # Prepare COCO data structures
-    images = []
-    annotations = []
-    categories = []
+        # Get image files
+        image_files = self.get_image_files(image_dir)
+        if not image_files:
+            raise ValueError(f"No image files found in: {image_dir}")
 
-    # Build categories (COCO IDs start from 1)
-    for idx, name in enumerate(class_names):
-        categories.append({
-            'id': idx + 1,
-            'name': name,
-            'supercategory': name
+        self.logger.info(f"Found {len(image_files)} image files in: {image_dir}")
+
+        # Build COCO data structure
+        coco_data = self._build_coco_structure(class_names)
+
+        # Process images and annotations
+        stats = self._process_images_and_labels(
+            image_files, yolo_labels_dir, class_names, coco_data
+        )
+
+        # Save COCO JSON
+        success = self._save_coco_json(coco_data, coco_json_path)
+        if not success:
+            raise ValueError(f"Failed to save COCO JSON to: {coco_json_path}")
+
+        # Add summary information
+        stats.update({
+            "image_dir": image_dir,
+            "yolo_labels_dir": yolo_labels_dir,
+            "yolo_class_path": yolo_class_path,
+            "coco_json_path": coco_json_path,
+            "total_classes": len(class_names),
+            "total_images": len(image_files),
+            "coco_saved": success,
         })
 
-    image_id = 1
-    annotation_id = 1
-    processed_count = 0
-    skipped_count = 0
+        self.logger.info(f"Conversion completed: {stats}")
+        return stats
 
-    print(f"Found {len(image_files)} image files")
+    def _build_coco_structure(self, class_names: List[str]) -> Dict[str, Any]:
+        """
+        Build basic COCO data structure.
 
-    for image_file in sorted(image_files):
-        # Find corresponding label file
-        label_file = labels_path / f"{image_file.stem}.txt"
+        Args:
+            class_names: List of class names
 
-        if not label_file.exists():
-            # Try alternative extensions
-            found = False
-            for alt_ext in ['.txt', '.TXT']:
-                alt_file = labels_path / f"{image_file.stem}{alt_ext}"
-                if alt_file.exists():
-                    label_file = alt_file
-                    found = True
-                    break
+        Returns:
+            COCO data dictionary
+        """
+        # Create categories
+        categories = []
+        for i, class_name in enumerate(class_names):
+            category = {
+                "id": i + 1,  # COCO category IDs usually start from 1
+                "name": class_name,
+                "supercategory": "none"
+            }
+            categories.append(category)
 
-            if not found:
-                skipped_count += 1
+        return {
+            "info": Config.COCO_DEFAULT_INFO.copy(),
+            "licenses": [],
+            "images": [],
+            "annotations": [],
+            "categories": categories
+        }
+
+    def _process_images_and_labels(
+        self,
+        image_files: List[str],
+        labels_dir: str,
+        class_names: List[str],
+        coco_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Process images and corresponding YOLO label files.
+
+        Args:
+            image_files: List of image file paths
+            labels_dir: Directory containing YOLO label files
+            class_names: List of class names
+            coco_data: COCO data dictionary to populate
+
+        Returns:
+            Dictionary with processing statistics
+        """
+        stats = {
+            "images_processed": 0,
+            "images_with_annotations": 0,
+            "annotations_processed": 0,
+            "images_without_labels": 0,
+            "failed_images": 0,
+            "total_label_files": 0,
+        }
+
+        # Get label files for quick lookup
+        label_files = self.get_label_files(labels_dir)
+        stats["total_label_files"] = len(label_files)
+
+        label_dict = {}
+        for label_file in label_files:
+            base_name = os.path.splitext(os.path.basename(label_file))[0]
+            label_dict[base_name] = label_file
+
+        # Initialize annotation ID counter
+        annotation_id = 1
+
+        # Process each image
+        for i, image_path in enumerate(image_files):
+            if self.verbose and i % 100 == 0:
+                self._print_progress(i, len(image_files), prefix="Processing images")
+
+            # Get image info
+            image_id = i + 1  # COCO image IDs usually start from 1
+            image_file_name = os.path.basename(image_path)
+            image_base_name = os.path.splitext(image_file_name)[0]
+
+            # Get image dimensions
+            width, height, channels = self.get_image_info(image_path)
+
+            # Add image to COCO data
+            image_entry = {
+                "id": image_id,
+                "file_name": image_file_name,
+                "width": width,
+                "height": height,
+                "license": 0,
+                "flickr_url": "",
+                "coco_url": "",
+                "date_captured": ""
+            }
+            coco_data["images"].append(image_entry)
+
+            # Check for corresponding label file
+            label_file = label_dict.get(image_base_name)
+            if not label_file:
+                stats["images_without_labels"] += 1
+                stats["images_processed"] += 1
                 continue
 
+            # Read and parse label file
+            annotations = self._read_yolo_label_file(
+                label_file, image_id, width, height, class_names, annotation_id
+            )
+
+            if annotations:
+                coco_data["annotations"].extend(annotations)
+                annotation_id += len(annotations)
+                stats["annotations_processed"] += len(annotations)
+                stats["images_with_annotations"] += 1
+
+            stats["images_processed"] += 1
+
+        return stats
+
+    def _read_yolo_label_file(
+        self,
+        label_file: str,
+        image_id: int,
+        image_width: int,
+        image_height: int,
+        class_names: List[str],
+        start_annotation_id: int
+    ) -> List[Dict]:
+        """
+        Read YOLO label file and convert to COCO annotations.
+
+        Args:
+            label_file: Path to YOLO label file
+            image_id: COCO image ID
+            image_width: Image width in pixels
+            image_height: Image height in pixels
+            class_names: List of class names
+            start_annotation_id: Starting annotation ID
+
+        Returns:
+            List of COCO annotation dictionaries
+        """
+        annotations = []
+        annotation_id = start_annotation_id
+
         try:
-            # Get image dimensions
-            img_width, img_height = BaseConverter.get_image_size(str(image_file))
+            with open(label_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
 
-            # Read YOLO annotations
-            with open(label_file, 'r') as f:
-                yolo_lines = f.readlines()
-
-            image_annotations = []
-            for line in yolo_lines:
+            for line_num, line in enumerate(lines):
                 line = line.strip()
                 if not line:
                     continue
 
+                # Parse YOLO line
                 parts = line.split()
-                if len(parts) < 5:
+                if len(parts) < 1:
                     continue
 
                 try:
-                    class_idx = int(parts[0])
-                    xc = float(parts[1])
-                    yc = float(parts[2])
-                    w = float(parts[3])
-                    h = float(parts[4])
-                except ValueError:
+                    class_index = int(parts[0])
+                    if class_index < 0 or class_index >= len(class_names):
+                        self.logger.warning(
+                            f"Invalid class index {class_index} in {label_file}, line {line_num}"
+                        )
+                        continue
+
+                    # Determine if it's bounding box or segmentation
+                    if len(parts) == 5:
+                        # Bounding box format: class_id x_center y_center width height
+                        annotation = self._parse_bbox_annotation(
+                            parts, class_index, image_id, annotation_id,
+                            image_width, image_height
+                        )
+                    else:
+                        # Segmentation format: class_id x1 y1 x2 y2 ...
+                        annotation = self._parse_segmentation_annotation(
+                            parts, class_index, image_id, annotation_id,
+                            image_width, image_height
+                        )
+
+                    if annotation:
+                        annotations.append(annotation)
+                        annotation_id += 1
+
+                except (ValueError, IndexError) as e:
+                    self.logger.warning(
+                        f"Error parsing line {line_num} in {label_file}: {e}"
+                    )
                     continue
 
-                # Validate class index
-                if class_idx < 0 or class_idx >= len(class_names):
-                    print(f"Warning: Class index {class_idx} out of range for {image_file.name}, skipping annotation")
-                    continue
+        except (OSError, UnicodeDecodeError) as e:
+            self.logger.error(f"Failed to read label file {label_file}: {e}")
 
-                # Denormalize coordinates
-                xc_abs = xc * img_width
-                yc_abs = yc * img_height
-                w_abs = w * img_width
-                h_abs = h * img_height
+        return annotations
 
-                # Convert from (xc, yc, w, h) to COCO format (x1, y1, w, h)
-                x1 = xc_abs - w_abs / 2
-                y1 = yc_abs - h_abs / 2
+    def _parse_bbox_annotation(
+        self,
+        parts: List[str],
+        class_index: int,
+        image_id: int,
+        annotation_id: int,
+        image_width: int,
+        image_height: int
+    ) -> Optional[Dict]:
+        """
+        Parse YOLO bounding box annotation.
 
-                # Ensure coordinates are within image bounds
-                x1 = max(0, min(img_width - 1, x1))
-                y1 = max(0, min(img_height - 1, y1))
-                w_abs = max(1, min(img_width - x1, w_abs))
-                h_abs = max(1, min(img_height - y1, h_abs))
+        Args:
+            parts: Split line parts
+            class_index: YOLO class index
+            image_id: COCO image ID
+            annotation_id: COCO annotation ID
+            image_width: Image width
+            image_height: Image height
 
-                # Create annotation
-                image_annotations.append({
-                    'class_idx': class_idx,
-                    'bbox': [float(x1), float(y1), float(w_abs), float(h_abs)],
-                    'area': float(w_abs * h_abs),
-                    'iscrowd': 0
-                })
+        Returns:
+            COCO annotation dictionary or None
+        """
+        try:
+            x_center = float(parts[1])
+            y_center = float(parts[2])
+            width_norm = float(parts[3])
+            height_norm = float(parts[4])
 
-            # Add image entry
-            images.append({
-                'id': image_id,
-                'width': img_width,
-                'height': img_height,
-                'file_name': image_file.name,
-                'license': 1,
-                'date_captured': datetime.now().isoformat()
-            })
+            # Convert normalized coordinates to absolute pixels
+            x_min = (x_center - width_norm / 2) * image_width
+            y_min = (y_center - height_norm / 2) * image_height
+            width = width_norm * image_width
+            height = height_norm * image_height
 
-            # Add annotations with unique IDs
-            for ann in image_annotations:
-                annotations.append({
-                    'id': annotation_id,
-                    'image_id': image_id,
-                    'category_id': ann['class_idx'] + 1,  # COCO category IDs start from 1
-                    'bbox': ann['bbox'],
-                    'area': ann['area'],
-                    'iscrowd': ann['iscrowd'],
-                    'segmentation': []  # Empty for detection
-                })
-                annotation_id += 1
+            # Ensure coordinates are within image bounds
+            x_min = max(0, min(x_min, image_width - 1))
+            y_min = max(0, min(y_min, image_height - 1))
+            width = max(1, min(width, image_width - x_min))
+            height = max(1, min(height, image_height - y_min))
 
-            processed_count += 1
-            if len(image_annotations) > 0:
-                print(f"  {image_file.name}: {len(image_annotations)} annotations")
-            else:
-                print(f"  {image_file.name}: no annotations")
+            # Create COCO annotation
+            annotation = {
+                "id": annotation_id,
+                "image_id": image_id,
+                "category_id": class_index + 1,  # COCO category IDs start from 1
+                "bbox": [x_min, y_min, width, height],
+                "area": width * height,
+                "segmentation": [],
+                "iscrowd": 0
+            }
 
-        except Exception as e:
-            print(f"Warning: Failed to process {image_file.name}: {e}")
-            skipped_count += 1
-            continue
+            return annotation
 
-        image_id += 1
+        except (ValueError, IndexError) as e:
+            self.logger.warning(f"Error parsing bbox annotation (line format incorrect): {e}")
+            return None
 
-    if not images:
-        raise ValueError("No valid images processed. Check that image and label files match.")
+    def _parse_segmentation_annotation(
+        self,
+        parts: List[str],
+        class_index: int,
+        image_id: int,
+        annotation_id: int,
+        image_width: int,
+        image_height: int
+    ) -> Optional[Dict]:
+        """
+        Parse YOLO segmentation annotation.
 
-    # Build full COCO structure
-    coco_data = {
-        'info': {
-            'description': 'Converted from YOLO format',
-            'url': '',
-            'version': '1.0',
-            'year': datetime.now().year,
-            'contributor': 'DataFlow',
-            'date_created': datetime.now().isoformat()
-        },
-        'licenses': [{
-            'id': 1,
-            'name': 'Unknown',
-            'url': ''
-        }],
-        'images': images,
-        'annotations': annotations,
-        'categories': categories
-    }
+        Args:
+            parts: Split line parts
+            class_index: YOLO class index
+            image_id: COCO image ID
+            annotation_id: COCO annotation ID
+            image_width: Image width
+            image_height: Image height
 
-    # Save to file
-    output_dir = Path(output_json_path).parent
-    output_dir.mkdir(parents=True, exist_ok=True)
+        Returns:
+            COCO annotation dictionary or None
+        """
+        try:
+            # Parse normalized polygon coordinates
+            coords = [float(x) for x in parts[1:]]
+            if len(coords) < 6:  # Need at least 3 points (6 coordinates)
+                self.logger.warning(f"Insufficient coordinates for segmentation: {len(coords)}")
+                return None
 
-    with open(output_json_path, 'w') as f:
-        json.dump(coco_data, f, indent=2)
+            # Convert normalized coordinates to absolute pixels
+            polygon = []
+            for i in range(0, len(coords), 2):
+                if i + 1 < len(coords):
+                    x = coords[i] * image_width
+                    y = coords[i + 1] * image_height
+                    polygon.extend([x, y])
 
-    print(f"\nConversion complete:")
-    print(f"  Images processed: {processed_count}")
-    print(f"  Images skipped: {skipped_count}")
-    print(f"  Total annotations: {len(annotations)}")
-    print(f"  Classes: {len(class_names)}")
-    print(f"  Saved to: {output_json_path}")
+            # Calculate bounding box from polygon
+            x_coords = polygon[0::2]
+            y_coords = polygon[1::2]
+            x_min = min(x_coords)
+            y_min = min(y_coords)
+            x_max = max(x_coords)
+            y_max = max(y_coords)
 
+            width = x_max - x_min
+            height = y_max - y_min
+            area = 0.5 * abs(sum(
+                x_coords[i] * y_coords[(i + 1) % len(x_coords)] -
+                x_coords[(i + 1) % len(x_coords)] * y_coords[i]
+                for i in range(len(x_coords))
+            ))
 
+            # Create COCO annotation
+            annotation = {
+                "id": annotation_id,
+                "image_id": image_id,
+                "category_id": class_index + 1,  # COCO category IDs start from 1
+                "bbox": [x_min, y_min, width, height],
+                "area": area,
+                "segmentation": [polygon],  # COCO expects list of polygons
+                "iscrowd": 0
+            }
+
+            return annotation
+
+        except (ValueError, IndexError, ZeroDivisionError) as e:
+            self.logger.warning(f"Error parsing segmentation annotation: {e}")
+            return None
+
+    def _save_coco_json(self, coco_data: Dict[str, Any], output_path: str) -> bool:
+        """
+        Save COCO data to JSON file.
+
+        Args:
+            coco_data: COCO data dictionary
+            output_path: Output file path
+
+        Returns:
+            bool: True if successful
+        """
+        try:
+            # Ensure output directory exists
+            output_dir = os.path.dirname(output_path)
+            if output_dir and not self.ensure_directory(output_dir):
+                return False
+
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(coco_data, f, indent=2, ensure_ascii=False)
+
+            self.logger.info(f"Saved COCO JSON to: {output_path}")
+            return True
+
+        except (OSError, TypeError, ValueError) as e:
+            self.logger.error(f"Failed to save COCO JSON {output_path}: {e}")
+            return False

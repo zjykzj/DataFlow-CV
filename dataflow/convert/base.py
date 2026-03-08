@@ -1,320 +1,220 @@
+# -*- coding: utf-8 -*-
+
 """
-Base converter class for DataFlow.
+@Time    : 2026/3/8 20:40
+@File    : base.py
+@Author  : zj
+@Description: Base converter class for format conversions
 """
 
-import json
-from typing import Dict, List, Tuple, Any, Optional
-from pathlib import Path
-import numpy as np
+import os
+import abc
+import logging
+from typing import List, Dict, Any, Optional, Tuple
+from ..config import Config
 
 
-class BaseConverter:
-    """Base class for all format converters."""
+class BaseConverter(abc.ABC):
+    """Abstract base class for format converters."""
 
-    @staticmethod
-    def validate_paths(*paths: str) -> None:
+    def __init__(self, verbose: bool = None):
         """
-        Validate that all paths are valid.
+        Initialize the converter.
 
         Args:
-            *paths: Paths to validate
-
-        Raises:
-            FileNotFoundError: If any path doesn't exist
-            ValueError: If any path is invalid
+            verbose (bool, optional): Whether to print progress information.
+                If None, uses Config.VERBOSE.
         """
-        for path in paths:
-            if not Path(path).exists():
-                raise FileNotFoundError(f"Path does not exist: {path}")
+        self.verbose = Config.VERBOSE if verbose is None else verbose
+        self.logger = self._setup_logger()
 
-    @staticmethod
-    def load_json(file_path: str) -> Dict[str, Any]:
-        """Load JSON file."""
-        with open(file_path, 'r') as f:
-            return json.load(f)
+    def _setup_logger(self) -> logging.Logger:
+        """Set up logger for the converter."""
+        logger = logging.getLogger(self.__class__.__name__)
+        if not logger.handlers:
+            handler = logging.StreamHandler()
+            formatter = logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            )
+            handler.setFormatter(formatter)
+            logger.addHandler(handler)
 
-    @staticmethod
-    def save_json(data: Dict[str, Any], file_path: str) -> None:
-        """Save data to JSON file."""
-        with open(file_path, 'w') as f:
-            json.dump(data, f, indent=2)
+        logger.setLevel(logging.INFO if self.verbose else logging.WARNING)
+        return logger
 
-    @staticmethod
-    def load_txt(file_path: str) -> List[str]:
-        """Load text file as list of lines."""
-        with open(file_path, 'r') as f:
-            return [line.strip() for line in f if line.strip()]
-
-    @staticmethod
-    def save_txt(data: List[str], file_path: str) -> None:
-        """Save data to text file."""
-        with open(file_path, 'w') as f:
-            for line in data:
-                f.write(line + '\n')
-
-    @staticmethod
-    def bbox_x1y1wh_to_xcycwh(bbox: List[float]) -> List[float]:
+    @abc.abstractmethod
+    def convert(self, *args, **kwargs) -> Any:
         """
-        Convert bounding box from (x1, y1, w, h) to (xc, yc, w, h).
-
-        Args:
-            bbox: [x1, y1, width, height]
+        Perform conversion. Must be implemented by subclasses.
 
         Returns:
-            [xc, yc, width, height]
+            Conversion result (depends on specific converter)
         """
-        x1, y1, w, h = bbox
-        xc = x1 + w / 2
-        yc = y1 + h / 2
-        return [xc, yc, w, h]
+        pass
 
-    @staticmethod
-    def bbox_xcycwh_to_x1y1wh(bbox: List[float]) -> List[float]:
+    def batch_convert(self, inputs: List[Any], outputs: List[Any], **kwargs) -> List[Any]:
         """
-        Convert bounding box from (xc, yc, w, h) to (x1, y1, w, h).
+        Convert multiple inputs to outputs.
 
         Args:
-            bbox: [xc, yc, width, height]
+            inputs: List of input items
+            outputs: List of output items (must match length of inputs)
+            **kwargs: Additional arguments passed to convert()
 
         Returns:
-            [x1, y1, width, height]
+            List of conversion results
         """
-        xc, yc, w, h = bbox
-        x1 = xc - w / 2
-        y1 = yc - h / 2
-        return [x1, y1, w, h]
+        if len(inputs) != len(outputs):
+            raise ValueError(f"Inputs ({len(inputs)}) and outputs ({len(outputs)}) must have same length")
 
-    @staticmethod
-    def normalize_bbox(bbox: List[float], img_width: int, img_height: int) -> List[float]:
+        results = []
+        for i, (input_item, output_item) in enumerate(zip(inputs, outputs)):
+            if self.verbose:
+                self.logger.info(f"Processing item {i+1}/{len(inputs)}: {input_item}")
+
+            try:
+                result = self.convert(input_item, output_item, **kwargs)
+                results.append(result)
+            except Exception as e:
+                self.logger.error(f"Failed to convert {input_item}: {e}")
+                if Config.OVERWRITE_EXISTING:
+                    raise
+                else:
+                    results.append(None)
+
+        return results
+
+    def validate_input_path(self, path: str, is_dir: bool = False, create: bool = False) -> bool:
+        """Validate input path using Config."""
+        return Config.validate_path(path, is_dir=is_dir, create=create)
+
+    def validate_output_path(self, path: str, is_dir: bool = False, create: bool = False) -> bool:
+        """Validate output path, creating directories if needed."""
+        return Config.validate_path(path, is_dir=is_dir, create=create)
+
+    def ensure_directory(self, dir_path: str) -> bool:
+        """Ensure directory exists, create if needed."""
+        if not os.path.exists(dir_path):
+            try:
+                os.makedirs(dir_path, exist_ok=True)
+                self.logger.info(f"Created directory: {dir_path}")
+                return True
+            except Exception as e:
+                self.logger.error(f"Failed to create directory {dir_path}: {e}")
+                return False
+        return True
+
+    def get_image_files(self, image_dir: str) -> List[str]:
         """
-        Normalize bounding box coordinates to [0, 1].
+        Get list of image files in directory.
 
         Args:
-            bbox: [x, y, width, height] in absolute coordinates
-            img_width: Image width
-            img_height: Image height
+            image_dir (str): Directory containing images
 
         Returns:
-            Normalized [x, y, width, height]
+            List of image file paths
         """
-        return [
-            bbox[0] / img_width,
-            bbox[1] / img_height,
-            bbox[2] / img_width,
-            bbox[3] / img_height
-        ]
+        if not self.validate_input_path(image_dir, is_dir=True):
+            raise ValueError(f"Invalid image directory: {image_dir}")
 
-    @staticmethod
-    def denormalize_bbox(bbox: List[float], img_width: int, img_height: int) -> List[float]:
+        image_files = []
+        for ext in Config.get_image_extensions():
+            pattern = os.path.join(image_dir, f"*{ext}")
+            import glob
+            image_files.extend(glob.glob(pattern))
+            # Also check uppercase extensions
+            pattern = os.path.join(image_dir, f"*{ext.upper()}")
+            image_files.extend(glob.glob(pattern))
+
+        return sorted(image_files)
+
+    def get_label_files(self, label_dir: str, extension: str = None) -> List[str]:
         """
-        Denormalize bounding box coordinates from [0, 1] to absolute.
+        Get list of label files in directory.
 
         Args:
-            bbox: [x, y, width, height] in normalized coordinates
-            img_width: Image width
-            img_height: Image height
+            label_dir (str): Directory containing label files
+            extension (str, optional): File extension to filter by.
+                If None, uses Config.YOLO_LABEL_EXTENSION
 
         Returns:
-            Denormalized [x, y, width, height]
+            List of label file paths
         """
-        return [
-            bbox[0] * img_width,
-            bbox[1] * img_height,
-            bbox[2] * img_width,
-            bbox[3] * img_height
-        ]
+        if not self.validate_input_path(label_dir, is_dir=True):
+            raise ValueError(f"Invalid label directory: {label_dir}")
 
-    @staticmethod
-    def get_image_size(image_path: str) -> Tuple[int, int]:
+        ext = extension or Config.get_yolo_label_extension()
+        import glob
+        pattern = os.path.join(label_dir, f"*{ext}")
+        label_files = glob.glob(pattern)
+        return sorted(label_files)
+
+    def read_classes_file(self, classes_path: str) -> List[str]:
         """
-        Get image dimensions.
+        Read class names from file.
 
         Args:
-            image_path: Path to image file
+            classes_path (str): Path to classes file
 
         Returns:
-            Tuple of (width, height)
+            List of class names
+        """
+        if not self.validate_input_path(classes_path, is_dir=False):
+            raise ValueError(f"Invalid classes file: {classes_path}")
+
+        with open(classes_path, 'r', encoding='utf-8') as f:
+            classes = [line.strip() for line in f if line.strip()]
+
+        return classes
+
+    def write_classes_file(self, classes: List[str], output_path: str) -> bool:
+        """
+        Write class names to file.
+
+        Args:
+            classes (List[str]): List of class names
+            output_path (str): Output file path
+
+        Returns:
+            bool: True if successful
+        """
+        # Ensure output directory exists
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not self.ensure_directory(output_dir):
+            return False
+
+        try:
+            with open(output_path, 'w', encoding='utf-8') as f:
+                for cls in classes:
+                    f.write(f"{cls}\n")
+            self.logger.info(f"Saved classes to: {output_path}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to write classes file {output_path}: {e}")
+            return False
+
+    def get_image_info(self, image_path: str) -> Tuple[int, int, int]:
+        """
+        Get image dimensions from file.
+
+        Args:
+            image_path (str): Path to image file
+
+        Returns:
+            Tuple of (width, height, channels)
         """
         try:
             from PIL import Image
             with Image.open(image_path) as img:
-                return img.size  # (width, height)
-        except ImportError:
-            import cv2
-            img = cv2.imread(image_path)
-            if img is None:
-                raise ValueError(f"Failed to read image: {image_path}")
-            height, width = img.shape[:2]
-            return width, height
+                width, height = img.size
+                channels = len(img.getbands())
+                return width, height, channels
+        except Exception as e:
+            self.logger.warning(f"Could not read image {image_path}: {e}. Using defaults.")
+            return Config.DEFAULT_IMAGE_WIDTH, Config.DEFAULT_IMAGE_HEIGHT, Config.DEFAULT_IMAGE_CHANNELS
 
-    @staticmethod
-    def get_image_size_from_source(source_path: str) -> Tuple[int, int]:
-        """
-        Get image dimensions from various sources (image file, LabelMe JSON, etc.).
-
-        Args:
-            source_path: Path to image file or annotation file with image dimensions
-
-        Returns:
-            Tuple of (width, height)
-        """
-        from pathlib import Path
-        source_path_obj = Path(source_path)
-
-        # Check if it's an image file
-        image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
-        if source_path_obj.suffix.lower() in image_extensions:
-            return BaseConverter.get_image_size(source_path)
-
-        # Check if it's a LabelMe JSON file
-        if source_path_obj.suffix.lower() == '.json':
-            try:
-                data = BaseConverter.load_json(source_path)
-                if 'imageWidth' in data and 'imageHeight' in data:
-                    return data['imageWidth'], data['imageHeight']
-            except:
-                pass
-
-        # Check if it's a COCO JSON file
-        if source_path_obj.suffix.lower() == '.json':
-            try:
-                data = BaseConverter.load_json(source_path)
-                if 'images' in data and len(data['images']) > 0:
-                    # Return dimensions of first image
-                    img = data['images'][0]
-                    return img.get('width', 0), img.get('height', 0)
-            except:
-                pass
-
-        raise ValueError(f"Cannot determine image dimensions from source: {source_path}")
-
-    @staticmethod
-    def find_matching_pairs_for_conversion(
-        input_dir: str,
-        annotation_dir: str,
-        annotation_ext: str,
-        input_ext: str = None
-    ) -> List[Tuple[str, str]]:
-        """
-        Find matching input-annotation file pairs between directories.
-        For conversions that don't need images, input_dir can be None or empty.
-
-        Args:
-            input_dir: Directory containing input files (images or annotations)
-            annotation_dir: Directory containing annotation files
-            annotation_ext: Expected annotation file extension (e.g., '.json', '.txt')
-            input_ext: Expected input file extension (e.g., '.jpg', '.png').
-                      If None, uses image extensions from config.
-
-        Returns:
-            List of (input_path, annotation_path) tuples
-        """
-        from pathlib import Path
-        from ..config import get_config
-
-        config = get_config()
-        if input_ext is None:
-            # Use image extensions by default
-            input_extensions = config["conversion"]["image_extensions"]
-        else:
-            input_extensions = [input_ext]
-
-        annotation_dir_path = Path(annotation_dir)
-
-        # If no input_dir provided (for labelme2coco, labelme2yolo), just return annotation files
-        if not input_dir or input_dir == annotation_dir:
-            # Return single annotation files (no pairing)
-            pairs = []
-            for ann_path in annotation_dir_path.glob(f"*{annotation_ext}"):
-                if ann_path.is_file():
-                    pairs.append((str(ann_path), str(ann_path)))  # Same file for both
-            # Also check uppercase extension
-            for ann_path in annotation_dir_path.glob(f"*{annotation_ext.upper()}"):
-                if ann_path.is_file():
-                    path_str = str(ann_path)
-                    if (path_str, path_str) not in pairs:
-                        pairs.append((path_str, path_str))
-            return sorted(pairs)
-
-        # Build mapping of basename to input path
-        input_dir_path = Path(input_dir)
-        input_map = {}
-        for ext in input_extensions:
-            for input_path in input_dir_path.glob(f"*{ext}"):
-                if input_path.is_file():
-                    input_map[input_path.stem] = str(input_path)
-            # Also check uppercase extensions
-            for input_path in input_dir_path.glob(f"*{ext.upper()}"):
-                if input_path.is_file():
-                    input_map[input_path.stem] = str(input_path)
-
-        # Find matching annotations
-        pairs = []
-        for ann_path in annotation_dir_path.glob(f"*{annotation_ext}"):
-            if ann_path.is_file():
-                basename = ann_path.stem
-                if basename in input_map:
-                    pairs.append((input_map[basename], str(ann_path)))
-
-        # Also check uppercase extension for annotations
-        for ann_path in annotation_dir_path.glob(f"*{annotation_ext.upper()}"):
-            if ann_path.is_file():
-                basename = ann_path.stem
-                if basename in input_map and (input_map[basename], str(ann_path)) not in pairs:
-                    pairs.append((input_map[basename], str(ann_path)))
-
-        return sorted(pairs)  # Sort for consistent ordering
-
-    @staticmethod
-    def validate_conversion_directories(input_dir: str, annotation_dir: str, needs_input: bool = True) -> None:
-        """
-        Validate that directories exist and contain files for conversion.
-
-        Args:
-            input_dir: Input directory path (images or annotations)
-            annotation_dir: Annotation directory path
-            needs_input: Whether input directory is required (True for image-based conversions)
-
-        Raises:
-            FileNotFoundError: If directories don't exist
-            ValueError: If directories are empty or contain no relevant files
-        """
-        from pathlib import Path
-        from ..config import get_config
-
-        config = get_config()
-        image_extensions = config["conversion"]["image_extensions"]
-
-        annotation_dir_path = Path(annotation_dir)
-
-        if not annotation_dir_path.exists():
-            raise FileNotFoundError(f"Annotation directory not found: {annotation_dir}")
-
-        # Check if annotation directory contains any files
-        if not any(annotation_dir_path.iterdir()):
-            raise ValueError(f"Annotation directory is empty: {annotation_dir}")
-
-        if needs_input:
-            if not input_dir:
-                raise ValueError("Input directory is required for this conversion")
-
-            input_dir_path = Path(input_dir)
-            if not input_dir_path.exists():
-                raise FileNotFoundError(f"Input directory not found: {input_dir}")
-
-            # Check if input directory contains any files
-            if not any(input_dir_path.iterdir()):
-                raise ValueError(f"Input directory is empty: {input_dir}")
-
-            # Check for at least one input file with supported extension
-            has_inputs = False
-            for ext in image_extensions:
-                if any(input_dir_path.glob(f"*{ext}")):
-                    has_inputs = True
-                    break
-                if any(input_dir_path.glob(f"*{ext.upper()}")):
-                    has_inputs = True
-                    break
-
-            if not has_inputs:
-                raise ValueError(f"No supported input files found in {input_dir}. Supported extensions: {image_extensions}")
+    def _print_progress(self, current: int, total: int, prefix: str = ""):
+        """Print progress information."""
+        if self.verbose:
+            percent = (current / total) * 100
+            self.logger.info(f"{prefix}Progress: {current}/{total} ({percent:.1f}%)")

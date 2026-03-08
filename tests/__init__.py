@@ -1,3 +1,2 @@
-"""
-Tests for DataFlow.
-"""
+# -*- coding: utf-8 -*-
+"""Test package for DataFlow-CV."""

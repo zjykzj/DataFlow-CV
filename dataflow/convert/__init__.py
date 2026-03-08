@@ -1,38 +1,18 @@
-"""
-Format conversion module for DataFlow.
+# -*- coding: utf-8 -*-
 
-Supports conversion between:
-- LabelMe (JSON)
-- COCO (JSON)
-- YOLO (TXT)
+"""
+@Time    : 2026/3/8 20:40
+@File    : __init__.py
+@Author  : zj
+@Description: Conversion module for DataFlow-CV
 """
 
-from .coco_to_yolo import coco_to_yolo
-from .yolo_to_coco import yolo_to_coco
-from .labelme_to_coco import labelme_to_coco, batch_labelme_to_coco
-from .coco_to_labelme import coco_to_labelme, batch_coco_to_labelme
-from .labelme_to_yolo import labelme_to_yolo, batch_labelme_to_yolo
-from .yolo_to_labelme import yolo_to_labelme, batch_yolo_to_labelme
-from .batch import (
-    batch_process_conversion,
-    batch_convert_with_combined_option,
-    find_matching_conversion_pairs,
-    validate_conversion_directories
-)
+from .base import BaseConverter
+from .coco_to_yolo import CocoToYoloConverter
+from .yolo_to_coco import YoloToCocoConverter
 
 __all__ = [
-    'coco_to_yolo',
-    'yolo_to_coco',
-    'labelme_to_coco',
-    'batch_labelme_to_coco',
-    'coco_to_labelme',
-    'batch_coco_to_labelme',
-    'labelme_to_yolo',
-    'batch_labelme_to_yolo',
-    'yolo_to_labelme',
-    'batch_yolo_to_labelme',
-    'batch_process_conversion',
-    'batch_convert_with_combined_option',
-    'find_matching_conversion_pairs',
-    'validate_conversion_directories'
+    "BaseConverter",
+    "CocoToYoloConverter",
+    "YoloToCocoConverter",
 ]
