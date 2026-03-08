@@ -39,18 +39,6 @@ The AI model used in this project is DeepSeek-V3.2 (128K context length), not Cl
 
 ## Common Development Commands
 
-### Installation
-```bash
-# Install in development mode (editable)
-pip install -e .
-
-# Install with full optional dependencies (pycocotools, torch, torchvision)
-pip install -e .[full]
-
-# Install directly from source
-python setup.py develop
-```
-
 ### Running Tests
 ```bash
 # Run all tests
@@ -89,6 +77,12 @@ dataflow convert coco2yolo annotations.json output_dir/
 # Convert YOLO to COCO
 dataflow convert yolo2coco images/ labels/ classes.names output.json
 
+# Visualize YOLO annotations
+dataflow visualize yolo images/ labels/ classes.names --save output_dir/
+
+# Visualize COCO annotations
+dataflow visualize coco images/ annotations.json --save output_dir/
+
 # Show configuration
 dataflow config
 ```
@@ -102,16 +96,22 @@ result = dataflow.coco_to_yolo("annotations.json", "output_dir")
 
 # YOLO to COCO conversion
 result = dataflow.yolo_to_coco("images/", "labels/", "classes.names", "output.json")
+
+# Visualize YOLO annotations
+result = dataflow.visualize_yolo("images/", "labels/", "classes.names", save_dir="output_dir/")
+
+# Visualize COCO annotations
+result = dataflow.visualize_coco("images/", "annotations.json", save_dir="output_dir/")
 ```
 
 ## Architecture and Design Patterns
 
 ### Task‑Based Structure
 The library follows a **main‑task → sub‑task** pattern:
-- **Main task**: A broad functional area (e.g., `convert`).
-- **Sub‑task**: A specific operation within that area (e.g., `coco2yolo`, `yolo2coco`).
+- **Main task**: A broad functional area (e.g., `convert`, `visualize`).
+- **Sub‑task**: A specific operation within that area (e.g., `coco2yolo`, `yolo2coco`, `yolo`, `coco`).
 
-Each sub‑task is implemented as an independent module with its own converter class, test file, and example files.
+Each sub‑task is implemented as an independent module with its own converter/visualizer class, test file, and example files.
 
 ### Converter Base Class
 All format converters inherit from `BaseConverter` (`dataflow/convert/base.py`), which provides:
@@ -121,56 +121,72 @@ All format converters inherit from `BaseConverter` (`dataflow/convert/base.py`),
 - Batch‑conversion support (`batch_convert`)
 - Logging and progress reporting
 
+### Visualizer Base Class
+All annotation visualizers inherit from `BaseVisualizer` (`dataflow/visualize/base.py`), which provides:
+- Common drawing utilities (`draw_bounding_box`, `draw_polygon`)
+- Color management (`get_color_for_class`)
+- Image I/O (`read_image`, `save_image`, `display_image`)
+- Window management and display resizing
+- Logging and progress reporting
+
 ### Configuration Management
 Global settings are centralized in `Config` (`dataflow/config.py`). CLI options (verbose, overwrite) update the config at runtime. Avoid hard‑coding file names, extensions, or default values; use the `Config` class instead.
 
 ### CLI Organization
 The CLI is built with Click and structured as a command group hierarchy:
 - Root command (`dataflow`) with global options (`--verbose`, `--overwrite`)
-- Task‑level group (`convert`) that contains sub‑task commands (`coco2yolo`, `yolo2coco`)
+- Task‑level groups (`convert`, `visualize`) that contain sub‑task commands (`coco2yolo`, `yolo2coco`, `yolo`, `coco`)
 
-Each sub‑task command validates its arguments, creates the appropriate converter, runs the conversion, and prints a summary.
+Each sub‑task command validates its arguments, creates the appropriate converter/visualizer, runs the operation, and prints a summary.
 
 ### File Layout
 ```
 dataflow/
-├── __init__.py              # Package exports (coco_to_yolo, yolo_to_coco)
+├── __init__.py              # Package exports (coco_to_yolo, yolo_to_coco, visualize_*)
 ├── cli.py                   # Click CLI definition
 ├── config.py                # Config class
-└── convert/                 # Conversion module
-    ├── __init__.py          # Exports BaseConverter, CocoToYoloConverter, YoloToCocoConverter
-    ├── base.py              # BaseConverter abstract class
-    ├── coco_to_yolo.py      # CocoToYoloConverter implementation
-    └── yolo_to_coco.py      # YoloToCocoConverter implementation
+├── convert/                 # Conversion module
+│   ├── __init__.py          # Exports BaseConverter, CocoToYoloConverter, YoloToCocoConverter
+│   ├── base.py              # BaseConverter abstract class
+│   ├── coco_to_yolo.py      # CocoToYoloConverter implementation
+│   └── yolo_to_coco.py      # YoloToCocoConverter implementation
+└── visualize/               # Visualization module
+    ├── __init__.py          # Exports BaseVisualizer, YoloVisualizer, CocoVisualizer
+    ├── base.py              # BaseVisualizer abstract class
+    ├── yolo.py              # YoloVisualizer implementation
+    └── coco.py              # CocoVisualizer implementation
 
 tests/
 ├── convert/
 │   ├── test_coco_to_yolo.py
 │   └── test_yolo_to_coco.py
+├── visualize/               # Visualization tests (future)
 └── run_tests.py            # Custom test runner
 
 samples/
-├── cli/convert/            # CLI usage examples
-└── api/convert/            # Python API examples
+├── cli/convert/            # CLI conversion examples
+├── cli/visualize/          # CLI visualization examples
+├── api/convert/            # Python API conversion examples
+└── api/visualize/          # Python API visualization examples
 ```
 
 ## Writing Principles
 
 1. **Task‑Sub‑Task Pattern**: Follow the `dataflow <main‑task> <sub‑task> [arguments]` structure. Each sub‑task should be a self‑contained operation with a clear purpose.
 
-2. **Independent Implementation Files**: Each sub‑task’s converter, test, and examples are kept in separate files:
-   - Converter: `dataflow/<main‑task>/<sub‑task>.py` (e.g., `coco_to_yolo.py`)
+2. **Independent Implementation Files**: Each sub‑task’s converter/visualizer, test, and examples are kept in separate files:
+   - Converter/Visualizer: `dataflow/<main‑task>/<sub‑task>.py` (e.g., `coco_to_yolo.py`, `yolo.py`)
    - Test: `tests/<main‑task>/test_<sub‑task>.py` (e.g., `test_coco_to_yolo.py`)
    - CLI example: `samples/cli/<main‑task>/cli_<sub‑task>.py`
    - API example: `samples/api/<main‑task>/api_<sub‑task>.py`
 
-   This ensures maintainability and makes it easy to add, update, or remove individual converters without affecting others.
+   This ensures maintainability and makes it easy to add, update, or remove individual components without affecting others.
 
-3. **Reuse Base Infrastructure**: All new converters must inherit from `BaseConverter` and leverage its utility methods. Do not duplicate file‑system operations, validation, or logging.
+3. **Reuse Base Infrastructure**: All new converters must inherit from `BaseConverter` and all new visualizers from `BaseVisualizer`. Leverage their utility methods. Do not duplicate file‑system operations, validation, or logging.
 
 4. **Configuration‑Driven Defaults**: Use `Config` for all default values (file extensions, directory names, image dimensions). Allow CLI options to override these defaults where appropriate.
 
-5. **Consistent Return Values**: Each `convert` method should return a dictionary with standardized keys (e.g., `images_processed`, `annotations_processed`) to enable uniform summary reporting.
+5. **Consistent Return Values**: Each `convert` or `visualize` method should return a dictionary with standardized keys (e.g., `images_processed`, `annotations_processed`) to enable uniform summary reporting.
 
 6. **Error Handling with Logging**: Use the `self.logger` provided by the base class for warnings and errors. Raise `ValueError` for invalid inputs, but catch internal exceptions and log them appropriately.
 
@@ -180,4 +196,4 @@ samples/
 - The AI model used in this project is DeepSeek-V3.2 (128K context length), not Claude Opus.
 - The library is Linux‑oriented (assumes POSIX paths).
 - The project is in alpha; the API and CLI may change.
-- Visualization modules (LabelMe, COCO, YOLO) have been removed; focus is currently on conversion between COCO and YOLO formats.
+- Visualization modules for COCO and YOLO are included; LabelMe support is not currently implemented.

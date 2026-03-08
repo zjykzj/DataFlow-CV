@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dataflow-cv"
-version = "0.1.1"
+version = "0.2.0"
 description = "A data processing library for computer vision datasets"
 readme = "README.md"
 authors = [
@@ -33,13 +33,6 @@ dependencies = [
     "click>=8.1.0",
 ]
 requires-python = ">=3.8"
-
-[project.optional-dependencies]
-full = [
-    "pycocotools>=2.0.0",
-    "torch>=1.9.0",
-    "torchvision>=0.10.0",
-]
 
 [project.scripts]
 dataflow = "dataflow.cli:main"

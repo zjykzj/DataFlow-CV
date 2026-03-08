@@ -5,7 +5,7 @@
 
 ![Python Version](https://img.shields.io/badge/python-3.8%20|%203.9%20|%203.10%20|%203.11%20|%203.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-0.1.1-orange)
+![Version](https://img.shields.io/badge/version-0.2.0-orange)
 ![Development Status](https://img.shields.io/badge/status-alpha-yellow)
 
 A data processing library for computer vision datasets, focusing on format conversion and visualization between LabelMe, COCO, and YOLO formats. Provides both a CLI and Python API.
@@ -61,26 +61,13 @@ samples/
 - `opencv-python` >= 4.8.0 – image processing (optional, used for some image operations)
 - `Pillow` >= 10.0.0 – image reading (optional, used for reading image dimensions)
 
-### Optional Dependencies (install with `pip install -e .[full]`)
-- `pycocotools` >= 2.0.0 – COCO‑format utilities
-- `torch` >= 1.9.0 – PyTorch integration
-- `torchvision` >= 0.10.0 – vision datasets
-
-**Note:** The library is designed to work with only the core dependencies; optional packages enable additional functionality.
-
 ## Quick Start
 
 ### Installation
 
 ```bash
-# Install in development mode (core dependencies only)
-pip install -e .
-
-# Install with all optional dependencies (pycocotools, torch, torchvision)
-pip install -e .[full]
-
-# Install directly from source (development mode)
-python setup.py develop
+# Install
+pip install .
 ```
 
 ### Command Line Usage

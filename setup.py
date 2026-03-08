@@ -37,7 +37,7 @@ class DevelopCommand(_develop):
 
 setup(
     name="dataflow-cv",
-    version="0.1.1",
+    version="0.2.0",
     author="DataFlow Team",
     description="A data processing library for computer vision datasets",
     long_description=long_description,
@@ -66,13 +66,6 @@ setup(
         "Pillow>=10.0.0",
         "click>=8.1.0",
     ],
-    extras_require={
-        "full": [
-            "pycocotools>=2.0.0",
-            "torch>=1.9.0",
-            "torchvision>=0.10.0",
-        ]
-    },
     entry_points={
         "console_scripts": [
             "dataflow=dataflow.cli:main"

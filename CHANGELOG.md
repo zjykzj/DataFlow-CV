@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-03-08
+
+### Added
+- Added YOLO and COCO visualization module with CLI support (`dataflow visualize yolo` and `dataflow visualize coco`)
+- Added Python API convenience functions: `visualize_yolo()` and `visualize_coco()`
+- Added comprehensive visualization examples in `samples/` directory
+
+### Changed
+- Refactored COCO-YOLO conversion to be batch-first with new interfaces
+- Improved command-line interface options and error handling
+- Cleaned up and consolidated codebase structure
+- Updated version from 0.1.1 to 0.2.0
+
+### Fixed
+- Fixed CLI interface options and improved user experience
+
+### Documentation
+- Updated CLAUDE.md with detailed usage and architecture guidelines
+- Added DeepSeek-V3.2 AI model information to git commit guidelines
+- Updated git commit guidelines with proper AI model attribution
+
 ## [0.1.1] - 2026-03-07
 
 ### Added
