@@ -180,7 +180,7 @@ git commit -m "$(cat <<'EOF'
 
 <body if needed>
 
-Co-Authored-By: DeepSeek <noreply@deepseek.com>
+Co-Authored-By: DeepSeek-V3.2 <noreply@deepseek.com>
 EOF
 )"
 ```
@@ -199,10 +199,10 @@ Follow conventional commit style:
 - `ci`: Changes to CI configuration files and scripts
 - `chore`: Other changes that don't modify src or test files
 
-The AI model used in this project is DeepSeek, not Claude Opus.
+The AI model used in this project is DeepSeek-V3.2 (128K context length), not Claude Opus.
 
 ## Notes
-- The AI model used in this project is DeepSeek, not Claude Opus.
+- The AI model used in this project is DeepSeek-V3.2 (128K context length), not Claude Opus.
 - The library is Linux‑oriented (assumes POSIX paths).
 - OpenCV is required for visualization; Pillow is required for image size detection.
 - Optional dependencies (`pycocotools`, `torch`, `torvision`) are only needed for extended functionality (marked as `full` extra).
