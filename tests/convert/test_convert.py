@@ -89,14 +89,7 @@ def test_coco_to_yolo():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
 
-        # Create test image
-        import cv2
-        import numpy as np
-        test_image = np.zeros((100, 100, 3), dtype=np.uint8)
-        image_path = str(tmpdir / "test.jpg")
-        cv2.imwrite(image_path, test_image)
-
-        # Create COCO annotation
+        # Create COCO annotation (no image file needed)
         coco_data = {
             "images": [{
                 "id": 1,
@@ -134,13 +127,24 @@ def test_coco_to_yolo():
 
         print(f"  Created test COCO file: {coco_path}")
 
-        # Convert to YOLO
-        yolo_path = str(tmpdir / "yolo.txt")
+        # Create output directory
+        output_dir = str(tmpdir / "yolo_output")
+
         try:
-            convert.coco_to_yolo(coco_path, image_path, yolo_path, ["cat", "dog"])
+            convert.coco_to_yolo(coco_path, output_dir)
             print(f"  ✓ COCO to YOLO conversion successful")
 
-            # Verify YOLO file exists and has content
+            # Verify class.names file exists
+            class_names_path = Path(output_dir) / "class.names"
+            assert class_names_path.exists(), "class.names file not found"
+            with open(class_names_path, 'r') as f:
+                class_names = [line.strip() for line in f]
+                assert class_names == ["cat", "dog"]
+                print(f"  ✓ Class names file correct: {class_names}")
+
+            # Verify YOLO .txt file exists
+            yolo_path = Path(output_dir) / "test.txt"
+            assert yolo_path.exists(), "YOLO .txt file not found"
             with open(yolo_path, 'r') as f:
                 lines = f.readlines()
                 assert len(lines) == 2
@@ -159,25 +163,37 @@ def test_yolo_to_coco():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
 
+        # Create directories
+        images_dir = tmpdir / "images"
+        labels_dir = tmpdir / "labels"
+        images_dir.mkdir()
+        labels_dir.mkdir()
+
         # Create test image
         import cv2
         import numpy as np
         test_image = np.zeros((100, 100, 3), dtype=np.uint8)
-        image_path = str(tmpdir / "test.jpg")
-        cv2.imwrite(image_path, test_image)
+        image_path = images_dir / "test.jpg"
+        cv2.imwrite(str(image_path), test_image)
 
         # Create YOLO annotation
-        yolo_path = str(tmpdir / "yolo.txt")
+        yolo_path = labels_dir / "test.txt"
         with open(yolo_path, 'w') as f:
             f.write("0 0.2 0.2 0.1 0.1\n")  # cat at (20,20) with size 10x10
             f.write("1 0.6 0.6 0.1 0.1\n")  # dog at (60,60) with size 10x10
 
         print(f"  Created test YOLO file: {yolo_path}")
 
+        # Create class names file
+        class_names_path = tmpdir / "classes.txt"
+        with open(class_names_path, 'w') as f:
+            f.write("cat\n")
+            f.write("dog\n")
+
         # Convert to COCO
         coco_path = str(tmpdir / "coco.json")
         try:
-            convert.yolo_to_coco(yolo_path, image_path, ["cat", "dog"], coco_path)
+            convert.yolo_to_coco(str(images_dir), str(labels_dir), str(class_names_path), coco_path)
             print(f"  ✓ YOLO to COCO conversion successful")
 
             # Verify COCO file exists
@@ -185,6 +201,10 @@ def test_yolo_to_coco():
                 coco_data = json.load(f)
                 assert 'annotations' in coco_data
                 assert len(coco_data['annotations']) == 2
+                assert 'images' in coco_data
+                assert len(coco_data['images']) == 1
+                assert 'categories' in coco_data
+                assert len(coco_data['categories']) == 2
                 print(f"  ✓ COCO file has {len(coco_data['annotations'])} annotations")
         except Exception as e:
             print(f"  ✗ YOLO to COCO conversion failed: {e}")

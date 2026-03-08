@@ -50,182 +50,46 @@ def convert():
 
 
 @convert.command()
-@click.argument('image_path', type=click.Path(exists=True))
 @click.argument('coco_json_path', type=click.Path(exists=True))
-@click.argument('output_path', type=click.Path())
-@click.option('--class-names', type=click.Path(exists=True),
-              help='Path to class names file (one per line)')
-@click.option('--batch', is_flag=True, help='Batch mode: process directories instead of single files')
-def coco2yolo(image_path, coco_json_path, output_path, class_names, batch):
-    """Convert COCO annotation(s) to YOLO format.
+@click.argument('output_dir', type=click.Path())
+def coco2yolo(coco_json_path, output_dir):
+    """Convert COCO annotation to YOLO format.
 
-    In batch mode (--batch):
-      - Creates separate YOLO files for each image (one .txt per image)
+    Reads a COCO JSON file containing annotations for multiple images and creates:
+      - One .txt file per image in output_dir with YOLO format annotations
+      - A class.names file in output_dir with category names
+
+    Example:
+      dataflow convert coco2yolo annotations.json yolo_labels/
     """
     try:
-        if class_names:
-            with open(class_names, 'r') as f:
-                classes = [line.strip() for line in f if line.strip()]
-        else:
-            classes = []
-
-        from pathlib import Path
-
-        if batch:
-            # Batch mode: process directories
-            from .visualize.batch import find_matching_pairs, validate_batch_directories
-            from .convert.coco_to_yolo import coco_to_yolo, batch_coco_to_yolo
-
-            # Validate directories
-            validate_batch_directories(image_path, coco_json_path)
-
-            # Find matching pairs
-            pairs = find_matching_pairs(image_path, coco_json_path, '.json')
-
-            if not pairs:
-                click.echo("No matching image-annotation pairs found.")
-                return
-
-            click.echo(f"Found {len(pairs)} image-annotation pairs.")
-
-            # Check output path
-            output_path_obj = Path(output_path)
-            if output_path_obj.exists() and not output_path_obj.is_dir():
-                raise ValueError(f"Output path exists but is not a directory: {output_path}")
-
-            # Create output directory if it doesn't exist
-            output_path_obj.mkdir(parents=True, exist_ok=True)
-
-            # Process each pair
-            successful = 0
-            for img_path, ann_path in pairs:
-                # Generate output filename based on image name
-                img_stem = Path(img_path).stem
-                output_txt_path = output_path_obj / f"{img_stem}.txt"
-
-                try:
-                    coco_to_yolo(ann_path, img_path, str(output_txt_path), classes)
-                    click.echo(f"  Converted: {Path(img_path).name} → {output_txt_path.name}")
-                    successful += 1
-                except Exception as e:
-                    click.echo(f"  Error processing {Path(img_path).name}: {e}")
-                    click.echo("  Skipping...")
-
-            click.echo(f"Batch conversion complete. Successfully converted {successful}/{len(pairs)} files to {output_path}")
-        else:
-            # Single file mode
-            from pathlib import Path
-            img_path = Path(image_path)
-            ann_path = Path(coco_json_path)
-
-            # Check if inputs are directories (suggest using --batch)
-            if img_path.is_dir() or ann_path.is_dir():
-                click.echo("Error: Input paths are directories. Did you mean to use --batch flag?")
-                click.echo("  For batch processing: dataflow convert coco2yolo <image_dir> <annotation_dir> <output_dir> --batch --class-names <class_names_file>")
-                sys.exit(1)
-
-            # Handle output path: if it's a directory, generate filename
-            output_path_obj = Path(output_path)
-            if output_path_obj.exists() and output_path_obj.is_dir():
-                # Generate output filename based on image name
-                img_stem = img_path.stem
-                output_path = str(output_path_obj / f"{img_stem}.txt")
-                click.echo(f"Output is a directory, saving to: {output_path}")
-
-            from .convert.coco_to_yolo import coco_to_yolo
-            coco_to_yolo(coco_json_path, image_path, output_path, classes)
-            click.echo(f"Successfully converted to {output_path}")
+        from .convert.coco_to_yolo import coco_to_yolo
+        coco_to_yolo(coco_json_path, output_dir)
+        click.echo(f"Conversion complete. Output directory: {output_dir}")
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
 
 @convert.command()
-@click.argument('image_path', type=click.Path(exists=True))
-@click.argument('yolo_txt_path', type=click.Path(exists=True))
+@click.argument('images_dir', type=click.Path(exists=True))
+@click.argument('labels_dir', type=click.Path(exists=True))
 @click.argument('class_names_path', type=click.Path(exists=True))
-@click.argument('output_path', type=click.Path())
-@click.option('--batch', is_flag=True, help='Batch mode: process directories instead of single files')
-def yolo2coco(image_path, yolo_txt_path, class_names_path, output_path, batch):
-    """Convert YOLO annotation(s) to COCO format.
+@click.argument('output_json_path', type=click.Path())
+def yolo2coco(images_dir, labels_dir, class_names_path, output_json_path):
+    """Convert YOLO annotations to COCO format.
 
-    In batch mode (--batch):
-      - Creates a single COCO file with all images and annotations
+    Reads images from images_dir, YOLO .txt annotations from labels_dir,
+    and class names from class_names_path (one per line). Creates a single
+    COCO JSON file containing all images and annotations.
+
+    Example:
+      dataflow convert yolo2coco images/ labels/ classes.txt coco_annotations.json
     """
     try:
-        with open(class_names_path, 'r') as f:
-            classes = [line.strip() for line in f if line.strip()]
-
-        from pathlib import Path
-
-        if batch:
-            # Batch mode: process directories
-            from .visualize.batch import find_matching_pairs, validate_batch_directories
-            from .convert.yolo_to_coco import yolo_to_coco, batch_yolo_to_coco
-            from pathlib import Path
-
-            # Validate directories
-            validate_batch_directories(image_path, yolo_txt_path)
-
-            # Find matching pairs
-            pairs = find_matching_pairs(image_path, yolo_txt_path, '.txt')
-
-            if not pairs:
-                click.echo("No matching image-annotation pairs found.")
-                return
-
-            click.echo(f"Found {len(pairs)} image-annotation pairs.")
-
-            # Output must be a single COCO file in batch mode
-            output_path_obj = Path(output_path)
-
-            # Determine output file path
-            if output_path_obj.exists() and output_path_obj.is_dir():
-                # If output is a directory, create default filename
-                output_json_path = output_path_obj / "coco_annotations.json"
-            else:
-                # Ensure .json extension
-                if not str(output_path).lower().endswith('.json'):
-                    output_json_path = Path(str(output_path) + '.json')
-                else:
-                    output_json_path = output_path_obj
-
-            # Ensure parent directory exists
-            output_json_path.parent.mkdir(parents=True, exist_ok=True)
-
-            try:
-                batch_yolo_to_coco(pairs, classes, str(output_json_path))
-                click.echo(f"COCO file saved to: {output_json_path}")
-            except Exception as e:
-                click.echo(f"Error creating COCO file: {e}")
-                sys.exit(1)
-        else:
-            # Single file mode
-            from pathlib import Path
-            img_path = Path(image_path)
-            ann_path = Path(yolo_txt_path)
-
-            # Check if inputs are directories (suggest using --batch)
-            if img_path.is_dir() or ann_path.is_dir():
-                click.echo("Error: Input paths are directories. Did you mean to use --batch flag?")
-                click.echo("  For batch processing: dataflow convert yolo2coco <image_dir> <annotation_dir> <class_names> <output_dir> --batch")
-                sys.exit(1)
-
-            # Check if output path is a directory
-            output_path_obj = Path(output_path)
-            if output_path_obj.exists() and output_path_obj.is_dir():
-                click.echo("Error: Output path is a directory. Please specify a JSON file path.")
-                click.echo("  Example: dataflow convert yolo2coco image.jpg annotation.txt classes.txt output.json")
-                sys.exit(1)
-
-            # Ensure .json extension
-            if not str(output_path).lower().endswith('.json'):
-                click.echo("Warning: Output path does not have .json extension. Adding .json extension.")
-                output_path = str(output_path) + '.json'
-
-            from .convert.yolo_to_coco import yolo_to_coco
-            yolo_to_coco(yolo_txt_path, image_path, classes, output_path)
-            click.echo(f"Successfully converted to {output_path}")
+        from .convert.yolo_to_coco import yolo_to_coco
+        yolo_to_coco(images_dir, labels_dir, class_names_path, output_json_path)
+        click.echo(f"COCO file saved to: {output_json_path}")
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
