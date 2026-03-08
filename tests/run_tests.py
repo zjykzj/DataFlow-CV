@@ -90,19 +90,22 @@ def run_specific_test(test_name, verbose=1):
     project_root = str(Path(__file__).parent.parent)
     sys.path.insert(0, project_root)
 
-    # Load all test modules
+    # Load all test modules from all subdirectories
     test_modules = []
-    test_dir = str(Path(__file__).parent / "convert")
+    tests_root = Path(__file__).parent
 
-    for file in os.listdir(test_dir):
-        if file.startswith("test_") and file.endswith(".py"):
-            module_name = f"tests.convert.{file[:-3]}"
-            try:
-                module = __import__(module_name, fromlist=["*"])
-                test_modules.append(module)
-                print(f"Loaded module: {module_name}")
-            except ImportError as e:
-                print(f"Failed to load {module_name}: {e}")
+    # Search for test files in all subdirectories
+    for test_file in tests_root.rglob("test_*.py"):
+        # Convert path to module name (e.g., "tests.convert.test_coco_to_yolo")
+        rel_path = test_file.relative_to(tests_root.parent)
+        module_name = str(rel_path.with_suffix("")).replace("/", ".")
+
+        try:
+            module = __import__(module_name, fromlist=["*"])
+            test_modules.append(module)
+            print(f"Loaded module: {module_name}")
+        except ImportError as e:
+            print(f"Failed to load {module_name}: {e}")
 
     # Find and run the specific test
     loader = unittest.TestLoader()

@@ -18,6 +18,10 @@ from .config import Config
 from .convert.coco_to_yolo import CocoToYoloConverter
 from .convert.yolo_to_coco import YoloToCocoConverter
 
+# Visualizers
+from .visualize.yolo import YoloVisualizer
+from .visualize.coco import CocoVisualizer
+
 # Base classes
 from .convert.base import BaseConverter
 
@@ -67,6 +71,53 @@ def yolo_to_coco(
     )
 
 
+# Convenience functions for visualization
+def visualize_yolo(
+    image_dir: str,
+    label_dir: str,
+    class_path: str,
+    save_dir: str = None,
+    **kwargs
+):
+    """
+    Visualize YOLO format annotations.
+
+    Args:
+        image_dir: Directory containing image files
+        label_dir: Directory containing YOLO label files
+        class_path: Path to class names file (e.g., class.names)
+        save_dir: Directory to save visualized images (optional)
+        **kwargs: Additional options passed to YoloVisualizer.visualize()
+
+    Returns:
+        Dictionary with visualization statistics
+    """
+    visualizer = YoloVisualizer(**kwargs)
+    return visualizer.visualize(image_dir, label_dir, class_path, save_dir)
+
+
+def visualize_coco(
+    image_dir: str,
+    annotation_json: str,
+    save_dir: str = None,
+    **kwargs
+):
+    """
+    Visualize COCO format annotations.
+
+    Args:
+        image_dir: Directory containing image files
+        annotation_json: Path to COCO JSON annotation file
+        save_dir: Directory to save visualized images (optional)
+        **kwargs: Additional options passed to CocoVisualizer.visualize()
+
+    Returns:
+        Dictionary with visualization statistics
+    """
+    visualizer = CocoVisualizer(**kwargs)
+    return visualizer.visualize(image_dir, annotation_json, save_dir)
+
+
 __all__ = [
     # Configuration
     "Config",
@@ -74,6 +125,10 @@ __all__ = [
     # Converters
     "CocoToYoloConverter",
     "YoloToCocoConverter",
+
+    # Visualizers
+    "YoloVisualizer",
+    "CocoVisualizer",
 
     # Base classes
     "BaseConverter",
@@ -85,6 +140,8 @@ __all__ = [
     # Convenience functions
     "coco_to_yolo",
     "yolo_to_coco",
+    "visualize_yolo",
+    "visualize_coco",
 
     # Metadata
     "__version__",
