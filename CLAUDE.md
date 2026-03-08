@@ -170,7 +170,39 @@ Modify `DEFAULT_CONFIG` in `config.py`. All settings are grouped under `visualiz
 ### Testing Philosophy
 Tests are self‑contained scripts that create temporary images and annotation files, run the conversion/visualization, and verify outputs. They do not rely on external data. Keep tests independent and clean up after themselves.
 
+## Git Commits
+
+When creating git commits via Claude Code, avoid using the default "Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>" line. Instead, use the following format (optionally including a Co-Authored-By line for DeepSeek):
+
+```bash
+git commit -m "$(cat <<'EOF'
+<type>(<scope>): <subject>
+
+<body if needed>
+
+Co-Authored-By: DeepSeek <noreply@deepseek.com>
+EOF
+)"
+```
+
+The Co-Authored-By line is optional and can be omitted if desired.
+
+Follow conventional commit style:
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `build`: Build system or external dependencies
+- `test`: Adding missing tests or correcting existing tests
+- `refactor`: Code change that neither fixes a bug nor adds a feature
+- `style`: Changes that do not affect the meaning of the code (white-space, formatting, etc.)
+- `perf`: Code change that improves performance
+- `ci`: Changes to CI configuration files and scripts
+- `chore`: Other changes that don't modify src or test files
+
+The AI model used in this project is DeepSeek, not Claude Opus.
+
 ## Notes
+- The AI model used in this project is DeepSeek, not Claude Opus.
 - The library is Linux‑oriented (assumes POSIX paths).
 - OpenCV is required for visualization; Pillow is required for image size detection.
 - Optional dependencies (`pycocotools`, `torch`, `torvision`) are only needed for extended functionality (marked as `full` extra).
