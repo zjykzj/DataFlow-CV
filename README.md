@@ -12,245 +12,172 @@ A data processing library for computer vision datasets, focusing on format conve
 
 ## Table of Contents
 
-- [Features](#features)
-- [Supported Formats](#supported-formats)
-- [Quick Start](#quick-start)
-- [Installation](#installation)
-- [Usage](#usage)
-  - [Command Line Interface](#command-line-interface)
-  - [Python API](#python-api)
-- [Project Structure](#project-structure)
-- [Requirements](#requirements)
-- [Development](#development)
-- [License](#license)
-
-## Features
-
-- **Format Conversion**: Convert between LabelMe, COCO, and YOLO formats
-- **Batch Conversion**: Process entire directories with progress display and error handling
-- **Single-Image Visualization**: Visualize annotations on individual images
-- **Batch Visualization**: Process entire directories with interactive navigation
-- **Simple CLI**: Easy-to-use command-line interface with intuitive subcommands
-- **Python API**: Programmatic access to all conversion and visualization functions
-
-## Supported Formats
-
-- **LabelMe**: JSON format for polygon/rectangle annotations
-- **COCO**: JSON format for object detection
-- **YOLO**: TXT format with normalized coordinates
-
-## Quick Start
-
-1. Install the library:
-   ```bash
-   # Regular installation (recommended)
-   pip install .
-
-   # For development (editable installation)
-   python setup.py develop
-   # Note: pip install -e . may not work due to setuptools compatibility issues
-   ```
-
-2. Convert a COCO annotation to YOLO format:
-   ```bash
-   dataflow convert coco2yolo image.jpg annotation.json output.txt --class-names classes.txt
-   ```
-
-3. Visualize a YOLO annotation:
-   ```bash
-   dataflow visualize yolo image.jpg label.txt classes.txt --show
-   ```
-
-See the full [Usage](#usage) section for more examples.
-
-## Installation
-
-```bash
-# Install from source (regular installation - recommended)
-pip install .
-# This creates the 'dataflow' CLI command
-
-# For development (editable installation)
-python setup.py develop
-# Note: pip install -e . may not work due to setuptools compatibility issues.
-# With editable installation, use 'python -m dataflow.cli' instead of 'dataflow' command
-
-# Install with optional dependencies (pycocotools, torch, torchvision)
-pip install .[full]
-
-# Or install directly (after release)
-# pip install dataflow-cv
-```
-
-## Usage
-
-### Command Line Interface
-
-#### Format Conversion
-
-##### Single File Conversion
-```bash
-# COCO to YOLO
-dataflow convert coco2yolo image.jpg annotation.json output.txt --class-names classes.txt
-
-# YOLO to COCO
-dataflow convert yolo2coco image.jpg label.txt classes.txt output.json
-
-# LabelMe to COCO
-dataflow convert labelme2coco labelme.json output.json
-
-# COCO to LabelMe
-dataflow convert coco2labelme annotation.json image.jpg output.json
-```
-
-##### Batch Conversion (Process Directories)
-```bash
-# COCO to YOLO (batch mode)
-dataflow convert coco2yolo images/ annotations/ output/ --batch --class-names classes.txt
-# Creates output/ directory with .txt files for each image
-
-# YOLO to COCO (batch mode)
-dataflow convert yolo2coco images/ labels/ classes.txt output.json --batch
-# Creates a single COCO JSON file with all images and annotations
-# If output is a directory, creates coco_annotations.json inside it
-
-# LabelMe to COCO (batch mode)
-dataflow convert labelme2coco annotations/ output.json --batch
-# Creates a single COCO JSON file with all LabelMe annotations
-# If output is a directory, creates coco_annotations.json inside it
-
-# COCO to LabelMe (batch mode)
-dataflow convert coco2labelme images/ annotations/ output/ --batch
-# Creates output/ directory with .json files for each image
-
-# LabelMe to YOLO (batch mode)
-dataflow convert labelme2yolo annotations/ output/ --batch --class-names classes.txt
-# Creates output/ directory with .txt files for each LabelMe file
-
-# YOLO to LabelMe (batch mode)
-dataflow convert yolo2labelme images/ labels/ classes.txt output/ --batch
-# Creates output/ directory with .json files for each image
-```
-
-#### Visualization
-
-##### Single Image Visualization
-```bash
-# Visualize COCO annotations
-dataflow visualize coco image.jpg annotation.json --show --save output.jpg
-
-# Visualize YOLO annotations
-dataflow visualize yolo image.jpg label.txt classes.txt --show
-
-# Visualize LabelMe annotations
-dataflow visualize labelme image.jpg annotation.json --show
-```
-
-##### Batch Visualization (Process Directories)
-```bash
-# Batch visualize COCO annotations with interactive navigation
-dataflow visualize coco images/ annotations/ --batch --show --save output/
-# Navigation: ← previous, → next, q quit
-
-# Batch visualize YOLO annotations and save all to directory
-dataflow visualize yolo images/ labels/ classes.txt --batch --save output/ --no-show
-
-# Batch visualize LabelMe annotations with both display and save
-dataflow visualize labelme images/ annotations/ --batch --show --save output/
-```
-
-### Python API
-
-##### Single File Conversion
-```python
-import dataflow
-
-# Format conversion
-dataflow.convert.coco_to_yolo("image.jpg", "coco.json", "yolo.txt")
-dataflow.convert.yolo_to_coco("image.jpg", "yolo.txt", ["cat", "dog"], "coco.json")
-
-# Visualization
-image = dataflow.visualize.visualize_coco("image.jpg", "annotation.json")
-image = dataflow.visualize.visualize_yolo("image.jpg", "label.txt", ["cat", "dog"])
-```
-
-##### Batch Conversion
-```python
-import dataflow
-from pathlib import Path
-
-# Batch conversion functions are available for all formats
-# Example: Batch COCO to YOLO
-pairs = [
-    ("image1.jpg", "annotation1.json"),
-    ("image2.jpg", "annotation2.json"),
-    ("image3.jpg", "annotation3.json")
-]
-dataflow.convert.batch_coco_to_yolo(pairs, ["cat", "dog"], "output_dir/")
-
-# Example: Batch LabelMe to COCO (single COCO file)
-labelme_files = ["labelme1.json", "labelme2.json", "labelme3.json"]
-pairs = [(f, f) for f in labelme_files]  # Same file for input and annotation
-dataflow.convert.batch_labelme_to_coco(pairs, "combined_coco.json")
-
-# Batch utility functions
-from dataflow.convert.batch import batch_process_conversion, find_matching_conversion_pairs
-
-# Find matching image-annotation pairs
-pairs = dataflow.convert.find_matching_conversion_pairs("images/", "annotations/", ".json")
-
-# Process batch conversion
-dataflow.convert.batch_process_conversion(
-    pairs,
-    dataflow.convert.coco_to_yolo,
-    "output_dir/",
-    needs_image=True,
-    class_names=["cat", "dog"]
-)
-```
+- [DataFlow-CV](#dataflow-cv)
+  - [Table of Contents](#table-of-contents)
+  - [Project Structure](#project-structure)
+  - [Requirements](#requirements)
+  - [License](#license)
 
 ## Project Structure
 
 ```
 dataflow/
-├── __init__.py
-├── cli.py                    # Command-line interface
-├── config.py                 # Configuration management
-├── convert/                  # Format conversion module
+├── __init__.py              # Package exports and convenience functions
+├── cli.py                   # Command-line interface
+├── config.py                # Configuration management
+├── convert/                 # Format conversion module
 │   ├── __init__.py
-│   ├── base.py              # Converter base class
-│   ├── batch.py             # Batch conversion utilities
-│   ├── labelme_to_coco.py
-│   ├── coco_to_labelme.py
-│   ├── labelme_to_yolo.py
-│   ├── yolo_to_labelme.py
-│   ├── coco_to_yolo.py
-│   └── yolo_to_coco.py
-└── visualize/                # Visualization module
+│   ├── base.py             # Converter base class
+│   ├── coco_to_yolo.py     # COCO to YOLO converter
+│   └── yolo_to_coco.py     # YOLO to COCO converter
+tests/
+├── __init__.py
+├── convert/                # Conversion tests
+│   ├── __init__.py
+│   ├── test_coco_to_yolo.py
+│   └── test_yolo_to_coco.py
+├── run_tests.py           # Test runner
+samples/
+├── __init__.py
+├── cli/                   # CLI usage examples
+│   ├── __init__.py
+│   └── convert/
+│       ├── cli_coco_to_yolo.py
+│       └── cli_yolo_to_coco.py
+└── api/                   # Python API examples
     ├── __init__.py
-    ├── base.py              # Visualizer base class
-    ├── labelme_vis.py
-    ├── coco_vis.py
-    ├── yolo_vis.py
-    └── batch.py             # Batch visualization utilities
+    └── convert/
+        ├── api_coco_to_yolo.py
+        └── api_yolo_to_coco.py
 ```
 
 ## Requirements
 
+### Core Dependencies
 - Python 3.8 or higher
-- Linux environment (POSIX compatible)
-- OpenCV (opencv-python) for visualization
-- Pillow for image size detection
-- NumPy for numerical operations
-- Click for CLI
+- Linux environment (POSIX compatible, assumes POSIX paths)
+- `click` >= 8.1.0 – CLI framework
+- `numpy` >= 2.0.0 – numerical operations
+- `opencv-python` >= 4.8.0 – image processing (optional, used for some image operations)
+- `Pillow` >= 10.0.0 – image reading (optional, used for reading image dimensions)
 
-## Development
+### Optional Dependencies (install with `pip install -e .[full]`)
+- `pycocotools` >= 2.0.0 – COCO‑format utilities
+- `torch` >= 1.9.0 – PyTorch integration
+- `torchvision` >= 0.10.0 – vision datasets
 
-For detailed development instructions, see [CLAUDE.md](CLAUDE.md). Key commands:
+**Note:** The library is designed to work with only the core dependencies; optional packages enable additional functionality.
 
-- Run tests: `python -m tests.convert.test_convert`
-- Build distribution: `python -m build`
-- Install with optional dependencies: `pip install -e .[full]`
+## Quick Start
+
+### Installation
+
+```bash
+# Install in development mode (core dependencies only)
+pip install -e .
+
+# Install with all optional dependencies (pycocotools, torch, torchvision)
+pip install -e .[full]
+
+# Install directly from source (development mode)
+python setup.py develop
+```
+
+### Command Line Usage
+
+Global options: `--verbose` (`-v`) for progress output, `--overwrite` to replace existing files.
+
+```bash
+# COCO to YOLO conversion
+dataflow convert coco2yolo annotations.json output_dir/
+
+# YOLO to COCO conversion
+dataflow convert yolo2coco images/ labels/ classes.names output.json
+
+# Show configuration
+dataflow config
+
+# Get help
+dataflow --help
+dataflow convert coco2yolo --help
+```
+
+See the [CLI Reference](#cli-reference) below for detailed usage.
+
+### Python API Usage
+
+```python
+import dataflow
+
+# COCO to YOLO
+result = dataflow.coco_to_yolo("annotations.json", "output_dir")
+print(f"Processed {result['images_processed']} images")
+
+# YOLO to COCO
+result = dataflow.yolo_to_coco("images/", "labels/", "classes.names", "output.json")
+print(f"Generated {result['annotations_processed']} annotations")
+```
+
+### CLI Reference
+
+The CLI follows a hierarchical structure: `dataflow <main‑task> <sub‑task> [arguments]`. Global options can be placed before the main task.
+
+#### Global Options
+- `--verbose`, `-v`: Enable verbose output (progress information)
+- `--overwrite`: Overwrite existing files
+
+#### Conversion Commands
+
+**COCO to YOLO**
+```bash
+dataflow convert coco2yolo COCO_JSON_PATH OUTPUT_DIR [--segmentation]
+```
+- `COCO_JSON_PATH`: Path to COCO JSON annotation file
+- `OUTPUT_DIR`: Directory where `labels/` and `class.names` will be created
+- `--segmentation`, `-s`: Handle segmentation annotations (polygon format)
+
+**YOLO to COCO**
+```bash
+dataflow convert yolo2coco IMAGE_DIR YOLO_LABELS_DIR YOLO_CLASS_PATH COCO_JSON_PATH
+```
+- `IMAGE_DIR`: Directory containing image files
+- `YOLO_LABELS_DIR`: Directory containing YOLO label files (`.txt`)
+- `YOLO_CLASS_PATH`: Path to YOLO class names file (e.g., `class.names`)
+- `COCO_JSON_PATH`: Path to save COCO JSON file
+
+#### Configuration Command
+```bash
+dataflow config
+```
+Shows the current configuration (file extensions, default values, CLI context).
+
+#### Getting Help
+```bash
+dataflow --help
+dataflow convert --help
+dataflow convert coco2yolo --help
+dataflow convert yolo2coco --help
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+python tests/run_tests.py
+
+# Run specific test
+python tests/run_tests.py --test TestCocoToYoloConverter
+
+# With verbose output
+python tests/run_tests.py -v
+```
+
+### Examples
+
+Check the `samples/` directory for detailed usage examples:
+
+- `samples/cli/convert/` - CLI usage examples
+- `samples/api/convert/` - Python API examples
 
 ## License
 
