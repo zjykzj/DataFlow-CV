@@ -295,7 +295,7 @@ class TestCocoVisualizer(unittest.TestCase):
         )
 
         self.assertEqual(result["annotations_processed"], 2)
-        self.assertEqual(sorted(result["categories_found"]), [1, 2])
+        self.assertEqual(sorted(result["categories_found"]), ["car", "person"])
 
     def test_visualization_invalid_json(self):
         """Test visualization with invalid JSON file."""

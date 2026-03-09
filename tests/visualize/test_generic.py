@@ -464,7 +464,7 @@ class TestGenericVisualizerClass(unittest.TestCase):
         self.assertEqual(results["images_with_annotations"], 1)
         self.assertEqual(results["annotations_processed"], 2)
         self.assertEqual(results["saved_images"], 1)
-        self.assertEqual(results["classes_found"], {0, 1})
+        self.assertEqual(results["classes_found"], {"car", "person"})
         self.assertEqual(results["errors"], [])
 
     def test_update_results_from_image_not_processed(self):

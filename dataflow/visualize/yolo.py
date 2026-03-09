@@ -81,6 +81,15 @@ class YoloVisualizer(GenericVisualizer):
 
         if not annotations_list:
             self.logger.warning(f"No annotations found in {label_dir}")
+            # If segmentation mode is enabled and there are label files, raise error
+            if self.segmentation:
+                import glob
+                label_files = glob.glob(os.path.join(label_dir, "*.txt"))
+                if label_files:
+                    raise ValueError(
+                        f"Segmentation mode required but no valid segmentation annotations found in {label_dir}. "
+                        f"Found {len(label_files)} label file(s) with only detection format or no annotations."
+                    )
             # Return empty results
             return self._create_results_template(
                 image_dir=image_dir,
@@ -89,6 +98,17 @@ class YoloVisualizer(GenericVisualizer):
                 save_dir=save_dir,
                 total_images=len(self.get_image_files(image_dir))
             )
+
+        # Check if any annotations exist when segmentation mode is enabled
+        total_annotations = sum(len(img.get("annotations", [])) for img in annotations_list)
+        if self.segmentation and total_annotations == 0:
+            import glob
+            label_files = glob.glob(os.path.join(label_dir, "*.txt"))
+            if label_files:
+                raise ValueError(
+                    f"Segmentation mode required but no valid segmentation annotations found in {label_dir}. "
+                    f"Found {len(label_files)} label file(s) with only detection format or no annotations."
+                )
 
         # Create results template
         results = self._create_results_template(

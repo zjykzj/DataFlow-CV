@@ -222,6 +222,47 @@ dataflow visualize yolo --help
 dataflow visualize coco --help
 ```
 
+### Segmentation Support
+
+DataFlow-CV supports both bounding box and polygon segmentation annotations across all formats:
+
+**YOLO Segmentation Format**
+- Detection format: `class_id x_center y_center width height` (normalized coordinates)
+- Segmentation format: `class_id x1 y1 x2 y2 ...` (polygon vertices, normalized)
+- YOLO segmentation files have the same `.txt` extension as detection files
+
+**COCO Segmentation Format**
+- Polygon coordinates in `segmentation` field (list of `[x1, y1, x2, y2, ...]`)
+- Both single-polygon and multi-polygon annotations are supported
+
+**Usage Examples**
+
+```bash
+# Convert COCO to YOLO with segmentation annotations
+dataflow convert coco2yolo annotations.json output_dir/ --segmentation
+
+# Visualize YOLO annotations in strict segmentation mode (only polygons)
+dataflow visualize yolo images/ labels/ classes.names --segmentation
+
+# Visualize COCO annotations in strict segmentation mode
+dataflow visualize coco images/ annotations.json --segmentation
+```
+
+**Python API**
+```python
+# Convert COCO to YOLO with segmentation
+result = dataflow.coco_to_yolo("annotations.json", "output_dir", segmentation=True)
+
+# Visualize in strict segmentation mode
+result = dataflow.visualize_yolo("images/", "labels/", "classes.names", segmentation=True)
+```
+
+**Notes**
+- Without the `--segmentation` flag, both bounding boxes and polygons are processed automatically
+- With `--segmentation` flag, only valid polygon annotations are processed (strict mode)
+- YOLO segmentation format requires at least 3 points (6 coordinates)
+- COCO segmentation polygons are automatically converted to YOLO normalized coordinates
+
 ### Running Tests
 
 ```bash
