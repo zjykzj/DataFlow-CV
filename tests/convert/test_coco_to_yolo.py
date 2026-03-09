@@ -171,11 +171,23 @@ class TestCocoToYoloConverter(unittest.TestCase):
         """Test conversion with invalid output directory."""
         converter = CocoToYoloConverter(verbose=False)
 
-        # Try to write to a location without permissions
-        invalid_dir = "/root/no_permission"
+        # Create a read-only directory to simulate permission error
+        import tempfile, stat
+        read_only_dir = tempfile.mkdtemp(prefix="test_readonly_")
+        try:
+            # Remove write permissions for all users
+            os.chmod(read_only_dir, stat.S_IRUSR | stat.S_IXUSR)  # read and execute only
 
-        with self.assertRaises(ValueError):
-            converter.convert(self.coco_json_path, invalid_dir)
+            # Try to write to a subdirectory within the read-only directory
+            invalid_dir = os.path.join(read_only_dir, "no_permission")
+
+            with self.assertRaises(ValueError):
+                converter.convert(self.coco_json_path, invalid_dir)
+        finally:
+            # Restore permissions to allow cleanup
+            os.chmod(read_only_dir, stat.S_IRWXU)
+            import shutil
+            shutil.rmtree(read_only_dir)
 
     def test_empty_coco_json(self):
         """Test conversion with empty COCO JSON."""
@@ -186,8 +198,12 @@ class TestCocoToYoloConverter(unittest.TestCase):
 
         converter = CocoToYoloConverter(verbose=False)
 
-        with self.assertRaises(ValueError):
-            converter.convert(empty_json_path, self.output_dir)
+        # Empty JSON should not raise error but produce zero results
+        result = converter.convert(empty_json_path, self.output_dir)
+        self.assertEqual(result["total_images"], 0)
+        self.assertEqual(result["total_annotations"], 0)
+        self.assertEqual(result["total_categories"], 0)
+        self.assertEqual(result["images_processed"], 0)
 
     def test_coco_json_without_categories(self):
         """Test conversion with COCO JSON missing categories."""

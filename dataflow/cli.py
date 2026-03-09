@@ -13,6 +13,7 @@ from dataflow.convert.coco_to_yolo import CocoToYoloConverter
 from dataflow.convert.yolo_to_coco import YoloToCocoConverter
 from dataflow.visualize.yolo import YoloVisualizer
 from dataflow.visualize.coco import CocoVisualizer
+from dataflow.visualize.labelme import LabelMeVisualizer
 from dataflow.config import Config
 from dataflow import __version__
 
@@ -160,8 +161,9 @@ def visualize(ctx):
 @click.argument('label_dir', type=click.Path(exists=True, file_okay=False))
 @click.argument('class_path', type=click.Path(exists=True, dir_okay=False))
 @click.option('--save', type=click.Path(file_okay=False), help='Directory to save visualized images')
+@click.option('--segmentation', '-s', is_flag=True, help='Force segmentation mode (strict validation)')
 @click.pass_context
-def visualize_yolo(ctx, image_dir, label_dir, class_path, save):
+def visualize_yolo(ctx, image_dir, label_dir, class_path, save, segmentation):
     """
     Visualize YOLO format annotations.
 
@@ -176,9 +178,11 @@ def visualize_yolo(ctx, image_dir, label_dir, class_path, save):
         click.echo(f"Class file: {class_path}")
         if save:
             click.echo(f"Save directory: {save}")
+        if segmentation:
+            click.echo("Segmentation mode: ON (strict)")
 
         # Create visualizer and perform visualization
-        visualizer = YoloVisualizer(verbose=ctx.obj['verbose'])
+        visualizer = YoloVisualizer(verbose=ctx.obj['verbose'], segmentation=segmentation)
         result = visualizer.visualize(image_dir, label_dir, class_path, save)
 
         # Print summary
@@ -208,8 +212,9 @@ def visualize_yolo(ctx, image_dir, label_dir, class_path, save):
 @click.argument('image_dir', type=click.Path(exists=True, file_okay=False))
 @click.argument('annotation_json', type=click.Path(exists=True, dir_okay=False))
 @click.option('--save', type=click.Path(file_okay=False), help='Directory to save visualized images')
+@click.option('--segmentation', '-s', is_flag=True, help='Force segmentation mode (strict validation)')
 @click.pass_context
-def visualize_coco(ctx, image_dir, annotation_json, save):
+def visualize_coco(ctx, image_dir, annotation_json, save, segmentation):
     """
     Visualize COCO format annotations.
 
@@ -222,9 +227,11 @@ def visualize_coco(ctx, image_dir, annotation_json, save):
         click.echo(f"Annotation JSON: {annotation_json}")
         if save:
             click.echo(f"Save directory: {save}")
+        if segmentation:
+            click.echo("Segmentation mode: ON (strict)")
 
         # Create visualizer and perform visualization
-        visualizer = CocoVisualizer(verbose=ctx.obj['verbose'])
+        visualizer = CocoVisualizer(verbose=ctx.obj['verbose'], segmentation=segmentation)
         result = visualizer.visualize(image_dir, annotation_json, save)
 
         # Print summary
@@ -238,6 +245,54 @@ def visualize_coco(ctx, image_dir, annotation_json, save):
         click.echo(f"Images with annotations: {result.get('images_with_annotations', 0)}")
         click.echo(f"Annotations processed: {result.get('annotations_processed', 0)}")
         click.echo(f"Categories found: {result.get('categories_found', [])}")
+        if save:
+            click.echo(f"Saved images: {result.get('saved_images', 0)}")
+            click.echo(f"Save directory: {result.get('save_dir')}")
+
+        click.echo("\n✅ Visualization completed successfully!")
+
+    except Exception as e:
+        click.echo(f"\n❌ Error: {e}", err=True)
+        ctx.exit(1)
+
+
+@visualize.command(name='labelme')
+@click.argument('image_dir', type=click.Path(exists=True, file_okay=False))
+@click.argument('label_dir', type=click.Path(exists=True, file_okay=False))
+@click.option('--save', type=click.Path(file_okay=False), help='Directory to save visualized images')
+@click.option('--segmentation', '-s', is_flag=True, help='Force segmentation mode (strict validation)')
+@click.pass_context
+def visualize_labelme(ctx, image_dir, label_dir, save, segmentation):
+    """
+    Visualize LabelMe format annotations.
+
+    \b
+    IMAGE_DIR: Directory containing image files
+    LABEL_DIR: Directory containing LabelMe JSON files
+    """
+    try:
+        click.echo(f"Image directory: {image_dir}")
+        click.echo(f"Label directory: {label_dir}")
+        if save:
+            click.echo(f"Save directory: {save}")
+        if segmentation:
+            click.echo("Segmentation mode: ON (strict)")
+
+        # Create visualizer and perform visualization
+        visualizer = LabelMeVisualizer(verbose=ctx.obj['verbose'], segmentation=segmentation)
+        result = visualizer.visualize(image_dir, label_dir, save)
+
+        # Print summary
+        click.echo("\n" + "="*50)
+        click.echo("VISUALIZATION SUMMARY")
+        click.echo("="*50)
+        click.echo(f"Image directory: {result.get('image_dir')}")
+        click.echo(f"Label directory: {result.get('label_dir')}")
+        click.echo(f"Total images: {result.get('total_images', 0)}")
+        click.echo(f"Images processed: {result.get('images_processed', 0)}")
+        click.echo(f"Images with annotations: {result.get('images_with_annotations', 0)}")
+        click.echo(f"Annotations processed: {result.get('annotations_processed', 0)}")
+        click.echo(f"Classes found: {result.get('classes_found', [])}")
         if save:
             click.echo(f"Saved images: {result.get('saved_images', 0)}")
             click.echo(f"Save directory: {result.get('save_dir')}")

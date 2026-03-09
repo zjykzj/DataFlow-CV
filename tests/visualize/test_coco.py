@@ -124,117 +124,15 @@ class TestCocoVisualizer(unittest.TestCase):
         vis = CocoVisualizer(verbose=True)
         self.assertTrue(vis.verbose)
 
-    def test_load_coco_annotations(self):
-        """Test loading COCO JSON annotations."""
-        data = self.visualizer._load_coco_annotations(self.annotation_file)
-        self.assertIsNotNone(data)
-        self.assertEqual(data["info"]["year"], 2026)
-        self.assertEqual(len(data["images"]), 2)
-        self.assertEqual(len(data["annotations"]), 3)
-        self.assertEqual(len(data["categories"]), 2)
+    def test_initialization_with_segmentation(self):
+        """Test visualizer initialization with segmentation parameter."""
+        vis = CocoVisualizer(segmentation=True)
+        self.assertTrue(vis.segmentation)
+        self.assertTrue(hasattr(vis, 'label_handler'))
 
-    def test_load_coco_annotations_invalid(self):
-        """Test loading invalid COCO JSON."""
-        # Create invalid JSON file
-        invalid_file = os.path.join(self.temp_dir, "invalid.json")
-        with open(invalid_file, "w") as f:
-            f.write("{ invalid json")
+        vis2 = CocoVisualizer(segmentation=False)
+        self.assertFalse(vis2.segmentation)
 
-        data = self.visualizer._load_coco_annotations(invalid_file)
-        self.assertIsNone(data)
-
-        # Non-existent file
-        data = self.visualizer._load_coco_annotations("/non/existent/file.json")
-        self.assertIsNone(data)
-
-    def test_group_annotations_by_image(self):
-        """Test grouping annotations by image_id."""
-        annotations = self.coco_data["annotations"]
-        grouped = self.visualizer._group_annotations_by_image(annotations)
-
-        self.assertIn(1, grouped)
-        self.assertIn(2, grouped)
-        self.assertEqual(len(grouped[1]), 2)  # Image 1 has 2 annotations
-        self.assertEqual(len(grouped[2]), 1)  # Image 2 has 1 annotation
-
-        # Check annotation IDs
-        annotation_ids = [ann["id"] for ann in grouped[1]]
-        self.assertIn(1, annotation_ids)
-        self.assertIn(2, annotation_ids)
-
-    def test_find_image_file(self):
-        """Test finding image file when direct path doesn't exist."""
-        # Test with exact match
-        found = self.visualizer._find_image_file(
-            self.image_dir, "test1.jpg", 1
-        )
-        self.assertEqual(found, os.path.join(self.image_dir, "test1.jpg"))
-
-        # Test with non-existent file
-        found = self.visualizer._find_image_file(
-            self.image_dir, "nonexistent.jpg", 999
-        )
-        self.assertIsNone(found)
-
-        # Test with path component in filename
-        found = self.visualizer._find_image_file(
-            self.image_dir, "subdir/test1.jpg", 1
-        )
-        self.assertEqual(found, os.path.join(self.image_dir, "test1.jpg"))
-
-    def test_draw_coco_annotations(self):
-        """Test drawing COCO annotations on image."""
-        # Create a test image
-        image = np.ones((480, 640, 3), dtype=np.uint8) * 255
-        original_image = image.copy()
-
-        # Get annotations for image 1
-        annotations = [ann for ann in self.coco_data["annotations"] if ann["image_id"] == 1]
-        category_dict = {cat["id"]: cat for cat in self.coco_data["categories"]}
-        image_info = next(img for img in self.coco_data["images"] if img["id"] == 1)
-
-        result = self.visualizer._draw_coco_annotations(
-            image, annotations, category_dict, image_info
-        )
-
-        # Image should be modified
-        self.assertFalse(np.array_equal(result, original_image))
-        self.assertEqual(result.shape, (480, 640, 3))
-
-    def test_draw_segmentation(self):
-        """Test drawing segmentation polygons."""
-        image = np.ones((100, 100, 3), dtype=np.uint8) * 255
-        original_image = image.copy()
-
-        # Single polygon
-        segmentation = [[10, 10, 50, 10, 50, 50, 10, 50]]
-        color = (255, 0, 0)
-        label = "test"
-
-        # This method modifies image in place
-        self.visualizer._draw_segmentation(image, segmentation, color, label)
-        self.assertFalse(np.array_equal(image, original_image))
-
-        # Multiple polygons
-        image2 = original_image.copy()
-        segmentation2 = [
-            [10, 10, 30, 10, 30, 30, 10, 30],
-            [60, 60, 80, 60, 80, 80, 60, 80]
-        ]
-        self.visualizer._draw_segmentation(image2, segmentation2, color, label)
-        self.assertFalse(np.array_equal(image2, original_image))
-
-    def test_draw_keypoints(self):
-        """Test drawing keypoints."""
-        image = np.ones((100, 100, 3), dtype=np.uint8) * 255
-        original_image = image.copy()
-
-        # Keypoints: x, y, visibility (v > 0 means visible)
-        keypoints = [10, 20, 2, 30, 40, 1, 50, 60, 0]  # Third point not visible
-        color = (0, 255, 0)
-
-        self.visualizer._draw_keypoints(image, keypoints, color)
-        self.assertFalse(np.array_equal(image, original_image))
 
     def test_validate_paths(self):
         """Test path validation."""
@@ -330,6 +228,93 @@ class TestCocoVisualizer(unittest.TestCase):
         # Clean up second temp directory
         import shutil
         shutil.rmtree(temp_dir2)
+
+    def test_visualization_with_segmentation_flag(self):
+        """Test visualization with segmentation flag enabled."""
+        # Create visualizer with segmentation flag
+        seg_visualizer = CocoVisualizer(verbose=False, segmentation=True)
+
+        # Our test data has mixed annotations: some with segmentation, some without
+        # With segmentation flag, annotations without segmentation should be filtered out
+        result = seg_visualizer.visualize(
+            self.image_dir, self.annotation_file
+        )
+
+        # Check results: only annotation with segmentation (id=2) should be processed
+        self.assertEqual(result["annotations_processed"], 1)
+        self.assertEqual(result["categories_found"], ["car"])  # Only car category has segmentation
+
+    def test_visualization_without_segmentation_flag(self):
+        """Test visualization without segmentation flag (auto detection)."""
+        # Without segmentation flag, all annotations should be processed
+        result = self.visualizer.visualize(
+            self.image_dir, self.annotation_file
+        )
+
+        # All 3 annotations should be processed
+        self.assertEqual(result["annotations_processed"], 3)
+        self.assertEqual(sorted(result["categories_found"]), ["car", "person"])
+
+    def test_visualization_with_segmentation_only_data(self):
+        """Test visualization when all annotations have segmentation."""
+        # Create a COCO dataset where all annotations have segmentation
+        seg_only_file = os.path.join(self.temp_dir, "seg_only.json")
+        seg_only_data = {
+            "info": self.coco_data["info"],
+            "images": self.coco_data["images"][:1],  # Just first image
+            "annotations": [
+                {
+                    "id": 1,
+                    "image_id": 1,
+                    "category_id": 1,
+                    "bbox": [100, 100, 200, 150],
+                    "area": 30000,
+                    "segmentation": [[100, 100, 300, 100, 300, 250, 100, 250]],
+                    "iscrowd": 0
+                },
+                {
+                    "id": 2,
+                    "image_id": 1,
+                    "category_id": 2,
+                    "bbox": [300, 200, 100, 100],
+                    "area": 10000,
+                    "segmentation": [[350, 250, 400, 250, 400, 300, 350, 300]],
+                    "iscrowd": 0
+                }
+            ],
+            "categories": self.coco_data["categories"]
+        }
+
+        with open(seg_only_file, "w") as f:
+            json.dump(seg_only_data, f)
+
+        # With segmentation flag, both annotations should be processed
+        seg_visualizer = CocoVisualizer(verbose=False, segmentation=True)
+        result = seg_visualizer.visualize(
+            self.image_dir, seg_only_file
+        )
+
+        self.assertEqual(result["annotations_processed"], 2)
+        self.assertEqual(sorted(result["categories_found"]), [1, 2])
+
+    def test_visualization_invalid_json(self):
+        """Test visualization with invalid JSON file."""
+        invalid_file = os.path.join(self.temp_dir, "invalid.json")
+        with open(invalid_file, "w") as f:
+            f.write("{ invalid json")
+
+        with self.assertRaises(ValueError):
+            self.visualizer.visualize(self.image_dir, invalid_file)
+
+    def test_visualization_nonexistent_json(self):
+        """Test visualization with non-existent JSON file."""
+        with self.assertRaises(ValueError):
+            self.visualizer.visualize(self.image_dir, "/non/existent/file.json")
+
+    def test_visualization_nonexistent_image_dir(self):
+        """Test visualization with non-existent image directory."""
+        with self.assertRaises(ValueError):
+            self.visualizer.visualize("/non/existent/dir", self.annotation_file)
 
 
 if __name__ == "__main__":

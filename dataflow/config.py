@@ -79,7 +79,10 @@ class Config:
 
         if is_dir:
             if create and cls.CREATE_DIRS:
-                os.makedirs(path, exist_ok=True)
+                try:
+                    os.makedirs(path, exist_ok=True)
+                except (OSError, PermissionError):
+                    return False
             return os.path.isdir(path) or (create and cls.CREATE_DIRS)
         else:
             return os.path.exists(os.path.dirname(path)) if os.path.dirname(path) else True

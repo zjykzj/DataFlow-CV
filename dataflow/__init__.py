@@ -21,6 +21,7 @@ from .convert.yolo_to_coco import YoloToCocoConverter
 # Visualizers
 from .visualize.yolo import YoloVisualizer
 from .visualize.coco import CocoVisualizer
+from .visualize.labelme import LabelMeVisualizer
 
 # Base classes
 from .convert.base import BaseConverter
@@ -118,6 +119,28 @@ def visualize_coco(
     return visualizer.visualize(image_dir, annotation_json, save_dir)
 
 
+def visualize_labelme(
+    image_dir: str,
+    label_dir: str,
+    save_dir: str = None,
+    **kwargs
+):
+    """
+    Visualize LabelMe format annotations.
+
+    Args:
+        image_dir: Directory containing image files
+        label_dir: Directory containing LabelMe JSON files
+        save_dir: Directory to save visualized images (optional)
+        **kwargs: Additional options passed to LabelMeVisualizer.visualize()
+
+    Returns:
+        Dictionary with visualization statistics
+    """
+    visualizer = LabelMeVisualizer(**kwargs)
+    return visualizer.visualize(image_dir, label_dir, save_dir)
+
+
 __all__ = [
     # Configuration
     "Config",
@@ -129,6 +152,8 @@ __all__ = [
     # Visualizers
     "YoloVisualizer",
     "CocoVisualizer",
+    "LabelMeVisualizer",
+    "GenericVisualizer",
 
     # Base classes
     "BaseConverter",
@@ -142,6 +167,7 @@ __all__ = [
     "yolo_to_coco",
     "visualize_yolo",
     "visualize_coco",
+    "visualize_labelme",
 
     # Metadata
     "__version__",

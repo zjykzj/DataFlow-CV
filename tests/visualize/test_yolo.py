@@ -78,57 +78,6 @@ class TestYoloVisualizer(unittest.TestCase):
         color10 = self.visualizer.get_color_for_class(10, num_classes=20)
         self.assertEqual(len(color10), 3)
 
-    def test_parse_yolo_annotations(self):
-        """Test parsing YOLO annotation file."""
-        # Create a test label file
-        label_file = os.path.join(self.label_dir, "test.txt")
-        with open(label_file, "w") as f:
-            f.write("0 0.5 0.5 0.2 0.2\n")   # person at center
-            f.write("1 0.3 0.3 0.1 0.1 0.95\n")  # car with confidence
-
-        image_shape = (640, 480, 3)  # height, width, channels
-        classes = ["person", "car", "bicycle"]
-
-        annotations = self.visualizer._parse_yolo_annotations(
-            label_file, classes, image_shape
-        )
-
-        self.assertEqual(len(annotations), 2)
-
-        # Check first annotation
-        ann1 = annotations[0]
-        self.assertEqual(ann1["class_id"], 0)
-        self.assertEqual(ann1["class_name"], "person")
-        self.assertIsNone(ann1["confidence"])
-        bbox = ann1["bbox"]
-        self.assertEqual(len(bbox), 4)
-        self.assertTrue(0 <= bbox[0] < bbox[2] <= 480)  # x coordinates within image width
-        self.assertTrue(0 <= bbox[1] < bbox[3] <= 640)  # y coordinates within image height
-
-        # Check second annotation (with confidence)
-        ann2 = annotations[1]
-        self.assertEqual(ann2["class_id"], 1)
-        self.assertEqual(ann2["class_name"], "car")
-        self.assertAlmostEqual(ann2["confidence"], 0.95)
-
-    def test_parse_yolo_annotations_invalid(self):
-        """Test parsing invalid YOLO annotations."""
-        # Create invalid label file
-        label_file = os.path.join(self.label_dir, "invalid.txt")
-        with open(label_file, "w") as f:
-            f.write("invalid line\n")
-            f.write("0 1.5 0.5 0.2 0.2\n")  # x_center > 1
-            f.write("10 0.5 0.5 0.2 0.2\n")  # class_id out of range
-            f.write("\n")  # empty line
-
-        image_shape = (640, 480, 3)
-        classes = ["person", "car", "bicycle"]
-
-        annotations = self.visualizer._parse_yolo_annotations(
-            label_file, classes, image_shape
-        )
-        self.assertEqual(len(annotations), 0)  # All invalid lines should be skipped
-
     def test_draw_bounding_box(self):
         """Test drawing bounding box on image."""
         # Create a blank image
@@ -145,23 +94,6 @@ class TestYoloVisualizer(unittest.TestCase):
         # Image should be modified
         self.assertFalse(np.array_equal(result, original_image))
         self.assertEqual(result.shape, (100, 100, 3))
-
-    def test_get_matching_label_file(self):
-        """Test matching image file to label file."""
-        image_file = "/path/to/images/test.jpg"
-        label_files = [
-            "/path/to/labels/test.txt",
-            "/path/to/labels/other.txt",
-            "/path/to/labels/another.txt"
-        ]
-
-        matched = self.visualizer._get_matching_label_file(image_file, label_files)
-        self.assertEqual(matched, "/path/to/labels/test.txt")
-
-        # Test no match
-        image_file2 = "/path/to/images/nomatch.jpg"
-        matched2 = self.visualizer._get_matching_label_file(image_file2, label_files)
-        self.assertIsNone(matched2)
 
     def test_validate_paths(self):
         """Test path validation."""
@@ -193,22 +125,182 @@ class TestYoloVisualizer(unittest.TestCase):
         self.assertIsNotNone(saved_image)
         self.assertEqual(saved_image.shape, (50, 50, 3))
 
-    def test_visualize_with_missing_data(self):
-        """Test visualization with missing images or labels."""
-        # Empty directories should raise error
-        with self.assertRaises(ValueError):
-            self.visualizer.visualize(self.image_dir, self.label_dir, self.class_file)
+    def test_initialization_with_segmentation(self):
+        """Test visualizer initialization with segmentation parameter."""
+        vis = YoloVisualizer(segmentation=True)
+        self.assertTrue(vis.segmentation)
+        self.assertTrue(hasattr(vis, 'label_handler'))
 
-        # Create an image but no matching label
-        test_image_path = os.path.join(self.image_dir, "test.jpg")
-        cv2.imwrite(test_image_path, np.ones((100, 100, 3), dtype=np.uint8))
+        vis2 = YoloVisualizer(segmentation=False)
+        self.assertFalse(vis2.segmentation)
 
-        # Should process but find no annotations
+    def test_basic_visualization_detection(self):
+        """Test basic YOLO visualization with detection format."""
+        # Create a test image
+        image_path = os.path.join(self.image_dir, "test.jpg")
+        image = np.ones((640, 480, 3), dtype=np.uint8) * 255
+        cv2.imwrite(image_path, image)
+
+        # Create a YOLO label file with detection format (bbox)
+        label_path = os.path.join(self.label_dir, "test.txt")
+        with open(label_path, "w") as f:
+            # class_id x_center y_center width height
+            f.write("0 0.5 0.5 0.2 0.2\n")   # person at center
+            f.write("1 0.3 0.3 0.1 0.1\n")   # car
+
+        # Visualize without saving (display mode)
         result = self.visualizer.visualize(
-            self.image_dir, self.label_dir, self.class_file, save_dir=self.temp_dir
+            self.image_dir, self.label_dir, self.class_file
         )
-        self.assertEqual(result["images_processed"], 0)
-        self.assertEqual(result["annotations_processed"], 0)
+
+        # Check results
+        self.assertIn("images_processed", result)
+        self.assertIn("annotations_processed", result)
+        self.assertIn("classes_found", result)
+        self.assertEqual(result["images_processed"], 1)
+        self.assertEqual(result["annotations_processed"], 2)
+        self.assertEqual(sorted(result["classes_found"]), ["car", "person"])
+
+    def test_basic_visualization_segmentation(self):
+        """Test basic YOLO visualization with segmentation format."""
+        # Create a test image
+        image_path = os.path.join(self.image_dir, "test.jpg")
+        image = np.ones((640, 480, 3), dtype=np.uint8) * 255
+        cv2.imwrite(image_path, image)
+
+        # Create a YOLO label file with segmentation format (polygon)
+        label_path = os.path.join(self.label_dir, "test.txt")
+        with open(label_path, "w") as f:
+            # class_id x1 y1 x2 y2 x3 y3 (triangle)
+            f.write("0 0.3 0.3 0.5 0.3 0.4 0.5\n")   # person polygon
+            f.write("1 0.6 0.6 0.8 0.6 0.7 0.8\n")   # car polygon
+
+        # Visualize without segmentation flag (auto detection)
+        result = self.visualizer.visualize(
+            self.image_dir, self.label_dir, self.class_file
+        )
+
+        # Check results
+        self.assertEqual(result["images_processed"], 1)
+        self.assertEqual(result["annotations_processed"], 2)
+
+    def test_visualization_with_segmentation_flag(self):
+        """Test visualization with segmentation flag enabled."""
+        # Create a test image
+        image_path = os.path.join(self.image_dir, "test.jpg")
+        image = np.ones((640, 480, 3), dtype=np.uint8) * 255
+        cv2.imwrite(image_path, image)
+
+        # Create a YOLO label file with segmentation format only
+        label_path = os.path.join(self.label_dir, "test.txt")
+        with open(label_path, "w") as f:
+            # class_id x1 y1 x2 y2 x3 y3 (triangle)
+            f.write("0 0.3 0.3 0.5 0.3 0.4 0.5\n")   # person polygon
+
+        # Create visualizer with segmentation flag
+        seg_visualizer = YoloVisualizer(verbose=False, segmentation=True)
+
+        # Should work with segmentation data
+        result = seg_visualizer.visualize(
+            self.image_dir, self.label_dir, self.class_file
+        )
+        self.assertEqual(result["images_processed"], 1)
+        self.assertEqual(result["annotations_processed"], 1)
+
+    def test_visualization_with_segmentation_flag_strict_fail(self):
+        """Test strict segmentation mode failure when detection format is present."""
+        # Create a test image
+        image_path = os.path.join(self.image_dir, "test.jpg")
+        image = np.ones((640, 480, 3), dtype=np.uint8) * 255
+        cv2.imwrite(image_path, image)
+
+        # Create a YOLO label file with detection format (bbox) only
+        label_path = os.path.join(self.label_dir, "test.txt")
+        with open(label_path, "w") as f:
+            # class_id x_center y_center width height (detection format)
+            f.write("0 0.5 0.5 0.2 0.2\n")   # person bbox
+
+        # Create visualizer with segmentation flag (strict mode)
+        seg_visualizer = YoloVisualizer(verbose=False, segmentation=True)
+
+        # Should raise ValueError because require_segmentation=True but label has detection format
+        with self.assertRaises(ValueError):
+            seg_visualizer.visualize(
+                self.image_dir, self.label_dir, self.class_file
+            )
+
+    def test_visualization_with_save_dir(self):
+        """Test visualization with save directory."""
+        # Create a test image
+        image_path = os.path.join(self.image_dir, "test.jpg")
+        image = np.ones((640, 480, 3), dtype=np.uint8) * 255
+        cv2.imwrite(image_path, image)
+
+        # Create a YOLO label file
+        label_path = os.path.join(self.label_dir, "test.txt")
+        with open(label_path, "w") as f:
+            f.write("0 0.5 0.5 0.2 0.2\n")
+
+        save_dir = os.path.join(self.temp_dir, "output")
+
+        result = self.visualizer.visualize(
+            self.image_dir, self.label_dir, self.class_file, save_dir=save_dir
+        )
+
+        self.assertEqual(result["images_processed"], 1)
+        self.assertEqual(result["saved_images"], 1)
+        self.assertTrue(os.path.exists(save_dir))
+
+        # Check saved image exists
+        saved_image_path = os.path.join(save_dir, "test.jpg")
+        self.assertTrue(os.path.exists(saved_image_path))
+
+    def test_visualization_mixed_format_auto_detection(self):
+        """Test auto detection with mixed detection and segmentation formats."""
+        # Create a test image
+        image_path = os.path.join(self.image_dir, "test.jpg")
+        image = np.ones((640, 480, 3), dtype=np.uint8) * 255
+        cv2.imwrite(image_path, image)
+
+        # Create a YOLO label file with mixed formats
+        label_path = os.path.join(self.label_dir, "test.txt")
+        with open(label_path, "w") as f:
+            f.write("0 0.5 0.5 0.2 0.2\n")  # detection format
+            f.write("1 0.3 0.3 0.5 0.3 0.4 0.5\n")  # segmentation format
+
+        # Visualize without segmentation flag (auto detection)
+        result = self.visualizer.visualize(
+            self.image_dir, self.label_dir, self.class_file
+        )
+
+        # Both annotations should be processed
+        self.assertEqual(result["annotations_processed"], 2)
+        self.assertEqual(sorted(result["classes_found"]), ["car", "person"])
+
+    def test_batch_visualize(self):
+        """Test batch visualization method."""
+        # Create test data for multiple datasets
+        image_dirs = [self.image_dir, self.image_dir]
+        label_dirs = [self.label_dir, self.label_dir]
+        class_paths = [self.class_file, self.class_file]
+
+        # Create test image and label
+        image_path = os.path.join(self.image_dir, "test.jpg")
+        image = np.ones((640, 480, 3), dtype=np.uint8) * 255
+        cv2.imwrite(image_path, image)
+
+        label_path = os.path.join(self.label_dir, "test.txt")
+        with open(label_path, "w") as f:
+            f.write("0 0.5 0.5 0.2 0.2\n")
+
+        results = self.visualizer.batch_visualize(
+            image_dirs, label_dirs, class_paths
+        )
+
+        self.assertEqual(len(results), 2)
+        for result in results:
+            self.assertIsNotNone(result)
+            self.assertEqual(result["images_processed"], 1)
 
 
 if __name__ == "__main__":

@@ -1,45 +1,45 @@
 # -*- coding: utf-8 -*-
 
 """
-@Time    : 2026/3/9 21:20
-@File    : coco.py
+@Time    : 2026/3/9 21:25
+@File    : labelme.py
 @Author  : zj
-@Description: COCO format visualizer using label handler
+@Description: LabelMe format visualizer using label handler
 """
 
 import os
 from typing import List, Dict, Any, Optional
 
 from .generic import GenericVisualizer
-from ..label.coco import CocoHandler
+from ..label.labelme import LabelMeHandler
 from ..config import Config
 
 
-class CocoVisualizer(GenericVisualizer):
-    """Visualizer for COCO format annotations using CocoHandler."""
+class LabelMeVisualizer(GenericVisualizer):
+    """Visualizer for LabelMe format annotations using LabelMeHandler."""
 
     def __init__(self, verbose: bool = None, segmentation: bool = False):
-        """Initialize COCO visualizer.
+        """Initialize LabelMe visualizer.
 
         Args:
             verbose: Whether to print progress information.
                 If None, uses Config.VERBOSE.
             segmentation: Whether to force segmentation mode (strict validation).
-                If True, annotations must contain valid segmentation data.
+                If True, annotations must have shape_type="polygon".
         """
         super().__init__(verbose, segmentation)
-        self.label_handler = CocoHandler(verbose=verbose)
+        self.label_handler = LabelMeHandler(verbose=verbose)
 
     def visualize(self,
                   image_dir: str,
-                  annotation_json: str,
+                  label_dir: str,
                   save_dir: Optional[str] = None) -> Dict[str, Any]:
         """
-        Visualize COCO annotations on images.
+        Visualize LabelMe annotations on images.
 
         Args:
             image_dir (str): Directory containing image files
-            annotation_json (str): Path to COCO JSON annotation file
+            label_dir (str): Directory containing LabelMe JSON files
             save_dir (Optional[str]): Directory to save visualized images.
                 If None, images are only displayed.
 
@@ -48,65 +48,77 @@ class CocoVisualizer(GenericVisualizer):
                 - images_processed: Number of images processed
                 - images_with_annotations: Number of images with annotations
                 - annotations_processed: Total number of annotations drawn
-                - categories_found: List of category IDs found in annotations
+                - classes_found: List of class names found in annotations
                 - saved_images: Number of images saved (if save_dir provided)
                 - save_dir: Path where images were saved (if save_dir provided)
         """
         # Validate inputs
         if not self.validate_input_path(image_dir, is_dir=True):
             raise ValueError(f"Invalid image directory: {image_dir}")
-        if not self.validate_input_path(annotation_json, is_dir=False):
-            raise ValueError(f"Invalid annotation file: {annotation_json}")
+        if not self.validate_input_path(label_dir, is_dir=True):
+            raise ValueError(f"Invalid label directory: {label_dir}")
         if save_dir and not self.validate_output_path(save_dir, is_dir=True, create=True):
             raise ValueError(f"Invalid save directory: {save_dir}")
 
-        # Load COCO annotations using CocoHandler
+        # Read annotations using LabelMeHandler
         try:
-            coco_data = self.label_handler.read(annotation_json)
-        except Exception as e:
-            raise ValueError(f"Failed to read COCO annotations: {e}")
-
-        # Convert to unified format
-        try:
-            annotations_list = self.label_handler.convert_to_unified_format(
-                coco_data=coco_data,
-                image_dir=image_dir,
+            annotations_list = self.label_handler.read_batch(
+                json_dir=label_dir,
                 require_segmentation=self.segmentation
             )
         except Exception as e:
-            raise ValueError(f"Failed to convert COCO annotations: {e}")
+            raise ValueError(f"Failed to read LabelMe annotations: {e}")
 
         if not annotations_list:
-            self.logger.warning(f"No annotations found in {annotation_json}")
+            self.logger.warning(f"No annotations found in {label_dir}")
+            # If segmentation mode is enabled and there are JSON files, raise error
+            if self.segmentation:
+                import glob
+                json_files = glob.glob(os.path.join(label_dir, "*.json"))
+                if json_files:
+                    raise ValueError(
+                        f"Segmentation mode required but no valid polygon annotations found in {label_dir}. "
+                        f"Found {len(json_files)} JSON file(s) with only rectangle shapes or no shapes."
+                    )
             # Return empty results
             return self._create_results_template(
-                annotation_json=annotation_json,
                 image_dir=image_dir,
+                label_dir=label_dir,
                 save_dir=save_dir,
-                total_images=len(coco_data.get("images", []))
+                total_images=len(self.get_image_files(image_dir))
             )
+
+        # Check if any annotations exist when segmentation mode is enabled
+        total_annotations = sum(len(img.get("annotations", [])) for img in annotations_list)
+        if self.segmentation and total_annotations == 0:
+            import glob
+            json_files = glob.glob(os.path.join(label_dir, "*.json"))
+            if json_files:
+                raise ValueError(
+                    f"Segmentation mode required but no valid polygon annotations found in {label_dir}. "
+                    f"Found {len(json_files)} JSON file(s) with only rectangle shapes or no shapes."
+                )
 
         # Create results template
         results = self._create_results_template(
-            annotation_json=annotation_json,
             image_dir=image_dir,
+            label_dir=label_dir,
             save_dir=save_dir,
             total_images=len(annotations_list)
         )
+
+        # Extract unique class names for color assignment
+        classes = self._extract_classes(annotations_list)
 
         self.logger.info("Starting visualization...")
         if save_dir:
             self.logger.info(f"Images will be saved to: {save_dir}")
 
-        # Get category map for class names
-        category_map = self.label_handler.get_category_map(coco_data)
-        categories = list(category_map.values())
-
         # Process each image
         for i, image_data in enumerate(annotations_list):
             image_result = self._process_image_annotations(
                 image_data=image_data,
-                classes=categories,
+                classes=classes,
                 save_dir=save_dir
             )
 
@@ -129,46 +141,62 @@ class CocoVisualizer(GenericVisualizer):
             self.close_windows()
 
         # Convert set to list for JSON serialization
-        results["categories_found"] = list(results["classes_found"])
-        del results["classes_found"]  # Rename to categories_found for COCO
+        results["classes_found"] = list(results["classes_found"])
 
         self.logger.info("Visualization completed")
         self.logger.info(f"Processed {results['images_processed']} images")
         self.logger.info(f"Found {results['annotations_processed']} annotations")
-        self.logger.info(f"Categories found: {results['categories_found']}")
+        self.logger.info(f"Classes found: {results['classes_found']}")
         if save_dir:
             self.logger.info(f"Saved {results['saved_images']} images to {save_dir}")
 
         return results
 
+    def _extract_classes(self, annotations_list: List[Dict]) -> List[str]:
+        """Extract unique class names from annotations list.
+
+        Args:
+            annotations_list: List of image annotation data
+
+        Returns:
+            Sorted list of unique class names
+        """
+        class_names = set()
+        for image_data in annotations_list:
+            for annotation in image_data.get("annotations", []):
+                class_name = annotation.get("category_name")
+                if class_name:
+                    class_names.add(class_name)
+        return sorted(class_names)
+
     def batch_visualize(self,
                         image_dirs: List[str],
-                        annotation_jsons: List[str],
+                        label_dirs: List[str],
                         save_dirs: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """
-        Visualize multiple COCO datasets.
+        Visualize multiple LabelMe datasets.
 
         Args:
             image_dirs (List[str]): List of image directories
-            annotation_jsons (List[str]): List of annotation JSON files
+            label_dirs (List[str]): List of label directories
             save_dirs (Optional[List[str]]): List of save directories
 
         Returns:
             List of visualization results
         """
-        if len(image_dirs) != len(annotation_jsons):
-            raise ValueError("image_dirs and annotation_jsons must have the same length")
+        if len(image_dirs) != len(label_dirs):
+            raise ValueError("image_dirs and label_dirs must have the same length")
 
         if save_dirs is not None and len(save_dirs) != len(image_dirs):
             raise ValueError("save_dirs must have same length as image_dirs")
 
         results = []
-        for i, (image_dir, annotation_json) in enumerate(zip(image_dirs, annotation_jsons)):
+        for i, (image_dir, label_dir) in enumerate(zip(image_dirs, label_dirs)):
             save_dir = save_dirs[i] if save_dirs else None
             self.logger.info(f"Processing dataset {i+1}/{len(image_dirs)}")
 
             try:
-                result = self.visualize(image_dir, annotation_json, save_dir)
+                result = self.visualize(image_dir, label_dir, save_dir)
                 results.append(result)
             except Exception as e:
                 self.logger.error(f"Failed to visualize dataset {i+1}: {e}")

@@ -8,11 +8,15 @@
 """
 
 from .base import BaseVisualizer
+from .generic import GenericVisualizer
 from .yolo import YoloVisualizer
 from .coco import CocoVisualizer
+from .labelme import LabelMeVisualizer
 
 __all__ = [
     "BaseVisualizer",
+    "GenericVisualizer",
     "YoloVisualizer",
     "CocoVisualizer",
+    "LabelMeVisualizer",
 ]
