@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-DataFlow is a Python library for computer vision dataset processing, focusing on format conversion and visualization between LabelMe, COCO, and YOLO formats. It provides both a CLI and Python API. The project is in alpha stage (Development Status :: 3 - Alpha).
+DataFlow is a Python library for computer vision dataset processing, focusing on format conversion and visualization between LabelMe, COCO, and YOLO formats. It provides both a CLI and Python API. The project is in alpha stage (Development Status :: 3 - Alpha). Sample datasets are provided in `assets/`, and usage examples can be found in `samples/`.
 
 ## Git Commits
 
@@ -40,9 +40,18 @@ The AI model used in this project is DeepSeek-V3.2 (128K context length), not Cl
 ## Common Development Commands
 
 ### Running Tests
+
+The project uses a custom test runner (`tests/run_tests.py`) built on unittest. It supports discovery patterns and specific test selection.
+
 ```bash
 # Run all tests
 python tests/run_tests.py
+
+# Run tests matching a pattern (e.g., test_coco_to_yolo.py)
+python tests/run_tests.py --pattern test_coco_to_yolo.py
+
+# Run tests from a specific directory
+python tests/run_tests.py --dir tests/convert/
 
 # Run specific test class
 python tests/run_tests.py --test TestCocoToYoloConverter
@@ -53,7 +62,7 @@ python tests/run_tests.py --test TestCocoToYoloConverter.test_successful_convers
 # Verbose output
 python tests/run_tests.py -v
 
-# Quiet mode
+# Quiet mode (minimal output)
 python tests/run_tests.py -q
 ```
 
@@ -68,7 +77,10 @@ python setup.py develop
 # After editable installation, use python -m dataflow.cli instead of the dataflow command
 ```
 
-### Building Distribution
+### Build System
+
+The project uses setuptools with a `pyproject.toml` configuration. Distribution packages are built with `python -m build`.
+
 ```bash
 # Build wheel and source distribution
 python -m build
