@@ -110,6 +110,10 @@ dataflow visualize yolo images/ labels/ classes.names --save output_dir/
 dataflow visualize coco images/ annotations.json
 dataflow visualize coco images/ annotations.json --save output_dir/
 
+# Visualize LabelMe annotations (use --save to export images)
+dataflow visualize labelme images/ labels/
+dataflow visualize labelme images/ labels/ --save output_dir/
+
 # Show configuration
 dataflow config
 ```
@@ -132,6 +136,10 @@ result = dataflow.visualize_yolo("images/", "labels/", "classes.names", save_dir
 # Visualize COCO annotations (save_dir is optional)
 result = dataflow.visualize_coco("images/", "annotations.json")
 result = dataflow.visualize_coco("images/", "annotations.json", save_dir="output_dir/")
+
+# Visualize LabelMe annotations (save_dir is optional)
+result = dataflow.visualize_labelme("images/", "labels/")
+result = dataflow.visualize_labelme("images/", "labels/", save_dir="output_dir/")
 ```
 
 ## Architecture and Design Patterns
@@ -139,7 +147,7 @@ result = dataflow.visualize_coco("images/", "annotations.json", save_dir="output
 ### Task‑Based Structure
 The library follows a **main‑task → sub‑task** pattern:
 - **Main task**: A broad functional area (e.g., `convert`, `visualize`).
-- **Sub‑task**: A specific operation within that area (e.g., `coco2yolo`, `yolo2coco`, `yolo`, `coco`).
+- **Sub‑task**: A specific operation within that area (e.g., `coco2yolo`, `yolo2coco`, `yolo`, `coco`, `labelme`).
 
 Each sub‑task is implemented as an independent module with its own converter/visualizer class, test file, and example files.
 
@@ -165,7 +173,7 @@ Global settings are centralized in `Config` (`dataflow/config.py`). CLI options 
 ### CLI Organization
 The CLI is built with Click and structured as a command group hierarchy:
 - Root command (`dataflow`) with global options (`--verbose`, `--overwrite`)
-- Task‑level groups (`convert`, `visualize`) that contain sub‑task commands (`coco2yolo`, `yolo2coco`, `yolo`, `coco`)
+- Task‑level groups (`convert`, `visualize`) that contain sub‑task commands (`coco2yolo`, `yolo2coco`, `yolo`, `coco`, `labelme`)
 
 Each sub‑task command validates its arguments, creates the appropriate converter/visualizer, runs the operation, and prints a summary.
 
@@ -180,11 +188,17 @@ dataflow/
 │   ├── base.py              # BaseConverter abstract class
 │   ├── coco_to_yolo.py      # CocoToYoloConverter implementation
 │   └── yolo_to_coco.py      # YoloToCocoConverter implementation
+├── label/                   # Label format handlers module
+│   ├── __init__.py          # Exports YoloHandler, CocoHandler, LabelMeHandler
+│   ├── yolo.py              # YoloHandler implementation
+│   ├── coco.py              # CocoHandler implementation
+│   └── labelme.py           # LabelMeHandler implementation
 └── visualize/               # Visualization module
-    ├── __init__.py          # Exports BaseVisualizer, YoloVisualizer, CocoVisualizer
+    ├── __init__.py          # Exports BaseVisualizer, YoloVisualizer, CocoVisualizer, LabelMeVisualizer
     ├── base.py              # BaseVisualizer abstract class
     ├── yolo.py              # YoloVisualizer implementation
-    └── coco.py              # CocoVisualizer implementation
+    ├── coco.py              # CocoVisualizer implementation
+    └── labelme.py           # LabelMeVisualizer implementation
 
 tests/
 ├── convert/
@@ -192,14 +206,17 @@ tests/
 │   └── test_yolo_to_coco.py
 ├── visualize/               # Visualization tests
 │   ├── test_yolo.py
-│   └── test_coco.py
+│   ├── test_coco.py
+│   ├── test_labelme.py
+│   └── test_generic.py      # Generic visualizer tests
 └── run_tests.py            # Custom test runner
 
 samples/
+├── example_usage.py       # Quick usage demonstration
 ├── cli/convert/            # CLI conversion examples
-├── cli/visualize/          # CLI visualization examples
+├── cli/visualize/          # CLI visualization examples (cli_yolo.py, cli_coco.py, cli_labelme.py)
 ├── api/convert/            # Python API conversion examples
-└── api/visualize/          # Python API visualization examples
+└── api/visualize/          # Python API visualization examples (api_yolo.py, api_coco.py, api_labelme.py)
 ```
 
 ## Writing Principles
@@ -228,4 +245,6 @@ samples/
 - The AI model used in this project is DeepSeek-V3.2 (128K context length), not Claude Opus.
 - The library is Linux‑oriented (assumes POSIX paths).
 - The project is in alpha; the API and CLI may change.
-- Visualization modules for COCO and YOLO are included; LabelMe support is not currently implemented.
+- Visualization modules for COCO, YOLO, and LabelMe formats are included.
+- Label format handlers (YoloHandler, CocoHandler, LabelMeHandler) provide unified format conversion.
+- LabelMe conversion to/from other formats is not yet implemented (only visualization is available).

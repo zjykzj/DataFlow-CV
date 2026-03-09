@@ -27,6 +27,7 @@ A data processing library for computer vision datasets, focusing on format conve
       - [Visualization Commands](#visualization-commands)
       - [Configuration Command](#configuration-command)
       - [Getting Help](#getting-help)
+    - [Segmentation Support](#segmentation-support)
     - [Running Tests](#running-tests)
     - [Examples](#examples)
   - [License](#license)
@@ -43,11 +44,17 @@ dataflow/
 │   ├── base.py             # Converter base class
 │   ├── coco_to_yolo.py     # COCO to YOLO converter
 │   └── yolo_to_coco.py     # YOLO to COCO converter
-└── visualize/              # Annotation visualization module
+├── visualize/               # Annotation visualization module
+│   ├── __init__.py
+│   ├── base.py            # Visualizer base class
+│   ├── yolo.py            # YOLO annotation visualizer
+│   ├── coco.py            # COCO annotation visualizer
+│   └── labelme.py         # LabelMe annotation visualizer
+└── label/                   # Label format handlers module
     ├── __init__.py
-    ├── base.py            # Visualizer base class
-    ├── yolo.py            # YOLO annotation visualizer
-    └── coco.py            # COCO annotation visualizer
+    ├── yolo.py            # YOLO format handler
+    ├── coco.py            # COCO format handler
+    └── labelme.py         # LabelMe format handler
 tests/
 ├── __init__.py
 ├── convert/                # Conversion tests
@@ -57,10 +64,13 @@ tests/
 ├── visualize/              # Visualization tests
 │   ├── __init__.py
 │   ├── test_yolo.py
-│   └── test_coco.py
+│   ├── test_coco.py
+│   ├── test_labelme.py
+│   └── test_generic.py    # Generic visualizer tests
 ├── run_tests.py           # Test runner
 samples/
 ├── __init__.py
+├── example_usage.py       # Quick usage demonstration
 ├── cli/                   # CLI usage examples
 │   ├── __init__.py
 │   ├── convert/
@@ -68,7 +78,8 @@ samples/
 │   │   └── cli_yolo_to_coco.py
 │   └── visualize/
 │       ├── cli_yolo.py
-│       └── cli_coco.py
+│       ├── cli_coco.py
+│       └── cli_labelme.py
 └── api/                   # Python API examples
     ├── __init__.py
     ├── convert/
@@ -76,7 +87,8 @@ samples/
     │   └── api_yolo_to_coco.py
     └── visualize/
         ├── api_yolo.py
-        └── api_coco.py
+        ├── api_coco.py
+        └── api_labelme.py
 ```
 
 ## Requirements
@@ -123,6 +135,10 @@ dataflow visualize yolo images/ labels/ classes.names --save output_dir/
 dataflow visualize coco images/ annotations.json
 dataflow visualize coco images/ annotations.json --save output_dir/
 
+# Visualize LabelMe annotations (use --save to export images)
+dataflow visualize labelme images/ labels/
+dataflow visualize labelme images/ labels/ --save output_dir/
+
 # Show configuration
 dataflow config
 
@@ -130,6 +146,7 @@ dataflow config
 dataflow --help
 dataflow convert coco2yolo --help
 dataflow visualize yolo --help
+dataflow visualize labelme --help
 ```
 
 See the [CLI Reference](#cli-reference) below for detailed usage.
@@ -157,6 +174,12 @@ print(f"Visualized {result['images_processed']} images")
 result = dataflow.visualize_coco("images/", "annotations.json")
 result = dataflow.visualize_coco("images/", "annotations.json", save_dir="output_dir/")
 print(f"Visualized {result['images_processed']} images")
+
+# Visualize LabelMe annotations (save_dir is optional)
+result = dataflow.visualize_labelme("images/", "labels/")
+result = dataflow.visualize_labelme("images/", "labels/", save_dir="output_dir/")
+print(f"Visualized {result['images_processed']} images")
+print(f"Classes found: {result['classes_found']}")
 ```
 
 ### CLI Reference
@@ -205,6 +228,14 @@ dataflow visualize coco IMAGE_DIR ANNOTATION_JSON [--save SAVE_DIR]
 - `ANNOTATION_JSON`: Path to COCO JSON annotation file
 - `--save SAVE_DIR`: Optional directory to save visualized images
 
+**Visualize LabelMe annotations**
+```bash
+dataflow visualize labelme IMAGE_DIR LABEL_DIR [--save SAVE_DIR]
+```
+- `IMAGE_DIR`: Directory containing image files
+- `LABEL_DIR`: Directory containing LabelMe JSON files
+- `--save SAVE_DIR`: Optional directory to save visualized images
+
 #### Configuration Command
 ```bash
 dataflow config
@@ -220,6 +251,7 @@ dataflow convert yolo2coco --help
 dataflow visualize --help
 dataflow visualize yolo --help
 dataflow visualize coco --help
+dataflow visualize labelme --help
 ```
 
 ### Segmentation Support
@@ -235,6 +267,11 @@ DataFlow-CV supports both bounding box and polygon segmentation annotations acro
 - Polygon coordinates in `segmentation` field (list of `[x1, y1, x2, y2, ...]`)
 - Both single-polygon and multi-polygon annotations are supported
 
+**LabelMe Segmentation Format**
+- Rectangle shapes (`shape_type: "rectangle"`) for bounding box annotations
+- Polygon shapes (`shape_type: "polygon"`) for segmentation annotations
+- Each JSON file contains `shapes` array with annotation data
+
 **Usage Examples**
 
 ```bash
@@ -246,6 +283,9 @@ dataflow visualize yolo images/ labels/ classes.names --segmentation
 
 # Visualize COCO annotations in strict segmentation mode
 dataflow visualize coco images/ annotations.json --segmentation
+
+# Visualize LabelMe annotations in strict segmentation mode (only polygons)
+dataflow visualize labelme images/ labels/ --segmentation
 ```
 
 **Python API**
@@ -255,6 +295,7 @@ result = dataflow.coco_to_yolo("annotations.json", "output_dir", segmentation=Tr
 
 # Visualize in strict segmentation mode
 result = dataflow.visualize_yolo("images/", "labels/", "classes.names", segmentation=True)
+result = dataflow.visualize_labelme("images/", "labels/", segmentation=True)
 ```
 
 **Notes**
@@ -262,6 +303,8 @@ result = dataflow.visualize_yolo("images/", "labels/", "classes.names", segmenta
 - With `--segmentation` flag, only valid polygon annotations are processed (strict mode)
 - YOLO segmentation format requires at least 3 points (6 coordinates)
 - COCO segmentation polygons are automatically converted to YOLO normalized coordinates
+- LabelMe format supports both rectangle (`shape_type: "rectangle"`) and polygon (`shape_type: "polygon"`) shapes
+- In segmentation mode, LabelMe visualizer rejects rectangle shapes and only accepts polygon shapes
 
 ### Running Tests
 

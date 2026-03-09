@@ -163,6 +163,90 @@ def demonstrate_yolo_to_coco():
             print(f"❌ Conversion failed: {e}")
 
 
+def demonstrate_labelme_visualization():
+    """Demonstrate LabelMe visualization."""
+    print("\n" + "="*60)
+    print("LabelMe Visualization Demo")
+    print("="*60)
+
+    # Create a temporary directory for demo
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create directory structure
+        images_dir = os.path.join(temp_dir, "images")
+        labels_dir = os.path.join(temp_dir, "labels")
+        os.makedirs(images_dir, exist_ok=True)
+        os.makedirs(labels_dir, exist_ok=True)
+
+        # Create a sample image
+        import numpy as np
+        import cv2
+        img_path = os.path.join(images_dir, "demo_image.jpg")
+        img = np.ones((480, 640, 3), dtype=np.uint8) * 255
+        cv2.rectangle(img, (100, 100), (300, 300), (200, 200, 200), -1)
+        cv2.imwrite(img_path, img)
+
+        # Create a LabelMe JSON annotation
+        json_path = os.path.join(labels_dir, "demo_image.json")
+        labelme_data = {
+            "version": "5.2.1",
+            "flags": {},
+            "shapes": [
+                {
+                    "label": "person",
+                    "points": [[120, 120], [280, 280]],
+                    "group_id": None,
+                    "shape_type": "rectangle",
+                    "flags": {}
+                },
+                {
+                    "label": "car",
+                    "points": [[350, 150], [450, 150], [450, 230], [350, 230]],
+                    "group_id": None,
+                    "shape_type": "polygon",
+                    "flags": {}
+                }
+            ],
+            "imagePath": "demo_image.jpg",
+            "imageData": None,
+            "imageHeight": 480,
+            "imageWidth": 640
+        }
+
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(labelme_data, f, indent=2)
+
+        print(f"\nCreated demo LabelMe data in: {temp_dir}")
+        print(f"  - Images: {images_dir} (1 image)")
+        print(f"  - Labels: {labels_dir} (1 JSON file)")
+        print(f"  - Annotations: 2 (1 rectangle, 1 polygon)")
+
+        # Try visualization (without displaying since this is a demo)
+        output_dir = os.path.join(temp_dir, "visualized")
+        print(f"\nVisualizing LabelMe annotations (saving to: {output_dir})")
+        print("Note: In real usage, this would display interactive windows.")
+        print("      For this demo, we'll just save the results.")
+
+        try:
+            result = dataflow.visualize_labelme(
+                image_dir=images_dir,
+                label_dir=labels_dir,
+                save_dir=output_dir,
+                verbose=False  # Keep output clean for demo
+            )
+            print("✅ Visualization successful!")
+            print(f"\nStatistics:")
+            print(f"  - Images processed: {result.get('images_processed', 0)}")
+            print(f"  - Annotations processed: {result.get('annotations_processed', 0)}")
+            print(f"  - Classes found: {result.get('classes_found', [])}")
+
+            if os.path.exists(output_dir):
+                saved_files = os.listdir(output_dir)
+                print(f"  - Images saved: {len(saved_files)}")
+
+        except Exception as e:
+            print(f"❌ Visualization failed: {e}")
+
+
 def show_cli_commands():
     """Show available CLI commands."""
     print("\n" + "="*60)
@@ -177,10 +261,26 @@ def show_cli_commands():
     print("  dataflow convert yolo2coco <images_dir> <labels_dir> <classes_file> <output_json>")
     print("  dataflow convert yolo2coco --help")
 
-    print("\nGlobal options:")
+    print("\nYOLO Visualization:")
+    print("  dataflow visualize yolo <images_dir> <labels_dir> <classes_file>")
+    print("  dataflow visualize yolo --help")
+
+    print("\nCOCO Visualization:")
+    print("  dataflow visualize coco <images_dir> <annotation_json>")
+    print("  dataflow visualize coco --help")
+
+    print("\nLabelMe Visualization:")
+    print("  dataflow visualize labelme <images_dir> <labels_dir>")
+    print("  dataflow visualize labelme --help")
+
+    print("\nGlobal options (for all commands):")
     print("  --verbose, -v    Enable verbose output")
     print("  --overwrite      Overwrite existing files")
     print("  --help           Show help message")
+
+    print("\nVisualization options:")
+    print("  --save DIR       Save visualized images to directory")
+    print("  --segmentation   Force segmentation mode (polygons only)")
 
     print("\nConfiguration:")
     print("  dataflow config   Show current configuration")
@@ -200,6 +300,9 @@ def main():
     demonstrate_coco_to_yolo()
     demonstrate_yolo_to_coco()
 
+    # Demo visualization
+    demonstrate_labelme_visualization()
+
     # Show CLI commands
     show_cli_commands()
 
@@ -207,8 +310,10 @@ def main():
     print("✅ Demonstration completed!")
     print("="*60)
     print("\n📚 For detailed examples, see:")
-    print("   - samples/cli/convert/  for CLI usage")
-    print("   - samples/api/convert/  for Python API")
+    print("   - samples/cli/convert/  for CLI conversion usage")
+    print("   - samples/cli/visualize/  for CLI visualization usage")
+    print("   - samples/api/convert/  for Python API conversion")
+    print("   - samples/api/visualize/  for Python API visualization")
     print("\n🧪 Run tests with:")
     print("   python tests/run_tests.py")
 
