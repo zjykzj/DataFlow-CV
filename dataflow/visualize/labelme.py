@@ -8,6 +8,7 @@
 """
 
 import os
+import sys
 from typing import List, Dict, Any, Optional
 
 from .generic import GenericVisualizer
@@ -68,6 +69,9 @@ class LabelMeVisualizer(GenericVisualizer):
             )
         except Exception as e:
             raise ValueError(f"Failed to read LabelMe annotations: {e}")
+
+        # Resolve image paths: always use the provided image_dir
+        annotations_list = self._resolve_image_paths(annotations_list, image_dir)
 
         if not annotations_list:
             self.logger.warning(f"No annotations found in {label_dir}")
@@ -168,6 +172,40 @@ class LabelMeVisualizer(GenericVisualizer):
                 if class_name:
                     class_names.add(class_name)
         return sorted(class_names)
+
+    def _resolve_image_paths(self, annotations_list: List[Dict], image_dir: str) -> List[Dict]:
+        """Resolve image paths in annotations list.
+
+        Always use the provided image_dir to locate images, ignoring the
+        image_path stored in the annotation (which may point to the label
+        directory).
+
+        Args:
+            annotations_list: List of image annotation data
+            image_dir: Directory containing image files
+
+        Returns:
+            Updated annotations list with resolved image paths
+        """
+        import os
+
+        for image_data in annotations_list:
+            original_path = image_data.get("image_path", "")
+            if not original_path:
+                continue
+
+            # Always use image_dir to locate the image
+            filename = os.path.basename(original_path)
+            candidate_path = os.path.join(image_dir, filename)
+
+            # Update image_path to the resolved path
+            image_data["image_path"] = candidate_path
+            if self.verbose:
+                self.logger.info(f"Resolved image path: {original_path} -> {candidate_path}")
+            else:
+                self.logger.debug(f"Resolved image path: {original_path} -> {candidate_path}")
+
+        return annotations_list
 
     def batch_visualize(self,
                         image_dirs: List[str],
