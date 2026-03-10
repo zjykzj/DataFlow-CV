@@ -37,7 +37,7 @@ class DevelopCommand(_develop):
 
 setup(
     name="dataflow-cv",
-    version="0.2.1",
+    version="0.3.0",
     author="DataFlow Team",
     description="A data processing library for computer vision datasets",
     long_description=long_description,

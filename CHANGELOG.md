@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-03-11
+
+### Added
+- Complete LabelMe format conversion support with bidirectional conversion between LabelMe, COCO, and YOLO formats
+- Added `coco2labelme`, `labelme2coco`, `labelme2yolo`, and `yolo2labelme` conversion commands
+- Added LabelMe visualization module (`dataflow visualize labelme`) and Python API function `visualize_labelme()`
+- Added comprehensive LabelMe conversion examples in `samples/` directory
+
+### Changed
+- Refactored conversion module structure for better maintainability and extensibility
+- Updated module organization following task-sub-task pattern
+
+### Fixed
+- Fixed image path resolution in LabelMeVisualizer
+
+### Documentation
+- Updated README Installation section with detailed instructions
+- Added LabelMe conversion examples and documentation
+
+## [0.2.1] - 2026-03-10
+
+### Changed
+- Updated version from 0.2.0 to 0.2.1
+
 ## [0.2.0] - 2026-03-08
 
 ### Added
