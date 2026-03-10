@@ -15,8 +15,7 @@ __description__ = "A data processing library for computer vision datasets"
 from .config import Config
 
 # Converters
-from .convert.coco_to_yolo import CocoToYoloConverter
-from .convert.yolo_to_coco import YoloToCocoConverter
+from .convert import CocoToYoloConverter, YoloToCocoConverter
 
 # Visualizers
 from .visualize.yolo import YoloVisualizer

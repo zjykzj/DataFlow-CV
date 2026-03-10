@@ -218,3 +218,116 @@ class BaseConverter(abc.ABC):
         if self.verbose:
             percent = (current / total) * 100
             self.logger.info(f"{prefix}Progress: {current}/{total} ({percent:.1f}%)")
+
+
+class LabelBasedConverter(BaseConverter):
+    """Base class for converters that use label module handlers."""
+
+    def __init__(self, verbose: bool = None, segmentation: bool = False):
+        """
+        Initialize the label-based converter.
+
+        Args:
+            verbose (bool, optional): Whether to print progress information.
+                If None, uses Config.VERBOSE.
+            segmentation (bool): Whether to enforce segmentation annotations.
+                If True, only annotations with segmentation data will be processed.
+        """
+        super().__init__(verbose)
+        self.segmentation = segmentation
+
+    def _validate_segmentation_annotations(self, annotations: List[Dict]) -> bool:
+        """
+        Validate that annotations have segmentation data when segmentation mode is enabled.
+
+        Args:
+            annotations: List of annotation dictionaries
+
+        Returns:
+            True if all annotations have segmentation data (or segmentation mode is off)
+        """
+        if not self.segmentation:
+            return True
+
+        for ann in annotations:
+            # Check if annotation has segmentation data
+            # segmentation field should be a list with at least one polygon
+            if not ann.get("segmentation") or not ann["segmentation"]:
+                return False
+            # Check if the first polygon has coordinates
+            if not ann["segmentation"][0]:
+                return False
+
+        return True
+
+    def _extract_unique_categories(self, unified_data: List[Dict]) -> List[str]:
+        """
+        Extract unique category names from unified data format.
+
+        Args:
+            unified_data: List of unified format image data dictionaries
+
+        Returns:
+            Sorted list of unique category names (sorted by category_id if available, otherwise by name)
+        """
+        # Collect (category_id, category_name) pairs
+        category_items = []
+        for img_data in unified_data:
+            for ann in img_data.get("annotations", []):
+                cat_name = ann.get("category_name")
+                cat_id = ann.get("category_id")
+                if cat_name:
+                    # Use category_id if available, otherwise use a large number to sort at end
+                    sort_key = (cat_id if cat_id is not None else 999999, cat_name)
+                    category_items.append((sort_key, cat_name))
+
+        # Remove duplicates while preserving first occurrence order for same sort_key
+        unique_categories = {}
+        for sort_key, cat_name in category_items:
+            if sort_key not in unique_categories:
+                unique_categories[sort_key] = cat_name
+
+        # Sort by sort_key (category_id first, then name)
+        sorted_items = sorted(unique_categories.items(), key=lambda x: x[0])
+
+        # Return only category names in sorted order
+        return [cat_name for _, cat_name in sorted_items]
+
+    def _get_or_create_classes_path(self, output_dir: str, categories: List[str] = None) -> str:
+        """
+        Get or create a classes file path in the output directory.
+
+        Args:
+            output_dir: Output directory path
+            categories: Optional list of categories to write to the file
+
+        Returns:
+            Path to the classes file
+        """
+        import os
+        from ..config import Config
+
+        classes_path = os.path.join(output_dir, Config.YOLO_CLASSES_FILENAME)
+
+        if categories and not os.path.exists(classes_path):
+            self.write_classes_file(categories, classes_path)
+            self.logger.info(f"Created classes file: {classes_path}")
+
+        return classes_path
+
+    def _create_labels_directory(self, output_dir: str) -> str:
+        """
+        Create labels directory in the output directory.
+
+        Args:
+            output_dir: Output directory path
+
+        Returns:
+            Path to the labels directory
+        """
+        import os
+        from ..config import Config
+
+        labels_dir = os.path.join(output_dir, Config.YOLO_LABELS_DIRNAME)
+        self.ensure_directory(labels_dir)
+        return labels_dir

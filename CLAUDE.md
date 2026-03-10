@@ -247,4 +247,4 @@ samples/
 - The project is in alpha; the API and CLI may change.
 - Visualization modules for COCO, YOLO, and LabelMe formats are included.
 - Label format handlers (YoloHandler, CocoHandler, LabelMeHandler) provide unified format conversion.
-- LabelMe conversion to/from other formats is not yet implemented (only visualization is available).
+- LabelMe conversion to/from other formats is now fully implemented (coco2labelme, labelme2coco, labelme2yolo, yolo2labelme).

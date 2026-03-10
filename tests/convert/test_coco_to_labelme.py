@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
 """
-@Time    : 2026/3/8 21:10
-@File    : test_coco_to_yolo.py
+@Time    : 2026/3/10 22:00
+@File    : test_coco_to_labelme.py
 @Author  : zj
-@Description: Tests for COCO to YOLO conversion
+@Description: Tests for COCO to LabelMe conversion
 """
 
 import os
@@ -17,17 +17,17 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from dataflow.convert import CocoToYoloConverter
+from dataflow.convert import CocoToLabelMeConverter
 from dataflow.config import Config
 
 
-class TestCocoToYoloConverter(unittest.TestCase):
-    """Test cases for CocoToYoloConverter."""
+class TestCocoToLabelMeConverter(unittest.TestCase):
+    """Test cases for CocoToLabelMeConverter."""
 
     def setUp(self):
         """Set up test environment."""
         # Create temporary directory
-        self.test_dir = tempfile.mkdtemp(prefix="test_coco2yolo_")
+        self.test_dir = tempfile.mkdtemp(prefix="test_coco2labelme_")
         self.coco_json_path = os.path.join(self.test_dir, "annotations.json")
         self.output_dir = os.path.join(self.test_dir, "output")
 
@@ -105,13 +105,13 @@ class TestCocoToYoloConverter(unittest.TestCase):
 
     def test_converter_initialization(self):
         """Test converter initialization."""
-        converter = CocoToYoloConverter(verbose=False)
-        self.assertIsInstance(converter, CocoToYoloConverter)
+        converter = CocoToLabelMeConverter(verbose=False)
+        self.assertIsInstance(converter, CocoToLabelMeConverter)
         self.assertFalse(converter.verbose)
 
     def test_successful_conversion(self):
-        """Test successful COCO to YOLO conversion."""
-        converter = CocoToYoloConverter(verbose=False)
+        """Test successful COCO to LabelMe conversion."""
+        converter = CocoToLabelMeConverter(verbose=False)
 
         # Perform conversion
         result = converter.convert(self.coco_json_path, self.output_dir)
@@ -119,57 +119,67 @@ class TestCocoToYoloConverter(unittest.TestCase):
         # Verify result structure
         self.assertIsInstance(result, dict)
         self.assertEqual(result.get("output_dir"), self.output_dir)
+        self.assertEqual(result.get("images_processed"), 2)
+        self.assertEqual(result.get("annotations_processed"), 2)
+        self.assertEqual(result.get("categories_found"), 2)
 
-        # Check that output files were created
-        labels_dir = os.path.join(self.output_dir, Config.YOLO_LABELS_DIRNAME)
+        # Check that output directory was created
+        self.assertTrue(os.path.exists(self.output_dir),
+                       f"Output directory not found: {self.output_dir}")
+
+        # Check that LabelMe JSON files were created
+        labelme_files = [f for f in os.listdir(self.output_dir)
+                        if f.endswith('.json') and not f.endswith('classes.json')]
+        self.assertEqual(len(labelme_files), 2)
+
+        # Check first LabelMe file
+        self.assertTrue(len(labelme_files) > 0, "No LabelMe JSON files created")
+        labelme_file = os.path.join(self.output_dir, labelme_files[0])
+        self.assertTrue(os.path.exists(labelme_file),
+                       f"LabelMe JSON not created: {labelme_file}")
+
+        # Load and verify LabelMe JSON
+        with open(labelme_file, 'r', encoding='utf-8') as f:
+            labelme_data = json.load(f)
+
+        # Check basic structure
+        self.assertIn("version", labelme_data)
+        self.assertIn("flags", labelme_data)
+        self.assertIn("shapes", labelme_data)
+        self.assertIn("imagePath", labelme_data)
+        self.assertIn("imageData", labelme_data)
+        self.assertIn("imageHeight", labelme_data)
+        self.assertIn("imageWidth", labelme_data)
+
+        # Check shapes
+        shapes = labelme_data["shapes"]
+        self.assertEqual(len(shapes), 2)
+
+        # Verify first shape (person)
+        shape1 = shapes[0]
+        self.assertEqual(shape1["label"], "person")
+        self.assertIn(shape1["shape_type"], ["rectangle", "polygon"])
+        self.assertIn("points", shape1)
+
+        # Check class.names file (optional)
         classes_file = os.path.join(self.output_dir, Config.YOLO_CLASSES_FILENAME)
-
-        self.assertTrue(os.path.exists(labels_dir), f"Labels directory not found: {labels_dir}")
-        self.assertTrue(os.path.exists(classes_file), f"Classes file not found: {classes_file}")
-
-        # Check labels directory contents
-        label_files = os.listdir(labels_dir)
-        self.assertEqual(len(label_files), 2)  # Two images
-
-        # Check class names file
-        with open(classes_file, 'r', encoding='utf-8') as f:
-            class_names = [line.strip() for line in f if line.strip()]
-
-        self.assertEqual(len(class_names), 2)
-        # Categories are sorted alphabetically in new converter
-        self.assertIn("person", class_names)
-        self.assertIn("car", class_names)
-
-        # Check label file for first image (uses image_id as filename)
-        label_file = os.path.join(labels_dir, "1.txt")
-        self.assertTrue(os.path.exists(label_file), f"Label file not found: {label_file}")
-
-        with open(label_file, 'r', encoding='utf-8') as f:
-            lines = [line.strip() for line in f if line.strip()]
-
-        # Should have 2 annotations
-        self.assertEqual(len(lines), 2)
-
-        # Verify first annotation (person)
-        parts = lines[0].split()
-        self.assertEqual(len(parts), 5)
-        self.assertEqual(int(parts[0]), 0)  # person is class 0
-
-        # Verify coordinates are normalized
-        for coord in map(float, parts[1:]):
-            self.assertGreaterEqual(coord, 0.0)
-            self.assertLessEqual(coord, 1.0)
+        if os.path.exists(classes_file):
+            with open(classes_file, 'r', encoding='utf-8') as f:
+                class_names = [line.strip() for line in f if line.strip()]
+            self.assertEqual(len(class_names), 2)
+            self.assertEqual(class_names[0], "person")
+            self.assertEqual(class_names[1], "car")
 
     def test_invalid_coco_json_path(self):
         """Test conversion with invalid COCO JSON path."""
-        converter = CocoToYoloConverter(verbose=False)
+        converter = CocoToLabelMeConverter(verbose=False)
 
         with self.assertRaises(ValueError):
             converter.convert("/invalid/path/annotations.json", self.output_dir)
 
     def test_invalid_output_dir(self):
         """Test conversion with invalid output directory."""
-        converter = CocoToYoloConverter(verbose=False)
+        converter = CocoToLabelMeConverter(verbose=False)
 
         # Create a read-only directory to simulate permission error
         import tempfile, stat
@@ -196,7 +206,7 @@ class TestCocoToYoloConverter(unittest.TestCase):
         with open(empty_json_path, 'w', encoding='utf-8') as f:
             json.dump({"images": [], "annotations": [], "categories": []}, f)
 
-        converter = CocoToYoloConverter(verbose=False)
+        converter = CocoToLabelMeConverter(verbose=False)
 
         # Empty JSON should not raise error but produce zero results
         result = converter.convert(empty_json_path, self.output_dir)
@@ -216,7 +226,7 @@ class TestCocoToYoloConverter(unittest.TestCase):
         with open(no_cat_json_path, 'w', encoding='utf-8') as f:
             json.dump(coco_data, f)
 
-        converter = CocoToYoloConverter(verbose=False)
+        converter = CocoToLabelMeConverter(verbose=False)
 
         # Should work but warn
         result = converter.convert(no_cat_json_path, self.output_dir)
@@ -225,7 +235,7 @@ class TestCocoToYoloConverter(unittest.TestCase):
 
     def test_conversion_statistics(self):
         """Verify conversion statistics are accurate."""
-        converter = CocoToYoloConverter(verbose=False)
+        converter = CocoToLabelMeConverter(verbose=False)
         result = converter.convert(self.coco_json_path, self.output_dir)
 
         # Check statistics
@@ -235,7 +245,7 @@ class TestCocoToYoloConverter(unittest.TestCase):
 
     def test_verbose_mode(self):
         """Test converter with verbose mode enabled."""
-        converter = CocoToYoloConverter(verbose=True)
+        converter = CocoToLabelMeConverter(verbose=True)
         self.assertTrue(converter.verbose)
 
         # Conversion should still work
@@ -275,11 +285,13 @@ class TestCocoToYoloConverter(unittest.TestCase):
             json.dump(seg_data, f)
 
         # Test with segmentation disabled (default)
-        converter = CocoToYoloConverter(verbose=False)
+        converter = CocoToLabelMeConverter(verbose=False)
         result = converter.convert(seg_json_path, self.output_dir)
         self.assertIsInstance(result, dict)
 
-        # Note: With segmentation disabled, only bbox will be converted
+        # Test with segmentation enabled
+        result = converter.convert(seg_json_path, self.output_dir, segmentation=True)
+        self.assertIsInstance(result, dict)
 
 
 if __name__ == "__main__":

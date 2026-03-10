@@ -127,6 +127,20 @@ dataflow convert coco2yolo annotations.json output_dir/ --segmentation
 # YOLO to COCO conversion
 dataflow convert yolo2coco images/ labels/ classes.names output.json
 
+# COCO to LabelMe conversion (use --segmentation for polygon annotations)
+dataflow convert coco2labelme annotations.json output_dir/
+dataflow convert coco2labelme annotations.json output_dir/ --segmentation
+
+# LabelMe to COCO conversion
+dataflow convert labelme2coco labels/ classes.names output.json
+
+# LabelMe to YOLO conversion (use --segmentation for polygon annotations)
+dataflow convert labelme2yolo labels/ output_dir/
+dataflow convert labelme2yolo labels/ output_dir/ --segmentation
+
+# YOLO to LabelMe conversion
+dataflow convert yolo2labelme images/ labels/ classes.names output_dir/
+
 # Visualize YOLO annotations (use --save to export images)
 dataflow visualize yolo images/ labels/ classes.names
 dataflow visualize yolo images/ labels/ classes.names --save output_dir/
@@ -164,6 +178,34 @@ print(f"Processed {result['images_processed']} images")
 # YOLO to COCO conversion
 result = dataflow.yolo_to_coco("images/", "labels/", "classes.names", "output.json")
 print(f"Generated {result['annotations_processed']} annotations")
+
+# Additional conversions (import converters directly)
+from dataflow.convert import (
+    CocoToLabelMeConverter,
+    LabelMeToCocoConverter,
+    LabelMeToYoloConverter,
+    YoloToLabelMeConverter
+)
+
+# COCO to LabelMe conversion
+converter = CocoToLabelMeConverter()
+result = converter.convert("annotations.json", "output_dir/", segmentation=True)
+print(f"Converted {result['images_processed']} images to LabelMe format")
+
+# LabelMe to COCO conversion
+converter = LabelMeToCocoConverter()
+result = converter.convert("labels/", "classes.names", "output.json")
+print(f"Converted {result['annotations_processed']} annotations to COCO format")
+
+# LabelMe to YOLO conversion
+converter = LabelMeToYoloConverter()
+result = converter.convert("labels/", "output_dir/")
+print(f"Converted {result['images_processed']} images to YOLO format")
+
+# YOLO to LabelMe conversion
+converter = YoloToLabelMeConverter()
+result = converter.convert("images/", "labels/", "classes.names", "output_dir/")
+print(f"Converted {result['images_processed']} images to LabelMe format")
 
 # Visualize YOLO annotations (save_dir is optional)
 result = dataflow.visualize_yolo("images/", "labels/", "classes.names")
@@ -208,6 +250,41 @@ dataflow convert yolo2coco IMAGE_DIR YOLO_LABELS_DIR YOLO_CLASS_PATH COCO_JSON_P
 - `YOLO_LABELS_DIR`: Directory containing YOLO label files (`.txt`)
 - `YOLO_CLASS_PATH`: Path to YOLO class names file (e.g., `class.names`)
 - `COCO_JSON_PATH`: Path to save COCO JSON file
+
+**COCO to LabelMe**
+```bash
+dataflow convert coco2labelme COCO_JSON_PATH OUTPUT_DIR [--segmentation]
+```
+- `COCO_JSON_PATH`: Path to COCO JSON annotation file
+- `OUTPUT_DIR`: Directory where LabelMe JSON files will be created
+- `--segmentation`, `-s`: Handle segmentation annotations (polygon format)
+
+**LabelMe to COCO**
+```bash
+dataflow convert labelme2coco LABEL_DIR CLASSES_PATH OUTPUT_JSON_PATH [--segmentation]
+```
+- `LABEL_DIR`: Directory containing LabelMe JSON files
+- `CLASSES_PATH`: Path to class names file (e.g., `class.names`)
+- `OUTPUT_JSON_PATH`: Path to save COCO JSON file
+- `--segmentation`, `-s`: Handle segmentation annotations (polygon format)
+
+**LabelMe to YOLO**
+```bash
+dataflow convert labelme2yolo LABEL_DIR OUTPUT_DIR [--segmentation]
+```
+- `LABEL_DIR`: Directory containing LabelMe JSON files
+- `OUTPUT_DIR`: Directory where `labels/` and `class.names` will be created
+- `--segmentation`, `-s`: Handle segmentation annotations (polygon format)
+
+**YOLO to LabelMe**
+```bash
+dataflow convert yolo2labelme IMAGE_DIR LABEL_DIR CLASSES_PATH OUTPUT_DIR [--segmentation]
+```
+- `IMAGE_DIR`: Directory containing image files
+- `LABEL_DIR`: Directory containing YOLO label files (`.txt`)
+- `CLASSES_PATH`: Path to YOLO class names file (e.g., `class.names`)
+- `OUTPUT_DIR`: Directory where LabelMe JSON files will be created
+- `--segmentation`, `-s`: Handle segmentation annotations (polygon format)
 
 #### Visualization Commands
 

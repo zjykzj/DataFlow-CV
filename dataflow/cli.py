@@ -9,8 +9,14 @@
 
 import os
 import click
-from dataflow.convert.coco_to_yolo import CocoToYoloConverter
-from dataflow.convert.yolo_to_coco import YoloToCocoConverter
+from dataflow.convert import (
+    CocoToYoloConverter,
+    YoloToCocoConverter,
+    CocoToLabelMeConverter,
+    LabelMeToCocoConverter,
+    YoloToLabelMeConverter,
+    LabelMeToYoloConverter
+)
 from dataflow.visualize.yolo import YoloVisualizer
 from dataflow.visualize.coco import CocoVisualizer
 from dataflow.visualize.labelme import LabelMeVisualizer
@@ -67,30 +73,27 @@ def coco2yolo(ctx, coco_json_path, output_dir, segmentation):
     OUTPUT_DIR: Directory where labels/ and class.names will be created
     """
     try:
-        # Update config for segmentation if needed
-        if segmentation:
-            Config.YOLO_SEGMENTATION = True
+        # Segmentation parameter is passed directly to converter
 
         click.echo(f"Converting COCO JSON: {coco_json_path}")
         click.echo(f"Output directory: {output_dir}")
 
         # Create converter and perform conversion
         converter = CocoToYoloConverter(verbose=ctx.obj['verbose'])
-        result = converter.convert(coco_json_path, output_dir)
+        result = converter.convert(coco_json_path, output_dir, segmentation=segmentation)
 
         # Print summary
         click.echo("\n" + "="*50)
         click.echo("CONVERSION SUMMARY")
         click.echo("="*50)
-        click.echo(f"COCO JSON: {result.get('coco_json_path')}")
+        click.echo(f"COCO JSON: {coco_json_path}")
         click.echo(f"Output directory: {result.get('output_dir')}")
         click.echo(f"Labels directory: {result.get('labels_dir')}")
         click.echo(f"Classes file: {result.get('classes_file')}")
-        click.echo(f"Total images: {result.get('total_images', 0)}")
         click.echo(f"Images processed: {result.get('images_processed', 0)}")
-        click.echo(f"Images with annotations: {result.get('images_with_annotations', 0)}")
         click.echo(f"Annotations processed: {result.get('annotations_processed', 0)}")
-        click.echo(f"Total categories: {result.get('total_categories', 0)}")
+        click.echo(f"Categories found: {result.get('categories_found', 0)}")
+        click.echo(f"Segmentation mode: {'ON' if segmentation else 'OFF'}")
 
         click.echo("\n✅ Conversion completed successfully!")
 
@@ -104,8 +107,9 @@ def coco2yolo(ctx, coco_json_path, output_dir, segmentation):
 @click.argument('yolo_labels_dir', type=click.Path(exists=True, file_okay=False))
 @click.argument('yolo_class_path', type=click.Path(exists=True, dir_okay=False))
 @click.argument('coco_json_path', type=click.Path())
+@click.option('--segmentation', '-s', is_flag=True, help='Handle segmentation annotations')
 @click.pass_context
-def yolo2coco(ctx, image_dir, yolo_labels_dir, yolo_class_path, coco_json_path):
+def yolo2coco(ctx, image_dir, yolo_labels_dir, yolo_class_path, coco_json_path, segmentation=False):
     """
     Convert YOLO format to COCO JSON.
 
@@ -124,7 +128,7 @@ def yolo2coco(ctx, image_dir, yolo_labels_dir, yolo_class_path, coco_json_path):
         # Create converter and perform conversion
         converter = YoloToCocoConverter(verbose=ctx.obj['verbose'])
         result = converter.convert(
-            image_dir, yolo_labels_dir, yolo_class_path, coco_json_path
+            image_dir, yolo_labels_dir, yolo_class_path, coco_json_path, segmentation=segmentation
         )
 
         # Print summary
@@ -132,15 +136,191 @@ def yolo2coco(ctx, image_dir, yolo_labels_dir, yolo_class_path, coco_json_path):
         click.echo("CONVERSION SUMMARY")
         click.echo("="*50)
         click.echo(f"Image directory: {result.get('image_dir')}")
-        click.echo(f"YOLO labels directory: {result.get('yolo_labels_dir')}")
-        click.echo(f"YOLO classes file: {result.get('yolo_class_path')}")
+        click.echo(f"YOLO labels directory: {result.get('label_dir')}")
+        click.echo(f"YOLO classes file: {result.get('classes_file')}")
         click.echo(f"COCO JSON: {result.get('coco_json_path')}")
-        click.echo(f"Total images: {len(result.get('image_files', []))}")
         click.echo(f"Images processed: {result.get('images_processed', 0)}")
-        click.echo(f"Images with annotations: {result.get('images_with_annotations', 0)}")
         click.echo(f"Annotations processed: {result.get('annotations_processed', 0)}")
-        click.echo(f"Total classes: {result.get('total_classes', 0)}")
-        click.echo(f"Images without labels: {result.get('images_without_labels', 0)}")
+        click.echo(f"Categories found: {result.get('categories_found', 0)}")
+        click.echo(f"Segmentation mode: {'ON' if segmentation else 'OFF'}")
+
+        click.echo("\n✅ Conversion completed successfully!")
+
+    except Exception as e:
+        click.echo(f"\n❌ Error: {e}", err=True)
+        ctx.exit(1)
+
+
+@convert.command(name='coco2labelme')
+@click.argument('coco_json_path', type=click.Path(exists=True, dir_okay=False))
+@click.argument('output_dir', type=click.Path(file_okay=False))
+@click.option('--segmentation', '-s', is_flag=True, help='Handle segmentation annotations')
+@click.pass_context
+def coco2labelme(ctx, coco_json_path, output_dir, segmentation):
+    """
+    Convert COCO JSON to LabelMe format.
+
+    \b
+    COCO_JSON_PATH: Path to COCO JSON annotation file
+    OUTPUT_DIR: Directory where LabelMe JSON files will be created
+    """
+    try:
+        click.echo(f"Converting COCO JSON: {coco_json_path}")
+        click.echo(f"Output directory: {output_dir}")
+        if segmentation:
+            click.echo("Segmentation mode: ON (strict)")
+
+        # Create converter and perform conversion
+        converter = CocoToLabelMeConverter(verbose=ctx.obj['verbose'])
+        result = converter.convert(coco_json_path, output_dir, segmentation=segmentation)
+
+        # Print summary
+        click.echo("\n" + "="*50)
+        click.echo("CONVERSION SUMMARY")
+        click.echo("="*50)
+        click.echo(f"COCO JSON: {coco_json_path}")
+        click.echo(f"Output directory: {result.get('output_dir')}")
+        click.echo(f"Images processed: {result.get('images_processed', 0)}")
+        click.echo(f"Annotations processed: {result.get('annotations_processed', 0)}")
+        click.echo(f"Categories found: {result.get('categories_found', 0)}")
+        click.echo(f"Classes file: {result.get('classes_file', 'Not created')}")
+        click.echo(f"Segmentation mode: {'ON' if segmentation else 'OFF'}")
+
+        click.echo("\n✅ Conversion completed successfully!")
+
+    except Exception as e:
+        click.echo(f"\n❌ Error: {e}", err=True)
+        ctx.exit(1)
+
+
+@convert.command(name='labelme2coco')
+@click.argument('label_dir', type=click.Path(exists=True, file_okay=False))
+@click.argument('classes_path', type=click.Path(exists=True, dir_okay=False))
+@click.argument('output_json_path', type=click.Path())
+@click.option('--segmentation', '-s', is_flag=True, help='Handle segmentation annotations')
+@click.pass_context
+def labelme2coco(ctx, label_dir, classes_path, output_json_path, segmentation):
+    """
+    Convert LabelMe format to COCO JSON.
+
+    \b
+    LABEL_DIR: Directory containing LabelMe JSON files
+    CLASSES_PATH: Path to class names file (e.g., class.names)
+    OUTPUT_JSON_PATH: Path to save COCO JSON file
+    """
+    try:
+        click.echo(f"Label directory: {label_dir}")
+        click.echo(f"Classes file: {classes_path}")
+        click.echo(f"COCO JSON output: {output_json_path}")
+        if segmentation:
+            click.echo("Segmentation mode: ON (strict)")
+
+        # Create converter and perform conversion
+        converter = LabelMeToCocoConverter(verbose=ctx.obj['verbose'])
+        result = converter.convert(label_dir, classes_path, output_json_path, segmentation=segmentation)
+
+        # Print summary
+        click.echo("\n" + "="*50)
+        click.echo("CONVERSION SUMMARY")
+        click.echo("="*50)
+        click.echo(f"Label directory: {result.get('label_dir')}")
+        click.echo(f"Classes file: {result.get('classes_file')}")
+        click.echo(f"COCO JSON: {result.get('coco_json_path')}")
+        click.echo(f"Images processed: {result.get('images_processed', 0)}")
+        click.echo(f"Annotations processed: {result.get('annotations_processed', 0)}")
+        click.echo(f"Categories found: {result.get('categories_found', 0)}")
+        click.echo(f"Segmentation mode: {'ON' if segmentation else 'OFF'}")
+
+        click.echo("\n✅ Conversion completed successfully!")
+
+    except Exception as e:
+        click.echo(f"\n❌ Error: {e}", err=True)
+        ctx.exit(1)
+
+
+@convert.command(name='labelme2yolo')
+@click.argument('label_dir', type=click.Path(exists=True, file_okay=False))
+@click.argument('output_dir', type=click.Path(file_okay=False))
+@click.option('--segmentation', '-s', is_flag=True, help='Handle segmentation annotations')
+@click.pass_context
+def labelme2yolo(ctx, label_dir, output_dir, segmentation):
+    """
+    Convert LabelMe format to YOLO format.
+
+    \b
+    LABEL_DIR: Directory containing LabelMe JSON files
+    OUTPUT_DIR: Directory where labels/ and class.names will be created
+    """
+    try:
+        click.echo(f"Label directory: {label_dir}")
+        click.echo(f"Output directory: {output_dir}")
+        if segmentation:
+            click.echo("Segmentation mode: ON (strict)")
+
+        # Create converter and perform conversion
+        converter = LabelMeToYoloConverter(verbose=ctx.obj['verbose'])
+        result = converter.convert(label_dir, output_dir, segmentation=segmentation)
+
+        # Print summary
+        click.echo("\n" + "="*50)
+        click.echo("CONVERSION SUMMARY")
+        click.echo("="*50)
+        click.echo(f"Label directory: {result.get('label_dir')}")
+        click.echo(f"Output directory: {result.get('output_dir')}")
+        click.echo(f"Labels directory: {result.get('labels_dir')}")
+        click.echo(f"Classes file: {result.get('classes_file', 'Not created')}")
+        click.echo(f"Images processed: {result.get('images_processed', 0)}")
+        click.echo(f"Annotations processed: {result.get('annotations_processed', 0)}")
+        click.echo(f"Categories found: {result.get('categories_found', 0)}")
+        click.echo(f"Segmentation mode: {'ON' if segmentation else 'OFF'}")
+
+        click.echo("\n✅ Conversion completed successfully!")
+
+    except Exception as e:
+        click.echo(f"\n❌ Error: {e}", err=True)
+        ctx.exit(1)
+
+
+@convert.command(name='yolo2labelme')
+@click.argument('image_dir', type=click.Path(exists=True, file_okay=False))
+@click.argument('label_dir', type=click.Path(exists=True, file_okay=False))
+@click.argument('classes_path', type=click.Path(exists=True, dir_okay=False))
+@click.argument('output_dir', type=click.Path(file_okay=False))
+@click.option('--segmentation', '-s', is_flag=True, help='Handle segmentation annotations')
+@click.pass_context
+def yolo2labelme(ctx, image_dir, label_dir, classes_path, output_dir, segmentation):
+    """
+    Convert YOLO format to LabelMe format.
+
+    \b
+    IMAGE_DIR: Directory containing image files
+    LABEL_DIR: Directory containing YOLO label files
+    CLASSES_PATH: Path to YOLO class names file (e.g., class.names)
+    OUTPUT_DIR: Directory where LabelMe JSON files will be created
+    """
+    try:
+        click.echo(f"Image directory: {image_dir}")
+        click.echo(f"Label directory: {label_dir}")
+        click.echo(f"Classes file: {classes_path}")
+        click.echo(f"Output directory: {output_dir}")
+        if segmentation:
+            click.echo("Segmentation mode: ON (strict)")
+
+        # Create converter and perform conversion
+        converter = YoloToLabelMeConverter(verbose=ctx.obj['verbose'])
+        result = converter.convert(image_dir, label_dir, classes_path, output_dir, segmentation=segmentation)
+
+        # Print summary
+        click.echo("\n" + "="*50)
+        click.echo("CONVERSION SUMMARY")
+        click.echo("="*50)
+        click.echo(f"Image directory: {result.get('image_dir')}")
+        click.echo(f"Label directory: {result.get('label_dir')}")
+        click.echo(f"Classes file: {result.get('classes_file')}")
+        click.echo(f"Output directory: {result.get('output_dir')}")
+        click.echo(f"Images processed: {result.get('images_processed', 0)}")
+        click.echo(f"Annotations processed: {result.get('annotations_processed', 0)}")
+        click.echo(f"Segmentation mode: {'ON' if segmentation else 'OFF'}")
 
         click.echo("\n✅ Conversion completed successfully!")
 
