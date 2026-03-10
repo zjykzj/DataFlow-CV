@@ -119,8 +119,32 @@ samples/
 # Regular installation from source
 pip install .
 
-# 在Pypi安装
+# Install from PyPI
 pip install dataflow-cv
+```
+
+#### Editable Installation (Development Mode)
+
+Due to setuptools compatibility, use `python setup.py develop` instead of `pip install -e .`:
+
+```bash
+# Editable installation (development mode)
+python setup.py develop
+
+# After editable installation, use python -m dataflow.cli instead of the dataflow command
+python -m dataflow.cli --help
+```
+
+#### Build System
+
+The project uses setuptools with a `pyproject.toml` configuration. Distribution packages are built with `python -m build`.
+
+```bash
+# Build wheel and source distribution
+python -m build
+
+# Install from built wheel
+pip install dist/dataflow_cv-*.whl
 ```
 
 ### Command Line Usage
