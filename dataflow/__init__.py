@@ -15,7 +15,14 @@ __description__ = "A data processing library for computer vision datasets"
 from .config import Config
 
 # Converters
-from .convert import CocoToYoloConverter, YoloToCocoConverter
+from .convert import (
+    CocoToYoloConverter,
+    YoloToCocoConverter,
+    CocoToLabelMeConverter,
+    LabelMeToCocoConverter,
+    YoloToLabelMeConverter,
+    LabelMeToYoloConverter
+)
 
 # Visualizers
 from .visualize.yolo import YoloVisualizer
@@ -69,6 +76,74 @@ def yolo_to_coco(
     return converter.convert(
         image_dir, yolo_labels_dir, yolo_class_path, coco_json_path, **kwargs
     )
+
+
+# Convenience functions for LabelMe conversions
+def coco_to_labelme(coco_json_path: str, output_dir: str, **kwargs):
+    """
+    Convert COCO JSON to LabelMe format.
+
+    Args:
+        coco_json_path: Path to COCO JSON file
+        output_dir: Output directory where LabelMe JSON files will be created
+        **kwargs: Additional options passed to CocoToLabelMeConverter.convert()
+
+    Returns:
+        Dictionary with conversion statistics
+    """
+    converter = CocoToLabelMeConverter()
+    return converter.convert(coco_json_path, output_dir, **kwargs)
+
+
+def labelme_to_coco(label_dir: str, classes_path: str, output_json_path: str, **kwargs):
+    """
+    Convert LabelMe format to COCO JSON.
+
+    Args:
+        label_dir: Directory containing LabelMe JSON files
+        classes_path: Path to class names file (e.g., class.names)
+        output_json_path: Path to save COCO JSON file
+        **kwargs: Additional options passed to LabelMeToCocoConverter.convert()
+
+    Returns:
+        Dictionary with conversion statistics
+    """
+    converter = LabelMeToCocoConverter()
+    return converter.convert(label_dir, classes_path, output_json_path, **kwargs)
+
+
+def yolo_to_labelme(image_dir: str, label_dir: str, classes_path: str, output_dir: str, **kwargs):
+    """
+    Convert YOLO format to LabelMe format.
+
+    Args:
+        image_dir: Directory containing image files
+        label_dir: Directory containing YOLO label files (.txt)
+        classes_path: Path to YOLO class names file (e.g., class.names)
+        output_dir: Output directory where LabelMe JSON files will be created
+        **kwargs: Additional options passed to YoloToLabelMeConverter.convert()
+
+    Returns:
+        Dictionary with conversion statistics
+    """
+    converter = YoloToLabelMeConverter()
+    return converter.convert(image_dir, label_dir, classes_path, output_dir, **kwargs)
+
+
+def labelme_to_yolo(label_dir: str, output_dir: str, **kwargs):
+    """
+    Convert LabelMe format to YOLO format.
+
+    Args:
+        label_dir: Directory containing LabelMe JSON files
+        output_dir: Output directory where labels/ and class.names will be created
+        **kwargs: Additional options passed to LabelMeToYoloConverter.convert()
+
+    Returns:
+        Dictionary with conversion statistics
+    """
+    converter = LabelMeToYoloConverter()
+    return converter.convert(label_dir, output_dir, **kwargs)
 
 
 # Convenience functions for visualization
@@ -147,6 +222,10 @@ __all__ = [
     # Converters
     "CocoToYoloConverter",
     "YoloToCocoConverter",
+    "CocoToLabelMeConverter",
+    "LabelMeToCocoConverter",
+    "YoloToLabelMeConverter",
+    "LabelMeToYoloConverter",
 
     # Visualizers
     "YoloVisualizer",
@@ -164,6 +243,10 @@ __all__ = [
     # Convenience functions
     "coco_to_yolo",
     "yolo_to_coco",
+    "coco_to_labelme",
+    "labelme_to_coco",
+    "yolo_to_labelme",
+    "labelme_to_yolo",
     "visualize_yolo",
     "visualize_coco",
     "visualize_labelme",

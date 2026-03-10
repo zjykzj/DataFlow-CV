@@ -3,12 +3,12 @@
 
 """
 @Time    : 2026/3/10
-@File    : cli_coco_to_yolo.py
+@File    : cli_labelme_to_yolo.py
 @Author  : DataFlow Team
-@Description: CLI example for COCO to YOLO conversion
+@Description: CLI example for LabelMe to YOLO conversion
 
 This script demonstrates how to use the DataFlow-CV CLI tool
-for converting COCO JSON format to YOLO format.
+for converting LabelMe format to YOLO format.
 """
 
 import os
@@ -29,132 +29,133 @@ def print_header(title):
     print("="*60)
 
 
-def create_sample_coco_data():
-    """Create sample COCO JSON data for demonstration."""
+def create_sample_labelme_data():
+    """Create sample LabelMe JSON data for demonstration."""
     # Create temporary directory
-    temp_dir = tempfile.mkdtemp(prefix="coco2yolo_demo_")
+    temp_dir = tempfile.mkdtemp(prefix="labelme2yolo_demo_")
     print(f"Created temporary directory: {temp_dir}")
 
-    # Create sample COCO JSON
-    coco_json = os.path.join(temp_dir, "annotations.json")
-    coco_data = {
-        "info": {
-            "description": "Sample COCO dataset for COCO→YOLO conversion demo",
-            "version": "1.0",
-            "year": 2026,
-            "contributor": "DataFlow-CV",
-            "date_created": "2026-03-10"
-        },
-        "licenses": [],
-        "images": [
+    # Create sample LabelMe JSON files
+    label_dir = os.path.join(temp_dir, "labelme_labels")
+    os.makedirs(label_dir, exist_ok=True)
+
+    # Create first LabelMe JSON file
+    labelme1 = os.path.join(label_dir, "image1.json")
+    data1 = {
+        "version": "5.3.1",
+        "flags": {},
+        "shapes": [
             {
-                "id": 1,
-                "file_name": "cat_image.jpg",
-                "width": 800,
-                "height": 600
+                "label": "person",
+                "points": [[100.0, 150.0], [300.0, 150.0], [300.0, 270.0], [100.0, 270.0]],
+                "group_id": None,
+                "shape_type": "polygon",
+                "flags": {}
             },
             {
-                "id": 2,
-                "file_name": "dog_image.jpg",
-                "width": 1024,
-                "height": 768
-            },
-            {
-                "id": 3,
-                "file_name": "empty_image.jpg",  # Image without annotations
-                "width": 640,
-                "height": 480
+                "label": "person",
+                "points": [[300.0, 200.0], [450.0, 200.0], [450.0, 300.0], [300.0, 300.0]],
+                "group_id": None,
+                "shape_type": "polygon",
+                "flags": {}
             }
         ],
-        "annotations": [
-            {
-                "id": 1,
-                "image_id": 1,
-                "category_id": 1,
-                "bbox": [100, 150, 200, 120],  # [x, y, width, height]
-                "area": 24000,
-                "segmentation": [[100, 150, 300, 150, 300, 270, 100, 270]],
-                "iscrowd": 0
-            },
-            {
-                "id": 2,
-                "image_id": 1,
-                "category_id": 1,
-                "bbox": [300, 200, 150, 100],
-                "area": 15000,
-                "segmentation": [[300, 200, 450, 200, 450, 300, 300, 300]],
-                "iscrowd": 0
-            },
-            {
-                "id": 3,
-                "image_id": 2,
-                "category_id": 2,
-                "bbox": [400, 300, 180, 150],
-                "area": 27000,
-                "segmentation": [[400, 300, 580, 300, 580, 450, 400, 450]],
-                "iscrowd": 0
-            }
-        ],
-        "categories": [
-            {
-                "id": 1,
-                "name": "cat",
-                "supercategory": "animal"
-            },
-            {
-                "id": 2,
-                "name": "dog",
-                "supercategory": "animal"
-            }
-        ]
+        "imagePath": "image1.jpg",
+        "imageData": None,
+        "imageHeight": 600,
+        "imageWidth": 800
     }
+    with open(labelme1, 'w', encoding='utf-8') as f:
+        json.dump(data1, f, indent=2)
+    print(f"Created LabelMe JSON: {labelme1}")
 
-    with open(coco_json, 'w', encoding='utf-8') as f:
-        json.dump(coco_data, f, indent=2)
+    # Create second LabelMe JSON file
+    labelme2 = os.path.join(label_dir, "image2.json")
+    data2 = {
+        "version": "5.3.1",
+        "flags": {},
+        "shapes": [
+            {
+                "label": "car",
+                "points": [[400.0, 300.0], [580.0, 300.0], [580.0, 450.0], [400.0, 450.0]],
+                "group_id": None,
+                "shape_type": "polygon",
+                "flags": {}
+            },
+            {
+                "label": "bicycle",
+                "points": [[100.0, 100.0], [200.0, 100.0], [200.0, 200.0], [100.0, 200.0]],
+                "group_id": None,
+                "shape_type": "polygon",
+                "flags": {}
+            }
+        ],
+        "imagePath": "image2.jpg",
+        "imageData": None,
+        "imageHeight": 768,
+        "imageWidth": 1024
+    }
+    with open(labelme2, 'w', encoding='utf-8') as f:
+        json.dump(data2, f, indent=2)
+    print(f"Created LabelMe JSON: {labelme2}")
 
-    print(f"Created sample COCO JSON: {coco_json}")
-    return temp_dir, coco_json
+    # Create third LabelMe JSON file (empty annotations)
+    labelme3 = os.path.join(label_dir, "image3.json")
+    data3 = {
+        "version": "5.3.1",
+        "flags": {},
+        "shapes": [],
+        "imagePath": "image3.jpg",
+        "imageData": None,
+        "imageHeight": 480,
+        "imageWidth": 640
+    }
+    with open(labelme3, 'w', encoding='utf-8') as f:
+        json.dump(data3, f, indent=2)
+    print(f"Created LabelMe JSON: {labelme3}")
+
+    return temp_dir, label_dir
 
 
-def show_cli_commands(coco_json, output_dir):
-    """Show available CLI commands for COCO to YOLO conversion."""
-    print_header("CLI COMMANDS FOR COCO→YOLO CONVERSION")
+def show_cli_commands(label_dir, output_dir):
+    """Show available CLI commands for LabelMe to YOLO conversion."""
+    print_header("CLI COMMANDS FOR LABELME→YOLO CONVERSION")
 
     print("\nBasic conversion:")
-    print(f"  $ dataflow convert coco2yolo {coco_json} {output_dir}")
+    print(f"  $ dataflow convert labelme2yolo {label_dir} {output_dir}")
 
     print("\nWith verbose output:")
-    print(f"  $ dataflow convert coco2yolo --verbose {coco_json} {output_dir}")
-    print(f"  $ dataflow convert coco2yolo -v {coco_json} {output_dir}")
+    print(f"  $ dataflow convert labelme2yolo --verbose {label_dir} {output_dir}")
+    print(f"  $ dataflow convert labelme2yolo -v {label_dir} {output_dir}")
 
     print("\nWith overwrite mode:")
-    print(f"  $ dataflow convert coco2yolo --overwrite {coco_json} {output_dir}")
+    print(f"  $ dataflow convert labelme2yolo --overwrite {label_dir} {output_dir}")
 
     print("\nWith segmentation mode (for polygon annotations):")
-    print(f"  $ dataflow convert coco2yolo --segmentation {coco_json} {output_dir}")
+    print(f"  $ dataflow convert labelme2yolo --segmentation {label_dir} {output_dir}")
 
     print("\nWith both options:")
-    print(f"  $ dataflow convert coco2yolo -v --overwrite --segmentation {coco_json} {output_dir}")
+    print(f"  $ dataflow convert labelme2yolo -v --overwrite --segmentation {label_dir} {output_dir}")
 
     print("\nGet help:")
-    print(f"  $ dataflow convert coco2yolo --help")
+    print(f"  $ dataflow convert labelme2yolo --help")
 
 
-def run_conversion(coco_json, output_dir, verbose=True, overwrite=False, segmentation=False):
+def run_conversion(label_dir, output_dir, verbose=True, overwrite=False, segmentation=False):
     """Run the actual conversion using Python module."""
     print_header("RUNNING CONVERSION")
 
     import subprocess
 
     # Build command
-    cmd = ["python", "-m", "dataflow.cli", "convert", "coco2yolo"]
+    cmd = ["python", "-m", "dataflow.cli", "convert", "labelme2yolo"]
     if verbose:
         cmd.append("--verbose")
     if overwrite:
         cmd.append("--overwrite")
     if segmentation:
         cmd.append("--segmentation")
-    cmd.extend([coco_json, output_dir])
+    cmd.extend([label_dir, output_dir])
 
     print(f"Command: {' '.join(cmd)}")
     print("\n" + "-"*40)
@@ -205,7 +206,7 @@ def inspect_output(output_dir):
         for file in files:
             print(f'{subindent}{file}')
 
-    # Check for class names file
+    # Check for class.names file
     classes_file = os.path.join(output_dir, "class.names")
     if os.path.exists(classes_file):
         print(f"\nContents of {classes_file}:")
@@ -236,18 +237,18 @@ def inspect_output(output_dir):
 
 def main():
     """Main demonstration function."""
-    print_header("COCO TO YOLO CONVERSION - CLI DEMONSTRATION")
+    print_header("LABELME TO YOLO CONVERSION - CLI DEMONSTRATION")
 
     # Create sample data
-    temp_dir, coco_json = create_sample_coco_data()
+    temp_dir, label_dir = create_sample_labelme_data()
     output_dir = os.path.join(temp_dir, "yolo_output")
 
     try:
         # Show CLI commands
-        show_cli_commands(coco_json, output_dir)
+        show_cli_commands(label_dir, output_dir)
 
         # Run conversion
-        success = run_conversion(coco_json, output_dir, verbose=True, overwrite=False)
+        success = run_conversion(label_dir, output_dir, verbose=True, overwrite=False)
 
         if success:
             # Inspect output
@@ -256,22 +257,22 @@ def main():
         # Demonstrate segmentation mode
         output_dir_seg = os.path.join(temp_dir, "yolo_output_seg")
         print_header("SEGMENTATION MODE DEMONSTRATION")
-        run_conversion(coco_json, output_dir_seg, verbose=True, overwrite=False, segmentation=True)
+        run_conversion(label_dir, output_dir_seg, verbose=True, overwrite=False, segmentation=True)
 
         print_header("SUMMARY")
         print(f"\n✅ Demonstration completed!")
         print(f"\n📁 Sample data directory: {temp_dir}")
-        print(f"   - COCO JSON: {coco_json}")
+        print(f"   - LabelMe directory: {label_dir}")
         print(f"   - YOLO output: {output_dir}")
         print(f"   - YOLO output (segmentation): {output_dir_seg}")
 
         print(f"\n💡 Key points:")
-        print(f"   1. COCO JSON should contain images, annotations, and categories")
+        print(f"   1. LabelMe directory should contain JSON files (one per image)")
         print(f"   2. Output directory will contain 'labels/' and 'class.names'")
         print(f"   3. Each image gets a corresponding .txt file in labels/")
         print(f"   4. Use --verbose for detailed progress information")
         print(f"   5. Use --overwrite to replace existing files")
-        print(f"   6. Use --segmentation for polygon annotations")
+        print(f"   6. Use --segmentation to enforce polygon annotations")
 
     finally:
         # Cleanup

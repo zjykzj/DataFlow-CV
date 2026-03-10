@@ -3,12 +3,12 @@
 
 """
 @Time    : 2026/3/10
-@File    : cli_yolo_to_coco.py
+@File    : cli_yolo_to_labelme.py
 @Author  : DataFlow Team
-@Description: CLI example for YOLO to COCO conversion
+@Description: CLI example for YOLO to LabelMe conversion
 
 This script demonstrates how to use the DataFlow-CV CLI tool
-for converting YOLO format to COCO JSON format.
+for converting YOLO format to LabelMe format.
 """
 
 import os
@@ -32,7 +32,7 @@ def print_header(title):
 def create_sample_yolo_data():
     """Create sample YOLO data for demonstration."""
     # Create temporary directory
-    temp_dir = tempfile.mkdtemp(prefix="yolo2coco_demo_")
+    temp_dir = tempfile.mkdtemp(prefix="yolo2labelme_demo_")
     print(f"Created temporary directory: {temp_dir}")
 
     # Create images directory (with empty files for demonstration)
@@ -101,45 +101,45 @@ def create_sample_yolo_data():
     return temp_dir, images_dir, labels_dir, classes_file
 
 
-def show_cli_commands(images_dir, labels_dir, classes_file, output_json):
-    """Show available CLI commands for YOLO to COCO conversion."""
-    print_header("CLI COMMANDS FOR YOLO→COCO CONVERSION")
+def show_cli_commands(images_dir, labels_dir, classes_file, output_dir):
+    """Show available CLI commands for YOLO to LabelMe conversion."""
+    print_header("CLI COMMANDS FOR YOLO→LABELME CONVERSION")
 
     print("\nBasic conversion:")
-    print(f"  $ dataflow convert yolo2coco {images_dir} {labels_dir} {classes_file} {output_json}")
+    print(f"  $ dataflow convert yolo2labelme {images_dir} {labels_dir} {classes_file} {output_dir}")
 
     print("\nWith verbose output:")
-    print(f"  $ dataflow convert yolo2coco --verbose {images_dir} {labels_dir} {classes_file} {output_json}")
-    print(f"  $ dataflow convert yolo2coco -v {images_dir} {labels_dir} {classes_file} {output_json}")
+    print(f"  $ dataflow convert yolo2labelme --verbose {images_dir} {labels_dir} {classes_file} {output_dir}")
+    print(f"  $ dataflow convert yolo2labelme -v {images_dir} {labels_dir} {classes_file} {output_dir}")
 
     print("\nWith overwrite mode:")
-    print(f"  $ dataflow convert yolo2coco --overwrite {images_dir} {labels_dir} {classes_file} {output_json}")
+    print(f"  $ dataflow convert yolo2labelme --overwrite {images_dir} {labels_dir} {classes_file} {output_dir}")
 
     print("\nWith segmentation mode (for polygon annotations):")
-    print(f"  $ dataflow convert yolo2coco --segmentation {images_dir} {labels_dir} {classes_file} {output_json}")
+    print(f"  $ dataflow convert yolo2labelme --segmentation {images_dir} {labels_dir} {classes_file} {output_dir}")
 
     print("\nWith both options:")
-    print(f"  $ dataflow convert yolo2coco -v --overwrite --segmentation {images_dir} {labels_dir} {classes_file} {output_json}")
+    print(f"  $ dataflow convert yolo2labelme -v --overwrite --segmentation {images_dir} {labels_dir} {classes_file} {output_dir}")
 
     print("\nGet help:")
-    print(f"  $ dataflow convert yolo2coco --help")
+    print(f"  $ dataflow convert yolo2labelme --help")
 
 
-def run_conversion(images_dir, labels_dir, classes_file, output_json, verbose=True, overwrite=False, segmentation=False):
+def run_conversion(images_dir, labels_dir, classes_file, output_dir, verbose=True, overwrite=False, segmentation=False):
     """Run the actual conversion using Python module."""
     print_header("RUNNING CONVERSION")
 
     import subprocess
 
     # Build command
-    cmd = ["python", "-m", "dataflow.cli", "convert", "yolo2coco"]
+    cmd = ["python", "-m", "dataflow.cli", "convert", "yolo2labelme"]
     if verbose:
         cmd.append("--verbose")
     if overwrite:
         cmd.append("--overwrite")
     if segmentation:
         cmd.append("--segmentation")
-    cmd.extend([images_dir, labels_dir, classes_file, output_json])
+    cmd.extend([images_dir, labels_dir, classes_file, output_dir])
 
     print(f"Command: {' '.join(cmd)}")
     print("\n" + "-"*40)
@@ -173,77 +173,68 @@ def run_conversion(images_dir, labels_dir, classes_file, output_json, verbose=Tr
         return False
 
 
-def inspect_output(output_json):
-    """Inspect the generated COCO JSON file."""
+def inspect_output(output_dir):
+    """Inspect the generated output files."""
     print_header("INSPECTING OUTPUT FILES")
 
-    if not os.path.exists(output_json):
-        print(f"Output file not found: {output_json}")
+    if not os.path.exists(output_dir):
+        print(f"Output directory not found: {output_dir}")
         return
 
-    print(f"\nCOCO JSON file: {output_json}")
+    print(f"\nDirectory structure of {output_dir}:")
+    for root, dirs, files in os.walk(output_dir):
+        level = root.replace(output_dir, '').count(os.sep)
+        indent = ' ' * 2 * level
+        print(f'{indent}{os.path.basename(root)}/')
+        subindent = ' ' * 2 * (level + 1)
+        for file in files:
+            print(f'{subindent}{file}')
 
-    try:
-        with open(output_json, 'r', encoding='utf-8') as f:
-            coco_data = json.load(f)
+    # Check for LabelMe JSON files
+    labelme_files = [f for f in os.listdir(output_dir) if f.endswith('.json')]
+    print(f"\nLabelMe JSON files: {len(labelme_files)} files")
 
-        print(f"\n✓ COCO structure:")
-        print(f"  - Info: {coco_data.get('info', {}).get('description', 'N/A')}")
-        print(f"  - Images: {len(coco_data.get('images', []))}")
-        print(f"  - Annotations: {len(coco_data.get('annotations', []))}")
-        print(f"  - Categories: {len(coco_data.get('categories', []))}")
-
-        # Show sample image
-        if coco_data.get('images'):
-            image = coco_data['images'][0]
-            print(f"\n  Sample image:")
-            print(f"    - ID: {image.get('id')}")
-            print(f"    - File name: {image.get('file_name')}")
-            print(f"    - Dimensions: {image.get('width')}x{image.get('height')}")
-
-        # Show sample annotation
-        if coco_data.get('annotations'):
-            ann = coco_data['annotations'][0]
-            print(f"\n  Sample annotation:")
-            print(f"    - ID: {ann.get('id')}")
-            print(f"    - Image ID: {ann.get('image_id')}")
-            print(f"    - Category ID: {ann.get('category_id')}")
-            print(f"    - Bbox: {ann.get('bbox')}")
-            print(f"    - Area: {ann.get('area')}")
-
-        # Show categories
-        if coco_data.get('categories'):
-            print(f"\n  Categories:")
-            for cat in coco_data['categories']:
-                print(f"    - {cat.get('id')}: {cat.get('name')} ({cat.get('supercategory', 'N/A')})")
-
-    except Exception as e:
-        print(f"❌ Error reading COCO JSON: {e}")
+    # Show sample LabelMe JSON file
+    if labelme_files:
+        sample_file = os.path.join(output_dir, labelme_files[0])
+        print(f"\nSample LabelMe file: {labelme_files[0]}")
+        try:
+            with open(sample_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                print(f"  - Version: {data.get('version', 'N/A')}")
+                print(f"  - Image path: {data.get('imagePath', 'N/A')}")
+                print(f"  - Image dimensions: {data.get('imageWidth', 'N/A')}x{data.get('imageHeight', 'N/A')}")
+                print(f"  - Shapes count: {len(data.get('shapes', []))}")
+                if data.get('shapes'):
+                    shape = data['shapes'][0]
+                    print(f"  - First shape: {shape.get('label')} ({shape.get('shape_type')})")
+        except Exception as e:
+            print(f"  Error reading LabelMe JSON: {e}")
 
 
 def main():
     """Main demonstration function."""
-    print_header("YOLO TO COCO CONVERSION - CLI DEMONSTRATION")
+    print_header("YOLO TO LABELME CONVERSION - CLI DEMONSTRATION")
 
     # Create sample data
     temp_dir, images_dir, labels_dir, classes_file = create_sample_yolo_data()
-    output_json = os.path.join(temp_dir, "coco_annotations.json")
+    output_dir = os.path.join(temp_dir, "labelme_output")
 
     try:
         # Show CLI commands
-        show_cli_commands(images_dir, labels_dir, classes_file, output_json)
+        show_cli_commands(images_dir, labels_dir, classes_file, output_dir)
 
         # Run conversion
-        success = run_conversion(images_dir, labels_dir, classes_file, output_json, verbose=True, overwrite=False)
+        success = run_conversion(images_dir, labels_dir, classes_file, output_dir, verbose=True, overwrite=False)
 
         if success:
             # Inspect output
-            inspect_output(output_json)
+            inspect_output(output_dir)
 
         # Demonstrate segmentation mode
-        output_json_seg = os.path.join(temp_dir, "coco_annotations_seg.json")
+        output_dir_seg = os.path.join(temp_dir, "labelme_output_seg")
         print_header("SEGMENTATION MODE DEMONSTRATION")
-        run_conversion(images_dir, labels_dir, classes_file, output_json_seg, verbose=True, overwrite=False, segmentation=True)
+        run_conversion(images_dir, labels_dir, classes_file, output_dir_seg, verbose=True, overwrite=False, segmentation=True)
 
         print_header("SUMMARY")
         print(f"\n✅ Demonstration completed!")
@@ -251,13 +242,13 @@ def main():
         print(f"   - Images directory: {images_dir}")
         print(f"   - Labels directory: {labels_dir}")
         print(f"   - Classes file: {classes_file}")
-        print(f"   - COCO JSON output: {output_json}")
-        print(f"   - COCO JSON output (segmentation): {output_json_seg}")
+        print(f"   - LabelMe output: {output_dir}")
+        print(f"   - LabelMe output (segmentation): {output_dir_seg}")
 
         print(f"\n💡 Key points:")
         print(f"   1. YOLO format requires images, labels, and class names")
         print(f"   2. Each image should have a corresponding .txt file in labels/")
-        print(f"   3. Output is a single COCO JSON file")
+        print(f"   3. Output directory will contain LabelMe JSON files (one per image)")
         print(f"   4. Use --verbose for detailed progress information")
         print(f"   5. Use --overwrite to replace existing files")
         print(f"   6. Use --segmentation for polygon annotations")

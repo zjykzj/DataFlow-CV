@@ -42,8 +42,9 @@ dataflow/
 ├── convert/                 # Format conversion module
 │   ├── __init__.py
 │   ├── base.py             # Converter base class
-│   ├── coco_to_yolo.py     # COCO to YOLO converter
-│   └── yolo_to_coco.py     # YOLO to COCO converter
+│   ├── coco_and_yolo.py    # COCO ↔ YOLO converters
+│   ├── coco_and_labelme.py # COCO ↔ LabelMe converters
+│   └── yolo_and_labelme.py # YOLO ↔ LabelMe converters
 ├── visualize/               # Annotation visualization module
 │   ├── __init__.py
 │   ├── base.py            # Visualizer base class
@@ -71,11 +72,16 @@ tests/
 samples/
 ├── __init__.py
 ├── example_usage.py       # Quick usage demonstration
+├── template.py            # Example template for creating new examples
 ├── cli/                   # CLI usage examples
 │   ├── __init__.py
 │   ├── convert/
 │   │   ├── cli_coco_to_yolo.py
-│   │   └── cli_yolo_to_coco.py
+│   │   ├── cli_yolo_to_coco.py
+│   │   ├── cli_coco_to_labelme.py
+│   │   ├── cli_labelme_to_coco.py
+│   │   ├── cli_labelme_to_yolo.py
+│   │   └── cli_yolo_to_labelme.py
 │   └── visualize/
 │       ├── cli_yolo.py
 │       ├── cli_coco.py
@@ -84,7 +90,11 @@ samples/
     ├── __init__.py
     ├── convert/
     │   ├── api_coco_to_yolo.py
-    │   └── api_yolo_to_coco.py
+    │   ├── api_yolo_to_coco.py
+    │   ├── api_coco_to_labelme.py
+    │   ├── api_labelme_to_coco.py
+    │   ├── api_labelme_to_yolo.py
+    │   └── api_yolo_to_labelme.py
     └── visualize/
         ├── api_yolo.py
         ├── api_coco.py
@@ -109,10 +119,8 @@ samples/
 # Regular installation from source
 pip install .
 
-# Editable installation (development mode)
-# Due to setuptools compatibility, use python setup.py develop (not pip install -e .)
-python setup.py develop
-# After editable installation, use python -m dataflow.cli instead of the dataflow command
+# 在Pypi安装
+pip install dataflow-cv
 ```
 
 ### Command Line Usage

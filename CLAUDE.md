@@ -102,6 +102,20 @@ dataflow convert coco2yolo annotations.json output_dir/ --segmentation
 # Convert YOLO to COCO
 dataflow convert yolo2coco images/ labels/ classes.names output.json
 
+# Convert COCO to LabelMe (use --segmentation for polygon annotations)
+dataflow convert coco2labelme annotations.json output_dir/
+dataflow convert coco2labelme annotations.json output_dir/ --segmentation
+
+# Convert LabelMe to COCO
+dataflow convert labelme2coco labels/ classes.names output.json
+
+# Convert LabelMe to YOLO (use --segmentation for polygon annotations)
+dataflow convert labelme2yolo labels/ output_dir/
+dataflow convert labelme2yolo labels/ output_dir/ --segmentation
+
+# Convert YOLO to LabelMe
+dataflow convert yolo2labelme images/ labels/ classes.names output_dir/
+
 # Visualize YOLO annotations (use --save to export images)
 dataflow visualize yolo images/ labels/ classes.names
 dataflow visualize yolo images/ labels/ classes.names --save output_dir/
@@ -128,6 +142,20 @@ result = dataflow.coco_to_yolo("annotations.json", "output_dir", segmentation=Tr
 
 # YOLO to COCO conversion
 result = dataflow.yolo_to_coco("images/", "labels/", "classes.names", "output.json")
+
+# COCO to LabelMe conversion (pass segmentation=True for polygon annotations)
+result = dataflow.coco_to_labelme("annotations.json", "output_dir")
+result = dataflow.coco_to_labelme("annotations.json", "output_dir", segmentation=True)
+
+# LabelMe to COCO conversion
+result = dataflow.labelme_to_coco("labels/", "classes.names", "output.json")
+
+# LabelMe to YOLO conversion (pass segmentation=True for polygon annotations)
+result = dataflow.labelme_to_yolo("labels/", "output_dir")
+result = dataflow.labelme_to_yolo("labels/", "output_dir", segmentation=True)
+
+# YOLO to LabelMe conversion
+result = dataflow.yolo_to_labelme("images/", "labels/", "classes.names", "output_dir")
 
 # Visualize YOLO annotations (save_dir is optional)
 result = dataflow.visualize_yolo("images/", "labels/", "classes.names")
@@ -180,43 +208,71 @@ Each sub‑task command validates its arguments, creates the appropriate convert
 ### File Layout
 ```
 dataflow/
-├── __init__.py              # Package exports (coco_to_yolo, yolo_to_coco, visualize_*)
+├── __init__.py              # Package exports (coco_to_yolo, yolo_to_coco, coco_to_labelme, labelme_to_coco, yolo_to_labelme, labelme_to_yolo, visualize_*)
 ├── cli.py                   # Click CLI definition
 ├── config.py                # Config class
-├── convert/                 # Conversion module
-│   ├── __init__.py          # Exports BaseConverter, CocoToYoloConverter, YoloToCocoConverter
+├── convert/                 # Format conversion module
+│   ├── __init__.py          # Exports BaseConverter, all converter classes
 │   ├── base.py              # BaseConverter abstract class
-│   ├── coco_to_yolo.py      # CocoToYoloConverter implementation
-│   └── yolo_to_coco.py      # YoloToCocoConverter implementation
+│   ├── coco_and_yolo.py     # COCO ↔ YOLO converters (CocoToYoloConverter, YoloToCocoConverter)
+│   ├── coco_and_labelme.py  # COCO ↔ LabelMe converters (CocoToLabelMeConverter, LabelMeToCocoConverter)
+│   └── yolo_and_labelme.py  # YOLO ↔ LabelMe converters (YoloToLabelMeConverter, LabelMeToYoloConverter)
 ├── label/                   # Label format handlers module
 │   ├── __init__.py          # Exports YoloHandler, CocoHandler, LabelMeHandler
-│   ├── yolo.py              # YoloHandler implementation
-│   ├── coco.py              # CocoHandler implementation
-│   └── labelme.py           # LabelMeHandler implementation
-└── visualize/               # Visualization module
+│   ├── yolo.py              # YOLO format handler
+│   ├── coco.py              # COCO format handler
+│   └── labelme.py           # LabelMe format handler
+└── visualize/               # Annotation visualization module
     ├── __init__.py          # Exports BaseVisualizer, YoloVisualizer, CocoVisualizer, LabelMeVisualizer
     ├── base.py              # BaseVisualizer abstract class
-    ├── yolo.py              # YoloVisualizer implementation
-    ├── coco.py              # CocoVisualizer implementation
-    └── labelme.py           # LabelMeVisualizer implementation
+    ├── yolo.py              # YOLO annotation visualizer
+    ├── coco.py              # COCO annotation visualizer
+    └── labelme.py           # LabelMe annotation visualizer
 
 tests/
-├── convert/
+├── __init__.py
+├── convert/                # Conversion tests
+│   ├── __init__.py
 │   ├── test_coco_to_yolo.py
 │   └── test_yolo_to_coco.py
-├── visualize/               # Visualization tests
+├── visualize/              # Visualization tests
+│   ├── __init__.py
 │   ├── test_yolo.py
 │   ├── test_coco.py
 │   ├── test_labelme.py
-│   └── test_generic.py      # Generic visualizer tests
-└── run_tests.py            # Custom test runner
+│   └── test_generic.py    # Generic visualizer tests
+└── run_tests.py           # Test runner
 
 samples/
+├── __init__.py
 ├── example_usage.py       # Quick usage demonstration
-├── cli/convert/            # CLI conversion examples
-├── cli/visualize/          # CLI visualization examples (cli_yolo.py, cli_coco.py, cli_labelme.py)
-├── api/convert/            # Python API conversion examples
-└── api/visualize/          # Python API visualization examples (api_yolo.py, api_coco.py, api_labelme.py)
+├── template.py            # Example template for creating new examples
+├── cli/                   # CLI usage examples
+│   ├── __init__.py
+│   ├── convert/
+│   │   ├── cli_coco_to_yolo.py
+│   │   ├── cli_yolo_to_coco.py
+│   │   ├── cli_coco_to_labelme.py
+│   │   ├── cli_labelme_to_coco.py
+│   │   ├── cli_labelme_to_yolo.py
+│   │   └── cli_yolo_to_labelme.py
+│   └── visualize/
+│       ├── cli_yolo.py
+│       ├── cli_coco.py
+│       └── cli_labelme.py
+└── api/                   # Python API examples
+    ├── __init__.py
+    ├── convert/
+    │   ├── api_coco_to_yolo.py
+    │   ├── api_yolo_to_coco.py
+    │   ├── api_coco_to_labelme.py
+    │   ├── api_labelme_to_coco.py
+    │   ├── api_labelme_to_yolo.py
+    │   └── api_yolo_to_labelme.py
+    └── visualize/
+        ├── api_yolo.py
+        ├── api_coco.py
+        └── api_labelme.py
 ```
 
 ## Writing Principles

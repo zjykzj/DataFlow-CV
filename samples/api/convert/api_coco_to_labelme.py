@@ -3,12 +3,12 @@
 
 """
 @Time    : 2026/3/10
-@File    : api_coco_to_yolo.py
+@File    : api_coco_to_labelme.py
 @Author  : DataFlow Team
-@Description: Python API example for COCO to YOLO conversion
+@Description: Python API example for COCO to LabelMe conversion
 
 This script demonstrates how to use the DataFlow-CV Python API
-for converting COCO JSON format to YOLO format.
+for converting COCO JSON format to LabelMe format.
 """
 
 import os
@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 # Import DataFlow-CV
 import dataflow
-from dataflow import CocoToYoloConverter
+from dataflow import CocoToLabelMeConverter
 from dataflow.config import Config
 
 
@@ -37,7 +37,7 @@ def print_header(title):
 def create_sample_coco_data():
     """Create sample COCO JSON data for demonstration."""
     # Create temporary directory
-    temp_dir = tempfile.mkdtemp(prefix="coco2yolo_api_demo_")
+    temp_dir = tempfile.mkdtemp(prefix="coco2labelme_api_demo_")
     print(f"Created temporary directory: {temp_dir}")
 
     # Create sample COCO JSON
@@ -145,11 +145,11 @@ def demo_convenience_function(coco_json, output_dir):
 
     print(f"\nCode:")
     print(f"  import dataflow")
-    print(f"  result = dataflow.coco_to_yolo('{coco_json}', '{output_dir}')")
+    print(f"  result = dataflow.coco_to_labelme('{coco_json}', '{output_dir}')")
 
     print(f"\nExecuting...")
     try:
-        result = dataflow.coco_to_yolo(coco_json, output_dir)
+        result = dataflow.coco_to_labelme(coco_json, output_dir)
 
         print(f"\n✅ Success!")
         print(f"\nResult keys: {list(result.keys())}")
@@ -157,13 +157,11 @@ def demo_convenience_function(coco_json, output_dir):
         # Show important statistics
         print(f"\nConversion statistics:")
         print(f"  - Images processed: {result.get('images_processed', 0)}")
-        print(f"  - Images with annotations: {result.get('images_with_annotations', 0)}")
         print(f"  - Annotations processed: {result.get('annotations_processed', 0)}")
-        print(f"  - Total categories: {result.get('total_categories', 0)}")
-        print(f"  - Total images: {result.get('total_images', 0)}")
+        print(f"  - Categories found: {result.get('categories_found', 0)}")
         print(f"  - Output directory: {result.get('output_dir', 'N/A')}")
         print(f"  - Classes file: {result.get('classes_file', 'N/A')}")
-        print(f"  - Labels directory: {result.get('labels_dir', 'N/A')}")
+        print(f"  - Segmentation mode: {result.get('segmentation_mode', False)}")
 
         return result
     except Exception as e:
@@ -176,13 +174,13 @@ def demo_converter_class(coco_json, output_dir):
     print_header("USING CONVERTER CLASS")
 
     print(f"\nCode:")
-    print(f"  from dataflow import CocoToYoloConverter")
-    print(f"  converter = CocoToYoloConverter(verbose=True)")
+    print(f"  from dataflow import CocoToLabelMeConverter")
+    print(f"  converter = CocoToLabelMeConverter(verbose=True)")
     print(f"  result = converter.convert('{coco_json}', '{output_dir}')")
 
     print(f"\nExecuting...")
     try:
-        converter = CocoToYoloConverter(verbose=True)
+        converter = CocoToLabelMeConverter(verbose=True)
         print(f"  Converter created: {converter.__class__.__name__}")
         print(f"  Verbose mode: {converter.verbose}")
 
@@ -209,11 +207,11 @@ def demo_segmentation_mode(coco_json, output_dir):
 
     print(f"\nCode:")
     print(f"  import dataflow")
-    print(f"  result = dataflow.coco_to_yolo('{coco_json}', '{output_dir}', segmentation=True)")
+    print(f"  result = dataflow.coco_to_labelme('{coco_json}', '{output_dir}', segmentation=True)")
 
     print(f"\nExecuting...")
     try:
-        result = dataflow.coco_to_yolo(coco_json, output_dir, segmentation=True)
+        result = dataflow.coco_to_labelme(coco_json, output_dir, segmentation=True)
 
         print(f"\n✅ Success!")
         print(f"\nSegmentation mode statistics:")
@@ -249,7 +247,7 @@ def demo_advanced_features(coco_json, output_dir):
     print(f"  Config.OVERWRITE_EXISTING = True")
     print(f"  ")
     print(f"  # Create converter with custom settings")
-    print(f"  converter = CocoToYoloConverter(verbose=False)")
+    print(f"  converter = CocoToLabelMeConverter(verbose=False)")
     print(f"  ")
     print(f"  # Restore configuration")
     print(f"  Config.VERBOSE = original_verbose")
@@ -267,7 +265,7 @@ def demo_advanced_features(coco_json, output_dir):
         Config.OVERWRITE_EXISTING = True
 
         # Create converter
-        converter = CocoToYoloConverter(verbose=False)
+        converter = CocoToLabelMeConverter(verbose=False)
         result = converter.convert(coco_json, custom_output)
 
         print(f"\n✅ Custom conversion successful!")
@@ -298,7 +296,6 @@ def inspect_output(output_dir):
 
     # Check for expected files
     classes_file = os.path.join(output_dir, Config.YOLO_CLASSES_FILENAME)
-    labels_dir = os.path.join(output_dir, Config.YOLO_LABELS_DIRNAME)
 
     if os.path.exists(classes_file):
         print(f"\n✓ Classes file: {classes_file}")
@@ -308,23 +305,23 @@ def inspect_output(output_dir):
     else:
         print(f"\n✗ Classes file not found!")
 
-    if os.path.exists(labels_dir):
-        print(f"\n✓ Labels directory: {labels_dir}")
-        label_files = [f for f in os.listdir(labels_dir) if f.endswith('.txt')]
-        print(f"  Number of label files: {len(label_files)}")
+    # Check for LabelMe JSON files
+    labelme_files = [f for f in os.listdir(output_dir) if f.endswith('.json')]
+    print(f"\n✓ LabelMe JSON files: {len(labelme_files)} files")
 
-        # Show sample label file
-        if label_files:
-            sample_file = os.path.join(labels_dir, label_files[0])
-            print(f"\n  Sample label file: {label_files[0]}")
-            with open(sample_file, 'r', encoding='utf-8') as f:
-                lines = [line.strip() for line in f if line.strip()]
-                for i, line in enumerate(lines[:2], 1):
-                    print(f"    Line {i}: {line}")
-                if len(lines) > 2:
-                    print(f"    ... and {len(lines) - 2} more lines")
-    else:
-        print(f"\n✗ Labels directory not found!")
+    # Show sample LabelMe JSON file
+    if labelme_files:
+        sample_file = os.path.join(output_dir, labelme_files[0])
+        print(f"\n  Sample LabelMe file: {labelme_files[0]}")
+        with open(sample_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            print(f"    - Version: {data.get('version', 'N/A')}")
+            print(f"    - Image path: {data.get('imagePath', 'N/A')}")
+            print(f"    - Image dimensions: {data.get('imageWidth', 'N/A')}x{data.get('imageHeight', 'N/A')}")
+            print(f"    - Shapes count: {len(data.get('shapes', []))}")
+            if data.get('shapes'):
+                shape = data['shapes'][0]
+                print(f"    - First shape: {shape.get('label')} ({shape.get('shape_type')})")
 
 
 def demo_error_handling():
@@ -333,14 +330,14 @@ def demo_error_handling():
 
     print(f"\n1. Invalid COCO JSON path:")
     try:
-        result = dataflow.coco_to_yolo("/invalid/path/annotations.json", "/tmp/output")
+        result = dataflow.coco_to_labelme("/invalid/path/annotations.json", "/tmp/output")
         print(f"   ❌ Should have raised an error")
     except ValueError as e:
         print(f"   ✅ Caught expected error: {str(e)[:50]}...")
 
     print(f"\n2. Invalid output directory:")
     try:
-        result = dataflow.coco_to_yolo("/tmp/annotations.json", "/root/no_permission")
+        result = dataflow.coco_to_labelme("/tmp/annotations.json", "/root/no_permission")
         print(f"   ❌ Should have raised an error")
     except (ValueError, PermissionError) as e:
         print(f"   ✅ Caught expected error: {str(e)[:50]}...")
@@ -353,7 +350,7 @@ def demo_error_handling():
             f.write("{ invalid json }")
 
         try:
-            result = dataflow.coco_to_yolo(bad_json, "/tmp/output")
+            result = dataflow.coco_to_labelme(bad_json, "/tmp/output")
             print(f"   ❌ Should have raised an error")
         except (ValueError, json.JSONDecodeError) as e:
             print(f"   ✅ Caught expected error: {str(e)[:50]}...")
@@ -363,7 +360,7 @@ def demo_error_handling():
 
 def main():
     """Main demonstration function."""
-    print_header("COCO TO YOLO CONVERSION - PYTHON API DEMONSTRATION")
+    print_header("COCO TO LABELME CONVERSION - PYTHON API DEMONSTRATION")
 
     # Create sample data
     temp_dir, coco_json = create_sample_coco_data()
@@ -400,9 +397,9 @@ def main():
         print(f"   - Output 3 (segmentation mode): {output_dir3}")
 
         print(f"\n💡 Key takeaways:")
-        print(f"   1. Use dataflow.coco_to_yolo() for simple conversions")
-        print(f"   2. Use CocoToYoloConverter class for more control")
-        print(f"   3. Use segmentation=True for polygon annotations")
+        print(f"   1. Use dataflow.coco_to_labelme() for simple conversions")
+        print(f"   2. Use CocoToLabelMeConverter class for more control")
+        print(f"   3. Use segmentation=True to enforce polygon annotations")
         print(f"   4. Configure behavior via dataflow.Config")
         print(f"   5. All methods return detailed statistics")
         print(f"   6. Error handling is built into the converters")

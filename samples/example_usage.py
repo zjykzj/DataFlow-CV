@@ -16,8 +16,8 @@ import sys
 import tempfile
 import json
 
-# Add current directory to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add project root directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     import dataflow
@@ -247,6 +247,141 @@ def demonstrate_labelme_visualization():
             print(f"❌ Visualization failed: {e}")
 
 
+def demonstrate_coco_to_labelme():
+    """Demonstrate COCO to LabelMe conversion."""
+    print("\n" + "="*60)
+    print("COCO to LabelMe Conversion Demo")
+    print("="*60)
+
+    # Create a temporary directory for demo
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create a minimal COCO JSON
+        coco_json = os.path.join(temp_dir, "demo_coco.json")
+        coco_data = {
+            "info": {"description": "Demo dataset for COCO→LabelMe conversion"},
+            "images": [
+                {"id": 1, "file_name": "image1.jpg", "width": 640, "height": 480},
+                {"id": 2, "file_name": "image2.jpg", "width": 800, "height": 600}
+            ],
+            "annotations": [
+                {"id": 1, "image_id": 1, "category_id": 1,
+                 "bbox": [100, 150, 200, 120], "area": 24000, "iscrowd": 0},
+                {"id": 2, "image_id": 2, "category_id": 2,
+                 "bbox": [300, 200, 150, 100], "area": 15000, "iscrowd": 0}
+            ],
+            "categories": [
+                {"id": 1, "name": "person", "supercategory": "human"},
+                {"id": 2, "name": "car", "supercategory": "vehicle"}
+            ]
+        }
+
+        with open(coco_json, 'w') as f:
+            json.dump(coco_data, f, indent=2)
+
+        print(f"\nCreated demo COCO JSON: {coco_json}")
+        print(f"  - Images: {len(coco_data['images'])}")
+        print(f"  - Annotations: {len(coco_data['annotations'])}")
+        print(f"  - Categories: {len(coco_data['categories'])}")
+
+        # Convert to LabelMe format
+        output_dir = os.path.join(temp_dir, "labelme_output")
+        print(f"\nConverting to LabelMe format in: {output_dir}")
+
+        try:
+            result = dataflow.coco_to_labelme(coco_json, output_dir)
+            print("✅ Conversion successful!")
+            print(f"\nStatistics:")
+            print(f"  - Images processed: {result.get('images_processed', 0)}")
+            print(f"  - Annotations processed: {result.get('annotations_processed', 0)}")
+            print(f"  - Images with annotations: {result.get('images_with_annotations', 0)}")
+
+            # Show generated files
+            print(f"\nGenerated files:")
+            if os.path.exists(output_dir):
+                json_files = [f for f in os.listdir(output_dir) if f.endswith('.json')]
+                print(f"  - LabelMe JSON files: {len(json_files)}")
+                if json_files:
+                    print(f"    Sample file: {json_files[0]}")
+
+        except Exception as e:
+            print(f"❌ Conversion failed: {e}")
+
+
+def demonstrate_labelme_to_yolo():
+    """Demonstrate LabelMe to YOLO conversion."""
+    print("\n" + "="*60)
+    print("LabelMe to YOLO Conversion Demo")
+    print("="*60)
+
+    # Create a temporary directory for demo
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create directory structure
+        labels_dir = os.path.join(temp_dir, "labels")
+        os.makedirs(labels_dir, exist_ok=True)
+
+        # Create a sample LabelMe JSON annotation
+        json_path = os.path.join(labels_dir, "demo_image.json")
+        labelme_data = {
+            "version": "5.2.1",
+            "flags": {},
+            "shapes": [
+                {
+                    "label": "person",
+                    "points": [[120, 120], [280, 280]],
+                    "group_id": None,
+                    "shape_type": "rectangle",
+                    "flags": {}
+                },
+                {
+                    "label": "car",
+                    "points": [[350, 150], [450, 150], [450, 230], [350, 230]],
+                    "group_id": None,
+                    "shape_type": "polygon",
+                    "flags": {}
+                }
+            ],
+            "imagePath": "demo_image.jpg",
+            "imageData": None,
+            "imageHeight": 480,
+            "imageWidth": 640
+        }
+
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(labelme_data, f, indent=2)
+
+        print(f"\nCreated demo LabelMe data in: {temp_dir}")
+        print(f"  - Labels: {labels_dir} (1 JSON file)")
+        print(f"  - Annotations: 2 (1 rectangle, 1 polygon)")
+
+        # Convert to YOLO format
+        output_dir = os.path.join(temp_dir, "yolo_output")
+        print(f"\nConverting to YOLO format in: {output_dir}")
+
+        try:
+            result = dataflow.labelme_to_yolo(labels_dir, output_dir)
+            print("✅ Conversion successful!")
+            print(f"\nStatistics:")
+            print(f"  - Images processed: {result.get('images_processed', 0)}")
+            print(f"  - Annotations processed: {result.get('annotations_processed', 0)}")
+
+            # Show generated files
+            print(f"\nGenerated files:")
+            classes_file = os.path.join(output_dir, "class.names")
+            labels_dir_out = os.path.join(output_dir, "labels")
+
+            if os.path.exists(classes_file):
+                with open(classes_file, 'r') as f:
+                    classes = [line.strip() for line in f]
+                print(f"  - class.names: {classes}")
+
+            if os.path.exists(labels_dir_out):
+                label_files = [f for f in os.listdir(labels_dir_out) if f.endswith('.txt')]
+                print(f"  - labels/: {len(label_files)} label files")
+
+        except Exception as e:
+            print(f"❌ Conversion failed: {e}")
+
+
 def show_cli_commands():
     """Show available CLI commands."""
     print("\n" + "="*60)
@@ -260,6 +395,22 @@ def show_cli_commands():
     print("\nYOLO to COCO:")
     print("  dataflow convert yolo2coco <images_dir> <labels_dir> <classes_file> <output_json>")
     print("  dataflow convert yolo2coco --help")
+
+    print("\nCOCO to LabelMe:")
+    print("  dataflow convert coco2labelme <coco_json> <output_dir>")
+    print("  dataflow convert coco2labelme --help")
+
+    print("\nLabelMe to COCO:")
+    print("  dataflow convert labelme2coco <labels_dir> <classes_file> <output_json>")
+    print("  dataflow convert labelme2coco --help")
+
+    print("\nLabelMe to YOLO:")
+    print("  dataflow convert labelme2yolo <labels_dir> <output_dir>")
+    print("  dataflow convert labelme2yolo --help")
+
+    print("\nYOLO to LabelMe:")
+    print("  dataflow convert yolo2labelme <images_dir> <labels_dir> <classes_file> <output_dir>")
+    print("  dataflow convert yolo2labelme --help")
 
     print("\nYOLO Visualization:")
     print("  dataflow visualize yolo <images_dir> <labels_dir> <classes_file>")
@@ -299,6 +450,8 @@ def main():
     # Demo conversions
     demonstrate_coco_to_yolo()
     demonstrate_yolo_to_coco()
+    demonstrate_coco_to_labelme()
+    demonstrate_labelme_to_yolo()
 
     # Demo visualization
     demonstrate_labelme_visualization()
