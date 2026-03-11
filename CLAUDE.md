@@ -223,8 +223,9 @@ dataflow/
 │   ├── coco.py              # COCO format handler
 │   └── labelme.py           # LabelMe format handler
 └── visualize/               # Annotation visualization module
-    ├── __init__.py          # Exports BaseVisualizer, YoloVisualizer, CocoVisualizer, LabelMeVisualizer
+    ├── __init__.py          # Exports BaseVisualizer, YoloVisualizer, CocoVisualizer, LabelMeVisualizer, GenericVisualizer
     ├── base.py              # BaseVisualizer abstract class
+    ├── generic.py           # Generic visualizer base class using label handlers
     ├── yolo.py              # YOLO annotation visualizer
     ├── coco.py              # COCO annotation visualizer
     └── labelme.py           # LabelMe annotation visualizer
@@ -234,7 +235,11 @@ tests/
 ├── convert/                # Conversion tests
 │   ├── __init__.py
 │   ├── test_coco_to_yolo.py
-│   └── test_yolo_to_coco.py
+│   ├── test_yolo_to_coco.py
+│   ├── test_coco_to_labelme.py
+│   ├── test_labelme_to_coco.py
+│   ├── test_labelme_to_yolo.py
+│   └── test_yolo_to_labelme.py
 ├── visualize/              # Visualization tests
 │   ├── __init__.py
 │   ├── test_yolo.py
@@ -273,6 +278,11 @@ samples/
         ├── api_yolo.py
         ├── api_coco.py
         └── api_labelme.py
+docs/                          # Data format documentation
+├── README.md                 # Documentation index
+├── yolo.md                   # YOLO format specification
+├── labelme.md                # LabelMe format specification
+└── coco.md                   # COCO format specification
 ```
 
 ## Writing Principles
@@ -296,6 +306,57 @@ samples/
 6. **Error Handling with Logging**: Use the `self.logger` provided by the base class for warnings and errors. Raise `ValueError` for invalid inputs, but catch internal exceptions and log them appropriately.
 
 7. **Batch‑First Design**: Converters should support both single‑file and batch conversion via the `batch_convert` method. The CLI calls the single‑file `convert` method; batch support is available through the Python API.
+
+## Segmentation Support
+
+DataFlow-CV supports both bounding box and polygon segmentation annotations across all formats:
+
+**YOLO Segmentation Format**
+- Detection format: `class_id x_center y_center width height` (normalized coordinates)
+- Segmentation format: `class_id x1 y1 x2 y2 ...` (polygon vertices, normalized)
+- YOLO segmentation files have the same `.txt` extension as detection files
+
+**COCO Segmentation Format**
+- Polygon coordinates in `segmentation` field (list of `[x1, y1, x2, y2, ...]`)
+- Both single-polygon and multi-polygon annotations are supported
+
+**LabelMe Segmentation Format**
+- Rectangle shapes (`shape_type: "rectangle"`) for bounding box annotations
+- Polygon shapes (`shape_type: "polygon"`) for segmentation annotations
+- Each JSON file contains `shapes` array with annotation data
+
+**Usage Examples**
+```bash
+# Convert COCO to YOLO with segmentation annotations
+dataflow convert coco2yolo annotations.json output_dir/ --segmentation
+
+# Visualize YOLO annotations in strict segmentation mode (only polygons)
+dataflow visualize yolo images/ labels/ classes.names --segmentation
+
+# Visualize COCO annotations in strict segmentation mode
+dataflow visualize coco images/ annotations.json --segmentation
+
+# Visualize LabelMe annotations in strict segmentation mode (only polygons)
+dataflow visualize labelme images/ labels/ --segmentation
+```
+
+**Python API**
+```python
+# Convert COCO to YOLO with segmentation
+result = dataflow.coco_to_yolo("annotations.json", "output_dir", segmentation=True)
+
+# Visualize in strict segmentation mode
+result = dataflow.visualize_yolo("images/", "labels/", "classes.names", segmentation=True)
+result = dataflow.visualize_labelme("images/", "labels/", segmentation=True)
+```
+
+**Notes**
+- Without the `--segmentation` flag, both bounding boxes and polygons are processed automatically
+- With `--segmentation` flag, only valid polygon annotations are processed (strict mode)
+- YOLO segmentation format requires at least 3 points (6 coordinates)
+- COCO segmentation polygons are automatically converted to YOLO normalized coordinates
+- LabelMe format supports both rectangle (`shape_type: "rectangle"`) and polygon (`shape_type: "polygon"`) shapes
+- In segmentation mode, LabelMe visualizer rejects rectangle shapes and only accepts polygon shapes
 
 ## Notes
 - The AI model used in this project is DeepSeek-V3.2 (128K context length), not Claude Opus.

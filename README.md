@@ -50,6 +50,7 @@ dataflow/
 ├── visualize/               # Annotation visualization module
 │   ├── __init__.py
 │   ├── base.py            # Visualizer base class
+│   ├── generic.py         # Generic visualizer base class using label handlers
 │   ├── yolo.py            # YOLO annotation visualizer
 │   ├── coco.py            # COCO annotation visualizer
 │   └── labelme.py         # LabelMe annotation visualizer
@@ -63,7 +64,11 @@ tests/
 ├── convert/                # Conversion tests
 │   ├── __init__.py
 │   ├── test_coco_to_yolo.py
-│   └── test_yolo_to_coco.py
+│   ├── test_yolo_to_coco.py
+│   ├── test_coco_to_labelme.py
+│   ├── test_labelme_to_coco.py
+│   ├── test_labelme_to_yolo.py
+│   └── test_yolo_to_labelme.py
 ├── visualize/              # Visualization tests
 │   ├── __init__.py
 │   ├── test_yolo.py
@@ -101,6 +106,11 @@ samples/
         ├── api_yolo.py
         ├── api_coco.py
         └── api_labelme.py
+docs/                       # Data format documentation
+├── README.md              # Documentation index
+├── yolo.md                # YOLO format specification
+├── labelme.md             # LabelMe format specification
+└── coco.md                # COCO format specification
 ```
 
 ## Requirements
@@ -438,6 +448,17 @@ Check the `samples/` directory for detailed usage examples:
 - `samples/cli/visualize/` - CLI visualization examples
 - `samples/api/convert/` - Python API conversion examples
 - `samples/api/visualize/` - Python API visualization examples
+
+### Documentation
+
+Detailed data format specifications are available in the `docs/` directory:
+
+- [`docs/README.md`](docs/README.md) - Documentation index
+- [`docs/yolo.md`](docs/yolo.md) - YOLO format specification
+- [`docs/labelme.md`](docs/labelme.md) - LabelMe format specification
+- [`docs/coco.md`](docs/coco.md) - COCO format specification
+
+These documents describe the annotation formats supported by DataFlow-CV, without covering tool usage.
 
 ## License
 
