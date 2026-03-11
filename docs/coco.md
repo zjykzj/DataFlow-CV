@@ -1,0 +1,223 @@
+
+
+# COCO 数据格式
+
+## 概述
+
+COCO（Common Objects in Context）是一个大规模的目标检测、分割和字幕数据集。其数据格式采用单一的 JSON 文件来描述整个数据集，包含图像信息、标注信息、类别信息等。COCO 格式已成为计算机视觉领域广泛使用的标准之一。
+
+### 核心特点
+- **单一文件**：整个数据集的标注信息存储在一个 JSON 文件中。
+- **结构化层次**：包含 `images`、`annotations`、`categories` 等顶层字段，结构清晰。
+- **丰富的信息**：除了边界框和多边形分割，还包含面积、是否拥挤（iscrowd）等元数据。
+- **官方标准**：由 COCO 数据集官方定义，被众多研究和工程项目采用。
+
+## 文件结构
+
+COCO JSON 文件是一个包含以下顶级字段的对象：
+
+| 字段名 | 类型 | 描述 |
+|--------|------|------|
+| `info` | 对象 | 数据集的总体信息（可选） |
+| `licenses` | 数组 | 许可证信息列表（可选） |
+| `images` | 数组 | **必需**，图像信息列表 |
+| `annotations` | 数组 | **必需**，标注信息列表 |
+| `categories` | 数组 | **必需**，类别信息列表 |
+
+### 1. `info` 对象（可选）
+包含数据集的描述性信息。
+
+**示例**：
+```json
+"info": {
+  "description": "COCO 2017 Dataset",
+  "url": "http://cocodataset.org",
+  "version": "1.0",
+  "year": 2017,
+  "contributor": "COCO Consortium",
+  "date_created": "2017/09/01"
+}
+```
+
+### 2. `licenses` 数组（可选）
+列出数据集中图像使用的许可证。
+
+**示例**：
+```json
+"licenses": [
+  {
+    "url": "http://creativecommons.org/licenses/by-nc-sa/2.0/",
+    "id": 1,
+    "name": "Attribution-NonCommercial-ShareAlike License"
+  }
+]
+```
+
+### 3. `images` 数组（必需）
+每个元素描述数据集中的一张图像。
+
+| 字段名 | 类型 | 描述 |
+|--------|------|------|
+| `id` | 整数 | **唯一** 图像标识符 |
+| `file_name` | 字符串 | 图像文件名（可包含相对路径） |
+| `height` | 整数 | 图像高度（像素） |
+| `width` | 整数 | 图像宽度（像素） |
+| `license` | 整数（可选） | 许可证 ID（指向 `licenses` 数组） |
+| `flickr_url` | 字符串（可选） | Flickr 图像 URL |
+| `coco_url` | 字符串（可选） | COCO 图像 URL |
+| `date_captured` | 字符串（可选） | 拍摄日期 |
+
+**示例**：
+```json
+{
+  "id": 1,
+  "file_name": "000000001.jpg",
+  "height": 480,
+  "width": 640,
+  "license": 1,
+  "flickr_url": "http://farm1.staticflickr.com/1/000000001.jpg",
+  "coco_url": "http://images.cocodataset.org/train2017/000000001.jpg",
+  "date_captured": "2013-11-14 11:18:45"
+}
+```
+
+### 4. `annotations` 数组（必需）
+每个元素描述一个标注实例（一个目标）。
+
+| 字段名 | 类型 | 描述 |
+|--------|------|------|
+| `id` | 整数 | **唯一** 标注标识符 |
+| `image_id` | 整数 | 对应图像的 ID（与 `images` 中的 `id` 匹配） |
+| `category_id` | 整数 | 类别 ID（与 `categories` 中的 `id` 匹配） |
+| `bbox` | 数组 `[x, y, width, height]` | 边界框坐标（检测任务） |
+| `segmentation` | 数组 或 RLE 字典 | 分割标注（分割任务） |
+| `area` | 浮点数 | 标注区域面积（像素²） |
+| `iscrowd` | 整数（0 或 1） | 是否表示拥挤区域（crowd） |
+
+**`bbox` 格式**：
+- `[x, y, width, height]`
+- `x`, `y` 为边界框左上角坐标（像素）。
+- `width`, `height` 为边界框的宽度和高度（像素）。
+
+**`segmentation` 格式**：
+- **多边形格式**：`[[x1, y1, x2, y2, ...]]`，单个多边形用一维数组表示，多个多边形用二维数组。
+- **RLE 格式**：`{"counts": [ ... ], "size": [height, width]}`，用于拥挤区域（`iscrowd=1`）。
+
+**示例**：
+```json
+{
+  "id": 1,
+  "image_id": 1,
+  "category_id": 1,
+  "bbox": [100, 150, 200, 300],
+  "segmentation": [[100, 150, 300, 150, 300, 450, 100, 450]],
+  "area": 60000.0,
+  "iscrowd": 0
+}
+```
+
+### 5. `categories` 数组（必需）
+定义数据集中的类别。
+
+| 字段名 | 类型 | 描述 |
+|--------|------|------|
+| `id` | 整数 | **唯一** 类别标识符 |
+| `name` | 字符串 | 类别名称（如 `"person"`, `"car"`） |
+| `supercategory` | 字符串 | 父类别（如 `"vehicle"`, `"animal"`） |
+
+**示例**：
+```json
+{
+  "id": 1,
+  "name": "person",
+  "supercategory": "human"
+}
+```
+
+## 完整示例
+
+以下是一个简化的 COCO JSON 文件示例，包含 1 张图像、2 个标注和 2 个类别：
+
+```json
+{
+  "info": {
+    "description": "Example COCO dataset",
+    "url": "",
+    "version": "1.0",
+    "year": 2026,
+    "contributor": "",
+    "date_created": "2026/03/09"
+  },
+  "licenses": [
+    {
+      "url": "",
+      "id": 0,
+      "name": "Unknown"
+    }
+  ],
+  "images": [
+    {
+      "id": 1,
+      "file_name": "example.jpg",
+      "height": 480,
+      "width": 640
+    }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [100, 150, 200, 300],
+      "segmentation": [[100, 150, 300, 150, 300, 450, 100, 450]],
+      "area": 60000.0,
+      "iscrowd": 0
+    },
+    {
+      "id": 2,
+      "image_id": 1,
+      "category_id": 2,
+      "bbox": [400, 200, 150, 100],
+      "segmentation": [[400, 200, 550, 200, 550, 300, 400, 300]],
+      "area": 15000.0,
+      "iscrowd": 0
+    }
+  ],
+  "categories": [
+    {
+      "id": 1,
+      "name": "person",
+      "supercategory": "human"
+    },
+    {
+      "id": 2,
+      "name": "car",
+      "supercategory": "vehicle"
+    }
+  ]
+}
+```
+
+## 坐标系统
+
+- **原点**：图像左上角为 `(0, 0)`。
+- **X 轴**：向右为正方向。
+- **Y 轴**：向下为正方向（与计算机图像坐标系一致）。
+- **单位**：像素（整数）。
+
+## 注意事项
+
+1. **ID 唯一性**：`images.id`、`annotations.id`、`categories.id` 必须在各自范围内唯一。
+2. **关联关系**：`annotations.image_id` 必须指向有效的 `images.id`；`annotations.category_id` 必须指向有效的 `categories.id`。
+3. **分割格式**：
+   - 多边形坐标按顺序列出，形成闭合区域（无需重复第一个点）。
+   - 对于单个实例的多个不连通部分，可以使用多个多边形（二维数组）。
+   - `iscrowd=1` 时，`segmentation` 通常使用 RLE（Run-Length Encoding）格式。
+4. **面积计算**：`area` 字段用于评估指标（如 mAP），对于多边形通常是其像素面积，对于边界框是 `width * height`。
+5. **拥挤标注**：`iscrowd=1` 表示该标注是一个拥挤区域（多个实例被标注为一个整体），在评估时通常被特殊处理。
+
+## 参考
+
+- COCO 官方网站：[http://cocodataset.org/](http://cocodataset.org/)
+- COCO 格式详解：[https://cocodataset.org/#format-data](https://cocodataset.org/#format-data)
+- COCO API（Python）：[https://github.com/cocodataset/cocoapi](https://github.com/cocodataset/cocoapi)

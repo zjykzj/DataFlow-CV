@@ -19,6 +19,8 @@ A data processing library for computer vision datasets, focusing on format conve
     - [Core Dependencies](#core-dependencies)
   - [Quick Start](#quick-start)
     - [Installation](#installation)
+      - [Editable Installation (Development Mode)](#editable-installation-development-mode)
+      - [Build System](#build-system)
     - [Command Line Usage](#command-line-usage)
     - [Python API Usage](#python-api-usage)
     - [CLI Reference](#cli-reference)
