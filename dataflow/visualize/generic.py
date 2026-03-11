@@ -82,7 +82,15 @@ class GenericVisualizer(BaseVisualizer):
         for ann in annotations:
             category_id = ann.get("category_id", 0)
             category_name = ann.get("category_name", f"class_{category_id}")
-            color = self.get_color_for_class(category_id, len(classes))
+
+            # Get color based on class name index in classes list
+            try:
+                class_idx = classes.index(category_name)
+                color = self.get_color_for_class(class_idx, len(classes))
+            except ValueError:
+                # Fallback to category_id if category_name not in classes
+                self.logger.warning(f"Class '{category_name}' not found in classes list, using category_id for color")
+                color = self.get_color_for_class(category_id, len(classes))
 
             # Determine what to draw based on mode and available data
             if self.segmentation:

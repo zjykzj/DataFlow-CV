@@ -171,6 +171,10 @@ class LabelMeVisualizer(GenericVisualizer):
                 class_name = annotation.get("category_name")
                 if class_name:
                     class_names.add(class_name)
+                else:
+                    # Fallback to category_id if category_name is missing
+                    category_id = annotation.get("category_id", 0)
+                    class_names.add(f"class_{category_id}")
         return sorted(class_names)
 
     def _resolve_image_paths(self, annotations_list: List[Dict], image_dir: str) -> List[Dict]:
