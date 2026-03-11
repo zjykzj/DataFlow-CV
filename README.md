@@ -3,10 +3,8 @@
 > **Where Vibe Coding meets CV data.** 🌊
 > Convert & visualize datasets. Built with the flow of Claude Code.
 
-![Python Version](https://img.shields.io/badge/python-3.8%20|%203.9%20|%203.10%20|%203.11%20|%203.12-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-0.3.0-orange)
-![Development Status](https://img.shields.io/badge/status-alpha-yellow)
+![Python Version](https://img.shields.io/badge/python-3.8%20|%203.9%20|%203.10%20|%203.11%20|%203.12-blue) ![License](https://img.shields.io/badge/license-MIT-green) [![PyPI](https://img.shields.io/pypi/v/dataflow-cv.svg)](https://pypi.org/project/dataflow-cv/) ![Development Status](https://img.shields.io/badge/status-alpha-yellow) [![GitHub Actions](https://github.com/zjykzj/DataFlow-CV/actions/workflows/python-publish.yml/badge.svg?branch=main)](https://github.com/zjykzj/DataFlow-CV/actions/workflows/python-publish.yml)
+
 
 A data processing library for computer vision datasets, focusing on format conversion and visualization between LabelMe, COCO, and YOLO formats. Provides both a CLI and Python API.
 
@@ -32,6 +30,7 @@ A data processing library for computer vision datasets, focusing on format conve
     - [Segmentation Support](#segmentation-support)
     - [Running Tests](#running-tests)
     - [Examples](#examples)
+    - [Documentation](#documentation)
   - [License](#license)
 
 ## Project Structure
