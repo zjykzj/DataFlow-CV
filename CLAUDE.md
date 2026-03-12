@@ -352,7 +352,9 @@ result = dataflow.visualize_labelme("images/", "labels/", segmentation=True)
 
 **Notes**
 - Without the `--segmentation` flag, both bounding boxes and polygons are processed automatically
-- With `--segmentation` flag, only valid polygon annotations are processed (strict mode)
+- With `--segmentation` flag:
+  - **YOLO to LabelMe conversion**: All annotations are converted to polygons (detection annotations become polygons from bounding boxes)
+  - **Other conversions (COCO to YOLO, LabelMe to YOLO, etc.)**: Only valid polygon annotations are processed (strict mode)
 - YOLO segmentation format requires at least 3 points (6 coordinates)
 - COCO segmentation polygons are automatically converted to YOLO normalized coordinates
 - LabelMe format supports both rectangle (`shape_type: "rectangle"`) and polygon (`shape_type: "polygon"`) shapes

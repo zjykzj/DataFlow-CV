@@ -32,7 +32,9 @@ class YoloToLabelMeConverter(LabelBasedConverter):
             classes_path: Path to YOLO class names file (e.g., class.names)
             output_dir: Output directory where LabelMe JSON files will be created
             segmentation: Whether to enforce segmentation annotations.
-                If True, only annotations with segmentation data will be processed.
+                If True, detection annotations (4 coordinates) will be converted to polygons
+                from bounding boxes, and segmentation annotations (6+ coordinates) will be
+                processed normally. If False, automatic format detection is used.
 
         Returns:
             Dictionary with conversion statistics
@@ -115,7 +117,9 @@ class LabelMeToYoloConverter(LabelBasedConverter):
             label_dir: Directory containing LabelMe JSON files
             output_dir: Output directory where labels/ and class.names will be created
             segmentation: Whether to enforce segmentation annotations.
-                If True, only annotations with segmentation data will be processed.
+                If True, only polygon shapes (shape_type="polygon") will be processed,
+                rectangle shapes will be skipped. If False, both rectangle and polygon
+                shapes are processed.
 
         Returns:
             Dictionary with conversion statistics

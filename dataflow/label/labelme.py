@@ -358,24 +358,44 @@ class LabelMeHandler:
 
         width, height = image_size
 
-        # 优先使用分割数据
+        # 检查分割数据
         if annotation.get("segmentation") and annotation["segmentation"][0]:
-            # 分割标注
             points_flat = annotation["segmentation"][0]
-            # 将展平的坐标转换为点列表
-            points = []
-            for i in range(0, len(points_flat), 2):
-                if i + 1 < len(points_flat):
-                    x = max(0, min(points_flat[i], width - 1))
-                    y = max(0, min(points_flat[i + 1], height - 1))
-                    points.append([x, y])
 
-            if len(points) >= 3:
-                shape["points"] = points
-                shape["shape_type"] = "polygon"
-                return shape
+            # 检查是否为从边界框生成的4点多边形（8个坐标）
+            is_bbox_polygon = (len(points_flat) == 8 and
+                              annotation.get("force_polygon", False))
 
-        # 使用边界框数据
+            if is_bbox_polygon:
+                # 强制分割模式：从边界框生成的多边形→多边形
+                # 将展平的坐标转换为点列表
+                points = []
+                for i in range(0, len(points_flat), 2):
+                    if i + 1 < len(points_flat):
+                        x = max(0, min(points_flat[i], width - 1))
+                        y = max(0, min(points_flat[i + 1], height - 1))
+                        points.append([x, y])
+
+                if len(points) >= 3:
+                    shape["points"] = points
+                    shape["shape_type"] = "polygon"
+                    return shape
+            else:
+                # 真实分割数据→多边形
+                # 将展平的坐标转换为点列表
+                points = []
+                for i in range(0, len(points_flat), 2):
+                    if i + 1 < len(points_flat):
+                        x = max(0, min(points_flat[i], width - 1))
+                        y = max(0, min(points_flat[i + 1], height - 1))
+                        points.append([x, y])
+
+                if len(points) >= 3:
+                    shape["points"] = points
+                    shape["shape_type"] = "polygon"
+                    return shape
+
+        # 使用边界框数据→矩形
         if annotation.get("bbox"):
             bbox = annotation["bbox"]
             x_min, y_min, bbox_width, bbox_height = bbox

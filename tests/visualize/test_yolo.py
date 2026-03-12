@@ -223,11 +223,13 @@ class TestYoloVisualizer(unittest.TestCase):
         # Create visualizer with segmentation flag (strict mode)
         seg_visualizer = YoloVisualizer(verbose=False, segmentation=True)
 
-        # Should raise ValueError because require_segmentation=True but label has detection format
-        with self.assertRaises(ValueError):
-            seg_visualizer.visualize(
-                self.image_dir, self.label_dir, self.class_file
-            )
+        # With the updated YOLO handler, detection annotations are converted to polygons
+        # when segmentation=True, so visualization should succeed
+        result = seg_visualizer.visualize(
+            self.image_dir, self.label_dir, self.class_file
+        )
+        self.assertEqual(result["images_processed"], 1)
+        self.assertEqual(result["annotations_processed"], 1)
 
     def test_visualization_with_save_dir(self):
         """Test visualization with save directory."""

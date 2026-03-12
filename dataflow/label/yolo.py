@@ -48,7 +48,7 @@ class YoloHandler:
             image_path: 对应图像文件路径
             classes: 类别名称列表
             image_size: 可选图像尺寸 (width, height)。如果未提供，将尝试从图像文件读取
-            require_segmentation: 是否要求分割格式。如果True，只接受分割标注（至少6个坐标），检测格式将跳过
+            require_segmentation: 是否强制分割模式。如果True，检测标注（4个坐标）将生成为从边界框创建的多边形，分割标注（6+个坐标）正常处理。如果False，自动检测格式类型。
 
         Returns:
             统一格式的图像标注数据字典，结构如下：
@@ -113,14 +113,14 @@ class YoloHandler:
                 # 分割格式: 2n个坐标 (多边形顶点)
                 if len(coords) == 4:
                     # 检测格式
-                    if require_segmentation:
-                        if self.verbose:
-                            print(f"警告: 行 {line_num}: 要求分割格式但检测到检测格式，跳过")
-                        continue
-                    annotation = self._parse_detection(coords, class_id, classes, (width, height))
+                    # require_segmentation=True 表示强制分割模式，检测标注应生成为多边形
+                    annotation = self._parse_detection(coords, class_id, classes, (width, height),
+                                                      force_polygon=require_segmentation)
                 elif len(coords) >= 6 and len(coords) % 2 == 0:
                     # 分割格式（至少3个点）
-                    annotation = self._parse_segmentation(coords, class_id, classes, (width, height))
+                    # require_segmentation=True 表示强制分割模式，但真实分割标注不需要force_polygon标记
+                    annotation = self._parse_segmentation(coords, class_id, classes, (width, height),
+                                                         force_polygon=require_segmentation)
                 else:
                     if self.verbose:
                         print(f"警告: 行 {line_num}: 坐标数量无效: {len(coords)}")
@@ -183,7 +183,7 @@ class YoloHandler:
             classes_path: 类别文件路径
             label_ext: 标签文件扩展名
             image_exts: 图像文件扩展名元组
-            require_segmentation: 是否要求分割格式。如果True，只接受分割标注（至少6个坐标），检测格式将跳过
+            require_segmentation: 是否强制分割模式。如果True，检测标注（4个坐标）将生成为从边界框创建的多边形，分割标注（6+个坐标）正常处理。如果False，自动检测格式类型。
 
         Returns:
             图像标注数据列表，每个元素为read()返回的格式
@@ -445,7 +445,8 @@ class YoloHandler:
             return False
 
     def _parse_detection(self, coords: List[float], class_id: int,
-                        classes: List[str], image_size: Tuple[int, int]) -> Optional[Dict]:
+                        classes: List[str], image_size: Tuple[int, int],
+                        force_polygon: bool = False) -> Optional[Dict]:
         """解析检测格式标注
 
         Args:
@@ -453,6 +454,7 @@ class YoloHandler:
             class_id: 类别ID
             classes: 类别名称列表
             image_size: 图像尺寸 (width, height)
+            force_polygon: 是否强制生成多边形分割数据
 
         Returns:
             统一格式的标注字典
@@ -486,20 +488,23 @@ class YoloHandler:
             "segmentation": None
         }
 
-        # 从边界框创建简单多边形
-        x_max = x_min + bbox_width
-        y_max = y_min + bbox_height
-        annotation["segmentation"] = [[
-            x_min, y_min,
-            x_max, y_min,
-            x_max, y_max,
-            x_min, y_max
-        ]]
+        # 只有在强制分割模式时才从边界框创建简单多边形
+        if force_polygon:
+            x_max = x_min + bbox_width
+            y_max = y_min + bbox_height
+            annotation["segmentation"] = [[
+                x_min, y_min,
+                x_max, y_min,
+                x_max, y_max,
+                x_min, y_max
+            ]]
+            annotation["force_polygon"] = True  # 标记为强制转换的多边形
 
         return annotation
 
     def _parse_segmentation(self, coords: List[float], class_id: int,
-                           classes: List[str], image_size: Tuple[int, int]) -> Optional[Dict]:
+                           classes: List[str], image_size: Tuple[int, int],
+                           force_polygon: bool = False) -> Optional[Dict]:
         """解析分割格式标注
 
         Args:
@@ -507,6 +512,7 @@ class YoloHandler:
             class_id: 类别ID
             classes: 类别名称列表
             image_size: 图像尺寸 (width, height)
+            force_polygon: 是否强制生成多边形分割数据（对于真实分割标注应为False）
 
         Returns:
             统一格式的标注字典
@@ -547,6 +553,10 @@ class YoloHandler:
             "bbox": [x_min, y_min, bbox_width, bbox_height],
             "segmentation": [denormalized_coords]
         }
+
+        # 真实分割标注不标记force_polygon，或标记为False
+        if force_polygon:
+            annotation["force_polygon"] = False
 
         return annotation
 

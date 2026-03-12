@@ -29,7 +29,9 @@ class CocoToLabelMeConverter(LabelBasedConverter):
             coco_json_path: Path to COCO JSON file
             output_dir: Output directory where LabelMe JSON files will be created
             segmentation: Whether to enforce segmentation annotations.
-                If True, only annotations with segmentation data will be processed.
+                If True, only annotations with polygon segmentation data will be processed,
+                bounding box annotations will be skipped. If False, both bounding box and
+                segmentation annotations are processed.
 
         Returns:
             Dictionary with conversion statistics
@@ -119,7 +121,9 @@ class LabelMeToCocoConverter(LabelBasedConverter):
             classes_path: Path to class names file (e.g., class.names)
             output_json_path: Path to save COCO JSON file
             segmentation: Whether to enforce segmentation annotations.
-                If True, only annotations with segmentation data will be processed.
+                If True, only polygon shapes (shape_type="polygon") will be processed,
+                rectangle shapes will be skipped. If False, both rectangle and polygon
+                shapes are processed.
 
         Returns:
             Dictionary with conversion statistics
