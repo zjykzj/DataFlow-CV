@@ -90,7 +90,7 @@ pip install dist/dataflow_cv-*.whl
 ```
 
 ### Command Line Interface
-Global options: `--verbose` (`-v`) for progress output, `--overwrite` to replace existing files.
+Global options: `--verbose` (`-v`) for progress output (also shows version when used alone), `--overwrite` to replace existing files.
 ```bash
 # Show help
 dataflow --help
