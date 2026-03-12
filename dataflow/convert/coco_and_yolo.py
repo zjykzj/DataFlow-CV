@@ -21,13 +21,14 @@ from ..label.yolo import YoloHandler
 class CocoToYoloConverter(LabelBasedConverter):
     """Convert COCO JSON format to YOLO label format."""
 
-    def convert(self, coco_json_path: str, output_dir: str, segmentation: bool = False) -> Dict[str, Any]:
+    def convert(self, coco_json_path: str, classes_path: str, output_dir: str, segmentation: bool = False) -> Dict[str, Any]:
         """
         Convert COCO JSON file to YOLO format.
 
         Args:
             coco_json_path: Path to COCO JSON file
-            output_dir: Output directory where labels/ and class.names will be created
+            classes_path: Path to class names file (e.g., class.names)
+            output_dir: Output directory where YOLO label files will be created
             segmentation: Whether to enforce segmentation annotations.
                 If True, only annotations with segmentation data will be processed.
 
@@ -42,6 +43,9 @@ class CocoToYoloConverter(LabelBasedConverter):
         # 1. Validate input and output paths
         if not self.validate_input_path(coco_json_path, is_dir=False):
             raise ValueError(f"Invalid COCO JSON file: {coco_json_path}")
+
+        if not self.validate_input_path(classes_path, is_dir=False):
+            raise ValueError(f"Invalid classes file: {classes_path}")
 
         if not self.validate_output_path(output_dir, is_dir=True, create=True):
             raise ValueError(f"Invalid output directory: {output_dir}")
@@ -75,30 +79,33 @@ class CocoToYoloConverter(LabelBasedConverter):
                 for ann in img_data.get("annotations", []):
                     ann.pop("segmentation", None)
 
-        # 4. Extract unique categories and write class.names file
-        categories = self._extract_unique_categories(unified_data)
-        classes_path = os.path.join(output_dir, Config.YOLO_CLASSES_FILENAME)
-        if categories:
-            if not self.write_classes_file(categories, classes_path):
-                raise ValueError(f"Failed to write classes file: {classes_path}")
-            self.logger.info(f"Written {len(categories)} categories to {classes_path}")
+        # 4. Read provided classes file and validate
+        categories = self.read_classes_file(classes_path)
+        if not categories:
+            raise ValueError(f"No categories found in classes file: {classes_path}")
 
-        # 5. Create labels directory
-        labels_dir = os.path.join(output_dir, Config.YOLO_LABELS_DIRNAME)
-        self.ensure_directory(labels_dir)
+        # 5. Extract unique categories from COCO data and validate against provided classes
+        data_categories = self._extract_unique_categories(unified_data)
+        if not data_categories:
+            self.logger.warning("No categories found in COCO data")
+        else:
+            # Validate all categories in data are present in provided classes file
+            for category in data_categories:
+                if category not in categories:
+                    raise ValueError(f"Category '{category}' found in COCO data but not in classes file")
 
-        # 6. Use YoloHandler to write YOLO format
+        # 6. Use YoloHandler to write YOLO format directly to output_dir
         yolo_handler = YoloHandler(verbose=self.verbose)
         success = False
         if unified_data:
-            success = yolo_handler.write_batch(unified_data, labels_dir, classes_path)
+            success = yolo_handler.write_batch(unified_data, output_dir, classes_path)
         else:
             # Create empty directory structure
             success = True
             self.logger.info("No annotations to write, created empty directory structure")
 
         if not success:
-            raise ValueError(f"Failed to write YOLO label files to {labels_dir}")
+            raise ValueError(f"Failed to write YOLO label files to {output_dir}")
 
         # 7. Return statistics
         total_annotations = sum(len(img["annotations"]) for img in unified_data)
@@ -106,9 +113,9 @@ class CocoToYoloConverter(LabelBasedConverter):
             "images_processed": len(unified_data),
             "annotations_processed": total_annotations,
             "categories_found": len(categories),
+            "categories_in_data": len(data_categories) if unified_data else 0,
             "output_dir": output_dir,
             "classes_file": classes_path,
-            "labels_dir": labels_dir,
             "segmentation_mode": segmentation,
         }
 

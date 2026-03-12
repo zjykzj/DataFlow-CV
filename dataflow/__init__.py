@@ -36,20 +36,21 @@ from .convert.base import BaseConverter
 from .cli import cli, main
 
 # Convenience functions for common conversions
-def coco_to_yolo(coco_json_path: str, output_dir: str, **kwargs):
+def coco_to_yolo(coco_json_path: str, classes_path: str, output_dir: str, **kwargs):
     """
     Convert COCO JSON to YOLO format.
 
     Args:
         coco_json_path: Path to COCO JSON file
-        output_dir: Output directory where labels/ and class.names will be created
+        classes_path: Path to class names file (e.g., class.names)
+        output_dir: Output directory where YOLO label files will be created
         **kwargs: Additional options passed to CocoToYoloConverter.convert()
 
     Returns:
         Dictionary with conversion statistics
     """
     converter = CocoToYoloConverter()
-    return converter.convert(coco_json_path, output_dir, **kwargs)
+    return converter.convert(coco_json_path, classes_path, output_dir, **kwargs)
 
 
 def yolo_to_coco(
@@ -130,20 +131,21 @@ def yolo_to_labelme(image_dir: str, label_dir: str, classes_path: str, output_di
     return converter.convert(image_dir, label_dir, classes_path, output_dir, **kwargs)
 
 
-def labelme_to_yolo(label_dir: str, output_dir: str, **kwargs):
+def labelme_to_yolo(label_dir: str, classes_path: str, output_dir: str, **kwargs):
     """
     Convert LabelMe format to YOLO format.
 
     Args:
         label_dir: Directory containing LabelMe JSON files
-        output_dir: Output directory where labels/ and class.names will be created
+        classes_path: Path to class names file (e.g., class.names)
+        output_dir: Output directory where YOLO label files will be created
         **kwargs: Additional options passed to LabelMeToYoloConverter.convert()
 
     Returns:
         Dictionary with conversion statistics
     """
     converter = LabelMeToYoloConverter()
-    return converter.convert(label_dir, output_dir, **kwargs)
+    return converter.convert(label_dir, classes_path, output_dir, **kwargs)
 
 
 # Convenience functions for visualization
