@@ -31,6 +31,11 @@ from dataflow import __version__
 @click.pass_context
 def cli(ctx, verbose, overwrite):
     """DataFlow-CV: Computer vision dataset processing tool."""
+    # If -v is used alone (no subcommand), show version and exit
+    if verbose and ctx.invoked_subcommand is None:
+        click.echo(f"DataFlow-CV, version {__version__}")
+        ctx.exit()
+
     # Store configuration in context
     ctx.ensure_object(dict)
     ctx.obj['verbose'] = verbose
