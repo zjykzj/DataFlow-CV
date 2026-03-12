@@ -30,9 +30,14 @@ class TestLabelMeToYoloConverter(unittest.TestCase):
         self.test_dir = tempfile.mkdtemp(prefix="test_labelme2yolo_")
         self.label_dir = os.path.join(self.test_dir, "labels")
         self.output_dir = os.path.join(self.test_dir, "output")
+        self.classes_file = os.path.join(self.test_dir, "classes.names")
 
         # Create directories
         os.makedirs(self.label_dir, exist_ok=True)
+
+        # Create classes file
+        with open(self.classes_file, 'w', encoding='utf-8') as f:
+            f.write("person\ncar\n")
 
         # Create sample LabelMe files
         self._create_sample_labelme_files()
@@ -110,40 +115,36 @@ class TestLabelMeToYoloConverter(unittest.TestCase):
         converter = LabelMeToYoloConverter(verbose=False)
 
         # Perform conversion
-        result = converter.convert(self.label_dir, self.output_dir)
+        result = converter.convert(self.label_dir, self.classes_file, self.output_dir)
 
         # Verify result structure
         self.assertIsInstance(result, dict)
         self.assertEqual(result.get("label_dir"), self.label_dir)
+        self.assertEqual(result.get("classes_file"), self.classes_file)
         self.assertEqual(result.get("output_dir"), self.output_dir)
         self.assertEqual(result.get("images_processed"), 2)
         self.assertEqual(result.get("annotations_processed"), 3)
-        self.assertEqual(result.get("categories_found"), 2)  # person, car
+        self.assertEqual(result.get("categories_found"), 2)  # person, car in classes file
+        self.assertEqual(result.get("categories_in_data"), 2)  # person, car in data
 
-        # Check that output files were created
-        labels_dir = os.path.join(self.output_dir, Config.YOLO_LABELS_DIRNAME)
-        classes_file = os.path.join(self.output_dir, Config.YOLO_CLASSES_FILENAME)
+        # Check that output files were created (labels directly in output_dir, no labels subdirectory)
+        # Classes file should not be created (using provided one)
+        self.assertTrue(os.path.exists(self.classes_file), f"Classes file not found: {self.classes_file}")
 
-        self.assertTrue(os.path.exists(labels_dir), f"Labels directory not found: {labels_dir}")
-        self.assertTrue(os.path.exists(classes_file), f"Classes file not found: {classes_file}")
-
-        # Check labels directory contents
-        label_files = os.listdir(labels_dir)
+        # Check output directory contents (label files should be directly in output_dir)
+        label_files = [f for f in os.listdir(self.output_dir) if f.endswith('.txt')]
         self.assertEqual(len(label_files), 2)  # Two images
 
-        # Check class names file
-        with open(classes_file, 'r', encoding='utf-8') as f:
+        # Check class names file (provided one)
+        with open(self.classes_file, 'r', encoding='utf-8') as f:
             class_names = [line.strip() for line in f if line.strip()]
 
         self.assertEqual(len(class_names), 2)
-        # Categories should be sorted alphabetically or in order of appearance
-        # Based on test data: "car" appears first? Actually "person" appears first
-        # Let's just check both are present
         self.assertIn("person", class_names)
         self.assertIn("car", class_names)
 
         # Check label file for first image
-        label_file = os.path.join(labels_dir, "test_image1.txt")
+        label_file = os.path.join(self.output_dir, "test_image1.txt")
         self.assertTrue(os.path.exists(label_file))
 
         with open(label_file, 'r', encoding='utf-8') as f:
@@ -167,7 +168,7 @@ class TestLabelMeToYoloConverter(unittest.TestCase):
         converter = LabelMeToYoloConverter(verbose=False)
 
         with self.assertRaises(ValueError):
-            converter.convert("/invalid/path/labels", self.output_dir)
+            converter.convert("/invalid/path/labels", self.classes_file, self.output_dir)
 
     def test_invalid_output_dir(self):
         """Test conversion with invalid output directory."""
@@ -184,7 +185,7 @@ class TestLabelMeToYoloConverter(unittest.TestCase):
             invalid_dir = os.path.join(read_only_dir, "no_permission")
 
             with self.assertRaises(ValueError):
-                converter.convert(self.label_dir, invalid_dir)
+                converter.convert(self.label_dir, self.classes_file, invalid_dir)
         finally:
             # Restore permissions to allow cleanup
             os.chmod(read_only_dir, stat.S_IRWXU)
@@ -199,24 +200,26 @@ class TestLabelMeToYoloConverter(unittest.TestCase):
         converter = LabelMeToYoloConverter(verbose=False)
 
         # Empty directory should not raise error but produce zero results
-        result = converter.convert(empty_dir, self.output_dir)
+        result = converter.convert(empty_dir, self.classes_file, self.output_dir)
         self.assertEqual(result["images_processed"], 0)
         self.assertEqual(result["annotations_processed"], 0)
-        self.assertEqual(result["categories_found"], 0)
+        self.assertEqual(result["categories_found"], 2)  # person, car from classes file
 
-        # Check that output structure was still created
-        labels_dir = os.path.join(self.output_dir, Config.YOLO_LABELS_DIRNAME)
-        self.assertTrue(os.path.exists(labels_dir))
+        # Check that output directory was created (no labels subdirectory)
+        self.assertTrue(os.path.exists(self.output_dir))
+        # No label files should be created
+        label_files = [f for f in os.listdir(self.output_dir) if f.endswith('.txt')]
+        self.assertEqual(len(label_files), 0)
 
     def test_conversion_statistics(self):
         """Verify conversion statistics are accurate."""
         converter = LabelMeToYoloConverter(verbose=False)
-        result = converter.convert(self.label_dir, self.output_dir)
+        result = converter.convert(self.label_dir, self.classes_file, self.output_dir)
 
         # Check statistics
         self.assertEqual(result.get("images_processed"), 2)
         self.assertEqual(result.get("annotations_processed"), 3)
-        self.assertEqual(result.get("categories_found"), 2)
+        self.assertEqual(result.get("categories_found"), 2)  # person, car from classes file
 
     def test_verbose_mode(self):
         """Test converter with verbose mode enabled."""
@@ -224,7 +227,7 @@ class TestLabelMeToYoloConverter(unittest.TestCase):
         self.assertTrue(converter.verbose)
 
         # Conversion should still work
-        result = converter.convert(self.label_dir, self.output_dir)
+        result = converter.convert(self.label_dir, self.classes_file, self.output_dir)
         self.assertIsInstance(result, dict)
 
     def test_segmentation_option(self):
@@ -258,17 +261,22 @@ class TestLabelMeToYoloConverter(unittest.TestCase):
         converter = LabelMeToYoloConverter(verbose=False)
 
         # Test with segmentation disabled (default)
-        result = converter.convert(seg_label_dir, self.output_dir)
+        result = converter.convert(seg_label_dir, self.classes_file, self.output_dir)
         self.assertIsInstance(result, dict)
 
         # Test with segmentation enabled
-        result = converter.convert(seg_label_dir, self.output_dir, segmentation=True)
+        result = converter.convert(seg_label_dir, self.classes_file, self.output_dir, segmentation=True)
         self.assertIsInstance(result, dict)
 
     def test_labelme_with_polygon_shape(self):
         """Test conversion of LabelMe polygon shapes to YOLO segmentation format."""
         polygon_label_dir = os.path.join(self.test_dir, "polygon_labels")
         os.makedirs(polygon_label_dir, exist_ok=True)
+
+        # Create a classes file that includes "object" category
+        polygon_classes_file = os.path.join(self.test_dir, "polygon_classes.names")
+        with open(polygon_classes_file, 'w', encoding='utf-8') as f:
+            f.write("object\n")
 
         labelme_poly = {
             "version": "5.3.1",
@@ -293,7 +301,7 @@ class TestLabelMeToYoloConverter(unittest.TestCase):
             json.dump(labelme_poly, f, indent=2)
 
         converter = LabelMeToYoloConverter(verbose=False)
-        result = converter.convert(polygon_label_dir, self.output_dir)
+        result = converter.convert(polygon_label_dir, polygon_classes_file, self.output_dir)
         self.assertIsInstance(result, dict)
 
 
