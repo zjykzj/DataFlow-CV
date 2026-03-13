@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-03-13
+
+### ⚠️ Breaking Changes
+- **API change**: `coco_to_yolo()` function signature changed from `(coco_json_path, classes_path, output_dir)` to `(coco_json_path, output_dir)` (auto-generates class.names)
+- **API change**: `labelme_to_yolo()` function signature changed from `(label_dir, output_dir)` to `(label_dir, classes_path, output_dir)`
+- Unified YOLO conversion behavior across COCO and LabelMe converters
+
+### Added
+- YOLO visualizer debug logging for class extraction and color assignment
+- Enhanced color distinction for many classes in visualization
+- CLI option `-v` as shorthand for `--version` when used alone
+- Documentation updates: architecture clarification and development guidelines
+
+### Changed
+- Unified COCO and LabelMe to YOLO conversion behavior
+- Updated YOLO detection annotation to LabelMe rectangle conversion
+- Improved test parameter calls and directory expectations for LabelMe to YOLO conversion
+
+### Fixed
+- YOLO detection annotations correctly convert to LabelMe rectangles
+- Test parameter calls and directory expectations in LabelMe to YOLO tests
+
+### Documentation
+- Updated CLAUDE.md with `-v` dual-purpose note
+- Added "Development" section to README.md linking to CLAUDE.md
+- Updated CLAUDE.md with architecture details about label handlers and unified format
+
 ## [0.3.1] - 2026-03-11
 
 ### Added
