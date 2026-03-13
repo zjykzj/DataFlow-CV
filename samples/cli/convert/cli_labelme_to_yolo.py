@@ -114,34 +114,40 @@ def create_sample_labelme_data():
         json.dump(data3, f, indent=2)
     print(f"Created LabelMe JSON: {labelme3}")
 
-    return temp_dir, label_dir
+    # Create classes.names file
+    classes_file = os.path.join(temp_dir, "classes.names")
+    with open(classes_file, 'w', encoding='utf-8') as f:
+        f.write("person\ncar\nbicycle\n")
+    print(f"Created classes.names file: {classes_file}")
+
+    return temp_dir, label_dir, classes_file
 
 
-def show_cli_commands(label_dir, output_dir):
+def show_cli_commands(label_dir, classes_file, output_dir):
     """Show available CLI commands for LabelMe to YOLO conversion."""
     print_header("CLI COMMANDS FOR LABELME→YOLO CONVERSION")
 
     print("\nBasic conversion:")
-    print(f"  $ dataflow convert labelme2yolo {label_dir} {output_dir}")
+    print(f"  $ dataflow convert labelme2yolo {label_dir} {classes_file} {output_dir}")
 
     print("\nWith verbose output:")
-    print(f"  $ dataflow convert labelme2yolo --verbose {label_dir} {output_dir}")
-    print(f"  $ dataflow convert labelme2yolo -v {label_dir} {output_dir}")
+    print(f"  $ dataflow convert labelme2yolo --verbose {label_dir} {classes_file} {output_dir}")
+    print(f"  $ dataflow convert labelme2yolo -v {label_dir} {classes_file} {output_dir}")
 
     print("\nWith overwrite mode:")
-    print(f"  $ dataflow convert labelme2yolo --overwrite {label_dir} {output_dir}")
+    print(f"  $ dataflow convert labelme2yolo --overwrite {label_dir} {classes_file} {output_dir}")
 
     print("\nWith segmentation mode (for polygon annotations):")
-    print(f"  $ dataflow convert labelme2yolo --segmentation {label_dir} {output_dir}")
+    print(f"  $ dataflow convert labelme2yolo --segmentation {label_dir} {classes_file} {output_dir}")
 
     print("\nWith both options:")
-    print(f"  $ dataflow convert labelme2yolo -v --overwrite --segmentation {label_dir} {output_dir}")
+    print(f"  $ dataflow convert labelme2yolo -v --overwrite --segmentation {label_dir} {classes_file} {output_dir}")
 
     print("\nGet help:")
     print(f"  $ dataflow convert labelme2yolo --help")
 
 
-def run_conversion(label_dir, output_dir, verbose=True, overwrite=False, segmentation=False):
+def run_conversion(label_dir, classes_file, output_dir, verbose=True, overwrite=False, segmentation=False):
     """Run the actual conversion using Python module."""
     print_header("RUNNING CONVERSION")
 
@@ -155,7 +161,7 @@ def run_conversion(label_dir, output_dir, verbose=True, overwrite=False, segment
         cmd.append("--overwrite")
     if segmentation:
         cmd.append("--segmentation")
-    cmd.extend([label_dir, output_dir])
+    cmd.extend([label_dir, classes_file, output_dir])
 
     print(f"Command: {' '.join(cmd)}")
     print("\n" + "-"*40)
@@ -240,15 +246,15 @@ def main():
     print_header("LABELME TO YOLO CONVERSION - CLI DEMONSTRATION")
 
     # Create sample data
-    temp_dir, label_dir = create_sample_labelme_data()
+    temp_dir, label_dir, classes_file = create_sample_labelme_data()
     output_dir = os.path.join(temp_dir, "yolo_output")
 
     try:
         # Show CLI commands
-        show_cli_commands(label_dir, output_dir)
+        show_cli_commands(label_dir, classes_file, output_dir)
 
         # Run conversion
-        success = run_conversion(label_dir, output_dir, verbose=True, overwrite=False)
+        success = run_conversion(label_dir, classes_file, output_dir, verbose=True, overwrite=False)
 
         if success:
             # Inspect output
@@ -257,7 +263,7 @@ def main():
         # Demonstrate segmentation mode
         output_dir_seg = os.path.join(temp_dir, "yolo_output_seg")
         print_header("SEGMENTATION MODE DEMONSTRATION")
-        run_conversion(label_dir, output_dir_seg, verbose=True, overwrite=False, segmentation=True)
+        run_conversion(label_dir, classes_file, output_dir_seg, verbose=True, overwrite=False, segmentation=True)
 
         print_header("SUMMARY")
         print(f"\n✅ Demonstration completed!")

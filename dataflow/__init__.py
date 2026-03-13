@@ -36,21 +36,21 @@ from .convert.base import BaseConverter
 from .cli import cli, main
 
 # Convenience functions for common conversions
-def coco_to_yolo(coco_json_path: str, classes_path: str, output_dir: str, **kwargs):
+def coco_to_yolo(coco_json_path: str, output_dir: str, **kwargs):
     """
     Convert COCO JSON to YOLO format.
 
     Args:
         coco_json_path: Path to COCO JSON file
-        classes_path: Path to class names file (e.g., class.names)
         output_dir: Output directory where YOLO label files will be created
+            (class.names will be auto-generated in output_dir)
         **kwargs: Additional options passed to CocoToYoloConverter.convert()
 
     Returns:
         Dictionary with conversion statistics
     """
     converter = CocoToYoloConverter()
-    return converter.convert(coco_json_path, classes_path, output_dir, **kwargs)
+    return converter.convert(coco_json_path, output_dir, classes_path=None, **kwargs)
 
 
 def yolo_to_coco(

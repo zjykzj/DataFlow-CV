@@ -127,12 +127,14 @@ class TestLabelMeToYoloConverter(unittest.TestCase):
         self.assertEqual(result.get("categories_found"), 2)  # person, car in classes file
         self.assertEqual(result.get("categories_in_data"), 2)  # person, car in data
 
-        # Check that output files were created (labels directly in output_dir, no labels subdirectory)
+        # Check that output files were created (labels in output_dir/labels subdirectory)
         # Classes file should not be created (using provided one)
         self.assertTrue(os.path.exists(self.classes_file), f"Classes file not found: {self.classes_file}")
 
-        # Check output directory contents (label files should be directly in output_dir)
-        label_files = [f for f in os.listdir(self.output_dir) if f.endswith('.txt')]
+        # Check labels directory contents (label files should be in output_dir/labels)
+        labels_dir = os.path.join(self.output_dir, Config.YOLO_LABELS_DIRNAME)
+        self.assertTrue(os.path.exists(labels_dir), f"Labels directory not found: {labels_dir}")
+        label_files = [f for f in os.listdir(labels_dir) if f.endswith('.txt')]
         self.assertEqual(len(label_files), 2)  # Two images
 
         # Check class names file (provided one)
@@ -144,7 +146,7 @@ class TestLabelMeToYoloConverter(unittest.TestCase):
         self.assertIn("car", class_names)
 
         # Check label file for first image
-        label_file = os.path.join(self.output_dir, "test_image1.txt")
+        label_file = os.path.join(labels_dir, "test_image1.txt")
         self.assertTrue(os.path.exists(label_file))
 
         with open(label_file, 'r', encoding='utf-8') as f:
@@ -205,11 +207,14 @@ class TestLabelMeToYoloConverter(unittest.TestCase):
         self.assertEqual(result["annotations_processed"], 0)
         self.assertEqual(result["categories_found"], 2)  # person, car from classes file
 
-        # Check that output directory was created (no labels subdirectory)
+        # Check that output directory was created (labels subdirectory may exist)
         self.assertTrue(os.path.exists(self.output_dir))
-        # No label files should be created
-        label_files = [f for f in os.listdir(self.output_dir) if f.endswith('.txt')]
-        self.assertEqual(len(label_files), 0)
+        # Labels directory may exist but should be empty
+        labels_dir = os.path.join(self.output_dir, Config.YOLO_LABELS_DIRNAME)
+        if os.path.exists(labels_dir):
+            # No label files should be created
+            label_files = [f for f in os.listdir(labels_dir) if f.endswith('.txt')]
+            self.assertEqual(len(label_files), 0)
 
     def test_conversion_statistics(self):
         """Verify conversion statistics are accurate."""

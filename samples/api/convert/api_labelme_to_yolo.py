@@ -119,20 +119,34 @@ def create_sample_labelme_data():
         json.dump(data3, f, indent=2)
     print(f"Created LabelMe JSON: {labelme3}")
 
-    return temp_dir, label_dir
+    # Create classes.names file from labels found in LabelMe data
+    classes_file = os.path.join(temp_dir, "classes.names")
+    classes = set()
+    for json_file in [labelme1, labelme2, labelme3]:
+        with open(json_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            for shape in data.get("shapes", []):
+                classes.add(shape["label"])
+
+    with open(classes_file, 'w', encoding='utf-8') as f:
+        for cls in sorted(classes):
+            f.write(f"{cls}\n")
+
+    print(f"Created classes file: {classes_file}")
+    return temp_dir, label_dir, classes_file
 
 
-def demo_convenience_function(label_dir, output_dir):
+def demo_convenience_function(label_dir, classes_file, output_dir):
     """Demonstrate using the convenience function."""
     print_header("USING CONVENIENCE FUNCTION")
 
     print(f"\nCode:")
     print(f"  import dataflow")
-    print(f"  result = dataflow.labelme_to_yolo('{label_dir}', '{output_dir}')")
+    print(f"  result = dataflow.labelme_to_yolo('{label_dir}', '{classes_file}', '{output_dir}')")
 
     print(f"\nExecuting...")
     try:
-        result = dataflow.labelme_to_yolo(label_dir, output_dir)
+        result = dataflow.labelme_to_yolo(label_dir, classes_file, output_dir)
 
         print(f"\n✅ Success!")
         print(f"\nResult keys: {list(result.keys())}")
@@ -154,14 +168,14 @@ def demo_convenience_function(label_dir, output_dir):
         return None
 
 
-def demo_converter_class(label_dir, output_dir):
+def demo_converter_class(label_dir, classes_file, output_dir):
     """Demonstrate using the converter class directly."""
     print_header("USING CONVERTER CLASS")
 
     print(f"\nCode:")
     print(f"  from dataflow import LabelMeToYoloConverter")
     print(f"  converter = LabelMeToYoloConverter(verbose=True)")
-    print(f"  result = converter.convert('{label_dir}', '{output_dir}')")
+    print(f"  result = converter.convert('{label_dir}', '{classes_file}', '{output_dir}')")
 
     print(f"\nExecuting...")
     try:
@@ -169,7 +183,7 @@ def demo_converter_class(label_dir, output_dir):
         print(f"  Converter created: {converter.__class__.__name__}")
         print(f"  Verbose mode: {converter.verbose}")
 
-        result = converter.convert(label_dir, output_dir)
+        result = converter.convert(label_dir, classes_file, output_dir)
 
         print(f"\n✅ Success!")
         print(f"\nResult type: {type(result)}")
@@ -186,17 +200,17 @@ def demo_converter_class(label_dir, output_dir):
         return None
 
 
-def demo_segmentation_mode(label_dir, output_dir):
+def demo_segmentation_mode(label_dir, classes_file, output_dir):
     """Demonstrate segmentation mode."""
     print_header("SEGMENTATION MODE")
 
     print(f"\nCode:")
     print(f"  import dataflow")
-    print(f"  result = dataflow.labelme_to_yolo('{label_dir}', '{output_dir}', segmentation=True)")
+    print(f"  result = dataflow.labelme_to_yolo('{label_dir}', '{classes_file}', '{output_dir}', segmentation=True)")
 
     print(f"\nExecuting...")
     try:
-        result = dataflow.labelme_to_yolo(label_dir, output_dir, segmentation=True)
+        result = dataflow.labelme_to_yolo(label_dir, classes_file, output_dir, segmentation=True)
 
         print(f"\n✅ Success!")
         print(f"\nSegmentation mode statistics:")
@@ -210,7 +224,7 @@ def demo_segmentation_mode(label_dir, output_dir):
         return None
 
 
-def demo_advanced_features(label_dir, output_dir):
+def demo_advanced_features(label_dir, classes_file, output_dir):
     """Demonstrate advanced features and configuration."""
     print_header("ADVANCED FEATURES")
 
@@ -251,7 +265,7 @@ def demo_advanced_features(label_dir, output_dir):
 
         # Create converter
         converter = LabelMeToYoloConverter(verbose=False)
-        result = converter.convert(label_dir, custom_output)
+        result = converter.convert(label_dir, classes_file, custom_output)
 
         print(f"\n✅ Custom conversion successful!")
         print(f"  Output directory: {custom_output}")
@@ -376,23 +390,23 @@ def main():
     print_header("LABELME TO YOLO CONVERSION - PYTHON API DEMONSTRATION")
 
     # Create sample data
-    temp_dir, label_dir = create_sample_labelme_data()
+    temp_dir, label_dir, classes_file = create_sample_labelme_data()
 
     try:
         # Demo 1: Convenience function
         output_dir1 = os.path.join(temp_dir, "output1")
-        result1 = demo_convenience_function(label_dir, output_dir1)
+        result1 = demo_convenience_function(label_dir, classes_file, output_dir1)
 
         # Demo 2: Converter class
         output_dir2 = os.path.join(temp_dir, "output2")
-        result2 = demo_converter_class(label_dir, output_dir2)
+        result2 = demo_converter_class(label_dir, classes_file, output_dir2)
 
         # Demo 3: Segmentation mode
         output_dir3 = os.path.join(temp_dir, "output3")
-        demo_segmentation_mode(label_dir, output_dir3)
+        demo_segmentation_mode(label_dir, classes_file, output_dir3)
 
         # Demo 4: Advanced features
-        demo_advanced_features(label_dir, os.path.join(temp_dir, "output4"))
+        demo_advanced_features(label_dir, classes_file, os.path.join(temp_dir, "output4"))
 
         # Demo 5: Error handling
         demo_error_handling()

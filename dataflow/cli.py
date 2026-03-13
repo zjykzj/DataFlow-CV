@@ -66,29 +66,27 @@ def convert(ctx):
 
 @convert.command(name='coco2yolo')
 @click.argument('coco_json_path', type=click.Path(exists=True, dir_okay=False))
-@click.argument('classes_path', type=click.Path(exists=True, dir_okay=False))
 @click.argument('output_dir', type=click.Path(file_okay=False))
 @click.option('--segmentation', '-s', is_flag=True, help='Handle segmentation annotations')
 @click.pass_context
-def coco2yolo(ctx, coco_json_path, classes_path, output_dir, segmentation):
+def coco2yolo(ctx, coco_json_path, output_dir, segmentation):
     """
     Convert COCO JSON to YOLO format.
 
     \b
     COCO_JSON_PATH: Path to COCO JSON annotation file
-    CLASSES_PATH: Path to class names file (e.g., class.names)
-    OUTPUT_DIR: Directory where YOLO label files will be created
+    OUTPUT_DIR: Directory where YOLO label files will be created (class.names will be auto-generated)
     """
     try:
         # Segmentation parameter is passed directly to converter
 
         click.echo(f"Converting COCO JSON: {coco_json_path}")
-        click.echo(f"Classes file: {classes_path}")
         click.echo(f"Output directory: {output_dir}")
+        # Classes file will be auto-generated as {os.path.join(output_dir, Config.YOLO_CLASSES_FILENAME)}
 
         # Create converter and perform conversion
         converter = CocoToYoloConverter(verbose=ctx.obj['verbose'])
-        result = converter.convert(coco_json_path, classes_path, output_dir, segmentation=segmentation)
+        result = converter.convert(coco_json_path, output_dir, classes_path=None, segmentation=segmentation)
 
         # Print summary
         click.echo("\n" + "="*50)

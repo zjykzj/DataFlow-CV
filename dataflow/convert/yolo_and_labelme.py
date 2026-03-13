@@ -140,7 +140,10 @@ class LabelMeToYoloConverter(LabelBasedConverter):
         if not self.validate_output_path(output_dir, is_dir=True, create=True):
             raise ValueError(f"Invalid output directory: {output_dir}")
 
-        self.logger.info(f"Converting LabelMe to YOLO: {label_dir} -> {output_dir}")
+        # Create labels directory for YOLO output
+        labels_dir = self._create_labels_directory(output_dir)
+
+        self.logger.info(f"Converting LabelMe to YOLO: {label_dir} -> {output_dir} (labels in {labels_dir})")
 
         # 2. Use LabelMeHandler to read LabelMe data in batch
         labelme_handler = LabelMeHandler(verbose=self.verbose)
@@ -175,11 +178,11 @@ class LabelMeToYoloConverter(LabelBasedConverter):
                 if category not in categories:
                     raise ValueError(f"Category '{category}' found in LabelMe data but not in classes file")
 
-        # 6. Use YoloHandler to write YOLO format directly to output_dir
+        # 6. Use YoloHandler to write YOLO format to labels directory
         yolo_handler = YoloHandler(verbose=self.verbose)
         success = False
         if unified_data and categories:
-            success = yolo_handler.write_batch(unified_data, output_dir, classes_path)
+            success = yolo_handler.write_batch(unified_data, labels_dir, classes_path)
         else:
             # Create empty directory structure
             success = True

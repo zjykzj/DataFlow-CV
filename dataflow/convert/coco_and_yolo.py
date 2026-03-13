@@ -10,7 +10,7 @@ reusing the label module handlers for consistent parsing and serialization.
 """
 
 import os
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 from .base import LabelBasedConverter
 from ..config import Config
@@ -21,14 +21,15 @@ from ..label.yolo import YoloHandler
 class CocoToYoloConverter(LabelBasedConverter):
     """Convert COCO JSON format to YOLO label format."""
 
-    def convert(self, coco_json_path: str, classes_path: str, output_dir: str, segmentation: bool = False) -> Dict[str, Any]:
+    def convert(self, coco_json_path: str, output_dir: str, classes_path: Optional[str] = None, segmentation: bool = False) -> Dict[str, Any]:
         """
         Convert COCO JSON file to YOLO format.
 
         Args:
             coco_json_path: Path to COCO JSON file
-            classes_path: Path to class names file (e.g., class.names)
             output_dir: Output directory where YOLO label files will be created
+            classes_path: Optional path to class names file (e.g., class.names).
+                If not provided, will be automatically generated as `output_dir/class.names`.
             segmentation: Whether to enforce segmentation annotations.
                 If True, only annotations with segmentation data will be processed.
 
@@ -40,15 +41,26 @@ class CocoToYoloConverter(LabelBasedConverter):
         """
         self.segmentation = segmentation
 
+        # Track if classes_path was auto-generated
+        original_classes_path = classes_path
+
         # 1. Validate input and output paths
         if not self.validate_input_path(coco_json_path, is_dir=False):
             raise ValueError(f"Invalid COCO JSON file: {coco_json_path}")
 
-        if not self.validate_input_path(classes_path, is_dir=False):
-            raise ValueError(f"Invalid classes file: {classes_path}")
-
         if not self.validate_output_path(output_dir, is_dir=True, create=True):
             raise ValueError(f"Invalid output directory: {output_dir}")
+
+        # 1.1 Handle classes_path: if None, auto-generate; otherwise validate
+        if classes_path is None:
+            classes_path = os.path.join(output_dir, Config.YOLO_CLASSES_FILENAME)
+            self.logger.info(f"Classes file not provided, will auto-generate: {classes_path}")
+        else:
+            if not self.validate_input_path(classes_path, is_dir=False):
+                raise ValueError(f"Invalid classes file: {classes_path}")
+
+        # 1.2 Create labels directory for YOLO output
+        labels_dir = self._create_labels_directory(output_dir)
 
         self.logger.info(f"Converting COCO to YOLO: {coco_json_path} -> {output_dir}")
 
@@ -79,30 +91,44 @@ class CocoToYoloConverter(LabelBasedConverter):
                 for ann in img_data.get("annotations", []):
                     ann.pop("segmentation", None)
 
-        # 4. Read provided classes file and validate
-        categories = self.read_classes_file(classes_path)
-        if not categories:
-            raise ValueError(f"No categories found in classes file: {classes_path}")
-
-        # 5. Extract unique categories from COCO data and validate against provided classes
+        # 4. Extract unique categories from COCO data
         data_categories = self._extract_unique_categories(unified_data)
         if not data_categories:
             self.logger.warning("No categories found in COCO data")
-        else:
-            # Validate all categories in data are present in provided classes file
-            for category in data_categories:
-                if category not in categories:
-                    raise ValueError(f"Category '{category}' found in COCO data but not in classes file")
+            data_categories = []  # Ensure it's an empty list
 
-        # 6. Use YoloHandler to write YOLO format directly to output_dir
+        # 5. Handle classes based on whether it was auto-generated or provided
+        if original_classes_path is None:
+            # Auto-generated classes path: write categories to file if we have any
+            categories = data_categories
+            if data_categories:
+                self.write_classes_file(data_categories, classes_path)
+                self.logger.info(f"Auto-generated classes file: {classes_path}")
+            else:
+                self.logger.warning(f"No categories to write to classes file: {classes_path}")
+                # Still create empty file or leave it? For now, create empty file
+                self.write_classes_file([], classes_path)
+        else:
+            # User-provided classes path: read and validate
+            categories = self.read_classes_file(classes_path)
+            if not categories:
+                raise ValueError(f"No categories found in classes file: {classes_path}")
+
+            # Validate all categories in data are present in provided classes file
+            if data_categories:
+                for category in data_categories:
+                    if category not in categories:
+                        raise ValueError(f"Category '{category}' found in COCO data but not in classes file")
+
+        # 6. Use YoloHandler to write YOLO format to labels directory
         yolo_handler = YoloHandler(verbose=self.verbose)
         success = False
-        if unified_data:
-            success = yolo_handler.write_batch(unified_data, output_dir, classes_path)
+        if unified_data and categories:
+            success = yolo_handler.write_batch(unified_data, labels_dir, classes_path)
         else:
             # Create empty directory structure
             success = True
-            self.logger.info("No annotations to write, created empty directory structure")
+            self.logger.info("No annotations or categories to write, created empty directory structure")
 
         if not success:
             raise ValueError(f"Failed to write YOLO label files to {output_dir}")
