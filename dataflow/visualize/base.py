@@ -135,9 +135,23 @@ class BaseVisualizer:
             color_idx = class_id % len(self.DEFAULT_COLORS)
             return self.DEFAULT_COLORS[color_idx]
         else:
-            # Generate distinct colors using HSV color space
-            hue = int(179 * class_id / max(num_classes, 1))
-            hsv_color = np.uint8([[[hue, 255, 255]]])
+            # Generate distinct colors using HSV color space with golden ratio distribution
+            # This provides better color separation than linear spacing
+            # Golden angle in degrees: 137.508 (gives optimal spacing on color wheel)
+            golden_angle = 137.508
+            # Use modulo 360 to wrap around the hue circle
+            hue_angle = (class_id * golden_angle) % 360.0
+            # Convert to OpenCV hue range (0-179, corresponding to 0-360 degrees)
+            hue = int(hue_angle * 179.0 / 360.0)
+
+            # Vary saturation and value slightly to increase color distinction
+            # while keeping colors bright and vibrant
+            # Use class_id to create patterns in saturation and value
+            # This adds extra dimension of variation beyond just hue
+            saturation = 220 + (class_id % 4) * 12  # 220-256 range
+            value = 220 + ((class_id // 4) % 4) * 12  # 220-256 range
+
+            hsv_color = np.uint8([[[hue, saturation, value]]])
             bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)
             return tuple(map(int, bgr_color[0][0]))
 

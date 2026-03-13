@@ -10,6 +10,7 @@
 import os
 import cv2
 import numpy as np
+import logging
 from typing import List, Dict, Any, Optional, Tuple
 
 from .base import BaseVisualizer
@@ -74,6 +75,7 @@ class GenericVisualizer(BaseVisualizer):
             Image with annotations drawn
         """
         result_image = image.copy()
+        self.logger.debug(f"_draw_annotations called with {len(annotations)} annotations, {len(classes)} classes: {classes}")
 
         # Validate segmentation format if required (strict mode)
         if self.segmentation:
@@ -84,13 +86,59 @@ class GenericVisualizer(BaseVisualizer):
             category_name = ann.get("category_name", f"class_{category_id}")
 
             # Get color based on class name index in classes list
+            class_idx = None
+            original_category_name = category_name
+
+            # 1. Try exact match
             try:
                 class_idx = classes.index(category_name)
                 color = self.get_color_for_class(class_idx, len(classes))
+                # Debug logging for successful color assignment
+                self.logger.debug(f"Color assigned: category_name='{category_name}', class_idx={class_idx}, color={color}")
             except ValueError:
-                # Fallback to category_id if category_name not in classes
-                self.logger.warning(f"Class '{category_name}' not found in classes list, using category_id for color")
-                color = self.get_color_for_class(category_id, len(classes))
+                # 2. Try normalized match (strip whitespace, case-insensitive)
+                normalized_name = category_name.strip()
+                # Try case-insensitive match
+                try:
+                    # Find case-insensitive match
+                    for idx, cls in enumerate(classes):
+                        if cls.strip().lower() == normalized_name.lower():
+                            class_idx = idx
+                            break
+                except Exception:
+                    pass
+
+                if class_idx is not None:
+                    color = self.get_color_for_class(class_idx, len(classes))
+                    self.logger.warning(f"Class '{original_category_name}' matched case-insensitively to '{classes[class_idx]}', using index {class_idx}")
+                    self.logger.debug(f"Case-insensitive match: category_name='{original_category_name}', matched='{classes[class_idx]}', class_idx={class_idx}, color={color}")
+                else:
+                    # 3. Try to parse "class_X" format
+                    if category_name.startswith("class_") and category_name[6:].isdigit():
+                        try:
+                            parsed_id = int(category_name[6:])
+                            # Use parsed_id as fallback, but ensure it's within reasonable bounds
+                            if parsed_id < len(classes) * 2:  # Allow some flexibility
+                                class_idx = parsed_id % len(classes) if len(classes) > 0 else 0
+                                self.logger.warning(f"Class '{category_name}' parsed as class_{parsed_id}, using index {class_idx}")
+                            else:
+                                self.logger.warning(f"Parsed class ID {parsed_id} from '{category_name}' is too large, using category_id")
+                        except ValueError:
+                            pass
+
+                    # 4. Final fallback to category_id
+                    if class_idx is None:
+                        self.logger.warning(f"Class '{category_name}' not found in classes list, using category_id {category_id} for color")
+                        # Ensure category_id is within bounds
+                        if category_id < len(classes):
+                            class_idx = category_id
+                        else:
+                            # If category_id is out of bounds, use modulo
+                            class_idx = category_id % len(classes) if len(classes) > 0 else 0
+
+                    color = self.get_color_for_class(class_idx, len(classes))
+                    # Debug logging for fallback case
+                    self.logger.debug(f"Fallback color: category_name='{original_category_name}', category_id={category_id}, class_idx={class_idx}, color={color}")
 
             # Determine what to draw based on mode and available data
             if self.segmentation:
