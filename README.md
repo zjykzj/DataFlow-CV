@@ -458,6 +458,9 @@ Detailed data format specifications are available in the `docs/` directory:
 - [`docs/coco.md`](docs/coco.md) - COCO format specification
 
 These documents describe the annotation formats supported by DataFlow-CV, without covering tool usage.
+## Development
+
+For development guidelines, architecture details, and contribution instructions, see [CLAUDE.md](CLAUDE.md). This file provides guidance for working with the codebase, including common development commands, architectural patterns, and writing principles.
 
 ## License
 

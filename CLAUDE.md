@@ -195,6 +195,21 @@ All annotation visualizers inherit from `BaseVisualizer` (`dataflow/visualize/ba
 - Window management and display resizing
 - Logging and progress reporting
 
+### Label Handlers and Unified Format
+
+The `label/` module provides format-specific handlers (`YoloHandler`, `CocoHandler`, `LabelMeHandler`) that parse and serialize annotation files. Each handler produces a **unified format**—a common dictionary structure used by converters and visualizers. This enables consistent processing across different annotation formats.
+
+**Unified format keys**:
+- `image_path`: Path to the image file
+- `image_id`: Unique identifier for the image
+- `annotations`: List of annotation dictionaries, each containing:
+  - `category_id`: Integer class ID
+  - `category_name`: String class name
+  - `bbox`: `[x_min, y_min, width, height]` (optional)
+  - `segmentation`: List of polygon coordinate lists (optional)
+
+Converters inherit from `LabelBasedConverter` (which itself extends `BaseConverter`) and use label handlers to read source annotations and write target formats. Visualizers inherit from `GenericVisualizer` (which extends `BaseVisualizer`) and use label handlers to load annotations for drawing.
+
 ### Configuration Management
 Global settings are centralized in `Config` (`dataflow/config.py`). CLI options (verbose, overwrite) update the config at runtime. Avoid hard‑coding file names, extensions, or default values; use the `Config` class instead.
 
@@ -297,7 +312,7 @@ docs/                          # Data format documentation
 
    This ensures maintainability and makes it easy to add, update, or remove individual components without affecting others.
 
-3. **Reuse Base Infrastructure**: All new converters must inherit from `BaseConverter` and all new visualizers from `BaseVisualizer`. Leverage their utility methods. Do not duplicate file‑system operations, validation, or logging.
+3. **Reuse Base Infrastructure**: All new converters must inherit from `BaseConverter` (or `LabelBasedConverter`) and all new visualizers from `BaseVisualizer` (or `GenericVisualizer`). Use the label handlers (`YoloHandler`, `CocoHandler`, `LabelMeHandler`) for format-specific I/O. Leverage their utility methods. Do not duplicate file‑system operations, validation, or logging.
 
 4. **Configuration‑Driven Defaults**: Use `Config` for all default values (file extensions, directory names, image dimensions). Allow CLI options to override these defaults where appropriate.
 
