@@ -8,6 +8,8 @@
 """
 
 import os
+import sys
+import logging
 from typing import List, Dict, Any, Optional
 
 from .generic import GenericVisualizer
@@ -55,6 +57,10 @@ class YoloVisualizer(GenericVisualizer):
                 - save_dir: Path where images were saved (if save_dir provided)
         """
         # Validate inputs
+        # Temporarily enable debug logging for troubleshooting
+        self.logger.setLevel(logging.DEBUG)
+        self.logger.debug("Debug logging enabled for YOLO visualization")
+
         if not self.validate_input_path(image_dir, is_dir=True):
             raise ValueError(f"Invalid image directory: {image_dir}")
         if not self.validate_input_path(label_dir, is_dir=True):
@@ -64,9 +70,11 @@ class YoloVisualizer(GenericVisualizer):
         if save_dir and not self.validate_output_path(save_dir, is_dir=True, create=True):
             raise ValueError(f"Invalid save directory: {save_dir}")
 
+
         # Read classes
         classes = self._read_classes_file(class_path)
         self.logger.info(f"Loaded {len(classes)} classes from {class_path}")
+        self.logger.debug(f"Classes list: {classes}")
 
         # Read annotations using YoloHandler
         try:
@@ -76,6 +84,14 @@ class YoloVisualizer(GenericVisualizer):
                 classes_path=class_path,
                 require_segmentation=self.segmentation
             )
+            # Debug logging for annotation data
+            if annotations_list:
+                print(f"[DEBUG] Read {len(annotations_list)} image annotations", flush=True)
+                for i, img_data in enumerate(annotations_list[:3]):  # Check first 3 images
+                    anns = img_data.get("annotations", [])
+                    print(f"[DEBUG]   Image {i}: {img_data.get('image_id', 'unknown')}, {len(anns)} annotations", flush=True)
+                    for j, ann in enumerate(anns[:3]):  # Check first 3 annotations per image
+                        print(f"[DEBUG]     Annotation {j}: category_id={ann.get('category_id')}, category_name={ann.get('category_name')}", flush=True)
         except Exception as e:
             raise ValueError(f"Failed to read YOLO annotations: {e}")
 
@@ -109,6 +125,10 @@ class YoloVisualizer(GenericVisualizer):
                     f"Segmentation mode required but no valid segmentation annotations found in {label_dir}. "
                     f"Found {len(label_files)} label file(s) with only detection format or no annotations."
                 )
+
+        # Merge classes from file with classes found in annotations
+        classes = self._extract_classes(annotations_list, classes)
+        self.logger.info(f"Using {len(classes)} classes for visualization")
 
         # Create results template
         results = self._create_results_template(
@@ -177,6 +197,87 @@ class YoloVisualizer(GenericVisualizer):
         except Exception as e:
             self.logger.error(f"Error reading class file {class_path}: {e}")
             raise ValueError(f"Could not read class file: {class_path}") from e
+
+    def _extract_classes(self, annotations_list: List[Dict], file_classes: List[str]) -> List[str]:
+        """Extract and merge class names from annotations and file.
+
+        Args:
+            annotations_list: List of image annotation data
+            file_classes: List of class names from file
+
+        Returns:
+            Merged list of class names, ensuring all annotations have matching names
+        """
+        # Normalize file classes: strip whitespace, create mapping from normalized to original
+        file_class_map = {}  # normalized -> original
+        normalized_file_classes = []
+        for class_name in file_classes:
+            normalized = class_name.strip()
+            file_class_map[normalized] = class_name
+            normalized_file_classes.append(normalized)
+
+        # Extract unique class names from annotations with normalization
+        annotation_classes = set()  # Store normalized names
+        original_annotation_names = {}  # normalized -> first original encountered
+        for image_data in annotations_list:
+            for annotation in image_data.get("annotations", []):
+                class_name = annotation.get("category_name")
+                if class_name:
+                    normalized = class_name.strip()
+                    annotation_classes.add(normalized)
+                    if normalized not in original_annotation_names:
+                        original_annotation_names[normalized] = class_name  # Keep original for reference
+                else:
+                    # Fallback to category_id
+                    category_id = annotation.get("category_id", 0)
+                    class_name = f"class_{category_id}"
+                    normalized = class_name.strip()
+                    annotation_classes.add(normalized)
+                    if normalized not in original_annotation_names:
+                        original_annotation_names[normalized] = class_name
+
+        # Merge with file classes, preserving file order for existing classes
+        merged_classes = []
+        matched_normalized = set()
+
+        # First add file classes that appear in annotations (case-insensitive and whitespace-insensitive)
+        for normalized, original in file_class_map.items():
+            if normalized in annotation_classes:
+                merged_classes.append(original)  # Use original file class name
+                matched_normalized.add(normalized)
+                annotation_classes.remove(normalized)
+            else:
+                # Also check case-insensitive match
+                matched = False
+                for ann_normalized in list(annotation_classes):
+                    if ann_normalized.lower() == normalized.lower():
+                        merged_classes.append(original)  # Use original file class name
+                        matched_normalized.add(ann_normalized)
+                        annotation_classes.remove(ann_normalized)
+                        matched = True
+                        self.logger.warning(f"Class name '{ann_normalized}' matched case-insensitively to file class '{original}'")
+                        break
+                if not matched:
+                    # File class not found in annotations, still include it
+                    merged_classes.append(original)
+
+        # Add remaining annotation classes (not matched to file classes)
+        remaining = sorted(annotation_classes)
+        for normalized in remaining:
+            # Use original annotation name if available, otherwise normalized
+            original = original_annotation_names.get(normalized, normalized)
+            merged_classes.append(original)
+
+        self.logger.info(f"Merged classes: {len(file_classes)} from file, {len(merged_classes)} total after merge")
+        if len(merged_classes) > len(file_classes):
+            self.logger.warning(f"Found {len(merged_classes) - len(file_classes)} classes in annotations not in file")
+
+        # Debug logging for color assignment consistency
+        self.logger.debug(f"Merged classes list: {merged_classes}")
+        self.logger.debug(f"File classes: {file_classes}")
+        self.logger.debug(f"Annotation classes (normalized): {original_annotation_names}")
+
+        return merged_classes
 
     def batch_visualize(self,
                         image_dirs: List[str],
