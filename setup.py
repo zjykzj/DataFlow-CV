@@ -71,7 +71,8 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "dataflow=dataflow.cli:main"
+            "dataflow=dataflow.cli:main",
+            "dataflow-cv=dataflow.cli:main"
         ]
     },
     cmdclass={

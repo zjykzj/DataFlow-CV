@@ -388,6 +388,8 @@ def show_cli_commands():
     print("CLI Commands Quick Reference")
     print("="*60)
 
+    print("\nNote: Both 'dataflow' and 'dataflow-cv' commands are available and can be used interchangeably.")
+
     print("\nCOCO to YOLO:")
     print("  dataflow convert coco2yolo <coco_json> <output_dir>")
     print("  dataflow convert coco2yolo --help")

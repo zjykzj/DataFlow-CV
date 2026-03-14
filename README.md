@@ -146,6 +146,8 @@ pip install .
 pip install dataflow-cv
 ```
 
+After installation, two command aliases are available: `dataflow` and `dataflow-cv`. Both point to the same functionality and can be used interchangeably.
+
 #### Editable Installation (Development Mode)
 
 Due to setuptools compatibility, use `python setup.py develop` instead of `pip install -e .`:
@@ -155,6 +157,7 @@ Due to setuptools compatibility, use `python setup.py develop` instead of `pip i
 python setup.py develop
 
 # After editable installation, use python -m dataflow.cli instead of the dataflow command
+# (both dataflow and dataflow-cv commands may not work with editable installation)
 python -m dataflow.cli --help
 ```
 
@@ -173,6 +176,8 @@ pip install dist/dataflow_cv-*.whl
 ### Command Line Usage
 
 Command line options: `-v/--verbose` is available as a local option for each subcommand. The `--overwrite` option has been removed and is not supported in the current version.
+
+All examples use the `dataflow` command, but you can also use `dataflow-cv` as an alias (e.g., `dataflow-cv convert coco2yolo ...`).
 
 ```bash
 # COCO to YOLO conversion (use --segmentation for polygon annotations)
@@ -288,6 +293,8 @@ print(f"Classes found: {result['classes_found']}")
 ### CLI Reference
 
 The CLI follows a hierarchical structure: `dataflow <main‑task> <sub‑task> [arguments]`. Each subcommand supports local options such as `-v/--verbose` for progress output.
+
+Both `dataflow` and `dataflow-cv` commands are available and can be used interchangeably.
 
 #### Global Options
 - `--version`: Show version information

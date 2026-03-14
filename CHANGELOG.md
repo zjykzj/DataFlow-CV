@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cross-platform compatibility**: Full Windows, Linux, macOS support with no platform-specific code
 - **Enhanced documentation**: Updated CLI and Python API examples with segmentation support flags
 - **Simplified development**: Consolidated dependency files and version constraints
+- **Command alias**: Added `dataflow-cv` command alias for the existing `dataflow` command
 
 ### Changed
 - **Dependency versions**: Lowered minimum versions for better compatibility with older environments

@@ -113,6 +113,26 @@ class TestCLI(unittest.TestCase):
         self.assertIn("Visualize YOLO format annotations", result.stdout)
         self.assertEqual(result.returncode, 0)
 
+    def test_command_aliases_defined(self):
+        """Test that both dataflow and dataflow-cv command aliases are defined in configuration files."""
+        # Check setup.py
+        setup_path = os.path.join(os.path.dirname(__file__), "..", "setup.py")
+        with open(setup_path, 'r', encoding='utf-8') as f:
+            setup_content = f.read()
+
+        # Check for both console script entries
+        self.assertIn('"dataflow=dataflow.cli:main"', setup_content)
+        self.assertIn('"dataflow-cv=dataflow.cli:main"', setup_content)
+
+        # Check pyproject.toml
+        pyproject_path = os.path.join(os.path.dirname(__file__), "..", "pyproject.toml")
+        with open(pyproject_path, 'r', encoding='utf-8') as f:
+            pyproject_content = f.read()
+
+        # Check for both script entries
+        self.assertIn('dataflow = "dataflow.cli:main"', pyproject_content)
+        self.assertIn('dataflow-cv = "dataflow.cli:main"', pyproject_content)
+
 
 if __name__ == "__main__":
     unittest.main()

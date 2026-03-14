@@ -70,11 +70,13 @@ python tests/run_tests.py -q
 ```bash
 # Regular installation from source
 pip install .
+# After installation, both dataflow and dataflow-cv commands are available
 
 # Editable installation (development mode)
 # Due to setuptools compatibility, use python setup.py develop (not pip install -e .)
 python setup.py develop
 # After editable installation, use python -m dataflow.cli instead of the dataflow command
+# (both dataflow and dataflow-cv commands may not work with editable installation)
 ```
 
 ### Build System
@@ -91,6 +93,8 @@ pip install dist/dataflow_cv-*.whl
 
 ### Command Line Interface
 Command line options: `-v/--verbose` is available as a local option for each subcommand. The `--overwrite` option has been removed and is not supported in the current version.
+
+Both `dataflow` and `dataflow-cv` commands are available and can be used interchangeably (e.g., `dataflow-cv convert coco2yolo ...`).
 ```bash
 # Show help
 dataflow --help

@@ -39,6 +39,7 @@ requires-python = ">=3.8"
 
 [project.scripts]
 dataflow = "dataflow.cli:main"
+dataflow-cv = "dataflow.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

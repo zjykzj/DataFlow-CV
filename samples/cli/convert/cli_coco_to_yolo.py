@@ -122,20 +122,26 @@ def show_cli_commands(coco_json, output_dir):
 
     print("\nBasic conversion:")
     print(f"  $ dataflow convert coco2yolo {coco_json} {output_dir}")
+    print(f"  $ dataflow-cv convert coco2yolo {coco_json} {output_dir}  # alias")
 
     print("\nWith verbose output:")
     print(f"  $ dataflow convert coco2yolo --verbose {coco_json} {output_dir}")
+    print(f"  $ dataflow-cv convert coco2yolo --verbose {coco_json} {output_dir}  # alias")
     print(f"  $ dataflow convert coco2yolo -v {coco_json} {output_dir}")
+    print(f"  $ dataflow-cv convert coco2yolo -v {coco_json} {output_dir}  # alias")
 
 
     print("\nWith segmentation mode (for polygon annotations):")
     print(f"  $ dataflow convert coco2yolo --segmentation {coco_json} {output_dir}")
+    print(f"  $ dataflow-cv convert coco2yolo --segmentation {coco_json} {output_dir}  # alias")
 
     print("\nWith both options:")
     print(f"  $ dataflow convert coco2yolo -v --segmentation {coco_json} {output_dir}")
+    print(f"  $ dataflow-cv convert coco2yolo -v --segmentation {coco_json} {output_dir}  # alias")
 
     print("\nGet help:")
     print(f"  $ dataflow convert coco2yolo --help")
+    print(f"  $ dataflow-cv convert coco2yolo --help  # alias")
 
 
 def run_conversion(coco_json, output_dir, verbose=True, segmentation=False):
