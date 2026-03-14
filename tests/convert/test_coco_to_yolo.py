@@ -12,6 +12,7 @@ import json
 import tempfile
 import unittest
 import shutil
+import platform
 from pathlib import Path
 
 import sys
@@ -167,6 +168,7 @@ class TestCocoToYoloConverter(unittest.TestCase):
         with self.assertRaises(ValueError):
             converter.convert("/invalid/path/annotations.json", self.output_dir)
 
+    @unittest.skipIf(platform.system() == "Windows", "Permission tests not supported on Windows")
     def test_invalid_output_dir(self):
         """Test conversion with invalid output directory."""
         converter = CocoToYoloConverter(verbose=False)

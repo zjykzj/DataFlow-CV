@@ -12,6 +12,7 @@ import json
 import tempfile
 import unittest
 import shutil
+import platform
 from pathlib import Path
 
 import sys
@@ -172,6 +173,7 @@ class TestLabelMeToYoloConverter(unittest.TestCase):
         with self.assertRaises(ValueError):
             converter.convert("/invalid/path/labels", self.classes_file, self.output_dir)
 
+    @unittest.skipIf(platform.system() == "Windows", "Permission tests not supported on Windows")
     def test_invalid_output_dir(self):
         """Test conversion with invalid output directory."""
         converter = LabelMeToYoloConverter(verbose=False)

@@ -98,7 +98,7 @@ def run_specific_test(test_name, verbose=1):
     for test_file in tests_root.rglob("test_*.py"):
         # Convert path to module name (e.g., "tests.convert.test_coco_to_yolo")
         rel_path = test_file.relative_to(tests_root.parent)
-        module_name = str(rel_path.with_suffix("")).replace("/", ".")
+        module_name = ".".join(rel_path.with_suffix("").parts)
 
         try:
             module = __import__(module_name, fromlist=["*"])

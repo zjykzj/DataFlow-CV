@@ -394,7 +394,7 @@ result = dataflow.visualize_labelme("images/", "labels/", segmentation=True)
 
 ## Notes
 - The AI model used in this project is DeepSeek-V3.2 (128K context length), not Claude Opus.
-- The library is Linux‑oriented (assumes POSIX paths).
+- The library is cross-platform compatible (Windows, Linux, macOS) and uses standard Python path handling (os.path, pathlib).
 - The project is in alpha; the API and CLI may change.
 - Visualization modules for COCO, YOLO, and LabelMe formats are included.
 - Label format handlers (YoloHandler, CocoHandler, LabelMeHandler) provide unified format conversion.
