@@ -22,7 +22,7 @@ def create_visualize_group():
         # 传递全局CLI选项到模块
         VisualizeConfig.update_from_cli(
             verbose=ctx.parent.obj.get('verbose', False),
-            overwrite=ctx.parent.obj.get('overwrite', False)
+            overwrite=False
         )
 
     visualize_group.add_command(_create_yolo_command())
@@ -63,7 +63,7 @@ def _create_yolo_command():
             # Update config with local verbose flag
             VisualizeConfig.update_from_cli(
                 verbose=verbose,
-                overwrite=ctx.parent.obj.get('overwrite', False)
+                overwrite=False
             )
 
             # Create visualizer and perform visualization
@@ -107,7 +107,7 @@ def _create_coco_command():
             # Update config with local verbose flag
             VisualizeConfig.update_from_cli(
                 verbose=verbose,
-                overwrite=ctx.parent.obj.get('overwrite', False)
+                overwrite=False
             )
 
             # Create visualizer and perform visualization
@@ -151,7 +151,7 @@ def _create_labelme_command():
             # Update config with local verbose flag
             VisualizeConfig.update_from_cli(
                 verbose=verbose,
-                overwrite=ctx.parent.obj.get('overwrite', False)
+                overwrite=False
             )
 
             # Create visualizer and perform visualization

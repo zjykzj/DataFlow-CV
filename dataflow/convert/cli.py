@@ -31,7 +31,7 @@ def create_convert_group():
         # 传递全局CLI选项到模块
         ConvertConfig.update_from_cli(
             verbose=ctx.parent.obj.get('verbose', False),
-            overwrite=ctx.parent.obj.get('overwrite', False)
+            overwrite=False
         )
 
     # 使用工厂函数创建子命令，避免过早绑定
@@ -71,7 +71,7 @@ def _create_coco2yolo_command():
             # Update config with local verbose flag
             ConvertConfig.update_from_cli(
                 verbose=verbose,
-                overwrite=ctx.parent.obj.get('overwrite', False)
+                overwrite=False
             )
 
             # Create converter and perform conversion
@@ -117,7 +117,7 @@ def _create_yolo2coco_command():
             # Update config with local verbose flag
             ConvertConfig.update_from_cli(
                 verbose=verbose,
-                overwrite=ctx.parent.obj.get('overwrite', False)
+                overwrite=False
             )
 
             # Create converter and perform conversion
@@ -161,7 +161,7 @@ def _create_coco2labelme_command():
             # Update config with local verbose flag
             ConvertConfig.update_from_cli(
                 verbose=verbose,
-                overwrite=ctx.parent.obj.get('overwrite', False)
+                overwrite=False
             )
 
             # Create converter and perform conversion
@@ -206,7 +206,7 @@ def _create_labelme2coco_command():
             # Update config with local verbose flag
             ConvertConfig.update_from_cli(
                 verbose=verbose,
-                overwrite=ctx.parent.obj.get('overwrite', False)
+                overwrite=False
             )
 
             # Create converter and perform conversion
@@ -251,7 +251,7 @@ def _create_labelme2yolo_command():
             # Update config with local verbose flag
             ConvertConfig.update_from_cli(
                 verbose=verbose,
-                overwrite=ctx.parent.obj.get('overwrite', False)
+                overwrite=False
             )
 
             # Create converter and perform conversion
@@ -299,7 +299,7 @@ def _create_yolo2labelme_command():
             # Update config with local verbose flag
             ConvertConfig.update_from_cli(
                 verbose=verbose,
-                overwrite=ctx.parent.obj.get('overwrite', False)
+                overwrite=False
             )
 
             # Create converter and perform conversion

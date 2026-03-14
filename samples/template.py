@@ -433,20 +433,18 @@ def show_cli_commands(input_path, output_dir):
     print(f"  $ dataflow task subtask --verbose {input_path} {output_dir}")
     print(f"  $ dataflow task subtask -v {input_path} {output_dir}")
 
-    print("\nWith overwrite mode:")
-    print(f"  $ dataflow task subtask --overwrite {input_path} {output_dir}")
 
     print("\nWith segmentation mode:")
     print(f"  $ dataflow task subtask --segmentation {input_path} {output_dir}")
 
     print("\nWith all options:")
-    print(f"  $ dataflow task subtask -v --overwrite --segmentation {input_path} {output_dir}")
+    print(f"  $ dataflow task subtask -v --segmentation {input_path} {output_dir}")
 
     print("\nGet help:")
     print(f"  $ dataflow task subtask --help")
 
 
-def run_cli_command(input_path, output_dir, verbose=True, overwrite=False, segmentation=False):
+def run_cli_command(input_path, output_dir, verbose=True, segmentation=False):
     """
     Template for running CLI commands via subprocess.
     """
@@ -458,8 +456,6 @@ def run_cli_command(input_path, output_dir, verbose=True, overwrite=False, segme
     cmd = ["python", "-m", "dataflow.cli", "task", "subtask"]
     if verbose:
         cmd.append("--verbose")
-    if overwrite:
-        cmd.append("--overwrite")
     if segmentation:
         cmd.append("--segmentation")
     cmd.extend([input_path, output_dir])
@@ -542,7 +538,7 @@ def cli_example_main():
         show_cli_commands(input_path, output_dir)
 
         # Run basic conversion
-        success = run_cli_command(input_path, output_dir, verbose=True, overwrite=False)
+        success = run_cli_command(input_path, output_dir, verbose=True)
 
         if success:
             # Inspect output
@@ -551,7 +547,7 @@ def cli_example_main():
         # Demonstrate with options
         output_dir_with_options = os.path.join(temp_dir, "output_with_options")
         print_header("RUNNING WITH OPTIONS")
-        run_cli_command(input_path, output_dir_with_options, verbose=True, overwrite=True, segmentation=True)
+        run_cli_command(input_path, output_dir_with_options, verbose=True, segmentation=True)
 
         print_header("SUMMARY")
         print(f"\n✅ CLI demonstration completed!")
@@ -562,9 +558,8 @@ def cli_example_main():
 
         print(f"\n💡 Key points:")
         print(f"   1. Use --verbose for detailed progress information")
-        print(f"   2. Use --overwrite to replace existing files")
-        print(f"   3. Use --segmentation for polygon annotations")
-        print(f"   4. Always check help: dataflow task subtask --help")
+        print(f"   2. Use --segmentation for polygon annotations")
+        print(f"   3. Always check help: dataflow task subtask --help")
 
     finally:
         # Cleanup

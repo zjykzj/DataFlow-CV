@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-DataFlow is a Python library for computer vision dataset processing, focusing on format conversion and visualization between LabelMe, COCO, and YOLO formats. It provides both a CLI and Python API. The project is in alpha stage (Development Status :: 3 - Alpha). Sample datasets are provided in `assets/`, and usage examples can be found in `samples/`.
+DataFlow is a Python library for computer vision dataset processing, focusing on format conversion and visualization between LabelMe, COCO, and YOLO formats. It provides both a CLI and Python API. The project is in alpha stage (Development Status :: 3 - Alpha). The `assets/` directory contains sample images and test data for demonstration purposes, including COCO format examples, segmentation examples, and sample images. Usage examples can be found in `samples/`.
 
 ## Git Commits
 
@@ -90,7 +90,7 @@ pip install dist/dataflow_cv-*.whl
 ```
 
 ### Command Line Interface
-Global options: `--verbose` (`-v`) for progress output (also shows version when used alone), `--overwrite` to replace existing files.
+Command line options: `-v/--verbose` is available as a local option for each subcommand. The `--overwrite` option has been removed and is not supported in the current version.
 ```bash
 # Show help
 dataflow --help
@@ -227,13 +227,13 @@ The `label/` module provides format-specific handlers (`YoloHandler`, `CocoHandl
 Converters inherit from `LabelBasedConverter` (which itself extends `BaseConverter`) and use label handlers to read source annotations and write target formats. Visualizers inherit from `GenericVisualizer` (which extends `BaseVisualizer`) and use label handlers to load annotations for drawing.
 
 ### Configuration Management
-Global settings are centralized in `Config` (`dataflow/config.py`). CLI options (verbose, overwrite) update the config at runtime. Avoid hard‑coding file names, extensions, or default values; use the `Config` class instead.
+Global settings are centralized in `Config` (`dataflow/config.py`). CLI options (verbose) update the config at runtime. Avoid hard‑coding file names, extensions, or default values; use the `Config` class instead.
 
 Module‑specific configurations are provided by `ConvertConfig` (`dataflow/convert/config.py`) and `VisualizeConfig` (`dataflow/visualize/config.py`), which inherit from the global `Config` and add module‑specific defaults. The `dataflow config` command displays both global and module configurations.
 
 ### CLI Organization
 The CLI is built with Click and follows a modular architecture:
-- Root command (`dataflow`) with global options (`--verbose`, `--overwrite`)
+- Root command (`dataflow`) with global options (`--version`, `--help`)
 - Task‑level groups (`convert`, `visualize`) are dynamically imported from their respective modules (`dataflow.convert.cli`, `dataflow.visualize.cli`)
 - Each module provides a `create_<module>_group()` function that returns a Click command group with its sub‑task commands (`coco2yolo`, `yolo2coco`, `yolo`, `coco`, `labelme`)
 
@@ -426,7 +426,7 @@ All example scripts (`samples/`) now use `create_test_paths()` helper functions 
 ### Tests Module
 - Removed all `@unittest.skipIf(platform.system() == "Windows", ...)` decorators
 - Platform-dependent permission tests (`os.chmod()`) have been refactored to test invalid paths instead
-- All 125 tests pass on both Linux and Windows platforms
+- All 192 tests pass on both Linux and Windows platforms
 
 ### Development Principles for Cross-Platform Code
 When modifying or extending the codebase:
@@ -460,7 +460,7 @@ When modifying or extending the codebase:
    - Validate paths exist before operations, provide clear error messages
 
 ### Verification
-- All tests pass: `python tests/run_tests.py` (125 tests, 0 failures)
+- All tests pass: `python tests/run_tests.py` (192 tests, 0 failures)
 - Example scripts run correctly on all platforms
 - No hardcoded platform-specific paths remain in the codebase
 

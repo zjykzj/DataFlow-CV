@@ -42,7 +42,6 @@ def cli(ctx, version):
     # 存储配置到上下文
     ctx.ensure_object(dict)
     ctx.obj['verbose'] = False
-    ctx.obj['overwrite'] = False
 
     # 如果没有子命令，显示帮助
     if ctx.invoked_subcommand is None:

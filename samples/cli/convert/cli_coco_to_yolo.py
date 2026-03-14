@@ -127,20 +127,18 @@ def show_cli_commands(coco_json, output_dir):
     print(f"  $ dataflow convert coco2yolo --verbose {coco_json} {output_dir}")
     print(f"  $ dataflow convert coco2yolo -v {coco_json} {output_dir}")
 
-    print("\nWith overwrite mode:")
-    print(f"  $ dataflow convert coco2yolo --overwrite {coco_json} {output_dir}")
 
     print("\nWith segmentation mode (for polygon annotations):")
     print(f"  $ dataflow convert coco2yolo --segmentation {coco_json} {output_dir}")
 
     print("\nWith both options:")
-    print(f"  $ dataflow convert coco2yolo -v --overwrite --segmentation {coco_json} {output_dir}")
+    print(f"  $ dataflow convert coco2yolo -v --segmentation {coco_json} {output_dir}")
 
     print("\nGet help:")
     print(f"  $ dataflow convert coco2yolo --help")
 
 
-def run_conversion(coco_json, output_dir, verbose=True, overwrite=False, segmentation=False):
+def run_conversion(coco_json, output_dir, verbose=True, segmentation=False):
     """Run the actual conversion using Python module."""
     print_header("RUNNING CONVERSION")
 
@@ -150,8 +148,6 @@ def run_conversion(coco_json, output_dir, verbose=True, overwrite=False, segment
     cmd = ["python", "-m", "dataflow.cli", "convert", "coco2yolo"]
     if verbose:
         cmd.append("--verbose")
-    if overwrite:
-        cmd.append("--overwrite")
     if segmentation:
         cmd.append("--segmentation")
     cmd.extend([coco_json, output_dir])
@@ -247,7 +243,7 @@ def main():
         show_cli_commands(coco_json, output_dir)
 
         # Run conversion
-        success = run_conversion(coco_json, output_dir, verbose=True, overwrite=False)
+        success = run_conversion(coco_json, output_dir, verbose=True)
 
         if success:
             # Inspect output
@@ -256,7 +252,7 @@ def main():
         # Demonstrate segmentation mode
         output_dir_seg = os.path.join(temp_dir, "yolo_output_seg")
         print_header("SEGMENTATION MODE DEMONSTRATION")
-        run_conversion(coco_json, output_dir_seg, verbose=True, overwrite=False, segmentation=True)
+        run_conversion(coco_json, output_dir_seg, verbose=True, segmentation=True)
 
         print_header("SUMMARY")
         print(f"\n✅ Demonstration completed!")
@@ -270,8 +266,7 @@ def main():
         print(f"   2. Output directory will contain 'labels/' and 'class.names'")
         print(f"   3. Each image gets a corresponding .txt file in labels/")
         print(f"   4. Use --verbose for detailed progress information")
-        print(f"   5. Use --overwrite to replace existing files")
-        print(f"   6. Use --segmentation for polygon annotations")
+        print(f"   5. Use --segmentation for polygon annotations")
 
     finally:
         # Cleanup

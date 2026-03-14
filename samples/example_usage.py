@@ -426,7 +426,6 @@ def show_cli_commands():
 
     print("\nGlobal options (for all commands):")
     print("  --verbose, -v    Enable verbose output")
-    print("  --overwrite      Overwrite existing files")
     print("  --help           Show help message")
 
     print("\nVisualization options:")

@@ -172,7 +172,7 @@ pip install dist/dataflow_cv-*.whl
 
 ### Command Line Usage
 
-Global options: `--verbose` (`-v`) for progress output, `--overwrite` to replace existing files.
+Command line options: `-v/--verbose` is available as a local option for each subcommand. The `--overwrite` option has been removed and is not supported in the current version.
 
 ```bash
 # COCO to YOLO conversion (use --segmentation for polygon annotations)
@@ -287,11 +287,14 @@ print(f"Classes found: {result['classes_found']}")
 
 ### CLI Reference
 
-The CLI follows a hierarchical structure: `dataflow <main‑task> <sub‑task> [arguments]`. Global options can be placed before the main task.
+The CLI follows a hierarchical structure: `dataflow <main‑task> <sub‑task> [arguments]`. Each subcommand supports local options such as `-v/--verbose` for progress output.
 
 #### Global Options
+- `--version`: Show version information
+- `--help`, `-h`: Show help message
+
+#### Local Options (available for each subcommand)
 - `--verbose`, `-v`: Enable verbose output (progress information)
-- `--overwrite`: Overwrite existing files
 
 #### Conversion Commands
 
@@ -487,7 +490,7 @@ DataFlow-CV is designed for full cross-platform compatibility (Windows, Linux, m
 - Uses only standard Python libraries with no platform-specific APIs
 - File operations use `os.path.join()`, `pathlib.Path`, and `shutil` modules
 - Temporary files use `tempfile.mkdtemp()` and `tempfile.mkstemp()`
-- All 125 tests pass on both Linux and Windows platforms
+- All 192 tests pass on both Linux and Windows platforms
 - No hardcoded Unix paths remain in the codebase
 
 ## License
