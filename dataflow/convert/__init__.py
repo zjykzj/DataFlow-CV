@@ -17,6 +17,9 @@ from .coco_and_yolo import CocoToYoloConverter, YoloToCocoConverter
 from .coco_and_labelme import CocoToLabelMeConverter, LabelMeToCocoConverter
 from .yolo_and_labelme import YoloToLabelMeConverter, LabelMeToYoloConverter
 
+# CLI
+from .cli import create_convert_group
+
 __all__ = [
     "BaseConverter",
     "LabelBasedConverter",
@@ -27,4 +30,6 @@ __all__ = [
     "LabelMeToCocoConverter",
     "YoloToLabelMeConverter",
     "LabelMeToYoloConverter",
+    # CLI
+    "create_convert_group",
 ]

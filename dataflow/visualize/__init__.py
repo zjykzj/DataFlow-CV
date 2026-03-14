@@ -13,10 +13,15 @@ from .yolo import YoloVisualizer
 from .coco import CocoVisualizer
 from .labelme import LabelMeVisualizer
 
+# CLI
+from .cli import create_visualize_group
+
 __all__ = [
     "BaseVisualizer",
     "GenericVisualizer",
     "YoloVisualizer",
     "CocoVisualizer",
     "LabelMeVisualizer",
+    # CLI
+    "create_visualize_group",
 ]

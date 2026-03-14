@@ -213,12 +213,15 @@ Converters inherit from `LabelBasedConverter` (which itself extends `BaseConvert
 ### Configuration Management
 Global settings are centralized in `Config` (`dataflow/config.py`). CLI options (verbose, overwrite) update the config at runtime. Avoid hard‑coding file names, extensions, or default values; use the `Config` class instead.
 
-### CLI Organization
-The CLI is built with Click and structured as a command group hierarchy:
-- Root command (`dataflow`) with global options (`--verbose`, `--overwrite`)
-- Task‑level groups (`convert`, `visualize`) that contain sub‑task commands (`coco2yolo`, `yolo2coco`, `yolo`, `coco`, `labelme`)
+Module‑specific configurations are provided by `ConvertConfig` (`dataflow/convert/config.py`) and `VisualizeConfig` (`dataflow/visualize/config.py`), which inherit from the global `Config` and add module‑specific defaults. The `dataflow config` command displays both global and module configurations.
 
-Each sub‑task command validates its arguments, creates the appropriate converter/visualizer, runs the operation, and prints a summary.
+### CLI Organization
+The CLI is built with Click and follows a modular architecture:
+- Root command (`dataflow`) with global options (`--verbose`, `--overwrite`)
+- Task‑level groups (`convert`, `visualize`) are dynamically imported from their respective modules (`dataflow.convert.cli`, `dataflow.visualize.cli`)
+- Each module provides a `create_<module>_group()` function that returns a Click command group with its sub‑task commands (`coco2yolo`, `yolo2coco`, `yolo`, `coco`, `labelme`)
+
+Each sub‑task command validates its arguments, creates the appropriate converter/visualizer, runs the operation, and prints a summary. Missing modules are handled gracefully with informative error messages.
 
 ### File Layout
 ```
@@ -227,23 +230,27 @@ dataflow/
 ├── cli.py                   # Click CLI definition
 ├── config.py                # Config class
 ├── convert/                 # Format conversion module
-│   ├── __init__.py          # Exports BaseConverter, all converter classes
+│   ├── __init__.py          # Exports BaseConverter, all converter classes, and CLI functions
 │   ├── base.py              # BaseConverter abstract class
 │   ├── coco_and_yolo.py     # COCO ↔ YOLO converters (CocoToYoloConverter, YoloToCocoConverter)
 │   ├── coco_and_labelme.py  # COCO ↔ LabelMe converters (CocoToLabelMeConverter, LabelMeToCocoConverter)
-│   └── yolo_and_labelme.py  # YOLO ↔ LabelMe converters (YoloToLabelMeConverter, LabelMeToYoloConverter)
+│   ├── yolo_and_labelme.py  # YOLO ↔ LabelMe converters (YoloToLabelMeConverter, LabelMeToYoloConverter)
+│   ├── cli.py               # Convert module CLI commands
+│   └── config.py            # Convert module configuration
 ├── label/                   # Label format handlers module
 │   ├── __init__.py          # Exports YoloHandler, CocoHandler, LabelMeHandler
 │   ├── yolo.py              # YOLO format handler
 │   ├── coco.py              # COCO format handler
 │   └── labelme.py           # LabelMe format handler
 └── visualize/               # Annotation visualization module
-    ├── __init__.py          # Exports BaseVisualizer, YoloVisualizer, CocoVisualizer, LabelMeVisualizer, GenericVisualizer
+    ├── __init__.py          # Exports BaseVisualizer, YoloVisualizer, CocoVisualizer, LabelMeVisualizer, GenericVisualizer, and CLI functions
     ├── base.py              # BaseVisualizer abstract class
     ├── generic.py           # Generic visualizer base class using label handlers
     ├── yolo.py              # YOLO annotation visualizer
     ├── coco.py              # COCO annotation visualizer
-    └── labelme.py           # LabelMe annotation visualizer
+    ├── labelme.py           # LabelMe annotation visualizer
+    ├── cli.py               # Visualize module CLI commands
+    └── config.py            # Visualize module configuration
 
 tests/
 ├── __init__.py
