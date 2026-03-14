@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-03-14
+
+### Added
+- **Cross-platform compatibility**: Full Windows, Linux, macOS support with no platform-specific code
+- **Enhanced documentation**: Updated CLI and Python API examples with segmentation support flags
+- **Simplified development**: Consolidated dependency files and version constraints
+
+### Changed
+- **Dependency versions**: Lowered minimum versions for better compatibility with older environments
+- **CLI architecture**: Modularized CLI structure for better maintainability
+- **Platform compatibility**: Enhanced cross-platform support and removed all Unix-specific paths
+
+### Fixed
+- **Windows compatibility**: Fixed platform-specific code and path handling for Windows
+- **Documentation**: Updated README.md and CLAUDE.md with latest features and cross-platform guidelines
+
+### Documentation
+- Added cross-platform development principles to documentation
+- Updated examples with `--segmentation` flag usage for all visualization commands
+- Enhanced CLAUDE.md with recent improvements and development guidelines
+
 ## [0.4.0] - 2026-03-13
 
 ### ⚠️ Breaking Changes
