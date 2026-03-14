@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-03-15
+
+### ⚠️ Breaking Changes
+- **CLI option removal**: Removed global `--verbose` and `--overwrite` options. Verbose mode is now available as local `-v/--verbose` option for each subcommand (`convert` and `visualize`).
+
+### Added
+- **Local verbose option**: Added `-v/--verbose` option to `convert` subcommands for detailed logging during conversion operations.
+- **Local verbose option**: Added `-v/--verbose` option to `visualize` subcommands for detailed logging during visualization operations.
+- **Test coverage**: Added comprehensive test coverage for conversion and visualization modules.
+- **Documentation**: Updated documentation with latest features and test counts.
+
+### Changed
+- **CLI architecture**: Further modularized CLI structure, moving verbose option from global to subcommand level.
+- **Log output**: Optimized log output for visualization commands to reduce noise.
+
+### Fixed
+- **Empty output directories**: Improved handling of empty output directory paths in conversion operations.
+
+### Documentation
+- Added platform compatibility badges to README.
+- Updated documentation with recent enhancements and test counts.
+
 ## [0.4.1] - 2026-03-14
 
 ### Added

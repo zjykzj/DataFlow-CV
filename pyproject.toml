@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dataflow-cv"
-version = "0.4.1"
+version = "0.5.0"
 description = "A data processing library for computer vision datasets"
 readme = "README.md"
 authors = [
