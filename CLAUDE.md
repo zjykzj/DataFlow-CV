@@ -116,17 +116,20 @@ dataflow convert labelme2yolo labels/ output_dir/ --segmentation
 # Convert YOLO to LabelMe
 dataflow convert yolo2labelme images/ labels/ classes.names output_dir/
 
-# Visualize YOLO annotations (use --save to export images)
+# Visualize YOLO annotations (use --save to export images, --segmentation for strict segmentation mode)
 dataflow visualize yolo images/ labels/ classes.names
 dataflow visualize yolo images/ labels/ classes.names --save output_dir/
+dataflow visualize yolo images/ labels/ classes.names --segmentation
 
-# Visualize COCO annotations (use --save to export images)
+# Visualize COCO annotations (use --save to export images, --segmentation for strict segmentation mode)
 dataflow visualize coco images/ annotations.json
 dataflow visualize coco images/ annotations.json --save output_dir/
+dataflow visualize coco images/ annotations.json --segmentation
 
-# Visualize LabelMe annotations (use --save to export images)
+# Visualize LabelMe annotations (use --save to export images, --segmentation for strict segmentation mode)
 dataflow visualize labelme images/ labels/
 dataflow visualize labelme images/ labels/ --save output_dir/
+dataflow visualize labelme images/ labels/ --segmentation
 
 # Show configuration
 dataflow config
@@ -157,17 +160,20 @@ result = dataflow.labelme_to_yolo("labels/", "output_dir", segmentation=True)
 # YOLO to LabelMe conversion
 result = dataflow.yolo_to_labelme("images/", "labels/", "classes.names", "output_dir")
 
-# Visualize YOLO annotations (save_dir is optional)
+# Visualize YOLO annotations (save_dir is optional, segmentation=True for strict segmentation mode)
 result = dataflow.visualize_yolo("images/", "labels/", "classes.names")
 result = dataflow.visualize_yolo("images/", "labels/", "classes.names", save_dir="output_dir/")
+result = dataflow.visualize_yolo("images/", "labels/", "classes.names", segmentation=True)
 
-# Visualize COCO annotations (save_dir is optional)
+# Visualize COCO annotations (save_dir is optional, segmentation=True for strict segmentation mode)
 result = dataflow.visualize_coco("images/", "annotations.json")
 result = dataflow.visualize_coco("images/", "annotations.json", save_dir="output_dir/")
+result = dataflow.visualize_coco("images/", "annotations.json", segmentation=True)
 
-# Visualize LabelMe annotations (save_dir is optional)
+# Visualize LabelMe annotations (save_dir is optional, segmentation=True for strict segmentation mode)
 result = dataflow.visualize_labelme("images/", "labels/")
 result = dataflow.visualize_labelme("images/", "labels/", save_dir="output_dir/")
+result = dataflow.visualize_labelme("images/", "labels/", segmentation=True)
 ```
 
 ### Version Compatibility
@@ -379,6 +385,7 @@ result = dataflow.coco_to_yolo("annotations.json", "output_dir", segmentation=Tr
 
 # Visualize in strict segmentation mode
 result = dataflow.visualize_yolo("images/", "labels/", "classes.names", segmentation=True)
+result = dataflow.visualize_coco("images/", "annotations.json", segmentation=True)
 result = dataflow.visualize_labelme("images/", "labels/", segmentation=True)
 ```
 
@@ -392,9 +399,74 @@ result = dataflow.visualize_labelme("images/", "labels/", segmentation=True)
 - LabelMe format supports both rectangle (`shape_type: "rectangle"`) and polygon (`shape_type: "polygon"`) shapes
 - In segmentation mode, LabelMe visualizer rejects rectangle shapes and only accepts polygon shapes
 
+## Recent Enhancements
+
+DataFlow-CV has recently been enhanced with several improvements:
+
+- **Simplified COCO to YOLO API**: The `coco_to_yolo` function now requires only two parameters (`coco_json_path`, `output_dir`). The `classes_path` parameter is optional and will be auto-generated in the output directory when not provided.
+- **Enhanced YOLO Visualizer**: Added debug logging for troubleshooting and improved class name extraction that merges classes from annotation files with those from class names files, supporting case-insensitive matching and fallback strategies.
+- **Improved Color Distinction**: Visualizers now use golden ratio distribution in HSV color space to generate distinct colors for many classes, with additional variation in saturation and value for better visual separation.
+- **Cross-Platform Robustness**: All platform-specific code has been eliminated; the library now uses only standard Python libraries and follows strict cross-platform development principles.
+
+## Platform Compatibility
+
+DataFlow-CV is designed for full cross-platform compatibility (Windows, Linux, macOS). Recent enhancements have eliminated platform-specific code and hardcoded Unix paths.
+
+### Core Module Compatibility
+The `dataflow` core module follows strict cross-platform principles:
+- Uses only standard Python libraries with no platform-specific APIs
+- File operations use `os.path.join()`, `pathlib.Path`, and `shutil` modules
+- Temporary files are created with `tempfile.mkdtemp()` and `tempfile.mkstemp()`
+- File encoding is always specified as `encoding='utf-8'`
+- Path separators are handled via `os.path.sep` and `os.path.join()`
+
+### Samples Module
+All example scripts (`samples/`) now use `create_test_paths()` helper functions that generate platform-independent temporary paths. Hardcoded Unix paths (`/tmp/`, `/root/`, `/invalid/path/`) have been replaced with `tempfile`-generated paths.
+
+### Tests Module
+- Removed all `@unittest.skipIf(platform.system() == "Windows", ...)` decorators
+- Platform-dependent permission tests (`os.chmod()`) have been refactored to test invalid paths instead
+- All 125 tests pass on both Linux and Windows platforms
+
+### Development Principles for Cross-Platform Code
+When modifying or extending the codebase:
+
+1. **File System Operations**
+   - Use `os.path.join()` or `pathlib.Path` for path construction (never string concatenation)
+   - Use `os.path.exists()`, `os.path.isdir()`, `os.path.isfile()` for path validation
+   - Use `shutil.rmtree()` with `ignore_errors=True` for safe directory removal
+   - Always specify `encoding='utf-8'` when reading or writing text files
+   - Use `with` statements when opening files to ensure proper resource cleanup
+
+2. **Temporary Files and Directories**
+   - Always use `tempfile.mkdtemp()` for temporary directories
+   - Use `tempfile.mkstemp()` for temporary files when needed
+   - Clean up temporary resources with `try/finally` blocks
+
+3. **Platform-Specific APIs**
+   - Never use Windows-specific APIs (`win32`, `ntpath`, etc.)
+   - Never use Linux-specific APIs (POSIX-only functions)
+   - Use `os.path` and `pathlib` which abstract platform differences
+   - Avoid any platform-specific modules (e.g., `win32`, `ntpath`, `posix`, `fcntl`). Use only standard Python libraries.
+
+4. **File Permissions and Attributes**
+   - Avoid `os.chmod()` unless absolutely necessary (behavior differs across platforms)
+   - Test invalid paths or file access errors rather than permission errors
+   - Use `os.access()` for portable permission checks when needed
+
+5. **Path Validation**
+   - Use `os.path.abspath()` to normalize paths
+   - Handle both forward and backward slashes in user input
+   - Validate paths exist before operations, provide clear error messages
+
+### Verification
+- All tests pass: `python tests/run_tests.py` (125 tests, 0 failures)
+- Example scripts run correctly on all platforms
+- No hardcoded platform-specific paths remain in the codebase
+
 ## Notes
 - The AI model used in this project is DeepSeek-V3.2 (128K context length), not Claude Opus.
-- The library is cross-platform compatible (Windows, Linux, macOS) and uses standard Python path handling (os.path, pathlib).
+- The library is fully cross-platform compatible (Windows, Linux, macOS) with no platform-specific code.
 - The project is in alpha; the API and CLI may change.
 - Visualization modules for COCO, YOLO, and LabelMe formats are included.
 - Label format handlers (YoloHandler, CocoHandler, LabelMeHandler) provide unified format conversion.

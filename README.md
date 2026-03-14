@@ -116,13 +116,22 @@ docs/                       # Data format documentation
 
 ### Core Dependencies
 - Python 3.8 or higher
-- Linux environment (POSIX compatible, assumes POSIX paths)
+- **Cross-platform compatible**: Windows, Linux, macOS (no platform-specific code)
 - `click` >= 7.0.0 – CLI framework
 - `numpy` >= 1.24.0 – numerical operations
 - `opencv-python` >= 4.6.0.66 – image processing (optional, used for some image operations)
 - `Pillow` >= 8.0.0 – image reading (optional, used for reading image dimensions)
 
+**Note**: DataFlow-CV is fully cross-platform compatible and uses only standard Python libraries. All platform-specific code and hardcoded Unix paths have been eliminated.
+
 ## Quick Start
+
+DataFlow-CV provides simple and consistent APIs for computer vision dataset processing:
+
+- **Simplified API**: COCO to YOLO conversion now requires only 2 parameters (`coco_json_path`, `output_dir`)
+- **Full segmentation support**: Polygon annotations across all formats (COCO, YOLO, LabelMe)
+- **Cross-platform compatibility**: Works on Windows, Linux, macOS with no platform-specific code
+- **Enhanced visualization**: Distinct colors for many classes with golden ratio distribution
 
 ### Installation
 
@@ -184,17 +193,20 @@ dataflow convert labelme2yolo labels/ output_dir/ --segmentation
 # YOLO to LabelMe conversion
 dataflow convert yolo2labelme images/ labels/ classes.names output_dir/
 
-# Visualize YOLO annotations (use --save to export images)
+# Visualize YOLO annotations (use --save to export images, --segmentation for strict segmentation mode)
 dataflow visualize yolo images/ labels/ classes.names
 dataflow visualize yolo images/ labels/ classes.names --save output_dir/
+dataflow visualize yolo images/ labels/ classes.names --segmentation
 
-# Visualize COCO annotations (use --save to export images)
+# Visualize COCO annotations (use --save to export images, --segmentation for strict segmentation mode)
 dataflow visualize coco images/ annotations.json
 dataflow visualize coco images/ annotations.json --save output_dir/
+dataflow visualize coco images/ annotations.json --segmentation
 
-# Visualize LabelMe annotations (use --save to export images)
+# Visualize LabelMe annotations (use --save to export images, --segmentation for strict segmentation mode)
 dataflow visualize labelme images/ labels/
 dataflow visualize labelme images/ labels/ --save output_dir/
+dataflow visualize labelme images/ labels/ --segmentation
 
 # Show configuration
 dataflow config
@@ -213,7 +225,7 @@ See the [CLI Reference](#cli-reference) below for detailed usage.
 ```python
 import dataflow
 
-# COCO to YOLO conversion (pass segmentation=True for polygon annotations)
+# COCO to YOLO conversion (classes_path is optional, will be auto-generated in output_dir)
 result = dataflow.coco_to_yolo("annotations.json", "output_dir")
 result = dataflow.coco_to_yolo("annotations.json", "output_dir", segmentation=True)
 print(f"Processed {result['images_processed']} images")
@@ -250,19 +262,22 @@ converter = YoloToLabelMeConverter()
 result = converter.convert("images/", "labels/", "classes.names", "output_dir/")
 print(f"Converted {result['images_processed']} images to LabelMe format")
 
-# Visualize YOLO annotations (save_dir is optional)
+# Visualize YOLO annotations (save_dir is optional, segmentation=True for strict segmentation mode)
 result = dataflow.visualize_yolo("images/", "labels/", "classes.names")
 result = dataflow.visualize_yolo("images/", "labels/", "classes.names", save_dir="output_dir/")
+result = dataflow.visualize_yolo("images/", "labels/", "classes.names", segmentation=True)
 print(f"Visualized {result['images_processed']} images")
 
-# Visualize COCO annotations (save_dir is optional)
+# Visualize COCO annotations (save_dir is optional, segmentation=True for strict segmentation mode)
 result = dataflow.visualize_coco("images/", "annotations.json")
 result = dataflow.visualize_coco("images/", "annotations.json", save_dir="output_dir/")
+result = dataflow.visualize_coco("images/", "annotations.json", segmentation=True)
 print(f"Visualized {result['images_processed']} images")
 
-# Visualize LabelMe annotations (save_dir is optional)
+# Visualize LabelMe annotations (save_dir is optional, segmentation=True for strict segmentation mode)
 result = dataflow.visualize_labelme("images/", "labels/")
 result = dataflow.visualize_labelme("images/", "labels/", save_dir="output_dir/")
+result = dataflow.visualize_labelme("images/", "labels/", segmentation=True)
 print(f"Visualized {result['images_processed']} images")
 print(f"Classes found: {result['classes_found']}")
 ```
@@ -415,6 +430,7 @@ result = dataflow.coco_to_yolo("annotations.json", "output_dir", segmentation=Tr
 
 # Visualize in strict segmentation mode
 result = dataflow.visualize_yolo("images/", "labels/", "classes.names", segmentation=True)
+result = dataflow.visualize_coco("images/", "annotations.json", segmentation=True)
 result = dataflow.visualize_labelme("images/", "labels/", segmentation=True)
 ```
 
@@ -461,6 +477,15 @@ These documents describe the annotation formats supported by DataFlow-CV, withou
 ## Development
 
 For development guidelines, architecture details, and contribution instructions, see [CLAUDE.md](CLAUDE.md). This file provides guidance for working with the codebase, including common development commands, architectural patterns, and writing principles.
+
+### Cross-Platform Development
+
+DataFlow-CV is designed for full cross-platform compatibility (Windows, Linux, macOS). Key principles:
+- Uses only standard Python libraries with no platform-specific APIs
+- File operations use `os.path.join()`, `pathlib.Path`, and `shutil` modules
+- Temporary files use `tempfile.mkdtemp()` and `tempfile.mkstemp()`
+- All 125 tests pass on both Linux and Windows platforms
+- No hardcoded Unix paths remain in the codebase
 
 ## License
 
