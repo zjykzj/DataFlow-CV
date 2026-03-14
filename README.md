@@ -497,7 +497,7 @@ DataFlow-CV is designed for full cross-platform compatibility (Windows, Linux, m
 - Uses only standard Python libraries with no platform-specific APIs
 - File operations use `os.path.join()`, `pathlib.Path`, and `shutil` modules
 - Temporary files use `tempfile.mkdtemp()` and `tempfile.mkstemp()`
-- All 192 tests pass on both Linux and Windows platforms
+- All 193 tests pass on both Linux and Windows platforms
 - No hardcoded Unix paths remain in the codebase
 
 ## License

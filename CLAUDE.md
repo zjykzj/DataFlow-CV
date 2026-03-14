@@ -411,6 +411,7 @@ DataFlow-CV has recently been enhanced with several improvements:
 - **Enhanced YOLO Visualizer**: Added debug logging for troubleshooting and improved class name extraction that merges classes from annotation files with those from class names files, supporting case-insensitive matching and fallback strategies.
 - **Improved Color Distinction**: Visualizers now use golden ratio distribution in HSV color space to generate distinct colors for many classes, with additional variation in saturation and value for better visual separation.
 - **Cross-Platform Robustness**: All platform-specific code has been eliminated; the library now uses only standard Python libraries and follows strict cross-platform development principles.
+- **Command alias**: Added `dataflow-cv` as an alias to the existing `dataflow` command for better alignment with package name.
 
 ## Platform Compatibility
 
@@ -430,7 +431,7 @@ All example scripts (`samples/`) now use `create_test_paths()` helper functions 
 ### Tests Module
 - Removed all `@unittest.skipIf(platform.system() == "Windows", ...)` decorators
 - Platform-dependent permission tests (`os.chmod()`) have been refactored to test invalid paths instead
-- All 192 tests pass on both Linux and Windows platforms
+- All 193 tests pass on both Linux and Windows platforms
 
 ### Development Principles for Cross-Platform Code
 When modifying or extending the codebase:
@@ -464,7 +465,7 @@ When modifying or extending the codebase:
    - Validate paths exist before operations, provide clear error messages
 
 ### Verification
-- All tests pass: `python tests/run_tests.py` (192 tests, 0 failures)
+- All tests pass: `python tests/run_tests.py` (193 tests, 0 failures)
 - Example scripts run correctly on all platforms
 - No hardcoded platform-specific paths remain in the codebase
 
