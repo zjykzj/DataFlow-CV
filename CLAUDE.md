@@ -170,6 +170,16 @@ result = dataflow.visualize_labelme("images/", "labels/")
 result = dataflow.visualize_labelme("images/", "labels/", save_dir="output_dir/")
 ```
 
+### Version Compatibility
+
+DataFlow-CV is compatible with the following minimum dependency versions:
+- `numpy>=1.24.0` (December 2022, supports Python 3.8+)
+- `opencv-python>=4.6.0.66` (October 2022 release)
+- `Pillow>=8.0.0` (January 2021)
+- `click>=7.0.0` (2018)
+
+All tests pass with these versions, and the library uses only basic functionality from each dependency. The previous higher version requirements have been lowered to increase compatibility with older environments.
+
 ## Architecture and Design Patterns
 
 ### Task‑Based Structure

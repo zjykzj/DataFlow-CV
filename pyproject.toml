@@ -27,10 +27,10 @@ classifiers = [
 ]
 keywords = ["computer-vision", "dataset", "conversion", "visualization", "coco", "yolo", "labelme"]
 dependencies = [
-    "numpy>=2.0.0",
-    "opencv-python>=4.8.0",
-    "Pillow>=10.0.0",
-    "click>=8.1.0",
+    "numpy>=1.24.0",
+    "opencv-python>=4.6.0.66",
+    "Pillow>=8.0.0",
+    "click>=7.0.0",
 ]
 requires-python = ">=3.8"
 

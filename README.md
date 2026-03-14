@@ -117,10 +117,10 @@ docs/                       # Data format documentation
 ### Core Dependencies
 - Python 3.8 or higher
 - Linux environment (POSIX compatible, assumes POSIX paths)
-- `click` >= 8.1.0 – CLI framework
-- `numpy` >= 2.0.0 – numerical operations
-- `opencv-python` >= 4.8.0 – image processing (optional, used for some image operations)
-- `Pillow` >= 10.0.0 – image reading (optional, used for reading image dimensions)
+- `click` >= 7.0.0 – CLI framework
+- `numpy` >= 1.24.0 – numerical operations
+- `opencv-python` >= 4.6.0.66 – image processing (optional, used for some image operations)
+- `Pillow` >= 8.0.0 – image reading (optional, used for reading image dimensions)
 
 ## Quick Start
 

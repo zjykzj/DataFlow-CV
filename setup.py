@@ -61,10 +61,10 @@ setup(
     ],
     python_requires=">=3.8",
     install_requires=[
-        "numpy>=2.0.0",
-        "opencv-python>=4.8.0",
-        "Pillow>=10.0.0",
-        "click>=8.1.0",
+        "numpy>=1.24.0",
+        "opencv-python>=4.6.0.66",
+        "Pillow>=8.0.0",
+        "click>=7.0.0",
     ],
     entry_points={
         "console_scripts": [
