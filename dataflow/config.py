@@ -29,7 +29,7 @@ class Config:
 
     # Conversion options
     OVERWRITE_EXISTING = False  # Whether to overwrite existing files
-    VERBOSE = True              # Print progress information
+    VERBOSE = False             # Print progress information
     CREATE_DIRS = True          # Create missing directories automatically
 
     # COCO format defaults

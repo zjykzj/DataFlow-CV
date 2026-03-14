@@ -29,36 +29,26 @@ except ImportError as e:
 
 
 @click.group(context_settings={'help_option_names': ['-h', '--help']}, invoke_without_command=True)
-@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
-@click.option('--overwrite', is_flag=True, help='Overwrite existing files')
-@click.version_option(version=__version__, prog_name='DataFlow-CV')
+@click.option('-v', '--version', is_flag=True, help='Show version')
 @click.pass_context
-def cli(ctx, verbose, overwrite):
+def cli(ctx, version):
     """DataFlow-CV: Computer vision dataset processing tool."""
-    # 处理-v单独使用的情况
-    if verbose and ctx.invoked_subcommand is None:
+
+    # 处理版本选项
+    if version:
         click.echo(f"DataFlow-CV, version {__version__}")
         ctx.exit()
 
     # 存储配置到上下文
     ctx.ensure_object(dict)
-    ctx.obj['verbose'] = verbose
-    ctx.obj['overwrite'] = overwrite
-
-    # 更新全局配置
-    if verbose:
-        Config.VERBOSE = True
-    if overwrite:
-        Config.OVERWRITE_EXISTING = True
+    ctx.obj['verbose'] = False
+    ctx.obj['overwrite'] = False
 
     # 如果没有子命令，显示帮助
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
         return
 
-    if verbose:
-        click.echo(f"Verbose mode: {'ON' if verbose else 'OFF'}")
-        click.echo(f"Overwrite mode: {'ON' if overwrite else 'OFF'}")
 
 
 # 动态注册模块命令组
