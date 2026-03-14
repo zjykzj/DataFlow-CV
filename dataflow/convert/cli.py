@@ -9,6 +9,7 @@
 
 import os
 import click
+import traceback
 from . import (
     CocoToYoloConverter,
     YoloToCocoConverter,

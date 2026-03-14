@@ -278,7 +278,9 @@ class YoloHandler:
                 raise ValueError(f"缺少必需字段: {field}")
 
         # 确保输出目录存在
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
 
         lines = []
         for annotation in image_annotations.get('annotations', []):
@@ -440,7 +442,9 @@ class YoloHandler:
             raise ValueError("类别列表为空")
 
         # 确保输出目录存在
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
 
         try:
             with open(output_path, 'w', encoding='utf-8') as f:

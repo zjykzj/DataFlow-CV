@@ -94,6 +94,9 @@ class BaseConverter(abc.ABC):
 
     def ensure_directory(self, dir_path: str) -> bool:
         """Ensure directory exists, create if needed."""
+        if not dir_path:
+            # 空路径表示当前目录，始终存在
+            return True
         if not os.path.exists(dir_path):
             try:
                 os.makedirs(dir_path, exist_ok=True)
