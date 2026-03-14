@@ -264,6 +264,30 @@ class TestLabelMeToCocoConverter(unittest.TestCase):
         )
         self.assertIsInstance(result, dict)
 
+    def test_converter_verbose_mode(self):
+        """Test converter verbose mode."""
+        # Test with verbose=False (default)
+        converter = LabelMeToCocoConverter(verbose=False)
+        self.assertFalse(converter.verbose)
+
+        # Test with verbose=True
+        converter = LabelMeToCocoConverter(verbose=True)
+        self.assertTrue(converter.verbose)
+
+        # Test with verbose=None (should use Config.VERBOSE)
+        original_verbose = Config.VERBOSE
+
+        Config.VERBOSE = True
+        converter = LabelMeToCocoConverter(verbose=None)
+        self.assertTrue(converter.verbose)
+
+        Config.VERBOSE = False
+        converter = LabelMeToCocoConverter(verbose=None)
+        self.assertFalse(converter.verbose)
+
+        # Restore original value
+        Config.VERBOSE = original_verbose
+
     def test_segmentation_option(self):
         """Test conversion with segmentation option."""
         # Create LabelMe JSON with polygon (segmentation)

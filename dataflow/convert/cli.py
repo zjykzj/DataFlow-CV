@@ -51,8 +51,9 @@ def _create_coco2yolo_command():
     @click.argument('coco_json_path', type=click.Path(exists=True, dir_okay=False))
     @click.argument('output_dir', type=click.Path(file_okay=False))
     @click.option('--segmentation', '-s', is_flag=True, help='Handle segmentation annotations')
+    @click.option('-v', '--verbose', is_flag=True, help='Print detailed progress information')
     @click.pass_context
-    def command(ctx, coco_json_path, output_dir, segmentation):
+    def command(ctx, coco_json_path, output_dir, segmentation, verbose):
         """
         Convert COCO JSON to YOLO format.
 
@@ -67,8 +68,14 @@ def _create_coco2yolo_command():
             click.echo(f"Output directory: {output_dir}")
             # Classes file will be auto-generated as {os.path.join(output_dir, ConvertConfig.YOLO_CLASSES_FILENAME)}
 
+            # Update config with local verbose flag
+            ConvertConfig.update_from_cli(
+                verbose=verbose,
+                overwrite=ctx.parent.obj.get('overwrite', False)
+            )
+
             # Create converter and perform conversion
-            converter = CocoToYoloConverter(verbose=ctx.parent.obj.get('verbose', False))
+            converter = CocoToYoloConverter(verbose=verbose)
             result = converter.convert(coco_json_path, output_dir, classes_path=None, segmentation=segmentation)
 
             # Print summary
@@ -89,8 +96,9 @@ def _create_yolo2coco_command():
     @click.argument('yolo_class_path', type=click.Path(exists=True, dir_okay=False))
     @click.argument('coco_json_path', type=click.Path())
     @click.option('--segmentation', '-s', is_flag=True, help='Handle segmentation annotations')
+    @click.option('-v', '--verbose', is_flag=True, help='Print detailed progress information')
     @click.pass_context
-    def command(ctx, image_dir, yolo_labels_dir, yolo_class_path, coco_json_path, segmentation=False):
+    def command(ctx, image_dir, yolo_labels_dir, yolo_class_path, coco_json_path, segmentation=False, verbose=False):
         """
         Convert YOLO format to COCO JSON.
 
@@ -106,8 +114,14 @@ def _create_yolo2coco_command():
             click.echo(f"YOLO classes file: {yolo_class_path}")
             click.echo(f"COCO JSON output: {coco_json_path}")
 
+            # Update config with local verbose flag
+            ConvertConfig.update_from_cli(
+                verbose=verbose,
+                overwrite=ctx.parent.obj.get('overwrite', False)
+            )
+
             # Create converter and perform conversion
-            converter = YoloToCocoConverter(verbose=ctx.parent.obj.get('verbose', False))
+            converter = YoloToCocoConverter(verbose=verbose)
             result = converter.convert(
                 image_dir, yolo_labels_dir, yolo_class_path, coco_json_path, segmentation=segmentation
             )
@@ -128,8 +142,9 @@ def _create_coco2labelme_command():
     @click.argument('coco_json_path', type=click.Path(exists=True, dir_okay=False))
     @click.argument('output_dir', type=click.Path(file_okay=False))
     @click.option('--segmentation', '-s', is_flag=True, help='Handle segmentation annotations')
+    @click.option('-v', '--verbose', is_flag=True, help='Print detailed progress information')
     @click.pass_context
-    def command(ctx, coco_json_path, output_dir, segmentation):
+    def command(ctx, coco_json_path, output_dir, segmentation, verbose):
         """
         Convert COCO JSON to LabelMe format.
 
@@ -143,8 +158,14 @@ def _create_coco2labelme_command():
             if segmentation:
                 click.echo("Segmentation mode: ON (strict)")
 
+            # Update config with local verbose flag
+            ConvertConfig.update_from_cli(
+                verbose=verbose,
+                overwrite=ctx.parent.obj.get('overwrite', False)
+            )
+
             # Create converter and perform conversion
-            converter = CocoToLabelMeConverter(verbose=ctx.parent.obj.get('verbose', False))
+            converter = CocoToLabelMeConverter(verbose=verbose)
             result = converter.convert(coco_json_path, output_dir, segmentation=segmentation)
 
             # Print summary
@@ -164,8 +185,9 @@ def _create_labelme2coco_command():
     @click.argument('classes_path', type=click.Path(exists=True, dir_okay=False))
     @click.argument('output_json_path', type=click.Path())
     @click.option('--segmentation', '-s', is_flag=True, help='Handle segmentation annotations')
+    @click.option('-v', '--verbose', is_flag=True, help='Print detailed progress information')
     @click.pass_context
-    def command(ctx, label_dir, classes_path, output_json_path, segmentation):
+    def command(ctx, label_dir, classes_path, output_json_path, segmentation, verbose):
         """
         Convert LabelMe format to COCO JSON.
 
@@ -181,8 +203,14 @@ def _create_labelme2coco_command():
             if segmentation:
                 click.echo("Segmentation mode: ON (strict)")
 
+            # Update config with local verbose flag
+            ConvertConfig.update_from_cli(
+                verbose=verbose,
+                overwrite=ctx.parent.obj.get('overwrite', False)
+            )
+
             # Create converter and perform conversion
-            converter = LabelMeToCocoConverter(verbose=ctx.parent.obj.get('verbose', False))
+            converter = LabelMeToCocoConverter(verbose=verbose)
             result = converter.convert(label_dir, classes_path, output_json_path, segmentation=segmentation)
 
             # Print summary
@@ -202,8 +230,9 @@ def _create_labelme2yolo_command():
     @click.argument('classes_path', type=click.Path(exists=True, dir_okay=False))
     @click.argument('output_dir', type=click.Path(file_okay=False))
     @click.option('--segmentation', '-s', is_flag=True, help='Handle segmentation annotations')
+    @click.option('-v', '--verbose', is_flag=True, help='Print detailed progress information')
     @click.pass_context
-    def command(ctx, label_dir, classes_path, output_dir, segmentation):
+    def command(ctx, label_dir, classes_path, output_dir, segmentation, verbose):
         """
         Convert LabelMe format to YOLO format.
 
@@ -219,8 +248,14 @@ def _create_labelme2yolo_command():
             if segmentation:
                 click.echo("Segmentation mode: ON (strict)")
 
+            # Update config with local verbose flag
+            ConvertConfig.update_from_cli(
+                verbose=verbose,
+                overwrite=ctx.parent.obj.get('overwrite', False)
+            )
+
             # Create converter and perform conversion
-            converter = LabelMeToYoloConverter(verbose=ctx.parent.obj.get('verbose', False))
+            converter = LabelMeToYoloConverter(verbose=verbose)
             result = converter.convert(label_dir, classes_path, output_dir, segmentation=segmentation)
 
             # Print summary
@@ -241,8 +276,9 @@ def _create_yolo2labelme_command():
     @click.argument('classes_path', type=click.Path(exists=True, dir_okay=False))
     @click.argument('output_dir', type=click.Path(file_okay=False))
     @click.option('--segmentation', '-s', is_flag=True, help='Handle segmentation annotations')
+    @click.option('-v', '--verbose', is_flag=True, help='Print detailed progress information')
     @click.pass_context
-    def command(ctx, image_dir, label_dir, classes_path, output_dir, segmentation):
+    def command(ctx, image_dir, label_dir, classes_path, output_dir, segmentation, verbose):
         """
         Convert YOLO format to LabelMe format.
 
@@ -260,8 +296,14 @@ def _create_yolo2labelme_command():
             if segmentation:
                 click.echo("Segmentation mode: ON (strict)")
 
+            # Update config with local verbose flag
+            ConvertConfig.update_from_cli(
+                verbose=verbose,
+                overwrite=ctx.parent.obj.get('overwrite', False)
+            )
+
             # Create converter and perform conversion
-            converter = YoloToLabelMeConverter(verbose=ctx.parent.obj.get('verbose', False))
+            converter = YoloToLabelMeConverter(verbose=verbose)
             result = converter.convert(image_dir, label_dir, classes_path, output_dir, segmentation=segmentation)
 
             # Print summary
@@ -276,6 +318,8 @@ def _create_yolo2labelme_command():
 
 def _print_conversion_summary(result, segmentation):
     """打印转换结果摘要"""
+    from ..config import Config
+
     click.echo("\n" + "="*50)
     click.echo("CONVERSION SUMMARY")
     click.echo("="*50)
@@ -301,4 +345,5 @@ def _print_conversion_summary(result, segmentation):
             click.echo(f"{display_name}: {result[key]}")
 
     click.echo(f"Segmentation mode: {'ON' if segmentation else 'OFF'}")
+    click.echo(f"Verbose mode: {'ON' if Config.VERBOSE else 'OFF'}")
     click.echo("\n✅ Conversion completed successfully!")

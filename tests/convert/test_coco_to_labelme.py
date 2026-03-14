@@ -250,6 +250,30 @@ class TestCocoToLabelMeConverter(unittest.TestCase):
         result = converter.convert(self.coco_json_path, self.output_dir)
         self.assertIsInstance(result, dict)
 
+    def test_converter_verbose_mode(self):
+        """Test converter verbose mode."""
+        # Test with verbose=False (default)
+        converter = CocoToLabelMeConverter(verbose=False)
+        self.assertFalse(converter.verbose)
+
+        # Test with verbose=True
+        converter = CocoToLabelMeConverter(verbose=True)
+        self.assertTrue(converter.verbose)
+
+        # Test with verbose=None (should use Config.VERBOSE)
+        original_verbose = Config.VERBOSE
+
+        Config.VERBOSE = True
+        converter = CocoToLabelMeConverter(verbose=None)
+        self.assertTrue(converter.verbose)
+
+        Config.VERBOSE = False
+        converter = CocoToLabelMeConverter(verbose=None)
+        self.assertFalse(converter.verbose)
+
+        # Restore original value
+        Config.VERBOSE = original_verbose
+
     def test_segmentation_option(self):
         """Test conversion with segmentation option."""
         # Create COCO JSON with segmentation
