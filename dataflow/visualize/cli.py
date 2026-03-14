@@ -40,8 +40,9 @@ def _create_yolo_command():
     @click.argument('class_path', type=click.Path(exists=True, dir_okay=False))
     @click.option('--save', type=click.Path(file_okay=False), help='Directory to save visualized images')
     @click.option('--segmentation', '-s', is_flag=True, help='Force segmentation mode (strict validation)')
+    @click.option('-v', '--verbose', is_flag=True, help='Print detailed progress information')
     @click.pass_context
-    def command(ctx, image_dir, label_dir, class_path, save, segmentation):
+    def command(ctx, image_dir, label_dir, class_path, save, segmentation, verbose):
         """
         Visualize YOLO format annotations.
 
@@ -59,8 +60,14 @@ def _create_yolo_command():
             if segmentation:
                 click.echo("Segmentation mode: ON (strict)")
 
+            # Update config with local verbose flag
+            VisualizeConfig.update_from_cli(
+                verbose=verbose,
+                overwrite=ctx.parent.obj.get('overwrite', False)
+            )
+
             # Create visualizer and perform visualization
-            visualizer = YoloVisualizer(verbose=ctx.parent.obj.get('verbose', False), segmentation=segmentation)
+            visualizer = YoloVisualizer(verbose=verbose, segmentation=segmentation)
             result = visualizer.visualize(image_dir, label_dir, class_path, save)
 
             _print_visualization_summary(result, segmentation)
@@ -79,8 +86,9 @@ def _create_coco_command():
     @click.argument('annotation_json', type=click.Path(exists=True, dir_okay=False))
     @click.option('--save', type=click.Path(file_okay=False), help='Directory to save visualized images')
     @click.option('--segmentation', '-s', is_flag=True, help='Force segmentation mode (strict validation)')
+    @click.option('-v', '--verbose', is_flag=True, help='Print detailed progress information')
     @click.pass_context
-    def command(ctx, image_dir, annotation_json, save, segmentation):
+    def command(ctx, image_dir, annotation_json, save, segmentation, verbose):
         """
         Visualize COCO format annotations.
 
@@ -96,8 +104,14 @@ def _create_coco_command():
             if segmentation:
                 click.echo("Segmentation mode: ON (strict)")
 
+            # Update config with local verbose flag
+            VisualizeConfig.update_from_cli(
+                verbose=verbose,
+                overwrite=ctx.parent.obj.get('overwrite', False)
+            )
+
             # Create visualizer and perform visualization
-            visualizer = CocoVisualizer(verbose=ctx.parent.obj.get('verbose', False), segmentation=segmentation)
+            visualizer = CocoVisualizer(verbose=verbose, segmentation=segmentation)
             result = visualizer.visualize(image_dir, annotation_json, save)
 
             _print_visualization_summary(result, segmentation)
@@ -116,8 +130,9 @@ def _create_labelme_command():
     @click.argument('label_dir', type=click.Path(exists=True, file_okay=False))
     @click.option('--save', type=click.Path(file_okay=False), help='Directory to save visualized images')
     @click.option('--segmentation', '-s', is_flag=True, help='Force segmentation mode (strict validation)')
+    @click.option('-v', '--verbose', is_flag=True, help='Print detailed progress information')
     @click.pass_context
-    def command(ctx, image_dir, label_dir, save, segmentation):
+    def command(ctx, image_dir, label_dir, save, segmentation, verbose):
         """
         Visualize LabelMe format annotations.
 
@@ -133,8 +148,14 @@ def _create_labelme_command():
             if segmentation:
                 click.echo("Segmentation mode: ON (strict)")
 
+            # Update config with local verbose flag
+            VisualizeConfig.update_from_cli(
+                verbose=verbose,
+                overwrite=ctx.parent.obj.get('overwrite', False)
+            )
+
             # Create visualizer and perform visualization
-            visualizer = LabelMeVisualizer(verbose=ctx.parent.obj.get('verbose', False), segmentation=segmentation)
+            visualizer = LabelMeVisualizer(verbose=verbose, segmentation=segmentation)
             result = visualizer.visualize(image_dir, label_dir, save)
 
             _print_visualization_summary(result, segmentation)

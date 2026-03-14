@@ -355,5 +355,31 @@ class TestYoloVisualizer(unittest.TestCase):
         # Also verify that classes_found contains all three classes
         self.assertEqual(sorted(result["classes_found"]), ["bicycle", "car", "person"])
 
+    def test_verbose_flag(self):
+        """Test that verbose flag controls logging level."""
+        import logging
+        # Test with verbose=False
+        vis_false = YoloVisualizer(verbose=False)
+        self.assertFalse(vis_false.verbose)
+        self.assertEqual(vis_false.logger.level, logging.WARNING)
+
+        # Test with verbose=True
+        vis_true = YoloVisualizer(verbose=True)
+        self.assertTrue(vis_true.verbose)
+        self.assertEqual(vis_true.logger.level, logging.INFO)
+
+        # Test default (should use Config.VERBOSE which defaults to False)
+        from dataflow.config import Config
+        original = Config.VERBOSE
+        try:
+            Config.VERBOSE = True
+            vis_default = YoloVisualizer()
+            self.assertTrue(vis_default.verbose)
+            Config.VERBOSE = False
+            vis_default2 = YoloVisualizer()
+            self.assertFalse(vis_default2.verbose)
+        finally:
+            Config.VERBOSE = original
+
 if __name__ == "__main__":
     unittest.main()

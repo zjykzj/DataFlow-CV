@@ -33,7 +33,6 @@ class VisualizeConfig:
     @classmethod
     def update_from_cli(cls, verbose=False, overwrite=False):
         """根据CLI选项更新全局配置"""
-        if verbose:
-            Config.VERBOSE = True
+        Config.VERBOSE = verbose  # Explicitly set to True or False
         if overwrite:
             Config.OVERWRITE_EXISTING = True
