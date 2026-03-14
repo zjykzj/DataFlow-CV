@@ -12,7 +12,6 @@ import json
 import tempfile
 import unittest
 import shutil
-import platform
 from pathlib import Path
 
 import sys
@@ -173,28 +172,25 @@ class TestLabelMeToYoloConverter(unittest.TestCase):
         with self.assertRaises(ValueError):
             converter.convert("/invalid/path/labels", self.classes_file, self.output_dir)
 
-    @unittest.skipIf(platform.system() == "Windows", "Permission tests not supported on Windows")
     def test_invalid_output_dir(self):
         """Test conversion with invalid output directory."""
         converter = LabelMeToYoloConverter(verbose=False)
 
-        # Create a read-only directory to simulate permission error
-        import tempfile, stat
-        read_only_dir = tempfile.mkdtemp(prefix="test_readonly_")
+        # 使用文件路径作为输出目录（应该失败）
+        import tempfile
+        temp_dir = tempfile.mkdtemp(prefix="test_invalid_")
+        invalid_dir = os.path.join(temp_dir, "file.txt")
+
+        # 创建一个文件而不是目录
+        with open(invalid_dir, 'w', encoding='utf-8') as f:
+            f.write("test")
+
         try:
-            # Remove write permissions for all users
-            os.chmod(read_only_dir, stat.S_IRUSR | stat.S_IXUSR)  # read and execute only
-
-            # Try to write to a subdirectory within the read-only directory
-            invalid_dir = os.path.join(read_only_dir, "no_permission")
-
             with self.assertRaises(ValueError):
                 converter.convert(self.label_dir, self.classes_file, invalid_dir)
         finally:
-            # Restore permissions to allow cleanup
-            os.chmod(read_only_dir, stat.S_IRWXU)
             import shutil
-            shutil.rmtree(read_only_dir)
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_empty_label_dir(self):
         """Test conversion with empty label directory."""

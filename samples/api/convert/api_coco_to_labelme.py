@@ -16,6 +16,7 @@ import sys
 import json
 import tempfile
 import shutil
+import stat
 from pathlib import Path
 
 # Add parent directory to path to import dataflow
@@ -32,6 +33,37 @@ def print_header(title):
     print("\n" + "="*60)
     print(f"  {title}")
     print("="*60)
+
+
+def create_test_paths():
+    """创建跨平台的测试路径"""
+    # Create temporary directory
+    temp_dir = tempfile.mkdtemp(prefix="dataflow_test_")
+
+    # 不存在的路径（用于测试无效路径错误）
+    nonexistent_path = os.path.join(temp_dir, "nonexistent_subdir", "file.txt")
+
+    # 尝试创建只读目录（在Windows上可能失败）
+    read_only_dir = os.path.join(temp_dir, "readonly_dir")
+    os.makedirs(read_only_dir, exist_ok=True)
+
+    try:
+        # 尝试设置为只读
+        os.chmod(read_only_dir, stat.S_IRUSR | stat.S_IXUSR)
+        read_only_path = os.path.join(read_only_dir, "no_permission.txt")
+    except (OSError, PermissionError):
+        # Windows上无法设置只读目录，使用普通路径
+        read_only_path = os.path.join(read_only_dir, "no_permission.txt")
+
+    # 临时文件路径
+    temp_file_path = os.path.join(temp_dir, "temp_file.txt")
+
+    return {
+        "temp_dir": temp_dir,
+        "nonexistent_path": nonexistent_path,
+        "read_only_path": read_only_path,
+        "temp_file_path": temp_file_path
+    }
 
 
 def create_sample_coco_data():
@@ -328,34 +360,43 @@ def demo_error_handling():
     """Demonstrate error handling."""
     print_header("ERROR HANDLING")
 
-    print(f"\n1. Invalid COCO JSON path:")
-    try:
-        result = dataflow.coco_to_labelme("/invalid/path/annotations.json", "/tmp/output")
-        print(f"   ❌ Should have raised an error")
-    except ValueError as e:
-        print(f"   ✅ Caught expected error: {str(e)[:50]}...")
+    # 创建测试路径
+    test_paths = create_test_paths()
 
-    print(f"\n2. Invalid output directory:")
     try:
-        result = dataflow.coco_to_labelme("/tmp/annotations.json", "/root/no_permission")
-        print(f"   ❌ Should have raised an error")
-    except (ValueError, PermissionError) as e:
-        print(f"   ✅ Caught expected error: {str(e)[:50]}...")
-
-    print(f"\n3. Malformed COCO JSON:")
-    temp_dir = tempfile.mkdtemp(prefix="error_demo_")
-    try:
-        bad_json = os.path.join(temp_dir, "bad.json")
-        with open(bad_json, 'w', encoding='utf-8') as f:
-            f.write("{ invalid json }")
-
+        print(f"\n1. Invalid COCO JSON path:")
         try:
-            result = dataflow.coco_to_labelme(bad_json, "/tmp/output")
+            result = dataflow.coco_to_labelme(test_paths["nonexistent_path"],
+                                             os.path.join(test_paths["temp_dir"], "output"))
             print(f"   ❌ Should have raised an error")
-        except (ValueError, json.JSONDecodeError) as e:
+        except ValueError as e:
             print(f"   ✅ Caught expected error: {str(e)[:50]}...")
+
+        print(f"\n2. Invalid output directory:")
+        try:
+            result = dataflow.coco_to_labelme(test_paths["temp_file_path"],
+                                             test_paths["read_only_path"])
+            print(f"   ❌ Should have raised an error")
+        except (ValueError, PermissionError) as e:
+            print(f"   ✅ Caught expected error: {str(e)[:50]}...")
+
+        print(f"\n3. Malformed COCO JSON:")
+        temp_dir = tempfile.mkdtemp(prefix="error_demo_")
+        try:
+            bad_json = os.path.join(temp_dir, "bad.json")
+            with open(bad_json, 'w', encoding='utf-8') as f:
+                f.write("{ invalid json }")
+
+            try:
+                result = dataflow.coco_to_labelme(bad_json, os.path.join(test_paths["temp_dir"], "output"))
+                print(f"   ❌ Should have raised an error")
+            except (ValueError, json.JSONDecodeError) as e:
+                print(f"   ✅ Caught expected error: {str(e)[:50]}...")
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
     finally:
-        shutil.rmtree(temp_dir, ignore_errors=True)
+        # 清理临时文件
+        shutil.rmtree(test_paths["temp_dir"], ignore_errors=True)
 
 
 def main():
@@ -412,7 +453,7 @@ def main():
             print("✅ Temporary files cleaned up.")
         else:
             print(f"⚠️  Temporary files preserved at: {temp_dir}")
-            print(f"   You may want to clean up manually: rm -rf {temp_dir}")
+            print(f"   You may want to clean up manually: {temp_dir}")
 
 
 if __name__ == "__main__":
