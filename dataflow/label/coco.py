@@ -23,6 +23,7 @@ COCO格式是单个JSON文件包含整个数据集，包含：
 
 import os
 import json
+import logging
 from typing import Dict, List, Tuple, Union, Optional
 
 
@@ -40,6 +41,18 @@ class CocoHandler:
             verbose: 是否输出详细信息
         """
         self.verbose = verbose
+        self.logger = self._setup_logger()
+
+    def _setup_logger(self):
+        """设置日志记录器"""
+        logger = logging.getLogger(self.__class__.__name__)
+        if not logger.handlers:
+            handler = logging.StreamHandler()
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            handler.setFormatter(formatter)
+            logger.addHandler(handler)
+        logger.setLevel(logging.INFO if self.verbose else logging.WARNING)
+        return logger
 
     def read(self, json_path: str) -> Dict:
         """读取COCO JSON文件
@@ -88,10 +101,10 @@ class CocoHandler:
             }]
 
         if self.verbose:
-            print(f"读取COCO文件: {json_path}")
-            print(f"  图像数量: {len(coco_data['images'])}")
-            print(f"  标注数量: {len(coco_data['annotations'])}")
-            print(f"  类别数量: {len(coco_data['categories'])}")
+            self.logger.info(f"读取COCO文件: {json_path}")
+            self.logger.info(f"  图像数量: {len(coco_data['images'])}")
+            self.logger.info(f"  标注数量: {len(coco_data['annotations'])}")
+            self.logger.info(f"  类别数量: {len(coco_data['categories'])}")
 
         return coco_data
 
@@ -140,15 +153,15 @@ class CocoHandler:
                 json.dump(data, f, indent=2, ensure_ascii=False)
 
             if self.verbose:
-                print(f"写入COCO文件: {output_path}")
-                print(f"  图像数量: {len(data['images'])}")
-                print(f"  标注数量: {len(data['annotations'])}")
-                print(f"  类别数量: {len(data['categories'])}")
+                self.logger.info(f"写入COCO文件: {output_path}")
+                self.logger.info(f"  图像数量: {len(data['images'])}")
+                self.logger.info(f"  标注数量: {len(data['annotations'])}")
+                self.logger.info(f"  类别数量: {len(data['categories'])}")
 
             return True
         except Exception as e:
             if self.verbose:
-                print(f"写入文件失败: {output_path}, 错误: {e}")
+                self.logger.info(f"写入文件失败: {output_path}, 错误: {e}")
             return False
 
     def get_image_annotations(self, coco_data: Dict, image_id: int) -> List[Dict]:

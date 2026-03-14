@@ -20,6 +20,7 @@ YOLO格式每张图片对应一个.txt文件：
 
 import os
 import glob
+import logging
 from typing import Dict, List, Tuple, Union, Optional
 
 
@@ -37,6 +38,18 @@ class YoloHandler:
             verbose: 是否输出详细信息
         """
         self.verbose = verbose
+        self.logger = self._setup_logger()
+
+    def _setup_logger(self):
+        """设置日志记录器"""
+        logger = logging.getLogger(self.__class__.__name__)
+        if not logger.handlers:
+            handler = logging.StreamHandler()
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            handler.setFormatter(formatter)
+            logger.addHandler(handler)
+        logger.setLevel(logging.INFO if self.verbose else logging.WARNING)
+        return logger
 
     def read(self, label_path: str, image_path: str, classes: List[str],
              image_size: Optional[Tuple[int, int]] = None,
@@ -77,10 +90,10 @@ class YoloHandler:
             if size:
                 width, height = size
             elif self.verbose:
-                print(f"警告: 无法获取图像尺寸: {image_path}")
+                self.logger.info(f"警告: 无法获取图像尺寸: {image_path}")
         else:
             if self.verbose:
-                print(f"警告: 图像文件不存在: {image_path}")
+                self.logger.info(f"警告: 图像文件不存在: {image_path}")
 
         # 读取标签文件
         annotations = []
@@ -103,7 +116,7 @@ class YoloHandler:
                 class_id = int(parts[0])
                 if class_id < 0 or class_id >= len(classes):
                     if self.verbose:
-                        print(f"警告: 行 {line_num}: 类别ID {class_id} 超出范围")
+                        self.logger.info(f"警告: 行 {line_num}: 类别ID {class_id} 超出范围")
                     continue
 
                 coords = [float(x) for x in parts[1:]]
@@ -123,7 +136,7 @@ class YoloHandler:
                                                          force_polygon=require_segmentation)
                 else:
                     if self.verbose:
-                        print(f"警告: 行 {line_num}: 坐标数量无效: {len(coords)}")
+                        self.logger.info(f"警告: 行 {line_num}: 坐标数量无效: {len(coords)}")
                     continue
 
                 if annotation:
@@ -131,7 +144,7 @@ class YoloHandler:
 
             except ValueError as e:
                 if self.verbose:
-                    print(f"警告: 行 {line_num}: 解析错误: {e}")
+                    self.logger.info(f"警告: 行 {line_num}: 解析错误: {e}")
 
         image_id = os.path.splitext(os.path.basename(image_path))[0]
         image_annotations = {
@@ -143,9 +156,9 @@ class YoloHandler:
         }
 
         if self.verbose:
-            print(f"读取YOLO标签文件: {label_path}")
-            print(f"  图像: {image_path}")
-            print(f"  标注数量: {len(annotations)}")
+            self.logger.info(f"读取YOLO标签文件: {label_path}")
+            self.logger.info(f"  图像: {image_path}")
+            self.logger.info(f"  标注数量: {len(annotations)}")
 
         return image_annotations
 
@@ -165,11 +178,11 @@ class YoloHandler:
                 return img.size  # (width, height)
         except ImportError:
             if self.verbose:
-                print("警告: PIL (Pillow) 未安装，无法自动获取图像尺寸")
+                self.logger.info("警告: PIL (Pillow) 未安装，无法自动获取图像尺寸")
             return None
         except Exception:
             if self.verbose:
-                print(f"警告: 无法读取图像尺寸: {image_path}")
+                self.logger.info(f"警告: 无法读取图像尺寸: {image_path}")
             return None
 
     def read_batch(self, labels_dir: str, images_dir: str, classes_path: str,
@@ -207,7 +220,7 @@ class YoloHandler:
         label_files = glob.glob(os.path.join(labels_dir, f"*{label_ext}"))
         if not label_files:
             if self.verbose:
-                print(f"警告: 目录中没有找到标签文件: {labels_dir}")
+                self.logger.info(f"警告: 目录中没有找到标签文件: {labels_dir}")
             return []
 
         results = []
@@ -225,7 +238,7 @@ class YoloHandler:
 
             if not image_file:
                 if self.verbose:
-                    print(f"警告: 找不到标签文件对应的图像: {label_basename}")
+                    self.logger.info(f"警告: 找不到标签文件对应的图像: {label_basename}")
                 continue
 
             try:
@@ -233,14 +246,14 @@ class YoloHandler:
                 results.append(image_annotations)
             except (FileNotFoundError, ValueError) as e:
                 if self.verbose:
-                    print(f"警告: 跳过文件 {label_file}, 错误: {e}")
+                    self.logger.info(f"警告: 跳过文件 {label_file}, 错误: {e}")
 
         if self.verbose:
-            print(f"批量读取完成:")
-            print(f"  标签目录: {labels_dir}")
-            print(f"  图像目录: {images_dir}")
-            print(f"  成功读取文件数: {len(results)}")
-            print(f"  总标注数量: {sum(len(r['annotations']) for r in results)}")
+            self.logger.info(f"批量读取完成:")
+            self.logger.info(f"  标签目录: {labels_dir}")
+            self.logger.info(f"  图像目录: {images_dir}")
+            self.logger.info(f"  成功读取文件数: {len(results)}")
+            self.logger.info(f"  总标注数量: {sum(len(r['annotations']) for r in results)}")
 
         return results
 
@@ -275,7 +288,7 @@ class YoloHandler:
                 class_id = classes.index(category_name)
             except ValueError:
                 if self.verbose:
-                    print(f"警告: 类别 '{category_name}' 不在类别列表中")
+                    self.logger.info(f"警告: 类别 '{category_name}' 不在类别列表中")
                 continue
 
             # 获取图像尺寸
@@ -284,7 +297,7 @@ class YoloHandler:
 
             if width <= 0 or height <= 0:
                 if self.verbose:
-                    print(f"警告: 图像尺寸无效: {width}x{height}")
+                    self.logger.info(f"警告: 图像尺寸无效: {width}x{height}")
                 continue
 
             # 优先使用分割数据
@@ -317,21 +330,21 @@ class YoloHandler:
                 lines.append(line)
             else:
                 if self.verbose:
-                    print(f"警告: 标注无有效bbox或segmentation数据")
+                    self.logger.info(f"警告: 标注无有效bbox或segmentation数据")
 
         try:
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write("\n".join(lines))
 
             if self.verbose:
-                print(f"写入YOLO标签文件: {output_path}")
-                print(f"  图像: {image_annotations.get('image_path', 'unknown')}")
-                print(f"  标注行数: {len(lines)}")
+                self.logger.info(f"写入YOLO标签文件: {output_path}")
+                self.logger.info(f"  图像: {image_annotations.get('image_path', 'unknown')}")
+                self.logger.info(f"  标注行数: {len(lines)}")
 
             return True
         except Exception as e:
             if self.verbose:
-                print(f"写入文件失败: {output_path}, 错误: {e}")
+                self.logger.info(f"写入文件失败: {output_path}, 错误: {e}")
             return False
 
     def write_batch(self, images_annotations: List[Dict], output_dir: str, classes_path: str) -> bool:
@@ -347,7 +360,7 @@ class YoloHandler:
         """
         if not images_annotations:
             if self.verbose:
-                print(f"警告: 数据列表为空")
+                self.logger.info(f"警告: 数据列表为空")
             return False
 
         # 读取类别
@@ -372,13 +385,13 @@ class YoloHandler:
                     success_count += 1
             except Exception as e:
                 if self.verbose:
-                    print(f"警告: 跳过图像 {image_id}, 错误: {e}")
+                    self.logger.info(f"警告: 跳过图像 {image_id}, 错误: {e}")
 
         all_success = success_count == len(images_annotations)
 
         if self.verbose:
-            print(f"批量写入完成: 目录 {output_dir}")
-            print(f"  成功写入文件数: {success_count}/{len(images_annotations)}")
+            self.logger.info(f"批量写入完成: 目录 {output_dir}")
+            self.logger.info(f"  成功写入文件数: {success_count}/{len(images_annotations)}")
 
         return all_success
 
@@ -408,8 +421,8 @@ class YoloHandler:
             raise ValueError(f"读取类别文件失败: {e}")
 
         if self.verbose:
-            print(f"读取类别文件: {classes_path}")
-            print(f"  类别数量: {len(classes)}")
+            self.logger.info(f"读取类别文件: {classes_path}")
+            self.logger.info(f"  类别数量: {len(classes)}")
 
         return classes
 
@@ -435,13 +448,13 @@ class YoloHandler:
                     f.write(f"{class_name}\n")
 
             if self.verbose:
-                print(f"写入类别文件: {output_path}")
-                print(f"  类别数量: {len(classes)}")
+                self.logger.info(f"写入类别文件: {output_path}")
+                self.logger.info(f"  类别数量: {len(classes)}")
 
             return True
         except Exception as e:
             if self.verbose:
-                print(f"写入类别文件失败: {output_path}, 错误: {e}")
+                self.logger.info(f"写入类别文件失败: {output_path}, 错误: {e}")
             return False
 
     def _parse_detection(self, coords: List[float], class_id: int,

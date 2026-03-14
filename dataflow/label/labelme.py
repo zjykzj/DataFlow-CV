@@ -24,6 +24,7 @@ LabelMe格式是JSON格式，每张图片对应一个JSON文件，包含：
 import os
 import json
 import glob
+import logging
 from typing import Dict, List, Tuple, Union, Optional
 
 
@@ -41,6 +42,18 @@ class LabelMeHandler:
             verbose: 是否输出详细信息
         """
         self.verbose = verbose
+        self.logger = self._setup_logger()
+
+    def _setup_logger(self):
+        """设置日志记录器"""
+        logger = logging.getLogger(self.__class__.__name__)
+        if not logger.handlers:
+            handler = logging.StreamHandler()
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            handler.setFormatter(formatter)
+            logger.addHandler(handler)
+        logger.setLevel(logging.INFO if self.verbose else logging.WARNING)
+        return logger
 
     def read(self, json_path: str, require_segmentation: bool = False) -> Dict:
         """读取单个LabelMe JSON文件
@@ -101,9 +114,9 @@ class LabelMeHandler:
                 image_annotations["annotations"].append(annotation)
 
         if self.verbose:
-            print(f"读取LabelMe文件: {json_path}")
-            print(f"  图像: {image_annotations['image_path']}")
-            print(f"  标注数量: {len(image_annotations['annotations'])}")
+            self.logger.info(f"读取LabelMe文件: {json_path}")
+            self.logger.info(f"  图像: {image_annotations['image_path']}")
+            self.logger.info(f"  标注数量: {len(image_annotations['annotations'])}")
 
         return image_annotations
 
@@ -127,7 +140,7 @@ class LabelMeHandler:
         json_files = glob.glob(os.path.join(json_dir, pattern))
         if not json_files:
             if self.verbose:
-                print(f"警告: 目录中没有找到JSON文件: {json_dir}")
+                self.logger.info(f"警告: 目录中没有找到JSON文件: {json_dir}")
             return []
 
         results = []
@@ -137,13 +150,13 @@ class LabelMeHandler:
                 results.append(image_annotations)
             except FileNotFoundError as e:
                 if self.verbose:
-                    print(f"警告: 跳过文件 {json_file}, 错误: {e}")
+                    self.logger.info(f"警告: 跳过文件 {json_file}, 错误: {e}")
             # ValueError from read() indicates invalid JSON or format, propagate it
 
         if self.verbose:
-            print(f"批量读取完成: 目录 {json_dir}")
-            print(f"  成功读取文件数: {len(results)}")
-            print(f"  总标注数量: {sum(len(r['annotations']) for r in results)}")
+            self.logger.info(f"批量读取完成: 目录 {json_dir}")
+            self.logger.info(f"  成功读取文件数: {len(results)}")
+            self.logger.info(f"  总标注数量: {sum(len(r['annotations']) for r in results)}")
 
         return results
 
@@ -191,14 +204,14 @@ class LabelMeHandler:
                 json.dump(labelme_data, f, indent=2, ensure_ascii=False)
 
             if self.verbose:
-                print(f"写入LabelMe文件: {output_path}")
-                print(f"  图像: {data['image_path']}")
-                print(f"  标注数量: {len(labelme_data['shapes'])}")
+                self.logger.info(f"写入LabelMe文件: {output_path}")
+                self.logger.info(f"  图像: {data['image_path']}")
+                self.logger.info(f"  标注数量: {len(labelme_data['shapes'])}")
 
             return True
         except Exception as e:
             if self.verbose:
-                print(f"写入文件失败: {output_path}, 错误: {e}")
+                self.logger.info(f"写入文件失败: {output_path}, 错误: {e}")
             return False
 
     def write_batch(self, data_list: List[Dict], output_dir: str) -> bool:
@@ -213,7 +226,7 @@ class LabelMeHandler:
         """
         if not data_list:
             if self.verbose:
-                print(f"警告: 数据列表为空")
+                self.logger.info(f"警告: 数据列表为空")
             return False
 
         os.makedirs(output_dir, exist_ok=True)
@@ -229,13 +242,13 @@ class LabelMeHandler:
                     success_count += 1
             except Exception as e:
                 if self.verbose:
-                    print(f"警告: 跳过图像 {image_id}, 错误: {e}")
+                    self.logger.info(f"警告: 跳过图像 {image_id}, 错误: {e}")
 
         all_success = success_count == len(data_list)
 
         if self.verbose:
-            print(f"批量写入完成: 目录 {output_dir}")
-            print(f"  成功写入文件数: {success_count}/{len(data_list)}")
+            self.logger.info(f"批量写入完成: 目录 {output_dir}")
+            self.logger.info(f"  成功写入文件数: {success_count}/{len(data_list)}")
 
         return all_success
 
@@ -270,7 +283,7 @@ class LabelMeHandler:
             if require_segmentation:
                 # 要求分割格式但标注是矩形框，跳过
                 if self.verbose:
-                    print(f"警告: 要求分割格式但标注是矩形框，跳过: {shape['label']}")
+                    self.logger.info(f"警告: 要求分割格式但标注是矩形框，跳过: {shape['label']}")
                 return None
             # 矩形框: points = [[x1, y1], [x2, y2]]
             x1, y1 = points[0]
@@ -332,7 +345,7 @@ class LabelMeHandler:
         else:
             # 不支持的shape类型
             if self.verbose:
-                print(f"警告: 跳过不支持的shape类型: {shape['shape_type']}")
+                self.logger.info(f"警告: 跳过不支持的shape类型: {shape['shape_type']}")
             return None
 
         return annotation
@@ -415,5 +428,5 @@ class LabelMeHandler:
 
         # 无有效数据
         if self.verbose:
-            print(f"警告: 标注无有效bbox或segmentation数据")
+            self.logger.info(f"警告: 标注无有效bbox或segmentation数据")
         return None

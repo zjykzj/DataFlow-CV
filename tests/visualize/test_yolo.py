@@ -328,14 +328,18 @@ class TestYoloVisualizer(unittest.TestCase):
         log_capture_string = io.StringIO()
         ch = logging.StreamHandler(log_capture_string)
         ch.setLevel(logging.DEBUG)
+        # Temporarily set logger level to DEBUG to capture debug messages
+        original_level = self.visualizer.logger.level
+        self.visualizer.logger.setLevel(logging.DEBUG)
         self.visualizer.logger.addHandler(ch)
 
         result = self.visualizer.visualize(
             self.image_dir, self.label_dir, self.class_file
         )
 
-        # Remove handler
+        # Remove handler and restore original level
         self.visualizer.logger.removeHandler(ch)
+        self.visualizer.logger.setLevel(original_level)
 
         # Check that we have 3 annotations processed
         self.assertEqual(result["annotations_processed"], 3)

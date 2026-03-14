@@ -57,9 +57,7 @@ class YoloVisualizer(GenericVisualizer):
                 - save_dir: Path where images were saved (if save_dir provided)
         """
         # Validate inputs
-        # Temporarily enable debug logging for troubleshooting
-        self.logger.setLevel(logging.DEBUG)
-        self.logger.debug("Debug logging enabled for YOLO visualization")
+        # Debug logging is controlled by verbose parameter through base class
 
         if not self.validate_input_path(image_dir, is_dir=True):
             raise ValueError(f"Invalid image directory: {image_dir}")
@@ -86,12 +84,12 @@ class YoloVisualizer(GenericVisualizer):
             )
             # Debug logging for annotation data
             if annotations_list:
-                print(f"[DEBUG] Read {len(annotations_list)} image annotations", flush=True)
+                self.logger.debug(f"Read {len(annotations_list)} image annotations")
                 for i, img_data in enumerate(annotations_list[:3]):  # Check first 3 images
                     anns = img_data.get("annotations", [])
-                    print(f"[DEBUG]   Image {i}: {img_data.get('image_id', 'unknown')}, {len(anns)} annotations", flush=True)
+                    self.logger.debug(f"  Image {i}: {img_data.get('image_id', 'unknown')}, {len(anns)} annotations")
                     for j, ann in enumerate(anns[:3]):  # Check first 3 annotations per image
-                        print(f"[DEBUG]     Annotation {j}: category_id={ann.get('category_id')}, category_name={ann.get('category_name')}", flush=True)
+                        self.logger.debug(f"    Annotation {j}: category_id={ann.get('category_id')}, category_name={ann.get('category_name')}")
         except Exception as e:
             raise ValueError(f"Failed to read YOLO annotations: {e}")
 

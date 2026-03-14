@@ -173,25 +173,45 @@ def _print_visualization_summary(result, segmentation):
     click.echo("VISUALIZATION SUMMARY")
     click.echo("="*50)
 
-    # 提取通用字段
-    summary_fields = [
+    # 输入信息组
+    click.echo("\n📁 INPUT INFORMATION")
+    input_fields = [
         ("Image directory", "image_dir"),
         ("Label directory", "label_dir"),
         ("Annotation JSON", "annotation_json"),
         ("Class file", "class_path"),
+    ]
+    for display_name, key in input_fields:
+        if key in result and result[key] is not None:
+            click.echo(f"  {display_name}: {result[key]}")
+
+    # 处理统计组
+    click.echo("\n📊 PROCESSING STATISTICS")
+    stats_fields = [
         ("Total images", "total_images"),
         ("Images processed", "images_processed"),
         ("Images with annotations", "images_with_annotations"),
         ("Annotations processed", "annotations_processed"),
-        ("Classes found", "classes_found"),
-        ("Categories found", "categories_found"),
-        ("Saved images", "saved_images"),
-        ("Save directory", "save_dir"),
     ]
-
-    for display_name, key in summary_fields:
+    for display_name, key in stats_fields:
         if key in result and result[key] is not None:
-            click.echo(f"{display_name}: {result[key]}")
+            click.echo(f"  {display_name}: {result[key]}")
 
-    click.echo(f"Segmentation mode: {'ON' if segmentation else 'OFF'}")
+    # 类别信息组
+    if "classes_found" in result and result["classes_found"]:
+        click.echo(f"  Classes found: {result['classes_found']}")
+    if "categories_found" in result and result["categories_found"]:
+        click.echo(f"  Categories found: {result['categories_found']}")
+
+    # 输出信息组（如果保存了图像）
+    if "save_dir" in result and result["save_dir"]:
+        click.echo("\n💾 OUTPUT INFORMATION")
+        click.echo(f"  Save directory: {result['save_dir']}")
+        if "saved_images" in result:
+            click.echo(f"  Saved images: {result['saved_images']}")
+
+    # 配置信息组
+    click.echo("\n⚙️ CONFIGURATION")
+    click.echo(f"  Segmentation mode: {'ON (strict)' if segmentation else 'OFF'}")
+
     click.echo("\n✅ Visualization completed successfully!")
