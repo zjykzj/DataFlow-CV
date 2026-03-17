@@ -26,6 +26,13 @@ import json
 import logging
 from typing import Dict, List, Tuple, Union, Optional
 
+try:
+    from pycocotools import mask as cocomask
+    PYCOCO_AVAILABLE = True
+except ImportError:
+    PYCOCO_AVAILABLE = False
+    cocomask = None
+
 
 class CocoHandler:
     """COCO格式标签处理器
@@ -53,6 +60,95 @@ class CocoHandler:
             logger.addHandler(handler)
         logger.setLevel(logging.INFO if self.verbose else logging.WARNING)
         return logger
+
+    def _polygon_to_rle(self, polygon: List[float], height: int, width: int) -> Dict:
+        """将多边形点列表转换为RLE格式。
+
+        Args:
+            polygon: 多边形点列表 [x1, y1, x2, y2, ...]
+            height: 图像高度
+            width: 图像宽度
+
+        Returns:
+            RLE格式字典 {'counts': bytes, 'size': [height, width]}
+
+        Raises:
+            ImportError: pycocotools不可用
+            ValueError: 多边形格式无效
+        """
+        if not PYCOCO_AVAILABLE:
+            raise ImportError("pycocotools is not available. Please install pycocotools>=2.0.0 for RLE support.")
+
+        if len(polygon) < 6 or len(polygon) % 2 != 0:
+            raise ValueError(f"Invalid polygon format: expected at least 3 points (6 coordinates), got {len(polygon)} values")
+
+        # 将多边形点列表转换为pycocotools所需的格式
+        # pycocotools需要多边形作为numpy数组 [[x1, y1, x2, y2, ...]]
+        import numpy as np
+        poly_array = np.array(polygon, dtype=np.float32).reshape(1, -1)
+
+        # 转换多边形为RLE
+        rle = cocomask.frPyObjects(poly_array, height, width)
+        if isinstance(rle, list) and len(rle) == 1:
+            rle = rle[0]
+
+        return rle
+
+    def _rle_to_polygon(self, rle: Dict, height: int, width: int) -> List[float]:
+        """将RLE格式转换为多边形点列表。
+
+        Args:
+            rle: RLE格式字典 {'counts': bytes, 'size': [height, width]}
+            height: 图像高度
+            width: 图像宽度
+
+        Returns:
+            多边形点列表 [x1, y1, x2, y2, ...]
+
+        Raises:
+            ImportError: pycocotools不可用
+            ValueError: RLE格式无效
+        """
+        if not PYCOCO_AVAILABLE:
+            raise ImportError("pycocotools is not available. Please install pycocotools>=2.0.0 for RLE support.")
+
+        # 验证RLE格式
+        if 'counts' not in rle or 'size' not in rle:
+            raise ValueError("Invalid RLE format: missing 'counts' or 'size' key")
+
+        # 解码RLE为二进制掩码
+        mask = cocomask.decode(rle)
+
+        # 从掩码中提取多边形
+        contours = cocomask.toBbox(mask)
+        if len(contours) == 0:
+            # 尝试使用polygon extraction
+            try:
+                polygons = cocomask.toPolygons(mask)
+                if polygons and len(polygons) > 0:
+                    # 取第一个多边形并展平
+                    polygon = polygons[0].flatten().tolist()
+                    return polygon
+            except:
+                pass
+
+            # 如果没有找到多边形，从边界框创建
+            # 通常RLE应该可以转换为多边形，但作为回退
+            if 'bbox' in rle:
+                bbox = rle['bbox']
+                x, y, w, h = bbox
+                return [x, y, x + w, y, x + w, y + h, x, y + h]
+            else:
+                # 无法转换
+                raise ValueError("Failed to convert RLE to polygon: empty mask")
+
+        # 使用边界框创建简单多边形（作为最后的手段）
+        # 注意：这可能会损失精度，但对于大多数情况应该足够
+        if len(contours) > 0:
+            x, y, w, h = contours[0]
+            return [x, y, x + w, y, x + w, y + h, x, y + h]
+
+        raise ValueError("Failed to convert RLE to polygon")
 
     def read(self, json_path: str) -> Dict:
         """读取COCO JSON文件
@@ -254,13 +350,32 @@ class CocoHandler:
         # 获取类别映射
         category_map = self.get_category_map(coco_data)
 
+        # 创建图像ID到图像信息的映射
+        image_info_map = {}
+        for image in coco_data['images']:
+            image_info_map[image['id']] = {
+                'height': image['height'],
+                'width': image['width']
+            }
+
         # 按图像ID分组标注
         annotations_by_image = {}
         for annotation in coco_data['annotations']:
             image_id = annotation['image_id']
             if image_id not in annotations_by_image:
                 annotations_by_image[image_id] = []
-            unified_annotation = self._coco_to_unified(annotation, category_map, require_segmentation)
+
+            # 获取图像尺寸用于RLE解码
+            image_height = None
+            image_width = None
+            if image_id in image_info_map:
+                image_height = image_info_map[image_id]['height']
+                image_width = image_info_map[image_id]['width']
+
+            unified_annotation = self._coco_to_unified(
+                annotation, category_map, require_segmentation,
+                image_height=image_height, image_width=image_width
+            )
             if unified_annotation:
                 annotations_by_image[image_id].append(unified_annotation)
 
@@ -283,13 +398,15 @@ class CocoHandler:
 
     def convert_from_unified_format(self, unified_data: List[Dict],
                                    info: Optional[Dict] = None,
-                                   licenses: Optional[List[Dict]] = None) -> Dict:
+                                   licenses: Optional[List[Dict]] = None,
+                                   rle: bool = False) -> Dict:
         """将统一格式的图像标注列表转换为COCO格式
 
         Args:
             unified_data: 统一格式的图像标注数据列表
             info: 数据集信息（可选）
             licenses: 许可证信息（可选）
+            rle: 是否将分割转换为RLE格式
 
         Returns:
             COCO格式数据字典
@@ -350,7 +467,8 @@ class CocoHandler:
 
                 # 转换为COCO标注格式
                 coco_annotation = self._unified_to_coco(
-                    annotation, image_id, next_annotation_id, category_id
+                    annotation, image_id, next_annotation_id, category_id,
+                    rle=rle, image_height=image_data['height'], image_width=image_data['width']
                 )
                 if coco_annotation:
                     coco_data["annotations"].append(coco_annotation)
@@ -359,13 +477,16 @@ class CocoHandler:
         return coco_data
 
     def _coco_to_unified(self, coco_annotation: Dict, category_map: Dict[int, str],
-                         require_segmentation: bool = False) -> Optional[Dict]:
+                         require_segmentation: bool = False, image_height: Optional[int] = None,
+                         image_width: Optional[int] = None) -> Optional[Dict]:
         """将COCO标注转换为统一格式
 
         Args:
             coco_annotation: COCO标注字典
             category_map: 类别ID到名称的映射
             require_segmentation: 是否要求分割格式。如果True，只接受包含分割数据的标注
+            image_height: 图像高度（用于RLE解码）
+            image_width: 图像宽度（用于RLE解码）
 
         Returns:
             统一格式的标注字典，如果require_segmentation=True但标注没有分割数据则返回None
@@ -380,7 +501,8 @@ class CocoHandler:
             "category_id": category_id,
             "category_name": category_name,
             "bbox": None,
-            "segmentation": None
+            "segmentation": None,
+            "_is_rle": False  # 标记原始数据是否为RLE格式
         }
 
         # 边界框
@@ -390,13 +512,45 @@ class CocoHandler:
             if len(bbox) >= 4:
                 annotation["bbox"] = bbox
 
-        # 分割多边形
+        # 分割多边形或RLE
         has_original_segmentation = False
         if 'segmentation' in coco_annotation and coco_annotation['segmentation']:
             segmentation = coco_annotation['segmentation']
-            # COCO分割格式: [[x1, y1, x2, y2, ...]] 或 RLE
-            if isinstance(segmentation, list) and segmentation:
-                # 取第一个多边形（忽略RLE格式）
+
+            # 检查是否为RLE格式（字典包含'counts'和'size'键）
+            is_rle = isinstance(segmentation, dict) and 'counts' in segmentation and 'size' in segmentation
+
+            if is_rle:
+                # RLE格式处理
+                if image_height is None or image_width is None:
+                    # 尝试从RLE的size字段获取尺寸
+                    if 'size' in segmentation and isinstance(segmentation['size'], list) and len(segmentation['size']) == 2:
+                        rle_height, rle_width = segmentation['size']
+                        if rle_height and rle_width:
+                            image_height = rle_height
+                            image_width = rle_width
+                        else:
+                            raise ValueError("RLE segmentation requires image dimensions but none provided and RLE size is invalid")
+                    else:
+                        raise ValueError("RLE segmentation requires image dimensions but none provided and RLE size missing")
+
+                try:
+                    # 解码RLE为多边形
+                    polygon = self._rle_to_polygon(segmentation, image_height, image_width)
+                    annotation["segmentation"] = [polygon]
+                    has_original_segmentation = True
+                    annotation["_is_rle"] = True
+                    if self.verbose:
+                        self.logger.info(f"Decoded RLE segmentation for annotation {coco_annotation.get('id', 'unknown')}")
+                except Exception as e:
+                    if self.verbose:
+                        self.logger.warning(f"Failed to decode RLE segmentation: {e}, falling back to polygon format if available")
+                    # RLE解码失败，回退到多边形格式（如果可用）
+                    pass
+
+            # 多边形格式处理
+            elif isinstance(segmentation, list) and segmentation:
+                # 取第一个多边形
                 if isinstance(segmentation[0], list):
                     annotation["segmentation"] = segmentation
                     has_original_segmentation = True
@@ -416,10 +570,14 @@ class CocoHandler:
         if require_segmentation and not has_original_segmentation:
             return None
 
+        # 移除调试标记（如果需要可以保留）
+        # annotation.pop("_is_rle", None)
+
         return annotation
 
     def _unified_to_coco(self, unified_annotation: Dict, image_id: int,
-                        annotation_id: int, category_id: int) -> Optional[Dict]:
+                        annotation_id: int, category_id: int, rle: bool = False,
+                        image_height: Optional[int] = None, image_width: Optional[int] = None) -> Optional[Dict]:
         """将统一格式标注转换为COCO格式
 
         Args:
@@ -427,6 +585,9 @@ class CocoHandler:
             image_id: 图像ID
             annotation_id: 标注ID
             category_id: 类别ID
+            rle: 是否将分割转换为RLE格式
+            image_height: 图像高度（用于RLE编码）
+            image_width: 图像宽度（用于RLE编码）
 
         Returns:
             COCO标注字典
@@ -441,10 +602,37 @@ class CocoHandler:
             "iscrowd": 0
         }
 
+        # 检查是否有原始分割数据（不是从边界框生成的）
+        has_original_segmentation = unified_annotation.get("segmentation") and unified_annotation["segmentation"][0]
+
         # 优先使用分割数据
-        if unified_annotation.get("segmentation") and unified_annotation["segmentation"][0]:
+        if has_original_segmentation:
             segmentation = unified_annotation["segmentation"][0]
-            coco_annotation["segmentation"] = [segmentation]
+
+            # 检查是否为从边界框生成的简单多边形（4个点/8个坐标）
+            is_simple_bbox_polygon = False
+            if len(segmentation) == 8:  # 4个点
+                # 检查是否是矩形多边形
+                xs = segmentation[0::2]
+                ys = segmentation[1::2]
+                if len(set(xs)) == 2 and len(set(ys)) == 2:
+                    is_simple_bbox_polygon = True
+
+            # 尝试RLE转换（如果请求且不是从边界框生成的简单多边形）
+            if rle and not is_simple_bbox_polygon and image_height and image_width:
+                try:
+                    rle_mask = self._polygon_to_rle(segmentation, image_height, image_width)
+                    coco_annotation["segmentation"] = rle_mask
+                    if self.verbose:
+                        self.logger.info(f"Encoded polygon to RLE for annotation {annotation_id}")
+                except Exception as e:
+                    if self.verbose:
+                        self.logger.warning(f"Failed to encode polygon to RLE: {e}, falling back to polygon format")
+                    # RLE编码失败，回退到多边形格式
+                    coco_annotation["segmentation"] = [segmentation]
+            else:
+                # 使用多边形格式
+                coco_annotation["segmentation"] = [segmentation]
 
             # 计算边界框
             if len(segmentation) >= 6:
@@ -465,20 +653,24 @@ class CocoHandler:
                     coco_annotation["bbox"] = bbox
                     coco_annotation["area"] = bbox[2] * bbox[3]
 
-        # 使用边界框数据
+        # 使用边界框数据（无原始分割数据）
         elif unified_annotation.get("bbox"):
             bbox = unified_annotation["bbox"]
             coco_annotation["bbox"] = bbox
             coco_annotation["area"] = bbox[2] * bbox[3]
 
-            # 从边界框创建简单多边形
+            # 从边界框创建简单多边形（即使rle=True，边界框也保持多边形格式）
             x, y, width, height = bbox
-            coco_annotation["segmentation"] = [[
+            simple_polygon = [
                 x, y,
                 x + width, y,
                 x + width, y + height,
                 x, y + height
-            ]]
+            ]
+            coco_annotation["segmentation"] = [simple_polygon]
+
+            # 注意：对于边界框，即使rle=True也不转换为RLE，保持多边形格式
+            # 这符合用户要求：检测标注不受--rle影响
         else:
             # 无有效数据
             return None

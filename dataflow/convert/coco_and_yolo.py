@@ -153,7 +153,7 @@ class YoloToCocoConverter(LabelBasedConverter):
     """Convert YOLO label format to COCO JSON format."""
 
     def convert(self, image_dir: str, label_dir: str, classes_path: str,
-                output_json_path: str, segmentation: bool = False) -> Dict[str, Any]:
+                output_json_path: str, segmentation: bool = False, rle: bool = False) -> Dict[str, Any]:
         """
         Convert YOLO format to COCO JSON.
 
@@ -164,6 +164,9 @@ class YoloToCocoConverter(LabelBasedConverter):
             output_json_path: Path to save COCO JSON file
             segmentation: Whether to enforce segmentation annotations.
                 If True, only annotations with segmentation data will be processed.
+            rle: Whether to save segmentation annotations as RLE masks.
+                If True, polygon annotations will be encoded as RLE format.
+                Bounding box annotations remain as polygon format (not affected by rle).
 
         Returns:
             Dictionary with conversion statistics
@@ -216,7 +219,7 @@ class YoloToCocoConverter(LabelBasedConverter):
 
         # 5. Use CocoHandler to convert unified format to COCO format
         coco_handler = CocoHandler(verbose=self.verbose)
-        coco_data = coco_handler.convert_from_unified_format(unified_data)
+        coco_data = coco_handler.convert_from_unified_format(unified_data, rle=rle)
 
         # 6. Write COCO JSON file
         success = coco_handler.write(coco_data, output_json_path)
@@ -237,6 +240,7 @@ class YoloToCocoConverter(LabelBasedConverter):
             "annotations_processed": total_annotations,
             "categories_found": total_categories,
             "segmentation_mode": segmentation,
+            "rle_mode": rle,
         }
 
         self.logger.info(f"Conversion completed successfully: {stats}")

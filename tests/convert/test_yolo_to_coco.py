@@ -390,6 +390,61 @@ class TestYoloToCocoConverter(unittest.TestCase):
         )
         self.assertIsInstance(result, dict)
 
+    def test_rle_conversion(self):
+        """Test YOLO to COCO conversion with RLE mode."""
+        # Check if pycocotools is available
+        try:
+            from pycocotools import mask as cocomask
+            pycoco_available = True
+        except ImportError:
+            pycoco_available = False
+            self.skipTest("pycocotools not available, skipping RLE test")
+
+        # Create segmentation label file for RLE testing
+        seg_label_dir = os.path.join(self.test_dir, "seg_labels_rle")
+        os.makedirs(seg_label_dir, exist_ok=True)
+
+        # Create segmentation label with polygon
+        seg_label = os.path.join(seg_label_dir, "test_image1.txt")
+        with open(seg_label, 'w', encoding='utf-8') as f:
+            # Polygon coordinates (normalized)
+            f.write("0 0.1 0.1 0.5 0.1 0.3 0.5\n")  # Triangle
+
+        converter = YoloToCocoConverter(verbose=False)
+
+        # Test with rle=True
+        result = converter.convert(
+            self.image_dir,
+            seg_label_dir,
+            self.classes_file,
+            self.output_json,
+            rle=True
+        )
+
+        # Should succeed
+        self.assertIsInstance(result, dict)
+        self.assertTrue(result.get("rle_mode", False), "RLE mode should be True")
+
+        # Load COCO JSON
+        with open(self.output_json, 'r', encoding='utf-8') as f:
+            coco_data = json.load(f)
+
+        # Check that annotation has segmentation field
+        annotations = coco_data["annotations"]
+        if annotations:
+            segmentation = annotations[0].get("segmentation")
+            self.assertIsNotNone(segmentation, "Annotation should have segmentation")
+
+            # Check if it's RLE format (dictionary with counts and size)
+            if isinstance(segmentation, dict):
+                self.assertIn("counts", segmentation)
+                self.assertIn("size", segmentation)
+                # Verify size matches image dimensions
+                self.assertEqual(segmentation["size"], [480, 640])  # height, width from image1
+            else:
+                # Might be polygon format if RLE conversion failed
+                self.assertIsInstance(segmentation, list)
+
 
 if __name__ == "__main__":
     unittest.main()

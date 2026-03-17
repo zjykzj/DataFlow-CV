@@ -96,9 +96,10 @@ def _create_yolo2coco_command():
     @click.argument('yolo_class_path', type=click.Path(exists=True, dir_okay=False))
     @click.argument('coco_json_path', type=click.Path())
     @click.option('--segmentation', '-s', is_flag=True, help='Handle segmentation annotations')
+    @click.option('--rle', is_flag=True, help='Save segmentation annotations as RLE masks (polygon annotations only)')
     @click.option('-v', '--verbose', is_flag=True, help='Print detailed progress information')
     @click.pass_context
-    def command(ctx, image_dir, yolo_labels_dir, yolo_class_path, coco_json_path, segmentation=False, verbose=False):
+    def command(ctx, image_dir, yolo_labels_dir, yolo_class_path, coco_json_path, segmentation=False, rle=False, verbose=False):
         """
         Convert YOLO format to COCO JSON.
 
@@ -123,7 +124,7 @@ def _create_yolo2coco_command():
             # Create converter and perform conversion
             converter = YoloToCocoConverter(verbose=verbose)
             result = converter.convert(
-                image_dir, yolo_labels_dir, yolo_class_path, coco_json_path, segmentation=segmentation
+                image_dir, yolo_labels_dir, yolo_class_path, coco_json_path, segmentation=segmentation, rle=rle
             )
 
             # Print summary
@@ -185,9 +186,10 @@ def _create_labelme2coco_command():
     @click.argument('classes_path', type=click.Path(exists=True, dir_okay=False))
     @click.argument('output_json_path', type=click.Path())
     @click.option('--segmentation', '-s', is_flag=True, help='Handle segmentation annotations')
+    @click.option('--rle', is_flag=True, help='Save segmentation annotations as RLE masks (polygon annotations only)')
     @click.option('-v', '--verbose', is_flag=True, help='Print detailed progress information')
     @click.pass_context
-    def command(ctx, label_dir, classes_path, output_json_path, segmentation, verbose):
+    def command(ctx, label_dir, classes_path, output_json_path, segmentation=False, rle=False, verbose=False):
         """
         Convert LabelMe format to COCO JSON.
 
@@ -211,7 +213,7 @@ def _create_labelme2coco_command():
 
             # Create converter and perform conversion
             converter = LabelMeToCocoConverter(verbose=verbose)
-            result = converter.convert(label_dir, classes_path, output_json_path, segmentation=segmentation)
+            result = converter.convert(label_dir, classes_path, output_json_path, segmentation=segmentation, rle=rle)
 
             # Print summary
             _print_conversion_summary(result, segmentation)
@@ -345,5 +347,8 @@ def _print_conversion_summary(result, segmentation):
             click.echo(f"{display_name}: {result[key]}")
 
     click.echo(f"Segmentation mode: {'ON' if segmentation else 'OFF'}")
+    # 显示RLE模式（如果存在）
+    if 'rle_mode' in result:
+        click.echo(f"RLE mode: {'ON' if result['rle_mode'] else 'OFF'}")
     click.echo(f"Verbose mode: {'ON' if Config.VERBOSE else 'OFF'}")
     click.echo("\n✅ Conversion completed successfully!")

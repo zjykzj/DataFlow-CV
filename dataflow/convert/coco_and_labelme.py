@@ -112,7 +112,7 @@ class LabelMeToCocoConverter(LabelBasedConverter):
     """Convert LabelMe format to COCO JSON format."""
 
     def convert(self, label_dir: str, classes_path: str, output_json_path: str,
-                segmentation: bool = False) -> Dict[str, Any]:
+                segmentation: bool = False, rle: bool = False) -> Dict[str, Any]:
         """
         Convert LabelMe format to COCO JSON.
 
@@ -124,6 +124,9 @@ class LabelMeToCocoConverter(LabelBasedConverter):
                 If True, only polygon shapes (shape_type="polygon") will be processed,
                 rectangle shapes will be skipped. If False, both rectangle and polygon
                 shapes are processed.
+            rle: Whether to save segmentation annotations as RLE masks.
+                If True, polygon annotations will be encoded as RLE format.
+                Bounding box annotations remain as polygon format (not affected by rle).
 
         Returns:
             Dictionary with conversion statistics
@@ -179,7 +182,7 @@ class LabelMeToCocoConverter(LabelBasedConverter):
         # 5. Use CocoHandler to convert unified format to COCO format
         coco_handler = CocoHandler(verbose=self.verbose)
         try:
-            coco_data = coco_handler.convert_from_unified_format(unified_data)
+            coco_data = coco_handler.convert_from_unified_format(unified_data, rle=rle)
         except ValueError as e:
             if "输入数据为空" in str(e):
                 # Create empty COCO structure manually
@@ -211,6 +214,7 @@ class LabelMeToCocoConverter(LabelBasedConverter):
             "annotations_processed": total_annotations,
             "categories_found": total_categories,
             "segmentation_mode": segmentation,
+            "rle_mode": rle,
         }
 
         self.logger.info(f"Conversion completed successfully: {stats}")
