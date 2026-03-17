@@ -84,13 +84,31 @@ class CocoHandler:
 
         # 将多边形点列表转换为pycocotools所需的格式
         # pycocotools需要多边形作为numpy数组 [[x1, y1, x2, y2, ...]]
+        # 注意：pycocotools期望double类型（float64），所以使用np.float64
         import numpy as np
-        poly_array = np.array(polygon, dtype=np.float32).reshape(1, -1)
+        poly_array = np.array(polygon, dtype=np.float64).reshape(1, -1)
 
         # 转换多边形为RLE
         rle = cocomask.frPyObjects(poly_array, height, width)
         if isinstance(rle, list) and len(rle) == 1:
             rle = rle[0]
+
+        # 调试：检查RLE格式
+        if self.verbose:
+            self.logger.info(f"Generated RLE: type={type(rle)}, keys={list(rle.keys()) if isinstance(rle, dict) else 'not dict'}")
+            if isinstance(rle, dict) and 'counts' in rle:
+                counts = rle['counts']
+                self.logger.info(f"  counts type: {type(counts)}, length: {len(counts) if isinstance(counts, (bytes, str)) else 'unknown'}")
+
+        # 将counts字节转换为字符串以便JSON序列化
+        if isinstance(rle, dict) and 'counts' in rle and isinstance(rle['counts'], bytes):
+            try:
+                rle['counts'] = rle['counts'].decode('utf-8')
+            except UnicodeDecodeError:
+                # 如果utf-8失败，使用latin-1（总是成功）
+                rle['counts'] = rle['counts'].decode('latin-1')
+            if self.verbose:
+                self.logger.info(f"Converted counts to string, new type: {type(rle['counts'])}, length: {len(rle['counts'])}")
 
         return rle
 
@@ -115,6 +133,16 @@ class CocoHandler:
         # 验证RLE格式
         if 'counts' not in rle or 'size' not in rle:
             raise ValueError("Invalid RLE format: missing 'counts' or 'size' key")
+
+        # 如果counts是字符串，则将其编码回字节（因为pycocotools期望字节）
+        if isinstance(rle['counts'], str):
+            # 尝试utf-8编码，如果失败则使用latin-1
+            try:
+                rle['counts'] = rle['counts'].encode('utf-8')
+            except UnicodeEncodeError:
+                rle['counts'] = rle['counts'].encode('latin-1')
+            if self.verbose:
+                self.logger.info(f"Converted counts from string back to bytes for decoding, length: {len(rle['counts'])}")
 
         # 解码RLE为二进制掩码
         mask = cocomask.decode(rle)
@@ -258,8 +286,13 @@ class CocoHandler:
 
             return True
         except Exception as e:
-            if self.verbose:
-                self.logger.info(f"写入文件失败: {output_path}, 错误: {e}")
+            self.logger.error(f"写入COCO文件失败: {output_path}, 错误: {e}")
+            # 记录数据结构的详细信息以便调试
+            if 'annotations' in data and data['annotations']:
+                ann = data['annotations'][0]
+                if 'segmentation' in ann:
+                    seg = ann['segmentation']
+                    self.logger.error(f"第一个标注的segmentation类型: {type(seg)}, 值: {seg}")
             return False
 
     def get_image_annotations(self, coco_data: Dict, image_id: int) -> List[Dict]:
@@ -399,7 +432,8 @@ class CocoHandler:
     def convert_from_unified_format(self, unified_data: List[Dict],
                                    info: Optional[Dict] = None,
                                    licenses: Optional[List[Dict]] = None,
-                                   rle: bool = False) -> Dict:
+                                   rle: bool = False,
+                                   classes: Optional[List[str]] = None) -> Dict:
         """将统一格式的图像标注列表转换为COCO格式
 
         Args:
@@ -407,6 +441,8 @@ class CocoHandler:
             info: 数据集信息（可选）
             licenses: 许可证信息（可选）
             rle: 是否将分割转换为RLE格式
+            classes: 类别名称列表（可选）。如果提供，输出将包含所有类别，即使某些类别没有出现在标注中。
+                    如果为None，则从标注数据中动态收集类别。
 
         Returns:
             COCO格式数据字典
@@ -439,6 +475,24 @@ class CocoHandler:
         next_category_id = 1
         next_annotation_id = 1
 
+        # 如果提供了classes列表，预先注册所有类别
+        if classes is not None:
+            if self.verbose:
+                self.logger.info(f"Classes list provided with {len(classes)} classes")
+                if classes:
+                    self.logger.info(f"First 5 classes: {classes[:5]}")
+            for class_name in classes:
+                if class_name not in category_name_to_id:
+                    category_name_to_id[class_name] = next_category_id
+                    coco_data["categories"].append({
+                        "id": next_category_id,
+                        "name": class_name,
+                        "supercategory": class_name
+                    })
+                    next_category_id += 1
+            if self.verbose:
+                self.logger.info(f"Pre-registered {len(classes)} classes, next_category_id={next_category_id}")
+
         # 处理每个图像
         for image_data in unified_data:
             # 添加图像信息
@@ -455,6 +509,9 @@ class CocoHandler:
                 # 确保类别存在
                 category_name = annotation.get('category_name', 'unknown')
                 if category_name not in category_name_to_id:
+                    # 如果提供了classes列表，但出现了未知类别，可能是错误，但为了兼容性仍然添加
+                    if self.verbose:
+                        self.logger.warning(f"Category '{category_name}' not in provided classes list, adding as new category")
                     category_name_to_id[category_name] = next_category_id
                     coco_data["categories"].append({
                         "id": next_category_id,
@@ -602,6 +659,10 @@ class CocoHandler:
             "iscrowd": 0
         }
 
+        # 记录RLE模式状态
+        if rle and self.verbose:
+            self.logger.info(f"RLE mode enabled for annotation {annotation_id}, image size: {image_width}x{image_height}")
+
         # 检查是否有原始分割数据（不是从边界框生成的）
         has_original_segmentation = unified_annotation.get("segmentation") and unified_annotation["segmentation"][0]
 
@@ -619,19 +680,38 @@ class CocoHandler:
                     is_simple_bbox_polygon = True
 
             # 尝试RLE转换（如果请求且不是从边界框生成的简单多边形）
-            if rle and not is_simple_bbox_polygon and image_height and image_width:
+            # 需要有效的图像尺寸（大于0）
+            has_valid_dimensions = image_height and image_width and image_height > 0 and image_width > 0
+            if rle and not is_simple_bbox_polygon and has_valid_dimensions:
+                if self.verbose:
+                    self.logger.info(f"Attempting RLE conversion for annotation {annotation_id}: polygon length {len(segmentation)}, image size {image_width}x{image_height}")
                 try:
                     rle_mask = self._polygon_to_rle(segmentation, image_height, image_width)
                     coco_annotation["segmentation"] = rle_mask
                     if self.verbose:
                         self.logger.info(f"Encoded polygon to RLE for annotation {annotation_id}")
                 except Exception as e:
-                    if self.verbose:
-                        self.logger.warning(f"Failed to encode polygon to RLE: {e}, falling back to polygon format")
+                    self.logger.warning(f"Failed to encode polygon to RLE: {e}, falling back to polygon format")
                     # RLE编码失败，回退到多边形格式
                     coco_annotation["segmentation"] = [segmentation]
             else:
                 # 使用多边形格式
+                if rle:
+                    # 记录为什么跳过RLE转换
+                    reasons = []
+                    if is_simple_bbox_polygon:
+                        reasons.append("is_simple_bbox_polygon=True")
+                    if not image_height or not image_width or image_height <= 0 or image_width <= 0:
+                        reasons.append(f"image dimensions invalid (h={image_height}, w={image_width})")
+
+                    warning_msg = f"RLE conversion skipped for annotation {annotation_id}"
+                    if reasons:
+                        warning_msg += f": {', '.join(reasons)}"
+
+                    if self.verbose:
+                        self.logger.info(warning_msg)
+                    else:
+                        self.logger.warning(warning_msg)
                 coco_annotation["segmentation"] = [segmentation]
 
             # 计算边界框

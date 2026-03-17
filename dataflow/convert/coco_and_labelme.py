@@ -182,7 +182,7 @@ class LabelMeToCocoConverter(LabelBasedConverter):
         # 5. Use CocoHandler to convert unified format to COCO format
         coco_handler = CocoHandler(verbose=self.verbose)
         try:
-            coco_data = coco_handler.convert_from_unified_format(unified_data, rle=rle)
+            coco_data = coco_handler.convert_from_unified_format(unified_data, rle=rle, classes=classes)
         except ValueError as e:
             if "输入数据为空" in str(e):
                 # Create empty COCO structure manually

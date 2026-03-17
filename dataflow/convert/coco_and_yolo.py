@@ -219,7 +219,7 @@ class YoloToCocoConverter(LabelBasedConverter):
 
         # 5. Use CocoHandler to convert unified format to COCO format
         coco_handler = CocoHandler(verbose=self.verbose)
-        coco_data = coco_handler.convert_from_unified_format(unified_data, rle=rle)
+        coco_data = coco_handler.convert_from_unified_format(unified_data, rle=rle, classes=classes)
 
         # 6. Write COCO JSON file
         success = coco_handler.write(coco_data, output_json_path)

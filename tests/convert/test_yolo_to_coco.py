@@ -445,6 +445,48 @@ class TestYoloToCocoConverter(unittest.TestCase):
                 # Might be polygon format if RLE conversion failed
                 self.assertIsInstance(segmentation, list)
 
+    def test_all_classes_included(self):
+        """Test that all classes from classes file are included in COCO output, even if not used in annotations."""
+        # Create a classes file with 80 classes
+        many_classes_file = os.path.join(self.test_dir, "many_classes.names")
+        with open(many_classes_file, 'w', encoding='utf-8') as f:
+            for i in range(80):
+                f.write(f"class_{i}\n")
+
+        # Use only first 3 classes in annotations (same as sample labels)
+        # The sample labels use indices 0, 1, 2 which correspond to class_0, class_1, class_2
+        # We'll reuse the existing sample labels (they use indices 0,1,2)
+        converter = YoloToCocoConverter(verbose=False)
+
+        # Perform conversion with the many_classes file
+        result = converter.convert(
+            self.image_dir,
+            self.labels_dir,
+            many_classes_file,
+            self.output_json
+        )
+
+        # Load COCO JSON
+        with open(self.output_json, 'r', encoding='utf-8') as f:
+            coco_data = json.load(f)
+
+        # Check that all 80 classes are present in categories
+        categories = coco_data["categories"]
+        self.assertEqual(len(categories), 80, f"Expected 80 categories, got {len(categories)}")
+
+        # Verify category IDs and names
+        for i, category in enumerate(categories, start=1):
+            self.assertEqual(category["id"], i)
+            self.assertEqual(category["name"], f"class_{i-1}")
+            self.assertEqual(category["supercategory"], f"class_{i-1}")
+
+        # Verify that annotations still have correct category IDs
+        annotations = coco_data["annotations"]
+        self.assertEqual(len(annotations), 3)
+        # Annotation category IDs should be 1, 2, 3 (corresponding to class_0, class_1, class_2)
+        category_ids = [ann["category_id"] for ann in annotations]
+        self.assertSetEqual(set(category_ids), {1, 2, 3})
+
 
 if __name__ == "__main__":
     unittest.main()
