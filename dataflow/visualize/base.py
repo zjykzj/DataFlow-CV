@@ -15,6 +15,7 @@ from typing import List, Tuple, Dict, Any, Optional
 import cv2
 
 from ..config import Config
+from .config import VisualizeConfig
 
 
 class BaseVisualizer:
@@ -60,6 +61,13 @@ class BaseVisualizer:
         # Display settings
         self.window_name = "DataFlow-CV Visualization"
         self.max_display_size = (1280, 720)  # Max window size
+
+        # Polygon fill and transparency settings
+        self.fill_polygons = VisualizeConfig.DEFAULT_FILL_POLYGONS
+        self.fill_alpha = VisualizeConfig.DEFAULT_FILL_ALPHA
+        self.outline_alpha = VisualizeConfig.DEFAULT_OUTLINE_ALPHA
+        self.highlight_rle = VisualizeConfig.DEFAULT_HIGHLIGHT_RLE
+        self.rle_fill_color = VisualizeConfig.DEFAULT_RLE_FILL_COLOR
 
     def _setup_logger(self) -> logging.Logger:
         """Set up logger for the visualizer."""
@@ -222,15 +230,28 @@ class BaseVisualizer:
                     image: np.ndarray,
                     points: List[Tuple[float, float]],
                     color: Tuple[int, int, int],
-                    label: str = "") -> np.ndarray:
+                    label: str = "",
+                    fill: Optional[bool] = None,
+                    fill_alpha: Optional[float] = None,
+                    outline_alpha: Optional[float] = None,
+                    is_rle: bool = False) -> np.ndarray:
         """
         Draw a polygon on the image (for segmentation masks).
+        Supports optional filled polygons with transparency and RLE mask highlighting.
 
         Args:
             image (np.ndarray): Input image (H, W, C)
             points (List[Tuple[float, float]]): List of (x, y) points
             color (Tuple[int, int, int]): BGR color for the polygon
             label (str): Class label text
+            fill (bool, optional): Whether to fill the polygon. If None, uses
+                self.fill_polygons setting.
+            fill_alpha (float, optional): Alpha transparency for fill (0.0-1.0).
+                If None, uses self.fill_alpha.
+            outline_alpha (float, optional): Alpha transparency for outline (0.0-1.0).
+                If None, uses self.outline_alpha.
+            is_rle (bool): Whether this polygon originated from RLE mask.
+                Affects fill color if self.rle_fill_color is set.
 
         Returns:
             np.ndarray: Image with polygon drawn
@@ -238,12 +259,41 @@ class BaseVisualizer:
         if len(points) < 2:
             return image
 
+        # Use instance settings if parameters not provided
+        if fill is None:
+            fill = self.fill_polygons
+        if fill_alpha is None:
+            fill_alpha = self.fill_alpha
+        if outline_alpha is None:
+            outline_alpha = self.outline_alpha
+
+        # Determine fill color for RLE masks
+        fill_color = color
+        if is_rle and self.rle_fill_color is not None:
+            fill_color = self.rle_fill_color
+
         # Convert points to integer coordinates
         int_points = np.array(points, dtype=np.int32).reshape((-1, 1, 2))
 
-        # Draw polygon
-        cv2.polylines(image, [int_points], isClosed=True, color=color,
-                     thickness=self.line_thickness)
+        # Simple case: no fill and full opacity outline (original behavior)
+        if not fill and outline_alpha >= 1.0:
+            cv2.polylines(image, [int_points], isClosed=True, color=color,
+                         thickness=self.line_thickness)
+        else:
+            # Handle fill and/or transparency
+            # We'll blend fill and outline separately to support different alphas
+            # Fill overlay
+            if fill and fill_alpha > 0:
+                fill_overlay = np.zeros_like(image, dtype=np.uint8)
+                cv2.fillPoly(fill_overlay, [int_points], fill_color)
+                image = cv2.addWeighted(fill_overlay, fill_alpha, image, 1 - fill_alpha, 0)
+
+            # Outline overlay
+            if outline_alpha > 0:
+                outline_overlay = np.zeros_like(image, dtype=np.uint8)
+                cv2.polylines(outline_overlay, [int_points], isClosed=True, color=color,
+                             thickness=self.line_thickness)
+                image = cv2.addWeighted(outline_overlay, outline_alpha, image, 1 - outline_alpha, 0)
 
         # Draw label at first point if provided
         if label:

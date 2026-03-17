@@ -30,6 +30,13 @@ class VisualizeConfig:
     FONT_SCALE = 0.5
     LINE_THICKNESS = 2
 
+    # 多边形填充和透明度配置
+    DEFAULT_FILL_POLYGONS = False  # 是否填充多边形（默认仅绘制轮廓以保持向后兼容）
+    DEFAULT_FILL_ALPHA = 0.3       # 填充区域的透明度（0.0=完全透明，1.0=不透明）
+    DEFAULT_OUTLINE_ALPHA = 1.0    # 轮廓的透明度（0.0=完全透明，1.0=不透明）
+    DEFAULT_RLE_FILL_COLOR = None  # RLE掩码的特定填充颜色（None=使用类别颜色）
+    DEFAULT_HIGHLIGHT_RLE = True   # 是否高亮显示RLE掩码（使用不同的填充样式）
+
     @classmethod
     def update_from_cli(cls, verbose=False, overwrite=False):
         """根据CLI选项更新全局配置"""

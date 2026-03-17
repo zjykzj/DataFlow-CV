@@ -154,6 +154,13 @@ def visualize_yolo(
     label_dir: str,
     class_path: str,
     save_dir: str = None,
+    segmentation: bool = False,
+    fill: bool = None,
+    fill_alpha: float = None,
+    outline_alpha: float = None,
+    highlight_rle: bool = None,
+    rle_color: str = None,
+    verbose: bool = None,
     **kwargs
 ):
     """
@@ -164,19 +171,60 @@ def visualize_yolo(
         label_dir: Directory containing YOLO label files
         class_path: Path to class names file (e.g., class.names)
         save_dir: Directory to save visualized images (optional)
+        segmentation: Whether to force segmentation mode (strict validation)
+        fill: Whether to fill polygons (default: False)
+        fill_alpha: Fill transparency (0.0-1.0, default: 0.3)
+        outline_alpha: Outline transparency (0.0-1.0, default: 1.0)
+        highlight_rle: Whether to highlight RLE masks (default: True)
+        rle_color: RLE fill color as "R,G,B" (e.g., "255,0,0")
+        verbose: Whether to print detailed progress information
         **kwargs: Additional options passed to YoloVisualizer.visualize()
 
     Returns:
         Dictionary with visualization statistics
     """
-    visualizer = YoloVisualizer(**kwargs)
-    return visualizer.visualize(image_dir, label_dir, class_path, save_dir)
+    visualizer = YoloVisualizer(verbose=verbose, segmentation=segmentation)
+
+    # Set polygon fill and transparency options
+    if fill is not None:
+        visualizer.fill_polygons = fill
+    if fill_alpha is not None:
+        if not 0.0 <= fill_alpha <= 1.0:
+            raise ValueError("fill_alpha must be between 0.0 and 1.0")
+        visualizer.fill_alpha = fill_alpha
+    if outline_alpha is not None:
+        if not 0.0 <= outline_alpha <= 1.0:
+            raise ValueError("outline_alpha must be between 0.0 and 1.0")
+        visualizer.outline_alpha = outline_alpha
+    if highlight_rle is not None:
+        visualizer.highlight_rle = highlight_rle
+    if rle_color is not None:
+        # Parse R,G,B string
+        try:
+            parts = rle_color.split(',')
+            if len(parts) != 3:
+                raise ValueError
+            r, g, b = map(int, parts)
+            if not (0 <= r <= 255 and 0 <= g <= 255 and 0 <= b <= 255):
+                raise ValueError
+            visualizer.rle_fill_color = (b, g, r)  # OpenCV uses BGR
+        except ValueError:
+            raise ValueError('rle_color must be "R,G,B" with integers 0-255')
+
+    return visualizer.visualize(image_dir, label_dir, class_path, save_dir, **kwargs)
 
 
 def visualize_coco(
     image_dir: str,
     annotation_json: str,
     save_dir: str = None,
+    segmentation: bool = False,
+    fill: bool = None,
+    fill_alpha: float = None,
+    outline_alpha: float = None,
+    highlight_rle: bool = None,
+    rle_color: str = None,
+    verbose: bool = None,
     **kwargs
 ):
     """
@@ -186,19 +234,60 @@ def visualize_coco(
         image_dir: Directory containing image files
         annotation_json: Path to COCO JSON annotation file
         save_dir: Directory to save visualized images (optional)
+        segmentation: Whether to force segmentation mode (strict validation)
+        fill: Whether to fill polygons (default: False)
+        fill_alpha: Fill transparency (0.0-1.0, default: 0.3)
+        outline_alpha: Outline transparency (0.0-1.0, default: 1.0)
+        highlight_rle: Whether to highlight RLE masks (default: True)
+        rle_color: RLE fill color as "R,G,B" (e.g., "255,0,0")
+        verbose: Whether to print detailed progress information
         **kwargs: Additional options passed to CocoVisualizer.visualize()
 
     Returns:
         Dictionary with visualization statistics
     """
-    visualizer = CocoVisualizer(**kwargs)
-    return visualizer.visualize(image_dir, annotation_json, save_dir)
+    visualizer = CocoVisualizer(verbose=verbose, segmentation=segmentation)
+
+    # Set polygon fill and transparency options
+    if fill is not None:
+        visualizer.fill_polygons = fill
+    if fill_alpha is not None:
+        if not 0.0 <= fill_alpha <= 1.0:
+            raise ValueError("fill_alpha must be between 0.0 and 1.0")
+        visualizer.fill_alpha = fill_alpha
+    if outline_alpha is not None:
+        if not 0.0 <= outline_alpha <= 1.0:
+            raise ValueError("outline_alpha must be between 0.0 and 1.0")
+        visualizer.outline_alpha = outline_alpha
+    if highlight_rle is not None:
+        visualizer.highlight_rle = highlight_rle
+    if rle_color is not None:
+        # Parse R,G,B string
+        try:
+            parts = rle_color.split(',')
+            if len(parts) != 3:
+                raise ValueError
+            r, g, b = map(int, parts)
+            if not (0 <= r <= 255 and 0 <= g <= 255 and 0 <= b <= 255):
+                raise ValueError
+            visualizer.rle_fill_color = (b, g, r)  # OpenCV uses BGR
+        except ValueError:
+            raise ValueError('rle_color must be "R,G,B" with integers 0-255')
+
+    return visualizer.visualize(image_dir, annotation_json, save_dir, **kwargs)
 
 
 def visualize_labelme(
     image_dir: str,
     label_dir: str,
     save_dir: str = None,
+    segmentation: bool = False,
+    fill: bool = None,
+    fill_alpha: float = None,
+    outline_alpha: float = None,
+    highlight_rle: bool = None,
+    rle_color: str = None,
+    verbose: bool = None,
     **kwargs
 ):
     """
@@ -208,13 +297,47 @@ def visualize_labelme(
         image_dir: Directory containing image files
         label_dir: Directory containing LabelMe JSON files
         save_dir: Directory to save visualized images (optional)
+        segmentation: Whether to force segmentation mode (strict validation)
+        fill: Whether to fill polygons (default: False)
+        fill_alpha: Fill transparency (0.0-1.0, default: 0.3)
+        outline_alpha: Outline transparency (0.0-1.0, default: 1.0)
+        highlight_rle: Whether to highlight RLE masks (default: True)
+        rle_color: RLE fill color as "R,G,B" (e.g., "255,0,0")
+        verbose: Whether to print detailed progress information
         **kwargs: Additional options passed to LabelMeVisualizer.visualize()
 
     Returns:
         Dictionary with visualization statistics
     """
-    visualizer = LabelMeVisualizer(**kwargs)
-    return visualizer.visualize(image_dir, label_dir, save_dir)
+    visualizer = LabelMeVisualizer(verbose=verbose, segmentation=segmentation)
+
+    # Set polygon fill and transparency options
+    if fill is not None:
+        visualizer.fill_polygons = fill
+    if fill_alpha is not None:
+        if not 0.0 <= fill_alpha <= 1.0:
+            raise ValueError("fill_alpha must be between 0.0 and 1.0")
+        visualizer.fill_alpha = fill_alpha
+    if outline_alpha is not None:
+        if not 0.0 <= outline_alpha <= 1.0:
+            raise ValueError("outline_alpha must be between 0.0 and 1.0")
+        visualizer.outline_alpha = outline_alpha
+    if highlight_rle is not None:
+        visualizer.highlight_rle = highlight_rle
+    if rle_color is not None:
+        # Parse R,G,B string
+        try:
+            parts = rle_color.split(',')
+            if len(parts) != 3:
+                raise ValueError
+            r, g, b = map(int, parts)
+            if not (0 <= r <= 255 and 0 <= g <= 255 and 0 <= b <= 255):
+                raise ValueError
+            visualizer.rle_fill_color = (b, g, r)  # OpenCV uses BGR
+        except ValueError:
+            raise ValueError('rle_color must be "R,G,B" with integers 0-255')
+
+    return visualizer.visualize(image_dir, label_dir, save_dir, **kwargs)
 
 
 __all__ = [

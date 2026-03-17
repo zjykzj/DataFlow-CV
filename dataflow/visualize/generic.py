@@ -177,7 +177,13 @@ class GenericVisualizer(BaseVisualizer):
         # Convert flat list to list of (x, y) points
         points = [(segmentation[i], segmentation[i+1])
                  for i in range(0, len(segmentation), 2)]
-        self.draw_polygon(image, points, color, label)
+
+        # Check if this annotation originated from RLE mask
+        is_rle = False
+        if self.highlight_rle:
+            is_rle = annotation.get("_is_rle", False)
+
+        self.draw_polygon(image, points, color, label, is_rle=is_rle)
 
     def _draw_bounding_box(self, image: np.ndarray, annotation: Dict,
                           color: Tuple[int, int, int], label: str):

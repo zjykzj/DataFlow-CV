@@ -40,9 +40,14 @@ def _create_yolo_command():
     @click.argument('class_path', type=click.Path(exists=True, dir_okay=False))
     @click.option('--save', type=click.Path(file_okay=False), help='Directory to save visualized images')
     @click.option('--segmentation', '-s', is_flag=True, help='Force segmentation mode (strict validation)')
+    @click.option('--fill/--no-fill', default=None, help='Fill polygons (default: False)')
+    @click.option('--fill-alpha', type=float, default=None, help='Fill transparency (0.0-1.0, default: 0.3)')
+    @click.option('--outline-alpha', type=float, default=None, help='Outline transparency (0.0-1.0, default: 1.0)')
+    @click.option('--highlight-rle/--no-highlight-rle', default=None, help='Highlight RLE masks (default: True)')
+    @click.option('--rle-color', type=str, default=None, help='RLE fill color as "R,G,B" (e.g., "255,0,0")')
     @click.option('-v', '--verbose', is_flag=True, help='Print detailed progress information')
     @click.pass_context
-    def command(ctx, image_dir, label_dir, class_path, save, segmentation, verbose):
+    def command(ctx, image_dir, label_dir, class_path, save, segmentation, fill, fill_alpha, outline_alpha, highlight_rle, rle_color, verbose):
         """
         Visualize YOLO format annotations.
 
@@ -68,6 +73,33 @@ def _create_yolo_command():
 
             # Create visualizer and perform visualization
             visualizer = YoloVisualizer(verbose=verbose, segmentation=segmentation)
+
+            # Set polygon fill and transparency options
+            if fill is not None:
+                visualizer.fill_polygons = fill
+            if fill_alpha is not None:
+                if not 0.0 <= fill_alpha <= 1.0:
+                    raise ValueError("fill_alpha must be between 0.0 and 1.0")
+                visualizer.fill_alpha = fill_alpha
+            if outline_alpha is not None:
+                if not 0.0 <= outline_alpha <= 1.0:
+                    raise ValueError("outline_alpha must be between 0.0 and 1.0")
+                visualizer.outline_alpha = outline_alpha
+            if highlight_rle is not None:
+                visualizer.highlight_rle = highlight_rle
+            if rle_color is not None:
+                # Parse R,G,B string
+                try:
+                    parts = rle_color.split(',')
+                    if len(parts) != 3:
+                        raise ValueError
+                    r, g, b = map(int, parts)
+                    if not (0 <= r <= 255 and 0 <= g <= 255 and 0 <= b <= 255):
+                        raise ValueError
+                    visualizer.rle_fill_color = (b, g, r)  # OpenCV uses BGR
+                except ValueError:
+                    raise ValueError('rle_color must be "R,G,B" with integers 0-255')
+
             result = visualizer.visualize(image_dir, label_dir, class_path, save)
 
             _print_visualization_summary(result, segmentation)
@@ -86,9 +118,14 @@ def _create_coco_command():
     @click.argument('annotation_json', type=click.Path(exists=True, dir_okay=False))
     @click.option('--save', type=click.Path(file_okay=False), help='Directory to save visualized images')
     @click.option('--segmentation', '-s', is_flag=True, help='Force segmentation mode (strict validation)')
+    @click.option('--fill/--no-fill', default=None, help='Fill polygons (default: False)')
+    @click.option('--fill-alpha', type=float, default=None, help='Fill transparency (0.0-1.0, default: 0.3)')
+    @click.option('--outline-alpha', type=float, default=None, help='Outline transparency (0.0-1.0, default: 1.0)')
+    @click.option('--highlight-rle/--no-highlight-rle', default=None, help='Highlight RLE masks (default: True)')
+    @click.option('--rle-color', type=str, default=None, help='RLE fill color as "R,G,B" (e.g., "255,0,0")')
     @click.option('-v', '--verbose', is_flag=True, help='Print detailed progress information')
     @click.pass_context
-    def command(ctx, image_dir, annotation_json, save, segmentation, verbose):
+    def command(ctx, image_dir, annotation_json, save, segmentation, fill, fill_alpha, outline_alpha, highlight_rle, rle_color, verbose):
         """
         Visualize COCO format annotations.
 
@@ -112,6 +149,33 @@ def _create_coco_command():
 
             # Create visualizer and perform visualization
             visualizer = CocoVisualizer(verbose=verbose, segmentation=segmentation)
+
+            # Set polygon fill and transparency options
+            if fill is not None:
+                visualizer.fill_polygons = fill
+            if fill_alpha is not None:
+                if not 0.0 <= fill_alpha <= 1.0:
+                    raise ValueError("fill_alpha must be between 0.0 and 1.0")
+                visualizer.fill_alpha = fill_alpha
+            if outline_alpha is not None:
+                if not 0.0 <= outline_alpha <= 1.0:
+                    raise ValueError("outline_alpha must be between 0.0 and 1.0")
+                visualizer.outline_alpha = outline_alpha
+            if highlight_rle is not None:
+                visualizer.highlight_rle = highlight_rle
+            if rle_color is not None:
+                # Parse R,G,B string
+                try:
+                    parts = rle_color.split(',')
+                    if len(parts) != 3:
+                        raise ValueError
+                    r, g, b = map(int, parts)
+                    if not (0 <= r <= 255 and 0 <= g <= 255 and 0 <= b <= 255):
+                        raise ValueError
+                    visualizer.rle_fill_color = (b, g, r)  # OpenCV uses BGR
+                except ValueError:
+                    raise ValueError('rle_color must be "R,G,B" with integers 0-255')
+
             result = visualizer.visualize(image_dir, annotation_json, save)
 
             _print_visualization_summary(result, segmentation)
@@ -130,9 +194,14 @@ def _create_labelme_command():
     @click.argument('label_dir', type=click.Path(exists=True, file_okay=False))
     @click.option('--save', type=click.Path(file_okay=False), help='Directory to save visualized images')
     @click.option('--segmentation', '-s', is_flag=True, help='Force segmentation mode (strict validation)')
+    @click.option('--fill/--no-fill', default=None, help='Fill polygons (default: False)')
+    @click.option('--fill-alpha', type=float, default=None, help='Fill transparency (0.0-1.0, default: 0.3)')
+    @click.option('--outline-alpha', type=float, default=None, help='Outline transparency (0.0-1.0, default: 1.0)')
+    @click.option('--highlight-rle/--no-highlight-rle', default=None, help='Highlight RLE masks (default: True)')
+    @click.option('--rle-color', type=str, default=None, help='RLE fill color as "R,G,B" (e.g., "255,0,0")')
     @click.option('-v', '--verbose', is_flag=True, help='Print detailed progress information')
     @click.pass_context
-    def command(ctx, image_dir, label_dir, save, segmentation, verbose):
+    def command(ctx, image_dir, label_dir, save, segmentation, fill, fill_alpha, outline_alpha, highlight_rle, rle_color, verbose):
         """
         Visualize LabelMe format annotations.
 
@@ -156,6 +225,33 @@ def _create_labelme_command():
 
             # Create visualizer and perform visualization
             visualizer = LabelMeVisualizer(verbose=verbose, segmentation=segmentation)
+
+            # Set polygon fill and transparency options
+            if fill is not None:
+                visualizer.fill_polygons = fill
+            if fill_alpha is not None:
+                if not 0.0 <= fill_alpha <= 1.0:
+                    raise ValueError("fill_alpha must be between 0.0 and 1.0")
+                visualizer.fill_alpha = fill_alpha
+            if outline_alpha is not None:
+                if not 0.0 <= outline_alpha <= 1.0:
+                    raise ValueError("outline_alpha must be between 0.0 and 1.0")
+                visualizer.outline_alpha = outline_alpha
+            if highlight_rle is not None:
+                visualizer.highlight_rle = highlight_rle
+            if rle_color is not None:
+                # Parse R,G,B string
+                try:
+                    parts = rle_color.split(',')
+                    if len(parts) != 3:
+                        raise ValueError
+                    r, g, b = map(int, parts)
+                    if not (0 <= r <= 255 and 0 <= g <= 255 and 0 <= b <= 255):
+                        raise ValueError
+                    visualizer.rle_fill_color = (b, g, r)  # OpenCV uses BGR
+                except ValueError:
+                    raise ValueError('rle_color must be "R,G,B" with integers 0-255')
+
             result = visualizer.visualize(image_dir, label_dir, save)
 
             _print_visualization_summary(result, segmentation)
