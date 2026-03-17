@@ -417,6 +417,21 @@ DataFlow-CV supports RLE (Run-Length Encoding) mask format for COCO annotations,
 - More compact than polygon point lists for complex, detailed masks
 - COCO format uses RLE dictionaries with `counts` (bytes) and `size` (height, width) keys
 
+**Conversion with pycocotools**
+- DataFlow-CV uses `pycocotools.mask.frPyObjects()` to convert polygons to RLE format
+- For decoding RLE to polygons, the library automatically handles RLE masks in COCO files
+- The `pycocotools>=2.0.0` dependency is required for RLE support
+- Example conversion:
+  ```python
+  from pycocotools import mask as mask_utils
+
+  # Polygon to RLE
+  rle = mask_utils.frPyObjects(polygon, height, width)
+
+  # RLE to binary mask (for visualization or further processing)
+  binary_mask = mask_utils.decode(rle)
+  ```
+
 **Usage Examples**
 ```bash
 # Convert YOLO to COCO with RLE masks (polygon annotations only)

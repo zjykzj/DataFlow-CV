@@ -216,8 +216,139 @@ COCO JSON 文件是一个包含以下顶级字段的对象：
 4. **面积计算**：`area` 字段用于评估指标（如 mAP），对于多边形通常是其像素面积，对于边界框是 `width * height`。
 5. **拥挤标注**：`iscrowd=1` 表示该标注是一个拥挤区域（多个实例被标注为一个整体），在评估时通常被特殊处理。
 
+## RLE 掩码与多边形格式
+
+COCO 格式支持两种分割标注表示方式：多边形点列表（polygon point lists）和 RLE（Run-Length Encoding，游程编码）掩码。两者各有优劣，适用于不同场景。
+
+### RLE 掩码格式
+
+RLE 是一种高效的二值掩码编码方式，特别适合表示复杂、不规则的形状。
+
+**数据结构**：
+```json
+{
+  "counts": [192, 5, 10, 5, 25, 3, ...],
+  "size": [height, width]
+}
+```
+
+- `counts`：游程编码的字节数组，表示掩码中连续0和1的长度交替。
+- `size`：掩码的尺寸 `[高度, 宽度]`。
+
+**特点**：
+- **紧凑存储**：对于大面积连续区域，RLE 可以大幅减小存储空间。
+- **快速处理**：某些操作（如并集、交集）在 RLE 格式下更高效。
+- **适合复杂形状**：对于细节丰富的分割掩码，RLE 比多边形点列表更精确。
+- **`iscrowd=1` 时的标准格式**：COCO 数据集中拥挤区域通常使用 RLE。
+
+### 多边形点列表格式
+
+多边形点列表通过一系列顶点坐标描述分割区域的轮廓。
+
+**数据结构**：
+```json
+[[x1, y1, x2, y2, x3, y3, ...]]
+```
+
+- 单个多边形：一维数组 `[x1, y1, x2, y2, ...]`
+- 多个多边形（同一实例的不连通部分）：二维数组 `[[poly1], [poly2], ...]`
+
+**特点**：
+- **人类可读**：坐标点直观易懂，便于调试和验证。
+- **精确描述简单形状**：对于规则形状（矩形、简单多边形），点列表更紧凑。
+- **编辑友好**：可以手动调整个别顶点。
+- **`iscrowd=0` 时的常用格式**：单个实例的标注通常使用多边形。
+
+### 对比
+
+| 特性 | RLE 掩码 | 多边形点列表 |
+|------|----------|--------------|
+| **存储效率** | 高（复杂形状） | 低（简单形状）或高（复杂形状） |
+| **计算效率** | 掩码操作快 | 几何计算快 |
+| **精度** | 像素级精度 | 受顶点数量限制 |
+| **可读性** | 低（需解码） | 高（直接坐标） |
+| **适用场景** | 复杂形状、拥挤区域 | 简单形状、规则多边形 |
+| **COCO 标准** | `iscrowd=1` 时推荐 | `iscrowd=0` 时推荐 |
+
+### 使用 pycocotools 进行转换
+
+`pycocotools`（COCO API 的 Python 实现）提供了 RLE 与多边形之间的转换功能。
+
+**安装**：
+```bash
+pip install pycocotools
+```
+
+**RLE → 多边形**：
+```python
+from pycocotools import mask as mask_utils
+import numpy as np
+
+# 假设 rle 是一个 RLE 字典
+rle = {'counts': [192, 5, 10, ...], 'size': [480, 640]}
+
+# 解码为二值掩码
+binary_mask = mask_utils.decode(rle)
+
+# 从掩码提取多边形（使用 OpenCV 或其他库）
+# pycocotools 本身不直接提供掩码→多边形的转换，
+# 但可以通过 findContours（OpenCV）实现
+```
+
+**多边形 → RLE**：
+```python
+from pycocotools import mask as mask_utils
+
+# 多边形坐标列表（假设为单个多边形）
+polygon = [[x1, y1, x2, y2, x3, y3, ...]]
+
+# 图像尺寸
+height, width = 480, 640
+
+# 将多边形编码为 RLE
+rle = mask_utils.frPyObjects(polygon, height, width)
+
+# 如果需要合并多个多边形（同一实例）
+rles = [mask_utils.frPyObjects(p, height, width) for p in polygons]
+merged_rle = mask_utils.merge(rles)
+```
+
+**注意事项**：
+1. **精度损失**：多边形→RLE→多边形 转换可能导致精度损失，因为 RLE 是像素级表示，而多边形是顶点近似。
+2. **图像尺寸必需**：RLE 编码需要图像高度和宽度。
+3. **多个多边形**：一个实例可能有多个不连通部分，需要分别编码后合并。
+
+### 在 DataFlow-CV 中的支持
+
+DataFlow-CV 通过 `--rle` 标志支持 RLE 格式的转换：
+
+```bash
+# 将 YOLO 分割转换为 COCO 格式，并使用 RLE 编码
+dataflow convert yolo2coco images/ labels/ classes.names output.json --rle
+
+# 将 LabelMe 分割转换为 COCO 格式，并使用 RLE 编码
+dataflow convert labelme2coco labels/ classes.names output.json --rle
+```
+
+**Python API**：
+```python
+import dataflow
+
+# YOLO → COCO 带 RLE
+result = dataflow.yolo_to_coco("images/", "labels/", "classes.names", "output.json", rle=True)
+
+# LabelMe → COCO 带 RLE
+result = dataflow.labelme_to_coco("labels/", "classes.names", "output.json", rle=True)
+```
+
+**内部实现**：
+- DataFlow-CV 使用 `pycocotools.mask.frPyObjects()` 将多边形转换为 RLE。
+- 从 COCO 到 YOLO/LabelMe 的转换自动解码 RLE 为多边形（无需额外标志）。
+- RLE 转换需要 `pycocotools>=2.0.0` 依赖。
+
 ## 参考
 
 - COCO 官方网站：[http://cocodataset.org/](http://cocodataset.org/)
 - COCO 格式详解：[https://cocodataset.org/#format-data](https://cocodataset.org/#format-data)
 - COCO API（Python）：[https://github.com/cocodataset/cocoapi](https://github.com/cocodataset/cocoapi)
+- pycocotools 文档：[https://github.com/cocodataset/cocoapi/tree/master/PythonAPI/pycocotools](https://github.com/cocodataset/cocoapi/tree/master/PythonAPI/pycocotools)

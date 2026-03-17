@@ -186,6 +186,7 @@ dataflow convert coco2yolo annotations.json output_dir/ --segmentation
 
 # YOLO to COCO conversion
 dataflow convert yolo2coco images/ labels/ classes.names output.json
+dataflow convert yolo2coco images/ labels/ classes.names output.json --rle
 
 # COCO to LabelMe conversion (use --segmentation for polygon annotations)
 dataflow convert coco2labelme annotations.json output_dir/
@@ -193,6 +194,7 @@ dataflow convert coco2labelme annotations.json output_dir/ --segmentation
 
 # LabelMe to COCO conversion
 dataflow convert labelme2coco labels/ classes.names output.json
+dataflow convert labelme2coco labels/ classes.names output.json --rle
 
 # LabelMe to YOLO conversion (use --segmentation for polygon annotations)
 dataflow convert labelme2yolo labels/ output_dir/
@@ -240,6 +242,7 @@ print(f"Processed {result['images_processed']} images")
 
 # YOLO to COCO conversion
 result = dataflow.yolo_to_coco("images/", "labels/", "classes.names", "output.json")
+result = dataflow.yolo_to_coco("images/", "labels/", "classes.names", "output.json", rle=True)
 print(f"Generated {result['annotations_processed']} annotations")
 
 # Additional conversions (import converters directly)
@@ -258,6 +261,7 @@ print(f"Converted {result['images_processed']} images to LabelMe format")
 # LabelMe to COCO conversion
 converter = LabelMeToCocoConverter()
 result = converter.convert("labels/", "classes.names", "output.json")
+result = converter.convert("labels/", "classes.names", "output.json", rle=True)
 print(f"Converted {result['annotations_processed']} annotations to COCO format")
 
 # LabelMe to YOLO conversion
@@ -414,6 +418,7 @@ DataFlow-CV supports both bounding box and polygon segmentation annotations acro
 **COCO Segmentation Format**
 - Polygon coordinates in `segmentation` field (list of `[x1, y1, x2, y2, ...]`)
 - Both single-polygon and multi-polygon annotations are supported
+- RLE (Run-Length Encoding) mask format supported for compact storage of complex masks
 
 **LabelMe Segmentation Format**
 - Rectangle shapes (`shape_type: "rectangle"`) for bounding box annotations
