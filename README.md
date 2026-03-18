@@ -419,6 +419,7 @@ DataFlow-CV supports both bounding box and polygon segmentation annotations acro
 - Polygon coordinates in `segmentation` field (list of `[x1, y1, x2, y2, ...]`)
 - Both single-polygon and multi-polygon annotations are supported
 - RLE (Run-Length Encoding) mask format supported for compact storage of complex masks
+- RLE masks can be visualized with semi-transparent fills and configurable highlighting options
 
 **LabelMe Segmentation Format**
 - Rectangle shapes (`shape_type: "rectangle"`) for bounding box annotations
@@ -459,6 +460,46 @@ result = dataflow.visualize_labelme("images/", "labels/", segmentation=True)
 - COCO segmentation polygons are automatically converted to YOLO normalized coordinates
 - LabelMe format supports both rectangle (`shape_type: "rectangle"`) and polygon (`shape_type: "polygon"`) shapes
 - In segmentation mode, LabelMe visualizer rejects rectangle shapes and only accepts polygon shapes
+
+### RLE Mask Support
+
+DataFlow-CV supports RLE (Run-Length Encoding) mask format for COCO annotations, providing efficient storage for segmentation masks. RLE masks can be visualized with semi-transparent fills and configurable highlighting options.
+
+**Conversion with RLE**
+```bash
+# Convert YOLO to COCO with RLE masks (polygon annotations only)
+dataflow convert yolo2coco images/ labels/ classes.names output.json --rle
+
+# Convert LabelMe to COCO with RLE masks (polygon annotations only)
+dataflow convert labelme2coco labels/ classes.names output.json --rle
+
+# RLE mode with segmentation filtering
+dataflow convert yolo2coco images/ labels/ classes.names output.json --segmentation --rle
+```
+
+**Visualization of RLE Masks**
+- RLE masks are automatically detected in COCO annotations and visualized with distinct styling
+- Semi-transparent fills and highlight colors can be configured via visualization settings
+- Provides better visual distinction between different annotation types
+
+**Python API**
+```python
+# Convert YOLO to COCO with RLE masks
+result = dataflow.yolo_to_coco("images/", "labels/", "classes.names", "output.json", rle=True)
+
+# Convert LabelMe to COCO with RLE masks
+result = dataflow.labelme_to_coco("labels/", "classes.names", "output.json", rle=True)
+
+# RLE mode with segmentation filtering
+result = dataflow.yolo_to_coco("images/", "labels/", "classes.names", "output.json", segmentation=True, rle=True)
+```
+
+**Notes**
+- RLE conversion requires `pycocotools>=2.0.0` dependency
+- When `--rle` flag is specified, polygon annotations are encoded as RLE masks
+- Bounding box annotations remain as polygon format (not affected by rle)
+- COCO to YOLO/LabelMe conversion automatically decodes RLE masks to polygon format
+- RLE decoding requires image dimensions; conversion fails if dimensions are missing
 
 ### Running Tests
 

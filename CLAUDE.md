@@ -216,6 +216,7 @@ All format converters inherit from `BaseConverter` (`dataflow/convert/base.py`),
 All annotation visualizers inherit from `BaseVisualizer` (`dataflow/visualize/base.py`), which provides:
 - Common drawing utilities (`draw_bounding_box`, `draw_polygon`)
 - Color management (`get_color_for_class`)
+- Polygon fill and transparency settings for segmentation visualization, with configurable alpha values and RLE mask highlighting
 - Image I/O (`read_image`, `save_image`, `display_image`)
 - Window management and display resizing
 - Logging and progress reporting
@@ -456,6 +457,11 @@ result = dataflow.labelme_to_coco("labels/", "classes.names", "output.json", rle
 result = dataflow.yolo_to_coco("images/", "labels/", "classes.names", "output.json", segmentation=True, rle=True)
 ```
 
+**Visualization of RLE Masks**
+- RLE masks can be visualized with semi-transparent fills and configurable highlighting options
+- The visualizer automatically detects RLE masks in COCO annotations and renders them with distinct styling
+- Fill transparency and highlight colors can be configured via `VisualizeConfig` settings
+
 **Notes**
 - RLE conversion requires `pycocotools>=2.0.0` dependency
 - When `--rle` flag is specified:
@@ -475,6 +481,8 @@ DataFlow-CV has recently been enhanced with several improvements:
 - **Improved Color Distinction**: Visualizers now use golden ratio distribution in HSV color space to generate distinct colors for many classes, with additional variation in saturation and value for better visual separation.
 - **Cross-Platform Robustness**: All platform-specific code has been eliminated; the library now uses only standard Python libraries and follows strict cross-platform development principles.
 - **Command alias**: Added `dataflow-cv` as an alias to the existing `dataflow` command for better alignment with package name.
+- **RLE Mask Visualization**: Added support for visualizing RLE masks with semi-transparent fills and configurable highlighting options, providing better visual distinction between different annotation types.
+- **Enhanced RLE Support**: Improved class handling and validation for RLE mask conversions, with better integration of pycocotools for polygon-to-RLE transformations.
 
 ## Platform Compatibility
 
