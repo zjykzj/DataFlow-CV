@@ -30,7 +30,6 @@ DataFlow-CV是一个专门处理计算机视觉数据集的Python库，旨在提
 3. **错误处理**：严格模式，遇到错误立即引发异常
 4. **可扩展性**：易于添加新的标注格式支持
 5. **平台兼容**：确保在Windows、Linux、macOS上的完全兼容
-6. **文档完整**：完整的API文档、使用示例和测试用例
 
 ## 2. 整体架构
 
@@ -71,15 +70,16 @@ DataFlow-CV/
 │   └── util/
 │       ├── file_util_demo.py
 │       └── logging_util_demo.py
-└── assets/
-    ├── test_data/
-    │   ├── labelme/
-    │   ├── yolo/
-    │   └── coco/
-    └── sample_data/
-        ├── labelme/
-        ├── yolo/
-        └── coco/
+├── assets
+│   ├── test_data
+│   │   ├── det
+│   │   │   ├── coco
+│   │   │   ├── labelme
+│   │   │   └── yolo
+│   │   └── seg
+│   │       ├── coco
+│   │       ├── labelme
+│   │       └── yolo
 ```
 
 ### 2.2 文件树结构说明
@@ -91,7 +91,6 @@ DataFlow-CV/
 - **samples/**：示例代码目录，提供使用范例
 - **assets/**：资源目录
   - `test_data/`：测试数据
-  - `sample_data/`：示例数据
 
 ### 2.3 依赖关系
 
@@ -790,8 +789,6 @@ class LoggingOperations:
 
 1. **批量处理**：支持文件夹级别的批量操作
 2. **惰性加载**：大文件支持流式读取
-3. **内存管理**：及时释放大对象内存
-4. **缓存机制**：适当缓存频繁访问的数据
 
 ### 5.5 代码质量要求
 
@@ -826,25 +823,47 @@ tests/
 
 ```
 assets/test_data/
-├── labelme/
-│   ├── classes.txt
-│   ├── image1.jpg
-│   ├── image1.json
-│   ├── image2.jpg
-│   └── image2.json
-├── yolo/
-│   ├── classes.txt
-│   ├── images/
-│   │   ├── image1.jpg
-│   │   └── image2.jpg
-│   └── labels/
-│       ├── image1.txt
-│       └── image2.txt
-└── coco/
-    ├── annotations.json
-    └── images/
-        ├── image1.jpg
-        └── image2.jpg
+├── det
+│   ├── coco
+│   │   ├── annotations.json
+│   │   └── images
+│   │       ├── image1.jpg
+│   │       └── image2.jpg
+│   ├── labelme
+│   │   ├── classes.txt
+│   │   ├── image1.jpg
+│   │   ├── image1.json
+│   │   ├── image2.jpg
+│   │   └── image2.json
+│   └── yolo
+│       ├── classes.txt
+│       ├── images
+│       │   ├── image1.jpg
+│       │   └── image2.jpg
+│       └── labels
+│           ├── image1.txt
+│           └── image2.txt
+└── seg
+    ├── coco
+    │   ├── annotations-rle.json
+    │   ├── annotations.json
+    │   └── images
+    │       ├── image1.jpg
+    │       └── image2.jpg
+    ├── labelme
+    │   ├── classes.txt
+    │   ├── image1.jpg
+    │   ├── image1.json
+    │   ├── image2.jpg
+    │   └── image2.json
+    └── yolo
+        ├── classes.txt
+        ├── images
+        │   ├── image1.jpg
+        │   └── image2.jpg
+        └── labels
+            ├── image1.txt
+            └── image2.txt
 ```
 
 ### 6.3 测试编写规范
@@ -938,6 +957,8 @@ samples/
     └── logging_util_demo.py  # 日志工具使用示例
 ```
 
+在`assets/test_data/`目录下准备示例数据
+
 ### 7.2 示例代码编写规范
 
 1. **完整性**：展示完整的使用流程
@@ -972,8 +993,8 @@ def main():
     log_ops = LoggingOperations()
     logger = log_ops.get_logger("labelme_demo", level="INFO")
 
-    # 示例数据路径（假设在assets/sample_data/labelme目录下）
-    data_dir = project_root / "assets" / "sample_data" / "labelme"
+    # 示例数据路径（假设在assets/test_data/labelme目录下）
+    data_dir = project_root / "assets" / "test_data" / "labelme"
     class_file = data_dir / "classes.txt"
 
     if not data_dir.exists():
@@ -1055,7 +1076,7 @@ def main():
     logger = log_ops.get_logger("yolo_demo", level="INFO")
 
     # 示例数据路径
-    data_dir = project_root / "assets" / "sample_data" / "yolo"
+    data_dir = project_root / "assets" / "test_data" / "yolo"
     class_file = data_dir / "classes.txt"
     image_dir = data_dir / "images"
     label_dir = data_dir / "labels"
@@ -1149,7 +1170,7 @@ def main():
     logger = log_ops.get_logger("coco_demo", level="INFO")
 
     # 示例数据路径
-    data_dir = project_root / "assets" / "sample_data" / "coco"
+    data_dir = project_root / "assets" / "test_data" / "coco"
     annotation_file = data_dir / "annotations.json"
 
     if not annotation_file.exists():
@@ -1372,7 +1393,6 @@ if __name__ == "__main__":
 - **缓解**：
   - 提供详细的使用说明
   - 实现降级处理（pycocotools未安装时禁用RLE功能）
-  - 提供RLE与多边形格式的互转换工具
 
 #### 风险2：跨平台兼容性问题
 - **风险**：不同操作系统下的路径、编码、权限问题
@@ -1380,13 +1400,6 @@ if __name__ == "__main__":
   - 统一使用`pathlib.Path`处理路径
   - 强制使用UTF-8编码
   - 充分的跨平台测试
-
-#### 风险3：性能问题
-- **风险**：大文件或大批量处理时内存占用过高
-- **缓解**：
-  - 实现流式读取和分批处理
-  - 提供内存使用警告
-  - 优化数据结构，减少内存占用
 
 ## 9. 质量保证
 
@@ -1414,13 +1427,6 @@ pytest --cov=dataflow --cov-report=term --cov-report=html
 pytest --cov=dataflow --cov-fail-under=90
 ```
 
-### 9.3 文档完整性要求
-
-1. **API文档**：使用Sphinx或pdoc自动生成
-2. **使用示例**：每个模块必须有完整的使用示例
-3. **开发指南**：包含设置、开发、测试指南
-4. **故障排除**：常见问题解决方案
-
 ### 9.4 发布前检查清单
 
 发布前必须完成以下检查：
@@ -1429,61 +1435,9 @@ pytest --cov=dataflow --cov-fail-under=90
 - [ ] 测试覆盖率≥90%
 - [ ] 类型检查通过（mypy）
 - [ ] 代码风格检查通过（flake8）
-- [ ] 文档完整且更新
 - [ ] 示例代码可正常运行
 - [ ] 跨平台兼容性验证通过
-- [ ] 性能测试通过
 - [ ] 安全扫描通过
-
-### 9.5 持续集成配置
-
-配置GitHub Actions实现自动化测试：
-
-```yaml
-name: CI
-
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.8', '3.9', '3.10', '3.11']
-
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pytest pytest-cov black isort flake8 mypy
-
-    - name: Code style check
-      run: |
-        black --check .
-        isort --check .
-        flake8 .
-
-    - name: Type check
-      run: mypy dataflow/
-
-    - name: Run tests
-      run: |
-        pytest --cov=dataflow --cov-report=xml
-
-    - name: Upload coverage
-      uses: codecov/codecov-action@v2
-      with:
-        file: ./coverage.xml
-```
 
 ## 总结
 
@@ -1503,4 +1457,3 @@ jobs:
 **文档版本**：1.0
 **最后更新**：2026-03-21
 **作者**：Claude Code
-**状态**：草案（待评审）

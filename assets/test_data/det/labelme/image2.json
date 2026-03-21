@@ -1,0 +1,59 @@
+{
+  "version": "5.5.0",
+  "flags": {},
+  "shapes": [
+    {
+      "label": "person",
+      "points": [
+        [
+          334.38016000000005,
+          224.36016
+        ],
+        [
+          551.1904,
+          474.61008000000004
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    },
+    {
+      "label": "elephant",
+      "points": [
+        [
+          5.389759999999999,
+          109.69008
+        ],
+        [
+          319.27968,
+          386.91024
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    },
+    {
+      "label": "person",
+      "points": [
+        [
+          615.619936,
+          239.77008000000004
+        ],
+        [
+          639.9999039999999,
+          332.34000000000003
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    }
+  ],
+  "imagePath": "image2.jpg",
+  "imageData": null,
+  "imageHeight": 480,
+  "imageWidth": 640,
+  "mask": null
+}
