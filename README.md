@@ -8,10 +8,6 @@ A data processing library for computer vision datasets.
 
 DataFlow-CV provides unified label file format conversion, visualization, and data processing functionality for computer vision datasets. It supports multiple annotation formats including LabelMe, YOLO, and COCO, with automatic detection of annotation types (object detection vs. instance segmentation).
 
-## Development Status
-
-The project is currently in the planning phase. Detailed development specifications are available in [specs_for_label.md](specs_for_label.md).
-
 ## Key Features
 
 - **Multi-format Support**: LabelMe, YOLO, COCO annotation formats

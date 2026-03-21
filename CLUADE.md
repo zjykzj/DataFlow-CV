@@ -10,17 +10,6 @@ DataFlow-CV is a Python library for computer vision dataset processing. The proj
 
 DataFlow-CV is designed for full cross-platform compatibility (Windows, Linux, macOS).
 
-## Development Specifications
-
-The project follows the detailed development specification in `specs_for_label.md`. This document outlines:
-- Overall architecture and module organization
-- Detailed design of the `dataflow/label` module (LabelMe, YOLO, COCO handlers)
-- Design of the `dataflow/util` module (file and logging operations)
-- Technical implementation requirements and testing strategy
-- Example code structure and development plan
-
-When implementing features, always refer to `specs_for_label.md` for design guidance and API specifications.
-
 ## Key Design Principles
 
 1. **Unified Interfaces**: All annotation handlers follow the same interface defined in `BaseAnnotationHandler`
