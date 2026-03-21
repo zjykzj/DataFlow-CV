@@ -163,6 +163,10 @@ class BaseAnnotationHandler(ABC):
         self.logger.error(message)
         if self.strict_mode:
             raise ValueError(message)
+
+    def _log_warning(self, message: str):
+        """记录警告日志"""
+        self.logger.warning(message)
 ```
 
 #### 3.1.2 数据类定义
@@ -180,7 +184,6 @@ class BoundingBox:
     width: float  # 宽度（归一化）
     height: float  # 高度（归一化）
 
-    @property
     def xywh_abs(self, img_width: int, img_height: int) -> Tuple[int, int, int, int]:
         """转换为绝对坐标"""
         return (
@@ -190,7 +193,6 @@ class BoundingBox:
             int(self.height * img_height)
         )
 
-    @property
     def xyxy(self, img_width: int, img_height: int) -> Tuple[int, int, int, int]:
         """转换为左上-右下坐标"""
         x_center = self.x * img_width
@@ -209,7 +211,6 @@ class Segmentation:
     """分割标注"""
     points: List[Tuple[float, float]]  # 多边形点列表（归一化坐标）
 
-    @property
     def points_abs(self, img_width: int, img_height: int) -> List[Tuple[int, int]]:
         """转换为绝对坐标"""
         return [(int(x * img_width), int(y * img_height)) for x, y in self.points]
@@ -288,6 +289,11 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
         self.class_file = class_file
         self.categories = self._load_categories()
 
+    def _load_categories(self) -> Dict[int, str]:
+        """加载类别映射"""
+        # 实现细节：如果提供了class_file则从文件加载，否则从标注文件中提取
+        pass
+
     def read(self) -> AnnotationResult:
         """读取LabelMe标注文件夹"""
         # 实现细节...
@@ -325,6 +331,11 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
         self.class_file = class_file
         self.image_dir = image_dir
         self.categories = self._load_categories()
+
+    def _load_categories(self) -> Dict[int, str]:
+        """从class_file加载类别映射"""
+        # 实现细节：从classes.txt文件读取类别名称，建立ID到名称的映射
+        pass
 
     def read(self) -> AnnotationResult:
         """读取YOLO标注文件夹"""
@@ -570,7 +581,18 @@ class FileOperations:
         dst_path = Path(dst_dir)
         self.ensure_dir(dst_path)
 
-        for src_file in Path().glob(src_pattern):
+        # 解析源模式，支持包含目录的模式（如"data/*.json"）
+        src_path = Path(src_pattern)
+        if src_path.parent != Path('.'):
+            # 模式包含目录部分
+            search_dir = src_path.parent
+            pattern = src_path.name
+        else:
+            # 简单模式，在当前目录搜索
+            search_dir = Path('.')
+            pattern = src_pattern
+
+        for src_file in search_dir.glob(pattern):
             dst_file = dst_path / src_file.name
             if dst_file.exists() and not overwrite:
                 self.logger.warning(f"File exists, skipping: {dst_file}")
@@ -993,8 +1015,8 @@ def main():
     log_ops = LoggingOperations()
     logger = log_ops.get_logger("labelme_demo", level="INFO")
 
-    # 示例数据路径（假设在assets/test_data/labelme目录下）
-    data_dir = project_root / "assets" / "test_data" / "labelme"
+    # 示例数据路径（使用目标检测的LabelMe测试数据）
+    data_dir = project_root / "assets" / "test_data" / "det" / "labelme"
     class_file = data_dir / "classes.txt"
 
     if not data_dir.exists():
@@ -1076,7 +1098,7 @@ def main():
     logger = log_ops.get_logger("yolo_demo", level="INFO")
 
     # 示例数据路径
-    data_dir = project_root / "assets" / "test_data" / "yolo"
+    data_dir = project_root / "assets" / "test_data" / "det" / "yolo"
     class_file = data_dir / "classes.txt"
     image_dir = data_dir / "images"
     label_dir = data_dir / "labels"
@@ -1170,7 +1192,7 @@ def main():
     logger = log_ops.get_logger("coco_demo", level="INFO")
 
     # 示例数据路径
-    data_dir = project_root / "assets" / "test_data" / "coco"
+    data_dir = project_root / "assets" / "test_data" / "det" / "coco"
     annotation_file = data_dir / "annotations.json"
 
     if not annotation_file.exists():
