@@ -72,11 +72,20 @@ class ColorManager:
         if class_id in self.color_cache:
             return self.color_cache[class_id]
 
-        # Cycle through predefined colors
-        color_idx = class_id % len(self.predefined_colors)
-        color = self.predefined_colors[color_idx]
-        self.color_cache[class_id] = color
+        # Generate distinct color for each class_id
+        # Use HSV color space for good perceptual distinction
+        # Golden ratio conjugate for even distribution
+        golden_ratio_conjugate = 0.618033988749895
+        hue = (class_id * golden_ratio_conjugate * 180) % 180
+        saturation = 255
+        value = 255
 
+        # Convert HSV to BGR
+        hsv_color = np.uint8([[[hue, saturation, value]]])
+        bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)
+        color = (int(bgr_color[0,0,0]), int(bgr_color[0,0,1]), int(bgr_color[0,0,2]))
+
+        self.color_cache[class_id] = color
         return color
 
 

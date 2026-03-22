@@ -3,10 +3,21 @@
 COCO标注可视化示例
 
 展示如何使用COCOVisualizer可视化COCO格式标注。
-支持RLE格式和多边形格式。
+支持目标检测和实例分割标注，以及多边形格式和RLE格式。
+
+使用方法：
+    python coco_demo.py [--task {det,seg}] [--format {polygon,rle}]
+
+示例：
+    python coco_demo.py                      # 可视化目标检测标注（多边形格式，默认）
+    python coco_demo.py --task seg           # 可视化实例分割标注（多边形格式）
+    python coco_demo.py --task seg --format rle  # 可视化实例分割标注（RLE格式）
+
+注意：目标检测任务仅支持多边形格式。
 """
 
 import sys
+import argparse
 from pathlib import Path
 
 # 添加项目根目录到Python路径
@@ -19,13 +30,40 @@ from dataflow.util import LoggingOperations
 
 def main():
     """主函数"""
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description="COCO标注可视化示例")
+    parser.add_argument("--task", choices=["det", "seg"], default="det",
+                       help="任务类型: det=目标检测, seg=实例分割 (默认: det)")
+    parser.add_argument("--format", choices=["polygon", "rle"], default="polygon",
+                       help="标注格式: polygon=多边形格式, rle=RLE格式 (默认: polygon)")
+    args = parser.parse_args()
+
+    # 参数验证
+    if args.task == "det" and args.format == "rle":
+        print("错误: 目标检测任务仅支持多边形格式")
+        print("请使用: python coco_demo.py --task det --format polygon")
+        return
+
     # 配置日志
     log_ops = LoggingOperations()
     logger = log_ops.get_logger("coco_visualize_demo", level="INFO")
 
-    # 示例数据路径（使用目标检测的COCO测试数据）
-    data_dir = project_root / "assets" / "test_data" / "det" / "coco"
-    annotation_file = data_dir / "annotations.json"
+    # 根据任务类型和格式选择数据路径
+    if args.task == "det":
+        task_name = "目标检测"
+        data_dir = project_root / "assets" / "test_data" / "det" / "coco"
+        annotation_file = data_dir / "annotations.json"
+        format_name = "多边形格式"
+    else:  # args.task == "seg"
+        task_name = "实例分割"
+        data_dir = project_root / "assets" / "test_data" / "seg" / "coco"
+        if args.format == "polygon":
+            annotation_file = data_dir / "annotations.json"
+            format_name = "多边形格式"
+        else:  # args.format == "rle"
+            annotation_file = data_dir / "annotations-rle.json"
+            format_name = "RLE格式"
+
     image_dir = data_dir / "images"
 
     if not annotation_file.exists():
@@ -34,11 +72,13 @@ def main():
         return
 
     logger.info("=" * 50)
-    logger.info("COCO标注可视化示例")
+    logger.info(f"COCO {task_name}标注可视化示例 ({format_name})")
     logger.info("=" * 50)
 
     # 创建可视化器
     logger.info(f"创建COCO可视化器:")
+    logger.info(f"  任务类型: {task_name}")
+    logger.info(f"  标注格式: {format_name}")
     logger.info(f"  标注文件: {annotation_file}")
     logger.info(f"  图片目录: {image_dir}")
 

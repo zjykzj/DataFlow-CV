@@ -4,9 +4,17 @@ LabelMe标注可视化示例
 
 展示如何使用LabelMeVisualizer可视化LabelMe格式标注。
 支持目标检测和实例分割标注的显示和保存。
+
+使用方法：
+    python labelme_demo.py [--task {det,seg}]
+
+示例：
+    python labelme_demo.py             # 可视化目标检测标注（默认）
+    python labelme_demo.py --task seg  # 可视化实例分割标注
 """
 
 import sys
+import argparse
 from pathlib import Path
 
 # 添加项目根目录到Python路径
@@ -19,12 +27,24 @@ from dataflow.util import LoggingOperations
 
 def main():
     """主函数"""
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description="LabelMe标注可视化示例")
+    parser.add_argument("--task", choices=["det", "seg"], default="det",
+                       help="任务类型: det=目标检测, seg=实例分割 (默认: det)")
+    args = parser.parse_args()
+
     # 配置日志
     log_ops = LoggingOperations()
     logger = log_ops.get_logger("labelme_visualize_demo", level="INFO")
 
-    # 示例数据路径（使用目标检测的LabelMe测试数据）
-    data_dir = project_root / "assets" / "test_data" / "det" / "labelme"
+    # 根据任务类型选择数据路径
+    if args.task == "det":
+        task_name = "目标检测"
+        data_dir = project_root / "assets" / "test_data" / "det" / "labelme"
+    else:  # args.task == "seg"
+        task_name = "实例分割"
+        data_dir = project_root / "assets" / "test_data" / "seg" / "labelme"
+
     image_dir = data_dir  # LabelMe格式中JSON文件和图片在同一目录
     class_file = data_dir / "classes.txt"
 
@@ -34,14 +54,15 @@ def main():
         return
 
     logger.info("=" * 50)
-    logger.info("LabelMe标注可视化示例")
+    logger.info(f"LabelMe {task_name}标注可视化示例")
     logger.info("=" * 50)
 
     # 创建可视化器
     logger.info(f"创建LabelMe可视化器:")
+    logger.info(f"  任务类型: {task_name}")
     logger.info(f"  标签目录: {data_dir}")
     logger.info(f"  图片目录: {image_dir}")
-    logger.info(f"  类别文件: {class_file}")
+    logger.info(f"  类别文件: {class_file if class_file.exists() else '无'}")
 
     visualizer = LabelMeVisualizer(
         label_dir=str(data_dir),
