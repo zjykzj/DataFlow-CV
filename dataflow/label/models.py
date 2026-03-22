@@ -47,6 +47,10 @@ class Segmentation:
     """Segmentation polygon for instance segmentation."""
 
     points: List[Tuple[float, float]]  # Polygon points (normalized coordinates)
+    rle: Optional[Dict[str, Any]] = None  # Original RLE data if available
+
+    def has_rle(self) -> bool:
+        return self.rle is not None
 
     def points_abs(self, img_width: int, img_height: int) -> List[Tuple[int, int]]:
         """Convert to absolute pixel coordinates."""

@@ -218,6 +218,130 @@ class TestCocoAnnotationHandler:
         # We just test that the handler detects RLE format
         assert handler.is_rle is True
 
+    def test_rle_preservation(self, temp_dir):
+        """Test that RLE data is preserved through read/write cycle."""
+        try:
+            from pycocotools import mask as coco_mask
+            import numpy as np
+        except ImportError:
+            pytest.skip("pycocotools not installed, skipping RLE preservation test")
+
+        # Create a simple binary mask (10x10) with a rectangle
+        mask = np.zeros((10, 10), dtype=np.uint8)
+        mask[2:8, 3:7] = 1  # Rectangle from (3,2) to (6,7)
+        # Encode to RLE
+        rle = coco_mask.encode(np.asfortranarray(mask))
+        # Convert counts to string for JSON serialization (as COCO does)
+        if isinstance(rle['counts'], bytes):
+            rle['counts'] = rle['counts'].decode('utf-8')
+
+        # Create COCO data with two annotations: one crowd, one non-crowd
+        coco_data = {
+            "info": {"description": "RLE preservation test"},
+            "images": [
+                {
+                    "id": 1,
+                    "width": 10,
+                    "height": 10,
+                    "file_name": "test.png"
+                }
+            ],
+            "categories": [
+                {"id": 1, "name": "object"}
+            ],
+            "annotations": [
+                {
+                    "id": 1,
+                    "image_id": 1,
+                    "category_id": 1,
+                    "segmentation": rle,
+                    "area": float(np.sum(mask)),
+                    "bbox": [3, 2, 4, 6],  # x, y, w, h
+                    "iscrowd": 1  # Crowd annotation (should stay RLE)
+                },
+                {
+                    "id": 2,
+                    "image_id": 1,
+                    "category_id": 1,
+                    "segmentation": rle,  # Same RLE but non-crowd
+                    "area": float(np.sum(mask)),
+                    "bbox": [0, 0, 2, 2],
+                    "iscrowd": 0  # Non-crowd, can be converted to polygon
+                }
+            ]
+        }
+
+        annotation_file = temp_dir / "rle_preservation.json"
+        annotation_file.write_text(json.dumps(coco_data), encoding='utf-8')
+
+        # Read with handler
+        handler = CocoAnnotationHandler(
+            annotation_file=str(annotation_file),
+            strict_mode=False
+        )
+        result = handler.read()
+        assert result.success is True
+        assert handler.is_rle is True
+
+        # Check that segmentation has RLE data for both objects
+        img = result.data.images[0]
+        assert len(img.objects) == 2
+
+        # Sort by is_crowd to ensure consistent order
+        crowd_obj = next(obj for obj in img.objects if obj.is_crowd)
+        noncrowd_obj = next(obj for obj in img.objects if not obj.is_crowd)
+
+        for obj in [crowd_obj, noncrowd_obj]:
+            assert obj.segmentation is not None
+            assert obj.segmentation.has_rle() is True
+            assert obj.segmentation.rle is not None
+            # Ensure counts match (original RLE counts)
+            assert obj.segmentation.rle['counts'] == rle['counts']
+            assert obj.segmentation.rle['size'] == rle['size']
+
+        # Write back with RLE output (should use preserved RLE for both)
+        output_file = temp_dir / "rle_preservation_output.json"
+        write_result = handler.write(result.data, str(output_file), output_rle=True)
+        assert write_result.success is True
+
+        # Load written file and verify RLE counts unchanged
+        with open(output_file, 'r', encoding='utf-8') as f:
+            written_data = json.load(f)
+
+        assert len(written_data['annotations']) == 2
+        for ann in written_data['annotations']:
+            written_rle = ann['segmentation']
+            assert isinstance(written_rle, dict)
+            assert 'counts' in written_rle
+            assert written_rle['counts'] == rle['counts']
+            assert written_rle['size'] == rle['size']
+            # iscrowd should match original
+            if ann['id'] == 1:
+                assert ann['iscrowd'] == 1
+            else:
+                assert ann['iscrowd'] == 0
+
+        # Test writing with output_rle=False (crowd stays RLE, non-crowd becomes polygon)
+        output_file2 = temp_dir / "rle_preservation_mixed.json"
+        write_result2 = handler.write(result.data, str(output_file2), output_rle=False)
+        assert write_result2.success is True
+        with open(output_file2, 'r', encoding='utf-8') as f:
+            written_data2 = json.load(f)
+
+        assert len(written_data2['annotations']) == 2
+        for ann in written_data2['annotations']:
+            if ann['id'] == 1:
+                # Crowd annotation should remain RLE
+                assert isinstance(ann['segmentation'], dict)
+                assert 'counts' in ann['segmentation']
+                assert ann['iscrowd'] == 1
+            else:
+                # Non-crowd annotation should be polygon list
+                assert isinstance(ann['segmentation'], list)
+                assert ann['iscrowd'] == 0
+                # Polygon should have points (decoded from RLE)
+                assert len(ann['segmentation']) > 0
+
     def test_read_file_not_found(self):
         """Test reading non-existent file."""
         handler = CocoAnnotationHandler(

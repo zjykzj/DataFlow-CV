@@ -214,20 +214,23 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 if 'segmentation' in ann and ann['segmentation']:
                     seg_data = ann['segmentation']
                     if isinstance(seg_data, dict) and 'counts' in seg_data:
-                        # RLE format
+                        # RLE format - preserve original RLE data
+                        rle_dict = seg_data  # Keep original RLE dict
+                        points = []
                         if HAS_COCO_MASK:
-                            points = self._decode_rle_to_polygon(seg_data, img_width, img_height)
-                            if points:
-                                segmentation = Segmentation(points=points)
-                            else:
-                                self._log_warning(f"Failed to decode RLE for annotation {ann.get('id')}")
+                            try:
+                                points = self._decode_rle_to_polygon(seg_data, img_width, img_height)
+                            except Exception as e:
+                                self._log_warning(f"Failed to decode RLE for annotation {ann.get('id')}: {e}")
+                                # Continue with empty points, but preserve RLE
                         else:
-                            self._log_warning(f"pycocotools not available, skipping RLE annotation {ann.get('id')}")
+                            self._log_warning(f"pycocotools not available, preserving RLE without decoding for annotation {ann.get('id')}")
+                        segmentation = Segmentation(points=points, rle=rle_dict)
                     elif isinstance(seg_data, list) and len(seg_data) > 0:
                         # Polygon format (list of lists)
                         points = self._parse_polygon_segmentation(seg_data, img_width, img_height)
                         if points:
-                            segmentation = Segmentation(points=points)
+                            segmentation = Segmentation(points=points, rle=None)
                         else:
                             self._log_warning(f"Invalid polygon segmentation in annotation {ann.get('id')}")
 
@@ -482,6 +485,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             iscrowd = 1 if obj.is_crowd else 0
 
             if obj.segmentation:
+                seg = obj.segmentation
                 # Determine whether to output RLE format
                 use_rle = False
                 if obj.is_crowd:
@@ -491,14 +495,17 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                     # Use RLE if output_rle flag is set
                     use_rle = True
 
-                if use_rle and HAS_COCO_MASK:
+                has_rle = seg.has_rle()
+                if use_rle and has_rle:
+                    # Use preserved RLE data directly
+                    segmentation = seg.rle
+                elif use_rle and HAS_COCO_MASK:
                     try:
                         # Encode polygon to RLE
                         rle = self._encode_polygon_to_rle(
-                            obj.segmentation.points, img.width, img.height
+                            seg.points, img.width, img.height
                         )
                         segmentation = rle
-                        iscrowd = 1  # RLE format implies iscrowd=1 in COCO
                     except ImportError:
                         self._log_warning("pycocotools not available, falling back to polygon format")
                         use_rle = False
@@ -508,13 +515,30 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
                 if not use_rle:
                     # Convert to COCO polygon format
-                    points_abs = obj.segmentation.points_abs(img.width, img.height)
-                    # Flatten points
-                    polygon = []
-                    for x, y in points_abs:
-                        polygon.extend([float(x), float(y)])
-                    segmentation = [polygon]
-                    iscrowd = 0
+                    points = seg.points
+                    # If points empty but RLE exists, attempt to decode RLE to polygon
+                    if not points and has_rle and HAS_COCO_MASK:
+                        try:
+                            points = self._decode_rle_to_polygon(seg.rle, img.width, img.height)
+                        except Exception as e:
+                            self._log_warning(f"Failed to decode RLE to polygon: {e}, skipping segmentation")
+                            points = []
+                    if points:
+                        points_abs = [(int(x * img.width), int(y * img.height)) for x, y in points]
+                        # Flatten points
+                        polygon = []
+                        for x, y in points_abs:
+                            polygon.extend([float(x), float(y)])
+                        segmentation = [polygon]
+                        iscrowd = 0
+                    else:
+                        # No polygon points available, fall back to RLE if exists
+                        if has_rle:
+                            segmentation = seg.rle
+                        else:
+                            # No segmentation data
+                            segmentation = []
+                            iscrowd = 0
 
             elif obj.bbox:
                 # For bbox-only annotations, no segmentation
