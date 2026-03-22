@@ -15,7 +15,7 @@ import numpy as np
 from .base import BaseAnnotationHandler, AnnotationResult
 from .models import (
     DatasetAnnotations, ImageAnnotation, ObjectAnnotation,
-    BoundingBox, Segmentation
+    BoundingBox, Segmentation, OriginalData, AnnotationFormat
 )
 from dataflow.util.file_util import FileOperations
 
@@ -298,13 +298,32 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                                 self._log_warning(f"Skipping line {line_num}: invalid segmentation")
                                 continue
 
+                    # Create original data for lossless round-trip
+                    original_data = OriginalData(
+                        format=AnnotationFormat.YOLO.value,
+                        raw_data={
+                            "line": line,
+                            "line_number": line_num,
+                            "items": items.copy(),
+                            "is_detection": is_detection,
+                            "is_segmentation": is_segmentation
+                        }
+                    )
+
+                    # Attach original data to components
+                    if bbox is not None:
+                        bbox.original_data = original_data
+                    if segmentation is not None:
+                        segmentation.original_data = original_data
+
                     # Create object annotation
                     obj = ObjectAnnotation(
                         class_id=class_id,
                         class_name=class_name,
                         bbox=bbox,
                         segmentation=segmentation,
-                        confidence=1.0
+                        confidence=1.0,
+                        original_data=original_data
                     )
                     objects.append(obj)
 
@@ -418,6 +437,22 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     self._log_warning(f"Class name '{obj.class_name}' not found in categories")
                     return None
                 class_id = found_id
+
+            # Priority 1: Use original data if available and format matches
+            if obj.has_original_data() and obj.original_data.format == AnnotationFormat.YOLO.value:
+                raw_data = obj.original_data.raw_data
+                if "line" in raw_data and "items" in raw_data:
+                    # Reconstruct line with updated class ID
+                    original_items = raw_data["items"]
+                    if len(original_items) > 0:
+                        # Replace class ID in first position
+                        original_items[0] = str(class_id)
+                        # Join with single space (preserving original formatting may not be needed)
+                        return " ".join(original_items)
+                    else:
+                        self._log_warning("Original items empty, falling back to conversion")
+                else:
+                    self._log_warning("Original data missing line or items, falling back to conversion")
 
             if obj.bbox:
                 # Object detection format: class_id x_center y_center width height

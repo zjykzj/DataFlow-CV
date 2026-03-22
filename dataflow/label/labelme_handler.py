@@ -13,7 +13,7 @@ import sys
 from .base import BaseAnnotationHandler, AnnotationResult
 from .models import (
     DatasetAnnotations, ImageAnnotation, ObjectAnnotation,
-    BoundingBox, Segmentation
+    BoundingBox, Segmentation, OriginalData, AnnotationFormat
 )
 from dataflow.util.file_util import FileOperations
 
@@ -166,13 +166,20 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 else:
                     self._log_warning(f"Skipping invalid shape in {json_file}: {obj_result.message}")
 
+            # Create original data for the entire image annotation
+            image_original_data = OriginalData(
+                format=AnnotationFormat.LABELME.value,
+                raw_data=data.copy()
+            )
+
             # Create image annotation
             image_ann = ImageAnnotation(
                 image_id=json_file.stem,
                 image_path=str(image_path),
                 width=image_width,
                 height=image_height,
-                objects=objects
+                objects=objects,
+                original_data=image_original_data
             )
 
             result.success = True
@@ -250,12 +257,26 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 result.add_error(f"Unsupported shape type '{shape_type}' with {len(points)} points")
                 return result
 
+            # Create original data for lossless round-trip
+            original_data = OriginalData(
+                format=AnnotationFormat.LABELME.value,
+                raw_data=shape.copy(),
+                metadata={"image_width": img_width, "image_height": img_height}
+            )
+
+            # Attach original data to components
+            if bbox is not None:
+                bbox.original_data = original_data
+            if segmentation is not None:
+                segmentation.original_data = original_data
+
             obj = ObjectAnnotation(
                 class_id=cat_id,
                 class_name=label,
                 bbox=bbox,
                 segmentation=segmentation,
-                confidence=1.0
+                confidence=1.0,
+                original_data=original_data
             )
 
             result.success = True
@@ -312,15 +333,31 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                     self._log_warning(f"Skipping object {obj.class_name}")
 
             # Create LabelMe JSON structure
-            labelme_data: Dict[str, Any] = {
-                "version": "5.0.1",
-                "flags": {},
-                "shapes": shapes,
-                "imagePath": Path(image_ann.image_path).name,
-                "imageData": None,  # LabelMe doesn't store image data
-                "imageHeight": image_ann.height,
-                "imageWidth": image_ann.width
-            }
+            # Priority 1: Use original data if available and format matches
+            if image_ann.has_original_data() and image_ann.original_data.format == AnnotationFormat.LABELME.value:
+                # Start with original data to preserve all fields (mask, lineColor, etc.)
+                labelme_data = image_ann.original_data.raw_data.copy()
+                # Update shapes with current objects
+                labelme_data["shapes"] = shapes
+                # Update image path (use original if available, otherwise current)
+                if "imagePath" not in labelme_data:
+                    labelme_data["imagePath"] = Path(image_ann.image_path).name
+                # Update dimensions to match current image annotation
+                labelme_data["imageHeight"] = image_ann.height
+                labelme_data["imageWidth"] = image_ann.width
+                # Ensure imageData is None (LabelMe doesn't store image data)
+                labelme_data["imageData"] = None
+            else:
+                # Fallback to default structure
+                labelme_data: Dict[str, Any] = {
+                    "version": "5.0.1",
+                    "flags": {},
+                    "shapes": shapes,
+                    "imagePath": Path(image_ann.image_path).name,
+                    "imageData": None,  # LabelMe doesn't store image data
+                    "imageHeight": image_ann.height,
+                    "imageWidth": image_ann.width
+                }
 
             # Write JSON file
             output_file = output_dir / f"{image_ann.image_id}.json"
@@ -338,6 +375,17 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
     def _object_to_shape(self, obj: ObjectAnnotation, img_width: int, img_height: int) -> Optional[Dict]:
         """Convert ObjectAnnotation to LabelMe shape dict."""
         try:
+            # Priority 1: Use original data if available and format matches
+            if obj.has_original_data() and obj.original_data.format == AnnotationFormat.LABELME.value:
+                shape_data = obj.original_data.raw_data.copy()
+                # Update label to current class name (class mapping may have changed)
+                shape_data["label"] = obj.class_name
+                # Ensure points are present (they should be)
+                if "points" not in shape_data or not shape_data["points"]:
+                    self._log_warning(f"Original shape data missing points, falling back to conversion")
+                else:
+                    return shape_data
+
             label = obj.class_name
 
             if obj.bbox:

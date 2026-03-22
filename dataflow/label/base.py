@@ -81,6 +81,10 @@ class BaseAnnotationHandler(ABC):
         """Log warning message."""
         self.logger.warning(message)
 
+    def _log_debug(self, message: str):
+        """Log debug message."""
+        self.logger.debug(message)
+
     def _set_annotation_flags(self, annotations: DatasetAnnotations):
         """Set handler flags based on annotation data."""
         has_detection = any(
