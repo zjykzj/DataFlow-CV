@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Tuple, Optional, Union, Any
 from pathlib import Path
 import logging
+import sys
 
 import cv2
 import numpy as np
@@ -39,44 +40,89 @@ class VisualizationResult:
 
 
 class ColorManager:
-    """Color manager that ensures consistent colors for the same class."""
+    """Color manager that ensures consistent and unique colors for the same class."""
 
-    def __init__(self) -> None:
-        # Predefined 20 high-contrast colors (BGR format)
-        self.predefined_colors = [
-            (0, 0, 255),  # Red
-            (0, 255, 0),  # Green
-            (255, 0, 0),  # Blue
-            (0, 255, 255),  # Yellow
-            (255, 0, 255),  # Magenta
-            (255, 255, 0),  # Cyan
-            (0, 128, 255),  # Orange
-            (128, 0, 255),  # Pink
-            (0, 255, 128),  # Light green
-            (255, 128, 0),  # Sky blue
-            (128, 255, 0),  # Lime
-            (255, 0, 128),  # Rose
-            (0, 128, 128),  # Olive
-            (128, 0, 128),  # Purple
-            (128, 128, 0),  # Teal
-            (192, 192, 192),  # Silver
-            (128, 128, 128),  # Gray
-            (64, 64, 64),  # Dark gray
-            (0, 64, 128),  # Dark blue
-            (128, 64, 0),  # Brown
-        ]
+    def __init__(self, debug: bool = False) -> None:
+        # Generate 1000 distinct colors using HSV space with ensured uniqueness
+        self.predefined_colors = []
+        self.debug = debug
+        self._generate_unique_colors(1000)
         self.color_cache: Dict[int, Tuple[int, int, int]] = {}
+
+    def _generate_unique_colors(self, num_colors: int) -> None:
+        """Generate N unique colors using HSV space."""
+        colors_set = set()
+
+        # Try to generate colors with different hue, saturation, value combinations
+        # We'll iterate through hue primarily, then adjust saturation/value when needed
+        hue_step = max(1, 180 // (num_colors // 3))
+        sat_step = max(1, 100 // (num_colors // 3))
+        val_step = max(1, 100 // (num_colors // 3))
+
+        for i in range(num_colors):
+            # Primary: vary hue (0-179)
+            hue = (i * hue_step) % 180
+
+            # Secondary: vary saturation (100-200)
+            saturation = 100 + ((i // 180) * sat_step) % 100
+
+            # Tertiary: vary value (155-255)
+            value = 155 + ((i // (180 * 100)) * val_step) % 100
+
+            # Convert to BGR
+            hsv_color = np.uint8([[[hue, saturation, value]]])
+            bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)
+            color = (int(bgr_color[0,0,0]), int(bgr_color[0,0,1]), int(bgr_color[0,0,2]))
+
+            # If color already exists (unlikely but possible due to rounding),
+            # adjust saturation and value
+            attempt = 0
+            while color in colors_set and attempt < 10:
+                # Try different adjustments
+                saturation = (saturation + 23) % 100 + 100
+                value = (value + 37) % 100 + 155
+                hsv_color = np.uint8([[[hue, saturation, value]]])
+                bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)
+                color = (int(bgr_color[0,0,0]), int(bgr_color[0,0,1]), int(bgr_color[0,0,2]))
+                attempt += 1
+
+            if color in colors_set:
+                # Last resort: skip this hue and try next
+                hue = (hue + 1) % 180
+                saturation = 100 + (i % 100)
+                value = 155 + ((i + 13) % 100)
+                hsv_color = np.uint8([[[hue, saturation, value]]])
+                bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)
+                color = (int(bgr_color[0,0,0]), int(bgr_color[0,0,1]), int(bgr_color[0,0,2]))
+
+            colors_set.add(color)
+            self.predefined_colors.append(color)
 
     def get_color(self, class_id: int) -> Tuple[int, int, int]:
         """Get color for a class ID."""
         if class_id in self.color_cache:
             return self.color_cache[class_id]
 
-        # Cycle through predefined colors
-        color_idx = class_id % len(self.predefined_colors)
-        color = self.predefined_colors[color_idx]
-        self.color_cache[class_id] = color
+        # Use predefined colors for first N classes
+        if class_id < len(self.predefined_colors):
+            color = self.predefined_colors[class_id]
+            if self.debug:
+                print(f"[ColorManager] class_id={class_id}, using predefined unique color {color}", file=sys.stderr)
+        else:
+            # For classes beyond predefined, use deterministic algorithm
+            # with larger steps to avoid conflicts
+            hue = (class_id * 127) % 180
+            saturation = 100 + (class_id * 67) % 100  # 100-199
+            value = 155 + (class_id * 37) % 100  # 155-254
 
+            # Convert HSV to BGR
+            hsv_color = np.uint8([[[hue, saturation, value]]])
+            bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)
+            color = (int(bgr_color[0,0,0]), int(bgr_color[0,0,1]), int(bgr_color[0,0,2]))
+            if self.debug:
+                print(f"[ColorManager] class_id={class_id}, generating HSV color {color}", file=sys.stderr)
+
+        self.color_cache[class_id] = color
         return color
 
 
@@ -114,7 +160,7 @@ class BaseVisualizer(ABC):
         }
 
         # Color manager
-        self.color_manager = ColorManager()
+        self.color_manager = ColorManager(debug=False)
 
     @abstractmethod
     def load_annotations(self) -> DatasetAnnotations:
@@ -220,6 +266,11 @@ class BaseVisualizer(ABC):
         img_height: int,
     ) -> None:
         """Draw a single object annotation."""
+        # Debug logging for color assignment
+        self.logger.debug(
+            f"Drawing object: class_id={obj.class_id}, class_name={obj.class_name}, "
+            f"color={self.color_manager.get_color(obj.class_id)}"
+        )
         # Get class color
         color = self.color_manager.get_color(obj.class_id)
 
