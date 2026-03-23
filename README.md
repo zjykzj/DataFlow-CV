@@ -68,6 +68,40 @@ pip install opencv-python  # Required
 pip install pycocotools    # Optional, for COCO RLE support
 ```
 
+## Development
+
+### Installation for Development
+```bash
+# Install with development dependencies
+pip install -e .[dev,coco]
+```
+
+### Running Tests
+```bash
+# Run all tests with coverage
+pytest --cov=dataflow --cov-report=term-missing
+
+# Run specific test module
+pytest tests/label/test_labelme_handler.py
+```
+
+### Code Quality
+```bash
+# Format code with black
+black dataflow tests samples
+
+# Sort imports with isort
+isort dataflow tests samples
+
+# Run style checks with flake8
+flake8 dataflow tests samples
+
+# Type checking with mypy
+mypy dataflow
+```
+
+See `CLAUDE.md` for more detailed guidance.
+
 ## License
 
 [MIT License](LICENSE) © 2026 zjykzj
