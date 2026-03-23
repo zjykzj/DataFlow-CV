@@ -32,12 +32,13 @@ from dataflow.util.file_util import FileOperations
 class CocoAnnotationHandler(BaseAnnotationHandler):
     """Handler for COCO annotation format."""
 
-    def __init__(self, annotation_file: str, **kwargs):
+    def __init__(self, annotation_file: str, do_rle: bool = False, **kwargs):
         """
         Initialize COCO handler.
 
         Args:
             annotation_file: Path to COCO JSON annotation file
+            do_rle: Whether to output RLE format when writing (default False)
             **kwargs: Additional arguments for BaseAnnotationHandler
         """
         super().__init__(**kwargs)
@@ -49,7 +50,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         self.images = {}
         self.annotations = []
         self.dataset_info = {}
-        self.output_rle = False  # Whether to output RLE format when writing
+        self.output_rle = do_rle  # Whether to output RLE format when writing
 
     def read(self) -> AnnotationResult:
         """

@@ -1306,21 +1306,15 @@ if __name__ == "__main__":
 - [ ] 在转换器中实现`do_rle`参数逻辑
 - [ ] 添加RLE精度损失警告机制
 - [ ] 编写`test_rle_converter.py`单元测试
-- [ ] 测试无pycocotools时的降级处理
+- [ ] 进行coco rle相关操作时，如果没有检测到pycocotools，直接报错处理（ImportError）
 
 #### 阶段四详细任务
 - [ ] 增强`CocoAnnotationHandler.write()`支持`do_rle`参数
 - [ ] 在label模块添加类别提取辅助方法
-- [ ] 验证OriginalData在转换链中的传递
-- [ ] 更新label模块相关测试
-- [ ] 确保向后兼容性（不影响visualize模块等）
 
 #### 阶段五详细任务
-- [ ] 完善所有单元测试，达到覆盖率要求
 - [ ] 创建7个示例文件（samples/convert/）
-- [ ] 进行集成测试和性能测试
-- [ ] 代码审查和质量检查
-- [ ] 更新`requirements.txt`和项目文档
+- [ ] 确保所有测试通过
 
 ### 8.3 验收标准
 
