@@ -427,10 +427,9 @@ class BaseVisualizer(ABC):
 
         # Draw background rectangle if valid
         if x1 < x2 and y1 < y2:
-            bg_rect = ((x1, y1), (x2, y2))
             try:
                 cv2.rectangle(
-                    image, bg_rect, (0, 0, 0), -1
+                    image, (x1, y1), (x2, y2), (0, 0, 0), -1
                 )  # Black background
             except Exception as e:
                 self.logger.warning(f"Failed to draw text background: {e}")

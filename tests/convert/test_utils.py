@@ -202,15 +202,25 @@ class TestPathFunctions:
 class TestImageDimensionFunction:
     """Test image dimension function."""
 
-    @pytest.mark.skip(reason="Need to properly mock imports; cv2 and PIL are already loaded")
     def test_get_image_dimensions_from_handler_missing_libs(self, monkeypatch):
         """Test getting image dimensions when no imaging lib is available."""
+        import builtins
+        original_import = builtins.__import__
+
+        def mock_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == 'cv2' or (name == 'PIL' and 'Image' in fromlist):
+                raise ImportError(f"No module named '{name}'")
+            return original_import(name, globals, locals, fromlist, level)
+
+        monkeypatch.setattr(builtins, '__import__', mock_import)
+
         handler = Mock()
         image_path = "/path/to/image.jpg"
 
-        # This test is skipped because cv2 and PIL are already imported in the test environment
-        # making it difficult to simulate missing imports
-        pass
+        from dataflow.convert import utils
+        with pytest.raises(ImportError) as exc_info:
+            utils.get_image_dimensions_from_handler(handler, image_path)
+        assert "Cannot determine image dimensions" in str(exc_info.value)
 
 
 if __name__ == "__main__":
