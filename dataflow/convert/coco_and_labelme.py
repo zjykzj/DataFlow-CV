@@ -7,26 +7,27 @@ Supports both object detection and instance segmentation annotations.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from .base import BaseConverter, ConversionResult
+from ..label.base import AnnotationResult
 from ..label.coco_handler import CocoAnnotationHandler
 from ..label.labelme_handler import LabelMeAnnotationHandler
-from ..label.base import AnnotationResult
 from ..label.models import DatasetAnnotations
 from . import utils
+from .base import BaseConverter, ConversionResult
 from .rle_converter import RLEConverter
 
 
 class CocoAndLabelMeConverter(BaseConverter):
     """Converter for bidirectional conversion between COCO and LabelMe formats."""
 
-    def __init__(self, source_to_target: bool, **kwargs):
+    def __init__(self, source_to_target: bool, verbose: bool = False, **kwargs):
         """
         Initialize converter.
 
         Args:
             source_to_target: True for COCO→LabelMe, False for LabelMe→COCO
+            verbose: Whether to enable verbose logging (new)
             **kwargs: Arguments passed to BaseConverter
         """
         if source_to_target:
@@ -36,8 +37,12 @@ class CocoAndLabelMeConverter(BaseConverter):
             source_format = "labelme"
             target_format = "coco"
 
-        super().__init__(source_format, target_format, **kwargs)
+        super().__init__(source_format, target_format, verbose=verbose, **kwargs)
         self.source_to_target = source_to_target
+
+        if verbose:
+            direction = "COCO→LabelMe" if source_to_target else "LabelMe→COCO"
+            self.logger.debug(f"Initialized converter, direction: {direction}")
 
     def convert(self, source_path: str, target_path: str, **kwargs) -> ConversionResult:
         """
@@ -63,7 +68,7 @@ class CocoAndLabelMeConverter(BaseConverter):
                 success=False,
                 source_path=source_path,
                 target_path=target_path,
-                errors=["Input validation failed"]
+                errors=["Input validation failed"],
             )
 
         # 2. Read data using source handler
@@ -74,7 +79,7 @@ class CocoAndLabelMeConverter(BaseConverter):
                 success=False,
                 source_path=source_path,
                 target_path=target_path,
-                errors=read_result.errors
+                errors=read_result.errors,
             )
 
         # 3. Convert data (format-specific conversions like category mapping)
@@ -97,12 +102,12 @@ class CocoAndLabelMeConverter(BaseConverter):
             source_path=source_path,
             target_path=target_path,
             annotations=converted_annotations,
-            write_result=write_result
+            write_result=write_result,
         )
 
         # 6. Add RLE accuracy warning if do_rle is True (LabelMe → COCO only)
         if not self.source_to_target:  # LabelMe → COCO
-            do_rle = kwargs.get('do_rle', False)
+            do_rle = kwargs.get("do_rle", False)
             if do_rle:
                 rle_converter = RLEConverter(logger=self.logger)
                 warning_msg = rle_converter.get_rle_accuracy_warning()
@@ -132,7 +137,9 @@ class CocoAndLabelMeConverter(BaseConverter):
             # Check required parameters for LabelMe→COCO
             class_file = kwargs.get("class_file")
             if not class_file:
-                self.logger.error("class_file parameter is required for LabelMe→COCO conversion")
+                self.logger.error(
+                    "class_file parameter is required for LabelMe→COCO conversion"
+                )
                 return False
 
             class_file_path = Path(class_file)
@@ -145,6 +152,7 @@ class CocoAndLabelMeConverter(BaseConverter):
             if do_rle:
                 # Import HAS_COCO_MASK from coco_handler
                 from ..label.coco_handler import HAS_COCO_MASK
+
                 if not HAS_COCO_MASK:
                     error_msg = (
                         "RLE conversion requested (do_rle=True) but pycocotools is not available. "
@@ -173,8 +181,7 @@ class CocoAndLabelMeConverter(BaseConverter):
         """
         if self.source_to_target:  # COCO → LabelMe
             handler = CocoAnnotationHandler(
-                annotation_file=source_path,
-                logger=self.logger
+                annotation_file=source_path, logger=self.logger
             )
         else:  # LabelMe → COCO
             class_file = kwargs.get("class_file")
@@ -182,9 +189,7 @@ class CocoAndLabelMeConverter(BaseConverter):
                 raise ValueError("class_file is required for LabelMe→COCO conversion")
 
             handler = LabelMeAnnotationHandler(
-                label_dir=source_path,
-                class_file=class_file,
-                logger=self.logger
+                label_dir=source_path, class_file=class_file, logger=self.logger
             )
 
         return handler
@@ -213,21 +218,33 @@ class CocoAndLabelMeConverter(BaseConverter):
 
             # If class_file doesn't exist and we have source annotations, generate it
             class_file_path = Path(class_file)
-            if not class_file_path.exists() and hasattr(self, '_source_annotations_for_target'):
-                if self._source_annotations_for_target and self._source_annotations_for_target.categories:
+            if not class_file_path.exists() and hasattr(
+                self, "_source_annotations_for_target"
+            ):
+                if (
+                    self._source_annotations_for_target
+                    and self._source_annotations_for_target.categories
+                ):
                     # Generate classes.txt from source annotations
                     from . import utils
-                    if utils.generate_classes_file(self._source_annotations_for_target.categories, class_file_path):
-                        self.logger.info(f"Generated class file from COCO categories: {class_file_path}")
+
+                    if utils.generate_classes_file(
+                        self._source_annotations_for_target.categories, class_file_path
+                    ):
+                        self.logger.info(
+                            f"Generated class file from COCO categories: {class_file_path}"
+                        )
                     else:
-                        self.logger.warning(f"Failed to generate class file: {class_file_path}")
+                        self.logger.warning(
+                            f"Failed to generate class file: {class_file_path}"
+                        )
                 else:
-                    self.logger.warning(f"No categories available to generate class file: {class_file_path}")
+                    self.logger.warning(
+                        f"No categories available to generate class file: {class_file_path}"
+                    )
 
             handler = LabelMeAnnotationHandler(
-                label_dir=target_path,
-                class_file=class_file,
-                logger=self.logger
+                label_dir=target_path, class_file=class_file, logger=self.logger
             )
         else:  # LabelMe → COCO
             # For COCO target, we need to create the JSON file
@@ -236,16 +253,14 @@ class CocoAndLabelMeConverter(BaseConverter):
 
             do_rle = kwargs.get("do_rle", False)
             handler = CocoAnnotationHandler(
-                annotation_file=target_path,
-                logger=self.logger,
-                do_rle=do_rle
+                annotation_file=target_path, logger=self.logger, do_rle=do_rle
             )
 
         return handler
 
-    def convert_annotations(self,
-                           source_annotations: DatasetAnnotations,
-                           kwargs: Dict) -> DatasetAnnotations:
+    def convert_annotations(
+        self, source_annotations: DatasetAnnotations, kwargs: Dict
+    ) -> DatasetAnnotations:
         """
         Convert annotation data between COCO and LabelMe formats.
 

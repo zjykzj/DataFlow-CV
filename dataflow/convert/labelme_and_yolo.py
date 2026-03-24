@@ -7,25 +7,26 @@ Supports both object detection and instance segmentation annotations.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from .base import BaseConverter, ConversionResult
-from ..label.labelme_handler import LabelMeAnnotationHandler
-from ..label.yolo_handler import YoloAnnotationHandler
 from ..label.base import AnnotationResult
+from ..label.labelme_handler import LabelMeAnnotationHandler
 from ..label.models import DatasetAnnotations
+from ..label.yolo_handler import YoloAnnotationHandler
 from . import utils
+from .base import BaseConverter, ConversionResult
 
 
 class LabelMeAndYoloConverter(BaseConverter):
     """Converter for bidirectional conversion between LabelMe and YOLO formats."""
 
-    def __init__(self, source_to_target: bool, **kwargs):
+    def __init__(self, source_to_target: bool, verbose: bool = False, **kwargs):
         """
         Initialize converter.
 
         Args:
             source_to_target: True for LabelMe→YOLO, False for YOLO→LabelMe
+            verbose: Whether to enable verbose logging (new)
             **kwargs: Arguments passed to BaseConverter
         """
         if source_to_target:
@@ -35,8 +36,12 @@ class LabelMeAndYoloConverter(BaseConverter):
             source_format = "yolo"
             target_format = "labelme"
 
-        super().__init__(source_format, target_format, **kwargs)
+        super().__init__(source_format, target_format, verbose=verbose, **kwargs)
         self.source_to_target = source_to_target
+
+        if verbose:
+            direction = "LabelMe→YOLO" if source_to_target else "YOLO→LabelMe"
+            self.logger.debug(f"Initialized converter, direction: {direction}")
 
     def convert(self, source_path: str, target_path: str, **kwargs) -> ConversionResult:
         """
@@ -61,7 +66,7 @@ class LabelMeAndYoloConverter(BaseConverter):
                 success=False,
                 source_path=source_path,
                 target_path=target_path,
-                errors=["Input validation failed"]
+                errors=["Input validation failed"],
             )
 
         # 2. Read data using source handler
@@ -72,7 +77,7 @@ class LabelMeAndYoloConverter(BaseConverter):
                 success=False,
                 source_path=source_path,
                 target_path=target_path,
-                errors=read_result.errors
+                errors=read_result.errors,
             )
 
         # 3. Convert data (format-specific conversions like category mapping)
@@ -89,7 +94,7 @@ class LabelMeAndYoloConverter(BaseConverter):
         if self.source_to_target:  # LabelMe → YOLO
             # YoloAnnotationHandler writes to output_dir, which should be the labels directory
             # Get labels_dir from handler if available, or construct from target_path
-            if hasattr(target_handler, 'label_dir'):
+            if hasattr(target_handler, "label_dir"):
                 write_output_path = target_handler.label_dir
             else:
                 write_output_path = str(Path(target_path) / "labels")
@@ -107,7 +112,7 @@ class LabelMeAndYoloConverter(BaseConverter):
             source_path=source_path,
             target_path=target_path,
             annotations=converted_annotations,
-            write_result=write_result
+            write_result=write_result,
         )
 
     def validate_inputs(self, source_path: str, target_path: str, kwargs: Dict) -> bool:
@@ -144,7 +149,9 @@ class LabelMeAndYoloConverter(BaseConverter):
         else:  # YOLO → LabelMe
             image_dir = kwargs.get("image_dir")
             if not image_dir:
-                self.logger.error("image_dir parameter is required for YOLO→LabelMe conversion")
+                self.logger.error(
+                    "image_dir parameter is required for YOLO→LabelMe conversion"
+                )
                 return False
 
             image_dir_path = Path(image_dir)
@@ -170,9 +177,7 @@ class LabelMeAndYoloConverter(BaseConverter):
         if self.source_to_target:  # LabelMe → YOLO
             # LabelMe handler only needs label_dir and class_file
             handler = LabelMeAnnotationHandler(
-                label_dir=source_path,
-                class_file=class_file,
-                logger=self.logger
+                label_dir=source_path, class_file=class_file, logger=self.logger
             )
         else:  # YOLO → LabelMe
             image_dir = kwargs.get("image_dir")
@@ -183,7 +188,7 @@ class LabelMeAndYoloConverter(BaseConverter):
                 label_dir=source_path,
                 class_file=class_file,
                 image_dir=image_dir,
-                logger=self.logger
+                logger=self.logger,
             )
 
         return handler
@@ -219,6 +224,7 @@ class LabelMeAndYoloConverter(BaseConverter):
 
             # Copy class file to target directory if it doesn't exist there
             import shutil
+
             source_class_file = Path(class_file)
             target_class_file = target_path_obj / "classes.txt"
             if source_class_file.exists() and not target_class_file.exists():
@@ -231,7 +237,10 @@ class LabelMeAndYoloConverter(BaseConverter):
                     self.logger.warning(f"Failed to copy class file: {e}")
 
             # Copy image files if source annotations are available
-            if hasattr(self, '_source_annotations_for_target') and self._source_annotations_for_target:
+            if (
+                hasattr(self, "_source_annotations_for_target")
+                and self._source_annotations_for_target
+            ):
                 for image_ann in self._source_annotations_for_target.images:
                     source_image_path = Path(image_ann.image_path)
                     if source_image_path.exists():
@@ -239,11 +248,17 @@ class LabelMeAndYoloConverter(BaseConverter):
                         if not target_image_path.exists():
                             try:
                                 shutil.copy2(source_image_path, target_image_path)
-                                self.logger.info(f"Copied image to: {target_image_path}")
+                                self.logger.info(
+                                    f"Copied image to: {target_image_path}"
+                                )
                             except Exception as e:
-                                self.logger.warning(f"Failed to copy image {source_image_path}: {e}")
+                                self.logger.warning(
+                                    f"Failed to copy image {source_image_path}: {e}"
+                                )
                     else:
-                        self.logger.warning(f"Source image does not exist: {source_image_path}")
+                        self.logger.warning(
+                            f"Source image does not exist: {source_image_path}"
+                        )
 
             # Get image_dir from kwargs or use images_dir as default
             image_dir = kwargs.get("image_dir")
@@ -255,7 +270,7 @@ class LabelMeAndYoloConverter(BaseConverter):
                 label_dir=str(labels_dir),
                 class_file=class_file,
                 image_dir=image_dir,
-                logger=self.logger
+                logger=self.logger,
             )
         else:  # YOLO → LabelMe
             # For LabelMe target, just create the output directory
@@ -263,16 +278,14 @@ class LabelMeAndYoloConverter(BaseConverter):
             target_path_obj.mkdir(parents=True, exist_ok=True)
 
             handler = LabelMeAnnotationHandler(
-                label_dir=target_path,
-                class_file=class_file,
-                logger=self.logger
+                label_dir=target_path, class_file=class_file, logger=self.logger
             )
 
         return handler
 
-    def convert_annotations(self,
-                           source_annotations: DatasetAnnotations,
-                           kwargs: Dict) -> DatasetAnnotations:
+    def convert_annotations(
+        self, source_annotations: DatasetAnnotations, kwargs: Dict
+    ) -> DatasetAnnotations:
         """
         Convert annotation data between LabelMe and YOLO formats.
 

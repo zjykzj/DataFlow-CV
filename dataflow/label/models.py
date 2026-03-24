@@ -7,12 +7,14 @@ All coordinates are normalized (0-1 range).
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Tuple, Optional, Dict, Any
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 
 
 class AnnotationFormat(Enum):
     """Supported annotation formats."""
+
     LABELME = "labelme"
     YOLO = "yolo"
     COCO = "coco"
@@ -22,6 +24,7 @@ class AnnotationFormat(Enum):
 @dataclass
 class OriginalData:
     """Container for original annotation data to enable lossless round-trip."""
+
     format: str  # "labelme", "yolo", "coco"
     raw_data: Dict[str, Any]  # Original annotation data
     metadata: Dict[str, Any] = field(default_factory=dict)  # Additional metadata
@@ -39,7 +42,9 @@ class BoundingBox:
     y: float  # Center y coordinate (normalized)
     width: float  # Width (normalized)
     height: float  # Height (normalized)
-    original_data: Optional[OriginalData] = None  # Original annotation data for lossless round-trip
+    original_data: Optional[OriginalData] = (
+        None  # Original annotation data for lossless round-trip
+    )
 
     def xywh_abs(self, img_width: int, img_height: int) -> Tuple[int, int, int, int]:
         """Convert to absolute pixel coordinates."""
@@ -47,7 +52,7 @@ class BoundingBox:
             int(self.x * img_width),
             int(self.y * img_height),
             int(self.width * img_width),
-            int(self.height * img_height)
+            int(self.height * img_height),
         )
 
     def xyxy(self, img_width: int, img_height: int) -> Tuple[int, int, int, int]:
@@ -60,7 +65,7 @@ class BoundingBox:
             int(x_center - w / 2),
             int(y_center - h / 2),
             int(x_center + w / 2),
-            int(y_center + h / 2)
+            int(y_center + h / 2),
         )
 
     def has_original_data(self) -> bool:
@@ -74,7 +79,9 @@ class Segmentation:
 
     points: List[Tuple[float, float]]  # Polygon points (normalized coordinates)
     rle: Optional[Dict[str, Any]] = None  # Original RLE data if available
-    original_data: Optional[OriginalData] = None  # Original annotation data for lossless round-trip
+    original_data: Optional[OriginalData] = (
+        None  # Original annotation data for lossless round-trip
+    )
 
     def has_rle(self) -> bool:
         return self.rle is not None
@@ -95,10 +102,14 @@ class ObjectAnnotation:
     class_id: int  # Class ID
     class_name: str  # Class name
     bbox: Optional[BoundingBox] = None  # Bounding box (object detection)
-    segmentation: Optional[Segmentation] = None  # Segmentation polygon (instance segmentation)
+    segmentation: Optional[Segmentation] = (
+        None  # Segmentation polygon (instance segmentation)
+    )
     confidence: float = 1.0  # Confidence score
     is_crowd: bool = False  # Whether this is a crowd annotation (COCO specific)
-    original_data: Optional[OriginalData] = None  # Original annotation data for lossless round-trip
+    original_data: Optional[OriginalData] = (
+        None  # Original annotation data for lossless round-trip
+    )
 
     def __post_init__(self):
         # Validate that at least one of bbox or segmentation is provided
@@ -118,8 +129,12 @@ class ImageAnnotation:
     image_path: str  # Path to image file
     width: int  # Image width in pixels
     height: int  # Image height in pixels
-    objects: List[ObjectAnnotation] = field(default_factory=list)  # List of object annotations
-    original_data: Optional[OriginalData] = None  # Original annotation data for lossless round-trip
+    objects: List[ObjectAnnotation] = field(
+        default_factory=list
+    )  # List of object annotations
+    original_data: Optional[OriginalData] = (
+        None  # Original annotation data for lossless round-trip
+    )
 
     def __post_init__(self):
         # Validate image dimensions
@@ -135,17 +150,25 @@ class ImageAnnotation:
 class DatasetAnnotations:
     """Collection of annotations for a dataset."""
 
-    images: List[ImageAnnotation] = field(default_factory=list)  # List of image annotations
-    categories: Dict[int, str] = field(default_factory=dict)  # Category mapping (ID -> name)
+    images: List[ImageAnnotation] = field(
+        default_factory=list
+    )  # List of image annotations
+    categories: Dict[int, str] = field(
+        default_factory=dict
+    )  # Category mapping (ID -> name)
     dataset_info: Dict[str, Any] = field(default_factory=dict)  # Dataset metadata
 
     def __post_init__(self):
         # Validate categories
         for cat_id, cat_name in self.categories.items():
             if not isinstance(cat_id, int):
-                raise ValueError(f"Category ID must be integer, got {type(cat_id)}: {cat_id}")
+                raise ValueError(
+                    f"Category ID must be integer, got {type(cat_id)}: {cat_id}"
+                )
             if not isinstance(cat_name, str):
-                raise ValueError(f"Category name must be string, got {type(cat_name)}: {cat_name}")
+                raise ValueError(
+                    f"Category name must be string, got {type(cat_name)}: {cat_name}"
+                )
 
     def add_image(self, image_annotation: ImageAnnotation):
         """Add an image annotation to the dataset."""
@@ -154,7 +177,9 @@ class DatasetAnnotations:
     def add_category(self, cat_id: int, cat_name: str):
         """Add a category to the dataset."""
         if cat_id in self.categories and self.categories[cat_id] != cat_name:
-            raise ValueError(f"Category ID {cat_id} already exists with name {self.categories[cat_id]}")
+            raise ValueError(
+                f"Category ID {cat_id} already exists with name {self.categories[cat_id]}"
+            )
         self.categories[cat_id] = cat_name
 
     def get_category_name(self, cat_id: int) -> Optional[str]:
@@ -190,11 +215,12 @@ class OriginalDataManager:
     @staticmethod
     def should_use_original(obj: ObjectAnnotation, target_format: str) -> bool:
         """Determine if original data should be used for writing."""
-        return (obj.has_original_data() and
-                obj.original_data.format == target_format)
+        return obj.has_original_data() and obj.original_data.format == target_format
 
     @staticmethod
-    def merge_original_data(existing: Optional[OriginalData], new: OriginalData) -> OriginalData:
+    def merge_original_data(
+        existing: Optional[OriginalData], new: OriginalData
+    ) -> OriginalData:
         """Merge original data from different sources."""
         if existing is None:
             return new
@@ -210,7 +236,9 @@ class OriginalDataManager:
             return new
 
     @staticmethod
-    def extract_original_coordinates(obj: ObjectAnnotation, img_width: int, img_height: int) -> Tuple[Optional[List], Optional[List]]:
+    def extract_original_coordinates(
+        obj: ObjectAnnotation, img_width: int, img_height: int
+    ) -> Tuple[Optional[List], Optional[List]]:
         """Extract original coordinates from original data if available."""
         if not obj.has_original_data():
             return None, None
@@ -221,9 +249,15 @@ class OriginalDataManager:
 
         if obj.original_data.format == AnnotationFormat.LABELME.value:
             # LabelMe shape data
-            if "points" in original_data and original_data.get("shape_type") == "rectangle":
+            if (
+                "points" in original_data
+                and original_data.get("shape_type") == "rectangle"
+            ):
                 bbox_points = original_data["points"]
-            elif "points" in original_data and original_data.get("shape_type") == "polygon":
+            elif (
+                "points" in original_data
+                and original_data.get("shape_type") == "polygon"
+            ):
                 segmentation_points = original_data["points"]
         elif obj.original_data.format == AnnotationFormat.YOLO.value:
             # YOLO line data
@@ -235,8 +269,14 @@ class OriginalDataManager:
                         _, x_center, y_center, width, height = items[:5]
                         # Convert normalized center to absolute for comparison
                         bbox_points = [
-                            [(x_center - width/2) * img_width, (y_center - height/2) * img_height],
-                            [(x_center + width/2) * img_width, (y_center + height/2) * img_height]
+                            [
+                                (x_center - width / 2) * img_width,
+                                (y_center - height / 2) * img_height,
+                            ],
+                            [
+                                (x_center + width / 2) * img_width,
+                                (y_center + height / 2) * img_height,
+                            ],
                         ]
                 elif original_data.get("is_segmentation"):
                     # YOLO segmentation: class_id x1 y1 x2 y2 ...
@@ -252,10 +292,7 @@ class OriginalDataManager:
             # COCO annotation data
             if "bbox" in original_data and original_data["bbox"]:
                 x_abs, y_abs, w_abs, h_abs = original_data["bbox"]
-                bbox_points = [
-                    [x_abs, y_abs],
-                    [x_abs + w_abs, y_abs + h_abs]
-                ]
+                bbox_points = [[x_abs, y_abs], [x_abs + w_abs, y_abs + h_abs]]
             if "segmentation" in original_data:
                 seg_data = original_data["segmentation"]
                 if isinstance(seg_data, list) and seg_data:

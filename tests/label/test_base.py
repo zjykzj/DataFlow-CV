@@ -2,11 +2,14 @@
 Unit tests for base.py
 """
 
-import pytest
 import logging
 from unittest.mock import Mock
-from dataflow.label.base import BaseAnnotationHandler, AnnotationResult
-from dataflow.label.models import DatasetAnnotations, ImageAnnotation, ObjectAnnotation, BoundingBox
+
+import pytest
+
+from dataflow.label.base import AnnotationResult, BaseAnnotationHandler
+from dataflow.label.models import (BoundingBox, DatasetAnnotations,
+                                   ImageAnnotation, ObjectAnnotation)
 
 
 class ConcreteHandler(BaseAnnotationHandler):
@@ -15,7 +18,9 @@ class ConcreteHandler(BaseAnnotationHandler):
     def read(self, *args, **kwargs) -> AnnotationResult:
         return AnnotationResult(success=True, data="test")
 
-    def write(self, annotations: DatasetAnnotations, *args, **kwargs) -> AnnotationResult:
+    def write(
+        self, annotations: DatasetAnnotations, *args, **kwargs
+    ) -> AnnotationResult:
         return AnnotationResult(success=True)
 
     def validate(self, *args, **kwargs) -> bool:
@@ -37,10 +42,7 @@ class TestAnnotationResult:
         """Test AnnotationResult initialization with custom values."""
         errors = ["error1", "error2"]
         result = AnnotationResult(
-            success=False,
-            data={"key": "value"},
-            message="Test message",
-            errors=errors
+            success=False, data={"key": "value"}, message="Test message", errors=errors
         )
         assert result.success is False
         assert result.data == {"key": "value"}
@@ -138,9 +140,9 @@ class TestBaseAnnotationHandler:
                 ObjectAnnotation(
                     class_id=0,
                     class_name="cat",
-                    bbox=BoundingBox(x=0.5, y=0.5, width=0.2, height=0.2)
+                    bbox=BoundingBox(x=0.5, y=0.5, width=0.2, height=0.2),
                 )
-            ]
+            ],
         )
         dataset.add_image(image)
 
@@ -162,9 +164,11 @@ class TestBaseAnnotationHandler:
                 ObjectAnnotation(
                     class_id=0,
                     class_name="cat",
-                    segmentation=Segmentation(points=[(0.1, 0.1), (0.2, 0.1), (0.2, 0.2)])
+                    segmentation=Segmentation(
+                        points=[(0.1, 0.1), (0.2, 0.1), (0.2, 0.2)]
+                    ),
                 )
-            ]
+            ],
         )
         dataset.add_image(image)
 
@@ -187,9 +191,11 @@ class TestBaseAnnotationHandler:
                     class_id=0,
                     class_name="cat",
                     bbox=BoundingBox(x=0.5, y=0.5, width=0.2, height=0.2),
-                    segmentation=Segmentation(points=[(0.1, 0.1), (0.2, 0.1), (0.2, 0.2)])
+                    segmentation=Segmentation(
+                        points=[(0.1, 0.1), (0.2, 0.1), (0.2, 0.2)]
+                    ),
                 )
-            ]
+            ],
         )
         dataset.add_image(image)
 

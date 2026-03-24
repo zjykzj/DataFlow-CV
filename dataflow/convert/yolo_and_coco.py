@@ -7,26 +7,27 @@ Supports both object detection and instance segmentation annotations.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from .base import BaseConverter, ConversionResult
-from ..label.yolo_handler import YoloAnnotationHandler
-from ..label.coco_handler import CocoAnnotationHandler
 from ..label.base import AnnotationResult
+from ..label.coco_handler import CocoAnnotationHandler
 from ..label.models import DatasetAnnotations
+from ..label.yolo_handler import YoloAnnotationHandler
 from . import utils
+from .base import BaseConverter, ConversionResult
 from .rle_converter import RLEConverter
 
 
 class YoloAndCocoConverter(BaseConverter):
     """Converter for bidirectional conversion between YOLO and COCO formats."""
 
-    def __init__(self, source_to_target: bool, **kwargs):
+    def __init__(self, source_to_target: bool, verbose: bool = False, **kwargs):
         """
         Initialize converter.
 
         Args:
             source_to_target: True for YOLO→COCO, False for COCO→YOLO
+            verbose: Whether to enable verbose logging (new)
             **kwargs: Arguments passed to BaseConverter
         """
         if source_to_target:
@@ -36,8 +37,12 @@ class YoloAndCocoConverter(BaseConverter):
             source_format = "coco"
             target_format = "yolo"
 
-        super().__init__(source_format, target_format, **kwargs)
+        super().__init__(source_format, target_format, verbose=verbose, **kwargs)
         self.source_to_target = source_to_target
+
+        if verbose:
+            direction = "YOLO→COCO" if source_to_target else "COCO→YOLO"
+            self.logger.debug(f"Initialized converter, direction: {direction}")
 
     def convert(self, source_path: str, target_path: str, **kwargs) -> ConversionResult:
         """
@@ -63,7 +68,7 @@ class YoloAndCocoConverter(BaseConverter):
                 success=False,
                 source_path=source_path,
                 target_path=target_path,
-                errors=["Input validation failed"]
+                errors=["Input validation failed"],
             )
 
         # 2. Read data using source handler
@@ -74,7 +79,7 @@ class YoloAndCocoConverter(BaseConverter):
                 success=False,
                 source_path=source_path,
                 target_path=target_path,
-                errors=read_result.errors
+                errors=read_result.errors,
             )
 
         # 3. Convert data (format-specific conversions like category mapping)
@@ -91,7 +96,7 @@ class YoloAndCocoConverter(BaseConverter):
         if not self.source_to_target:  # COCO → YOLO
             # YoloAnnotationHandler writes to output_dir, which should be the labels directory
             # Get labels_dir from handler if available, or construct from target_path
-            if hasattr(target_handler, 'label_dir'):
+            if hasattr(target_handler, "label_dir"):
                 write_output_path = target_handler.label_dir
             else:
                 write_output_path = str(Path(target_path) / "labels")
@@ -109,12 +114,12 @@ class YoloAndCocoConverter(BaseConverter):
             source_path=source_path,
             target_path=target_path,
             annotations=converted_annotations,
-            write_result=write_result
+            write_result=write_result,
         )
 
         # 6. Add RLE accuracy warning if do_rle is True
         if self.source_to_target:  # YOLO → COCO
-            do_rle = kwargs.get('do_rle', False)
+            do_rle = kwargs.get("do_rle", False)
             if do_rle:
                 rle_converter = RLEConverter(logger=self.logger)
                 warning_msg = rle_converter.get_rle_accuracy_warning()
@@ -144,7 +149,9 @@ class YoloAndCocoConverter(BaseConverter):
             # Check required parameters for YOLO→COCO
             class_file = kwargs.get("class_file")
             if not class_file:
-                self.logger.error("class_file parameter is required for YOLO→COCO conversion")
+                self.logger.error(
+                    "class_file parameter is required for YOLO→COCO conversion"
+                )
                 return False
 
             class_file_path = Path(class_file)
@@ -154,7 +161,9 @@ class YoloAndCocoConverter(BaseConverter):
 
             image_dir = kwargs.get("image_dir")
             if not image_dir:
-                self.logger.error("image_dir parameter is required for YOLO→COCO conversion")
+                self.logger.error(
+                    "image_dir parameter is required for YOLO→COCO conversion"
+                )
                 return False
 
             image_dir_path = Path(image_dir)
@@ -167,6 +176,7 @@ class YoloAndCocoConverter(BaseConverter):
             if do_rle:
                 # Import HAS_COCO_MASK from coco_handler
                 from ..label.coco_handler import HAS_COCO_MASK
+
                 if not HAS_COCO_MASK:
                     error_msg = (
                         "RLE conversion requested (do_rle=True) but pycocotools is not available. "
@@ -206,12 +216,11 @@ class YoloAndCocoConverter(BaseConverter):
                 label_dir=source_path,
                 class_file=class_file,
                 image_dir=image_dir,
-                logger=self.logger
+                logger=self.logger,
             )
         else:  # COCO → YOLO
             handler = CocoAnnotationHandler(
-                annotation_file=source_path,
-                logger=self.logger
+                annotation_file=source_path, logger=self.logger
             )
 
         return handler
@@ -234,9 +243,7 @@ class YoloAndCocoConverter(BaseConverter):
 
             do_rle = kwargs.get("do_rle", False)
             handler = CocoAnnotationHandler(
-                annotation_file=target_path,
-                logger=self.logger,
-                do_rle=do_rle
+                annotation_file=target_path, logger=self.logger, do_rle=do_rle
             )
         else:  # COCO → YOLO
             # For YOLO target, we need to create appropriate directory structure
@@ -261,16 +268,30 @@ class YoloAndCocoConverter(BaseConverter):
 
             # If class_file doesn't exist and we have source annotations, generate it
             class_file_path = Path(class_file)
-            if not class_file_path.exists() and hasattr(self, '_source_annotations_for_target'):
-                if self._source_annotations_for_target and self._source_annotations_for_target.categories:
+            if not class_file_path.exists() and hasattr(
+                self, "_source_annotations_for_target"
+            ):
+                if (
+                    self._source_annotations_for_target
+                    and self._source_annotations_for_target.categories
+                ):
                     # Generate classes.txt from source annotations
                     from . import utils
-                    if utils.generate_classes_file(self._source_annotations_for_target.categories, class_file_path):
-                        self.logger.info(f"Generated class file from COCO categories: {class_file_path}")
+
+                    if utils.generate_classes_file(
+                        self._source_annotations_for_target.categories, class_file_path
+                    ):
+                        self.logger.info(
+                            f"Generated class file from COCO categories: {class_file_path}"
+                        )
                     else:
-                        self.logger.warning(f"Failed to generate class file: {class_file_path}")
+                        self.logger.warning(
+                            f"Failed to generate class file: {class_file_path}"
+                        )
                 else:
-                    self.logger.warning(f"No categories available to generate class file: {class_file_path}")
+                    self.logger.warning(
+                        f"No categories available to generate class file: {class_file_path}"
+                    )
 
             # Get image_dir from kwargs or use images_dir as default
             image_dir = kwargs.get("image_dir")
@@ -282,14 +303,14 @@ class YoloAndCocoConverter(BaseConverter):
                 label_dir=str(labels_dir),
                 class_file=class_file,
                 image_dir=image_dir,
-                logger=self.logger
+                logger=self.logger,
             )
 
         return handler
 
-    def convert_annotations(self,
-                           source_annotations: DatasetAnnotations,
-                           kwargs: Dict) -> DatasetAnnotations:
+    def convert_annotations(
+        self, source_annotations: DatasetAnnotations, kwargs: Dict
+    ) -> DatasetAnnotations:
         """
         Convert annotation data between YOLO and COCO formats.
 

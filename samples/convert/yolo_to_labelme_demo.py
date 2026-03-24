@@ -3,8 +3,16 @@
 YOLO到LabelMe格式转换示例
 
 展示如何使用LabelMeAndYoloConverter将YOLO格式标注转换为LabelMe格式。
+
+使用方法：
+    python yolo_to_labelme_demo.py [--verbose]
+
+示例：
+    python yolo_to_labelme_demo.py           # 普通模式
+    python yolo_to_labelme_demo.py --verbose # 详细日志模式
 """
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -13,13 +21,24 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from dataflow.convert import LabelMeAndYoloConverter
-from dataflow.util import LoggingOperations
+from dataflow.util import LoggingOperations, VerboseLoggingOperations
+
 
 def main():
     """主函数"""
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description="YOLO到LabelMe格式转换示例")
+    parser.add_argument("--verbose", action="store_true", help="启用详细日志模式")
+    args = parser.parse_args()
+
     # 配置日志
-    log_ops = LoggingOperations()
-    logger = log_ops.get_logger("yolo_to_labelme_demo", level="INFO")
+    if args.verbose:
+        log_ops = VerboseLoggingOperations()
+        logger = log_ops.get_logger("yolo_to_labelme_demo", level="INFO")
+        logger.info("详细日志模式已启用")
+    else:
+        log_ops = LoggingOperations()
+        logger = log_ops.get_logger("yolo_to_labelme_demo", level="INFO")
 
     # 示例数据路径
     data_dir = project_root / "assets" / "test_data" / "det" / "yolo"
@@ -48,8 +67,9 @@ def main():
     logger.info("创建YOLO→LabelMe转换器")
     converter = LabelMeAndYoloConverter(
         source_to_target=False,  # YOLO→LabelMe
+        verbose=args.verbose,  # 详细日志模式
         strict_mode=True,
-        logger=logger
+        logger=logger,
     )
 
     # 执行转换
@@ -63,7 +83,7 @@ def main():
         source_path=str(data_dir / "labels"),
         target_path=str(output_dir),
         class_file=str(class_file),
-        image_dir=str(image_dir)
+        image_dir=str(image_dir),
     )
 
     # 显示结果
@@ -89,6 +109,7 @@ def main():
             logger.warning(f"    - {warning}")
 
     logger.info("\n示例完成！")
+
 
 if __name__ == "__main__":
     main()

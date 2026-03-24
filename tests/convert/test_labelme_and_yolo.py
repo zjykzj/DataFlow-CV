@@ -2,17 +2,19 @@
 Unit tests for labelme_and_yolo.py
 """
 
-import pytest
 import logging
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
-from dataflow.convert.labelme_and_yolo import LabelMeAndYoloConverter
+import pytest
+
 from dataflow.convert.base import ConversionResult
+from dataflow.convert.labelme_and_yolo import LabelMeAndYoloConverter
 from dataflow.label.base import AnnotationResult
-from dataflow.label.models import DatasetAnnotations, ImageAnnotation, ObjectAnnotation, BoundingBox
+from dataflow.label.models import (BoundingBox, DatasetAnnotations,
+                                   ImageAnnotation, ObjectAnnotation)
 
 
 class TestLabelMeAndYoloConverter:
@@ -52,7 +54,9 @@ class TestLabelMeAndYoloConverter:
             target_path = Path(tmpdir) / "target"
 
             kwargs = {"class_file": "/nonexistent/classes.txt"}
-            assert not converter.validate_inputs(str(source_path), str(target_path), kwargs)
+            assert not converter.validate_inputs(
+                str(source_path), str(target_path), kwargs
+            )
 
     def test_validate_inputs_yolo_to_labelme_missing_image_dir(self):
         """Test validation for YOLO→LabelMe with missing image_dir."""
@@ -68,7 +72,9 @@ class TestLabelMeAndYoloConverter:
 
             kwargs = {"class_file": str(class_file)}
             # Missing image_dir parameter
-            assert not converter.validate_inputs(str(source_path), str(target_path), kwargs)
+            assert not converter.validate_inputs(
+                str(source_path), str(target_path), kwargs
+            )
 
     def test_validate_inputs_yolo_to_labelme_invalid_image_dir(self):
         """Test validation for YOLO→LabelMe with non-existent image_dir."""
@@ -83,7 +89,9 @@ class TestLabelMeAndYoloConverter:
             class_file.write_text("cat\ndog\n")
 
             kwargs = {"class_file": str(class_file), "image_dir": "/nonexistent/images"}
-            assert not converter.validate_inputs(str(source_path), str(target_path), kwargs)
+            assert not converter.validate_inputs(
+                str(source_path), str(target_path), kwargs
+            )
 
     def test_validate_inputs_valid_labelme_to_yolo(self):
         """Test validation for valid LabelMe→YOLO inputs."""
@@ -118,7 +126,7 @@ class TestLabelMeAndYoloConverter:
             kwargs = {"class_file": str(class_file), "image_dir": str(image_dir)}
             assert converter.validate_inputs(str(source_path), str(target_path), kwargs)
 
-    @patch('dataflow.convert.labelme_and_yolo.LabelMeAnnotationHandler')
+    @patch("dataflow.convert.labelme_and_yolo.LabelMeAnnotationHandler")
     def test_create_source_handler_labelme_to_yolo(self, mock_handler_class):
         """Test creating source handler for LabelMe→YOLO."""
         converter = LabelMeAndYoloConverter(source_to_target=True)
@@ -135,11 +143,11 @@ class TestLabelMeAndYoloConverter:
         mock_handler_class.assert_called_once_with(
             label_dir=source_path,
             class_file=kwargs["class_file"],
-            logger=converter.logger
+            logger=converter.logger,
         )
         assert handler == mock_handler
 
-    @patch('dataflow.convert.labelme_and_yolo.YoloAnnotationHandler')
+    @patch("dataflow.convert.labelme_and_yolo.YoloAnnotationHandler")
     def test_create_source_handler_yolo_to_labelme(self, mock_handler_class):
         """Test creating source handler for YOLO→LabelMe."""
         converter = LabelMeAndYoloConverter(source_to_target=False)
@@ -148,10 +156,7 @@ class TestLabelMeAndYoloConverter:
         mock_handler_class.return_value = mock_handler
 
         source_path = "/path/to/source"
-        kwargs = {
-            "class_file": "/path/to/classes.txt",
-            "image_dir": "/path/to/images"
-        }
+        kwargs = {"class_file": "/path/to/classes.txt", "image_dir": "/path/to/images"}
 
         handler = converter.create_source_handler(source_path, kwargs)
 
@@ -160,11 +165,11 @@ class TestLabelMeAndYoloConverter:
             label_dir=source_path,
             class_file=kwargs["class_file"],
             image_dir=kwargs["image_dir"],
-            logger=converter.logger
+            logger=converter.logger,
         )
         assert handler == mock_handler
 
-    @patch('dataflow.convert.labelme_and_yolo.YoloAnnotationHandler')
+    @patch("dataflow.convert.labelme_and_yolo.YoloAnnotationHandler")
     def test_create_target_handler_labelme_to_yolo(self, mock_handler_class):
         """Test creating target handler for LabelMe→YOLO."""
         converter = LabelMeAndYoloConverter(source_to_target=True)
@@ -175,7 +180,7 @@ class TestLabelMeAndYoloConverter:
         target_path = "/path/to/target"
         kwargs = {"class_file": "/path/to/classes.txt"}
 
-        with patch.object(Path, 'mkdir') as mock_mkdir:
+        with patch.object(Path, "mkdir") as mock_mkdir:
             handler = converter.create_target_handler(target_path, kwargs)
 
             # Verify handler was created
@@ -184,7 +189,7 @@ class TestLabelMeAndYoloConverter:
             # Verify directories were created
             assert mock_mkdir.call_count >= 3  # base, labels, images directories
 
-    @patch('dataflow.convert.labelme_and_yolo.LabelMeAnnotationHandler')
+    @patch("dataflow.convert.labelme_and_yolo.LabelMeAnnotationHandler")
     def test_create_target_handler_yolo_to_labelme(self, mock_handler_class):
         """Test creating target handler for YOLO→LabelMe."""
         converter = LabelMeAndYoloConverter(source_to_target=False)
@@ -195,14 +200,14 @@ class TestLabelMeAndYoloConverter:
         target_path = "/path/to/target"
         kwargs = {"class_file": "/path/to/classes.txt"}
 
-        with patch.object(Path, 'mkdir') as mock_mkdir:
+        with patch.object(Path, "mkdir") as mock_mkdir:
             handler = converter.create_target_handler(target_path, kwargs)
 
             # Verify handler was created
             mock_handler_class.assert_called_once_with(
                 label_dir=target_path,
                 class_file=kwargs["class_file"],
-                logger=converter.logger
+                logger=converter.logger,
             )
             assert handler == mock_handler
 
@@ -218,18 +223,20 @@ class TestLabelMeAndYoloConverter:
                     image_path="/path/to/image.jpg",
                     width=100,
                     height=100,
-                    objects=[]
+                    objects=[],
                 )
             ],
-            categories={0: "cat", 1: "dog"}
+            categories={0: "cat", 1: "dog"},
         )
 
         result = converter.convert_annotations(annotations, {})
         assert result == annotations  # Should return as-is
 
-    @patch('dataflow.convert.labelme_and_yolo.LabelMeAnnotationHandler')
-    @patch('dataflow.convert.labelme_and_yolo.YoloAnnotationHandler')
-    def test_convert_labelme_to_yolo_mocked(self, mock_yolo_handler_class, mock_labelme_handler_class):
+    @patch("dataflow.convert.labelme_and_yolo.LabelMeAnnotationHandler")
+    @patch("dataflow.convert.labelme_and_yolo.YoloAnnotationHandler")
+    def test_convert_labelme_to_yolo_mocked(
+        self, mock_yolo_handler_class, mock_labelme_handler_class
+    ):
         """Test LabelMe→YOLO conversion with mocked handlers."""
         converter = LabelMeAndYoloConverter(source_to_target=True)
 
@@ -278,11 +285,15 @@ class TestLabelMeAndYoloConverter:
 
         # Verify handlers were called
         mock_source_handler.read.assert_called_once()
-        mock_target_handler.write.assert_called_once_with(mock_annotations, mock_target_handler.label_dir)
+        mock_target_handler.write.assert_called_once_with(
+            mock_annotations, mock_target_handler.label_dir
+        )
 
-    @patch('dataflow.convert.labelme_and_yolo.YoloAnnotationHandler')
-    @patch('dataflow.convert.labelme_and_yolo.LabelMeAnnotationHandler')
-    def test_convert_yolo_to_labelme_mocked(self, mock_labelme_handler_class, mock_yolo_handler_class):
+    @patch("dataflow.convert.labelme_and_yolo.YoloAnnotationHandler")
+    @patch("dataflow.convert.labelme_and_yolo.LabelMeAnnotationHandler")
+    def test_convert_yolo_to_labelme_mocked(
+        self, mock_labelme_handler_class, mock_yolo_handler_class
+    ):
         """Test YOLO→LabelMe conversion with mocked handlers."""
         converter = LabelMeAndYoloConverter(source_to_target=False)
 
@@ -322,10 +333,7 @@ class TestLabelMeAndYoloConverter:
             image_dir = Path(tmpdir) / "images"
             image_dir.mkdir()
 
-            kwargs = {
-                "class_file": str(class_file),
-                "image_dir": str(image_dir)
-            }
+            kwargs = {"class_file": str(class_file), "image_dir": str(image_dir)}
             result = converter.convert(str(source_path), str(target_path), **kwargs)
 
         # Verify result
@@ -335,7 +343,59 @@ class TestLabelMeAndYoloConverter:
 
         # Verify handlers were called
         mock_source_handler.read.assert_called_once()
-        mock_target_handler.write.assert_called_once_with(mock_annotations, str(target_path))
+        mock_target_handler.write.assert_called_once_with(
+            mock_annotations, str(target_path)
+        )
+
+    def test_converter_verbose_param(self):
+        """Test converter verbose parameter."""
+        # Test verbose=False (default)
+        converter_no_verbose = LabelMeAndYoloConverter(
+            source_to_target=True, verbose=False
+        )
+        assert converter_no_verbose.verbose is False
+        assert converter_no_verbose.progress_logger is None
+
+        # Test verbose=True
+        converter_verbose = LabelMeAndYoloConverter(source_to_target=True, verbose=True)
+        assert converter_verbose.verbose is True
+        assert hasattr(converter_verbose, "progress_logger")
+        assert converter_verbose.progress_logger is not None
+
+        # Test verbose parameter in YOLO→LabelMe direction
+        converter_reverse = LabelMeAndYoloConverter(
+            source_to_target=False, verbose=True
+        )
+        assert converter_reverse.verbose is True
+        assert converter_reverse.progress_logger is not None
+
+    def test_conversion_result_verbose_log(self):
+        """Test ConversionResult verbose logging."""
+        from dataflow.convert.base import ConversionResult
+
+        result = ConversionResult(
+            success=True,
+            source_format="labelme",
+            target_format="yolo",
+            source_path="/test/source",
+            target_path="/test/target",
+        )
+
+        # Test add_verbose_log
+        test_log = "Test verbose log entry"
+        result.add_verbose_log(test_log)
+        assert len(result.verbose_log) == 1
+        assert test_log in result.verbose_log[0]
+
+        # Test get_verbose_summary when no verbose logs
+        summary_no_logs = result.get_verbose_summary()
+        assert "Successfully converted" in summary_no_logs
+
+        # Test get_verbose_summary with verbose logs
+        result.add_verbose_log("Another log entry")
+        summary_with_logs = result.get_verbose_summary()
+        assert "Test verbose log entry" in summary_with_logs
+        assert "Detailed processing log" in summary_with_logs
 
 
 if __name__ == "__main__":

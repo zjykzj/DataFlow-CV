@@ -4,10 +4,10 @@ Base annotation handler abstract class.
 Defines the interface for all annotation format handlers.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Tuple
-import logging
+from typing import Any, Dict, List, Optional, Tuple
 
 from .models import DatasetAnnotations
 
@@ -45,7 +45,9 @@ class AnnotationResult:
 class BaseAnnotationHandler(ABC):
     """Abstract base class for annotation format handlers."""
 
-    def __init__(self, strict_mode: bool = True, logger: Optional[logging.Logger] = None):
+    def __init__(
+        self, strict_mode: bool = True, logger: Optional[logging.Logger] = None
+    ):
         self.strict_mode = strict_mode
         self.logger = logger or logging.getLogger(__name__)
         self.is_det = False  # Whether annotations are for object detection
@@ -58,7 +60,9 @@ class BaseAnnotationHandler(ABC):
         pass
 
     @abstractmethod
-    def write(self, annotations: DatasetAnnotations, *args, **kwargs) -> AnnotationResult:
+    def write(
+        self, annotations: DatasetAnnotations, *args, **kwargs
+    ) -> AnnotationResult:
         """Write DatasetAnnotations to annotation files."""
         pass
 
@@ -88,9 +92,7 @@ class BaseAnnotationHandler(ABC):
     def _set_annotation_flags(self, annotations: DatasetAnnotations):
         """Set handler flags based on annotation data."""
         has_detection = any(
-            obj.bbox is not None
-            for img in annotations.images
-            for obj in img.objects
+            obj.bbox is not None for img in annotations.images for obj in img.objects
         )
         has_segmentation = any(
             obj.segmentation is not None
@@ -103,7 +105,9 @@ class BaseAnnotationHandler(ABC):
 
         # Log detection results
         if self.is_det and self.is_seg:
-            self._log_info("Detected mixed annotation types: object detection + instance segmentation")
+            self._log_info(
+                "Detected mixed annotation types: object detection + instance segmentation"
+            )
         elif self.is_det:
             self._log_info("Detected object detection annotations")
         elif self.is_seg:
@@ -152,7 +156,9 @@ class BaseAnnotationHandler(ABC):
 
         # Check polygon has at least 3 points
         if len(points) < 3:
-            self._log_error(f"Segmentation polygon needs at least 3 points, got {len(points)}")
+            self._log_error(
+                f"Segmentation polygon needs at least 3 points, got {len(points)}"
+            )
             return False
 
         return True

@@ -21,37 +21,30 @@ Example usage:
     >>>     handler.write(result.data, "path/to/output")
 """
 
-from .base import BaseAnnotationHandler, AnnotationResult
-from .models import (
-    DatasetAnnotations,
-    ImageAnnotation,
-    ObjectAnnotation,
-    BoundingBox,
-    Segmentation,
-    AnnotationFormat,
-    OriginalData,
-    OriginalDataManager
-)
-from .labelme_handler import LabelMeAnnotationHandler
-from .yolo_handler import YoloAnnotationHandler
-from .coco_handler import CocoAnnotationHandler
 from . import utils
+from .base import AnnotationResult, BaseAnnotationHandler
+from .coco_handler import CocoAnnotationHandler
+from .labelme_handler import LabelMeAnnotationHandler
+from .models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
+                     ImageAnnotation, ObjectAnnotation, OriginalData,
+                     OriginalDataManager, Segmentation)
 from .utils import verify_lossless_roundtrip
+from .yolo_handler import YoloAnnotationHandler
 
 __all__ = [
-    'BaseAnnotationHandler',
-    'AnnotationResult',
-    'DatasetAnnotations',
-    'ImageAnnotation',
-    'ObjectAnnotation',
-    'BoundingBox',
-    'Segmentation',
-    'AnnotationFormat',
-    'OriginalData',
-    'OriginalDataManager',
-    'LabelMeAnnotationHandler',
-    'YoloAnnotationHandler',
-    'CocoAnnotationHandler',
-    'utils',
-    'verify_lossless_roundtrip',
+    "BaseAnnotationHandler",
+    "AnnotationResult",
+    "DatasetAnnotations",
+    "ImageAnnotation",
+    "ObjectAnnotation",
+    "BoundingBox",
+    "Segmentation",
+    "AnnotationFormat",
+    "OriginalData",
+    "OriginalDataManager",
+    "LabelMeAnnotationHandler",
+    "YoloAnnotationHandler",
+    "CocoAnnotationHandler",
+    "utils",
+    "verify_lossless_roundtrip",
 ]

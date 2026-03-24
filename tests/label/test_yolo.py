@@ -2,15 +2,18 @@
 Unit tests for yolo_handler.py
 """
 
-import pytest
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
+
 import cv2
 import numpy as np
+import pytest
 
+from dataflow.label.models import (BoundingBox, DatasetAnnotations,
+                                   ImageAnnotation, ObjectAnnotation,
+                                   Segmentation)
 from dataflow.label.yolo_handler import YoloAnnotationHandler
-from dataflow.label.models import DatasetAnnotations, BoundingBox, Segmentation, ObjectAnnotation, ImageAnnotation
 
 
 class TestYoloAnnotationHandler:
@@ -53,7 +56,7 @@ class TestYoloAnnotationHandler:
             "image_dir": image_dir,
             "label_dir": label_dir,
             "img_path": img_path,
-            "label_file": label_file
+            "label_file": label_file,
         }
 
     @pytest.fixture
@@ -86,7 +89,7 @@ class TestYoloAnnotationHandler:
             "image_dir": image_dir,
             "label_dir": label_dir,
             "img_path": img_path,
-            "label_file": label_file
+            "label_file": label_file,
         }
 
     @pytest.fixture
@@ -119,7 +122,7 @@ class TestYoloAnnotationHandler:
             "image_dir": image_dir,
             "label_dir": label_dir,
             "img_path": img_path,
-            "label_file": label_file
+            "label_file": label_file,
         }
 
     def test_init_success(self, sample_detection_data):
@@ -128,7 +131,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(sample_detection_data["label_dir"]),
             class_file=str(sample_detection_data["class_file"]),
             image_dir=str(sample_detection_data["image_dir"]),
-            strict_mode=True
+            strict_mode=True,
         )
         assert handler is not None
         assert handler.label_dir == sample_detection_data["label_dir"]
@@ -147,7 +150,7 @@ class TestYoloAnnotationHandler:
                 label_dir=str(temp_dir),
                 class_file=str(temp_dir / "nonexistent.txt"),
                 image_dir=str(temp_dir),
-                strict_mode=True
+                strict_mode=True,
             )
             # The error should be raised when trying to load categories
             _ = handler.categories
@@ -158,7 +161,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(sample_detection_data["label_dir"]),
             class_file=str(sample_detection_data["class_file"]),
             image_dir=str(sample_detection_data["image_dir"]),
-            strict_mode=False
+            strict_mode=False,
         )
         categories = handler.categories
         assert len(categories) == 3
@@ -181,7 +184,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(label_dir),
             class_file=str(class_file),
             image_dir=str(image_dir),
-            strict_mode=False
+            strict_mode=False,
         )
         categories = handler.categories
         assert len(categories) == 0
@@ -192,7 +195,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(sample_detection_data["label_dir"]),
             class_file=str(sample_detection_data["class_file"]),
             image_dir=str(sample_detection_data["image_dir"]),
-            strict_mode=True
+            strict_mode=True,
         )
 
         # Test detection format (5 items)
@@ -207,7 +210,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(sample_segmentation_data["label_dir"]),
             class_file=str(sample_segmentation_data["class_file"]),
             image_dir=str(sample_segmentation_data["image_dir"]),
-            strict_mode=True
+            strict_mode=True,
         )
 
         # Test segmentation format (7 items: class_id + 3 points = 6 coordinates)
@@ -222,7 +225,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(sample_detection_data["label_dir"]),
             class_file=str(sample_detection_data["class_file"]),
             image_dir=str(sample_detection_data["image_dir"]),
-            strict_mode=True
+            strict_mode=True,
         )
 
         # Test invalid format (4 items)
@@ -241,7 +244,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(sample_detection_data["label_dir"]),
             class_file=str(sample_detection_data["class_file"]),
             image_dir=str(sample_detection_data["image_dir"]),
-            strict_mode=True
+            strict_mode=True,
         )
 
         result = handler.read()
@@ -278,7 +281,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(sample_segmentation_data["label_dir"]),
             class_file=str(sample_segmentation_data["class_file"]),
             image_dir=str(sample_segmentation_data["image_dir"]),
-            strict_mode=True
+            strict_mode=True,
         )
 
         result = handler.read()
@@ -317,7 +320,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(sample_mixed_data["label_dir"]),
             class_file=str(sample_mixed_data["class_file"]),
             image_dir=str(sample_mixed_data["image_dir"]),
-            strict_mode=True
+            strict_mode=True,
         )
 
         result = handler.read()
@@ -359,7 +362,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(label_dir),
             class_file=str(class_file),
             image_dir=str(image_dir),
-            strict_mode=True
+            strict_mode=True,
         )
 
         result = handler.read()
@@ -390,7 +393,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(label_dir),
             class_file=str(class_file),
             image_dir=str(image_dir),
-            strict_mode=True
+            strict_mode=True,
         )
 
         result = handler.read()
@@ -421,7 +424,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(label_dir),
             class_file=str(class_file),
             image_dir=str(image_dir),
-            strict_mode=True
+            strict_mode=True,
         )
 
         result = handler.read()
@@ -447,7 +450,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(label_dir),
             class_file=str(class_file),
             image_dir=str(image_dir),
-            strict_mode=True
+            strict_mode=True,
         )
 
         result = handler.read()
@@ -461,7 +464,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(sample_detection_data["label_dir"]),
             class_file=str(sample_detection_data["class_file"]),
             image_dir=str(sample_detection_data["image_dir"]),
-            strict_mode=True
+            strict_mode=True,
         )
 
         read_result = handler.read()
@@ -480,7 +483,7 @@ class TestYoloAnnotationHandler:
 
         # Read and verify content
         content = output_file.read_text().strip()
-        lines = content.split('\n')
+        lines = content.split("\n")
         assert len(lines) == 3
 
         # Verify first line
@@ -499,7 +502,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(sample_segmentation_data["label_dir"]),
             class_file=str(sample_segmentation_data["class_file"]),
             image_dir=str(sample_segmentation_data["image_dir"]),
-            strict_mode=True
+            strict_mode=True,
         )
 
         read_result = handler.read()
@@ -518,7 +521,7 @@ class TestYoloAnnotationHandler:
 
         # Read and verify content
         content = output_file.read_text().strip()
-        lines = content.split('\n')
+        lines = content.split("\n")
         assert len(lines) == 2
 
         # Verify first line (triangle)
@@ -542,7 +545,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(label_dir),
             class_file=str(class_file),
             image_dir=str(image_dir),
-            strict_mode=True
+            strict_mode=True,
         )
 
         # Create empty dataset
@@ -564,7 +567,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(sample_detection_data["label_dir"]),
             class_file=str(sample_detection_data["class_file"]),
             image_dir=str(sample_detection_data["image_dir"]),
-            strict_mode=True
+            strict_mode=True,
         )
 
         is_valid = handler.validate(str(sample_detection_data["label_file"]))
@@ -576,7 +579,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(sample_segmentation_data["label_dir"]),
             class_file=str(sample_segmentation_data["class_file"]),
             image_dir=str(sample_segmentation_data["image_dir"]),
-            strict_mode=True
+            strict_mode=True,
         )
 
         is_valid = handler.validate(str(sample_segmentation_data["label_file"]))
@@ -601,7 +604,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(label_dir),
             class_file=str(class_file),
             image_dir=str(image_dir),
-            strict_mode=True
+            strict_mode=True,
         )
 
         is_valid = handler.validate(str(label_file))
@@ -626,7 +629,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(label_dir),
             class_file=str(class_file),
             image_dir=str(image_dir),
-            strict_mode=True
+            strict_mode=True,
         )
 
         is_valid = handler.validate(str(label_file))
@@ -651,7 +654,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(label_dir),
             class_file=str(class_file),
             image_dir=str(image_dir),
-            strict_mode=True
+            strict_mode=True,
         )
 
         is_valid = handler.validate(str(label_file))
@@ -663,7 +666,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(sample_detection_data["label_dir"]),
             class_file=str(sample_detection_data["class_file"]),
             image_dir=str(sample_detection_data["image_dir"]),
-            strict_mode=True
+            strict_mode=True,
         )
 
         is_valid = handler.validate("/nonexistent/path/test.txt")
@@ -675,7 +678,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(sample_detection_data["label_dir"]),
             class_file=str(sample_detection_data["class_file"]),
             image_dir=str(sample_detection_data["image_dir"]),
-            strict_mode=True
+            strict_mode=True,
         )
 
         # Create object with bbox
@@ -685,7 +688,7 @@ class TestYoloAnnotationHandler:
             class_name="person",
             bbox=bbox,
             segmentation=None,
-            confidence=1.0
+            confidence=1.0,
         )
 
         line = handler._object_to_yolo_line(obj, 100, 100)
@@ -705,7 +708,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(sample_segmentation_data["label_dir"]),
             class_file=str(sample_segmentation_data["class_file"]),
             image_dir=str(sample_segmentation_data["image_dir"]),
-            strict_mode=True
+            strict_mode=True,
         )
 
         # Create object with segmentation
@@ -716,7 +719,7 @@ class TestYoloAnnotationHandler:
             class_name="bicycle",
             bbox=None,
             segmentation=segmentation,
-            confidence=1.0
+            confidence=1.0,
         )
 
         line = handler._object_to_yolo_line(obj, 100, 100)
@@ -734,7 +737,7 @@ class TestYoloAnnotationHandler:
             label_dir=str(sample_detection_data["label_dir"]),
             class_file=str(sample_detection_data["class_file"]),
             image_dir=str(sample_detection_data["image_dir"]),
-            strict_mode=True
+            strict_mode=True,
         )
 
         # Create object with bbox but class_name not in handler's categories
@@ -744,7 +747,7 @@ class TestYoloAnnotationHandler:
             class_name="dog",  # Not in categories
             bbox=bbox,
             segmentation=None,
-            confidence=1.0
+            confidence=1.0,
         )
 
         line = handler._object_to_yolo_line(obj, 100, 100)

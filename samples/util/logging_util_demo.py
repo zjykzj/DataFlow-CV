@@ -55,7 +55,9 @@ def main():
     print("-" * 40)
 
     silent_log_file = temp_dir / "silent.log"
-    logger3 = log_ops.get_logger("demo.silent", log_file=str(silent_log_file), console=False)
+    logger3 = log_ops.get_logger(
+        "demo.silent", log_file=str(silent_log_file), console=False
+    )
     logger3.info("This message only goes to file, not console")
 
     print(f"Silent log file created: {silent_log_file.exists()}")
@@ -97,6 +99,7 @@ def main():
 
     # These will use the root logger configuration
     import logging
+
     logging.warning("Root logger WARNING message")
     logging.error("Root logger ERROR message")
     logging.info("This INFO won't appear (root level is WARNING)")
@@ -163,7 +166,7 @@ def main():
 
     # Read and display first few lines of main log file
     if log_file.exists():
-        with open(log_file, 'r') as f:
+        with open(log_file, "r") as f:
             lines = f.readlines()[:10]
 
         print(f"\nFirst {len(lines)} lines of {log_file.name}:")
@@ -172,6 +175,7 @@ def main():
 
     # Cleanup
     import shutil
+
     shutil.rmtree(temp_dir, ignore_errors=True)
 
     print("\n" + "=" * 60)

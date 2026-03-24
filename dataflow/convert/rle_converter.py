@@ -6,11 +6,12 @@ with optional pycocotools dependency handling.
 """
 
 import logging
-from typing import Dict, List, Tuple, Optional
 import sys
+from typing import Dict, List, Optional, Tuple
 
 try:
     from pycocotools import mask as coco_mask
+
     HAS_COCO_MASK = True
 except ImportError:
     HAS_COCO_MASK = False
@@ -36,11 +37,13 @@ class RLEConverter:
                 "Install with: pip install pycocotools"
             )
 
-    def polygon_to_rle(self,
-                       points: List[Tuple[float, float]],
-                       img_width: int,
-                       img_height: int,
-                       require_coco_mask: bool = True) -> Optional[Dict]:
+    def polygon_to_rle(
+        self,
+        points: List[Tuple[float, float]],
+        img_width: int,
+        img_height: int,
+        require_coco_mask: bool = True,
+    ) -> Optional[Dict]:
         """
         Convert polygon points to RLE format.
 
@@ -78,6 +81,7 @@ class RLEConverter:
 
             # Create binary mask
             import cv2
+
             mask = np.zeros((img_height, img_width), dtype=np.uint8)
             contour = np.array(abs_points, dtype=np.int32).reshape((-1, 1, 2))
             cv2.fillPoly(mask, [contour], 1)
@@ -91,9 +95,9 @@ class RLEConverter:
             if isinstance(rle, dict):
                 # Make a copy to avoid modifying original
                 rle_dict = dict(rle)
-                if 'counts' in rle_dict and isinstance(rle_dict['counts'], bytes):
+                if "counts" in rle_dict and isinstance(rle_dict["counts"], bytes):
                     # Convert bytes to string (UTF-8 encoding should work for RLE)
-                    rle_dict['counts'] = rle_dict['counts'].decode('utf-8')
+                    rle_dict["counts"] = rle_dict["counts"].decode("utf-8")
                 return rle_dict
             else:
                 # If not a dict, return as-is (shouldn't happen with pycocotools)
@@ -107,11 +111,9 @@ class RLEConverter:
             self.logger.error(f"Error encoding polygon to RLE: {e}")
             raise
 
-    def rle_to_polygon(self,
-                       rle: Dict,
-                       img_width: int,
-                       img_height: int,
-                       require_coco_mask: bool = True) -> Optional[List[Tuple[float, float]]]:
+    def rle_to_polygon(
+        self, rle: Dict, img_width: int, img_height: int, require_coco_mask: bool = True
+    ) -> Optional[List[Tuple[float, float]]]:
         """
         Decode RLE format to polygon points.
 
@@ -129,7 +131,7 @@ class RLEConverter:
             ImportError: If pycocotools not available and require_coco_mask=True
             ValueError: If RLE dict is invalid or image dimensions are invalid
         """
-        if not rle or 'size' not in rle or 'counts' not in rle:
+        if not rle or "size" not in rle or "counts" not in rle:
             raise ValueError(f"Invalid RLE dict: missing 'size' or 'counts' fields")
 
         if img_width <= 0 or img_height <= 0:
@@ -147,15 +149,18 @@ class RLEConverter:
             rle_dict = dict(rle)
 
             # Ensure 'counts' is bytes for coco_mask.decode
-            if 'counts' in rle_dict and isinstance(rle_dict['counts'], str):
-                rle_dict['counts'] = rle_dict['counts'].encode('utf-8')
+            if "counts" in rle_dict and isinstance(rle_dict["counts"], str):
+                rle_dict["counts"] = rle_dict["counts"].encode("utf-8")
 
             # Decode RLE to binary mask
             binary_mask = coco_mask.decode(rle_dict)
 
             # Extract contours from mask
             import cv2
-            contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            contours, _ = cv2.findContours(
+                binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
 
             if not contours:
                 self.logger.warning("No contours found in RLE mask")
@@ -216,15 +221,20 @@ class RLEConverter:
         if not isinstance(rle, dict):
             return False
 
-        if 'size' not in rle or 'counts' not in rle:
+        if "size" not in rle or "counts" not in rle:
             return False
 
-        size = rle['size']
+        size = rle["size"]
         if not isinstance(size, list) or len(size) != 2:
             return False
 
         height, width = size
-        if not isinstance(height, int) or not isinstance(width, int) or height <= 0 or width <= 0:
+        if (
+            not isinstance(height, int)
+            or not isinstance(width, int)
+            or height <= 0
+            or width <= 0
+        ):
             return False
 
         return True

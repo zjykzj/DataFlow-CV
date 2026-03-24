@@ -8,12 +8,13 @@ Supports both polygon and RLE segmentation formats.
 
 import json
 import logging
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple, Union
 import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 try:
     from pycocotools import mask as coco_mask
+
     HAS_COCO_MASK = True
 except ImportError:
     HAS_COCO_MASK = False
@@ -21,12 +22,12 @@ except ImportError:
 import cv2
 import numpy as np
 
-from .base import BaseAnnotationHandler, AnnotationResult
-from .models import (
-    DatasetAnnotations, ImageAnnotation, ObjectAnnotation,
-    BoundingBox, Segmentation, OriginalData, AnnotationFormat
-)
 from dataflow.util.file_util import FileOperations
+
+from .base import AnnotationResult, BaseAnnotationHandler
+from .models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
+                     ImageAnnotation, ObjectAnnotation, OriginalData,
+                     Segmentation)
 
 
 class CocoAnnotationHandler(BaseAnnotationHandler):
@@ -46,7 +47,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         self.file_ops = FileOperations(logger=self.logger)
         self.categories = {}
         self.original_categories = []  # Full category data for lossless preservation
-        self.original_images = []      # Full image data for lossless preservation
+        self.original_images = []  # Full image data for lossless preservation
         self.images = {}
         self.annotations = []
         self.dataset_info = {}
@@ -73,29 +74,36 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             return result
 
         try:
-            with open(self.annotation_file, 'r', encoding='utf-8') as f:
+            with open(self.annotation_file, "r", encoding="utf-8") as f:
                 coco_data = json.load(f)
 
             # Validate required top-level fields
-            required_fields = ['images', 'annotations', 'categories']
+            required_fields = ["images", "annotations", "categories"]
             for field in required_fields:
                 if field not in coco_data:
-                    result.add_error(f"Missing required field '{field}' in {self.annotation_file}")
+                    result.add_error(
+                        f"Missing required field '{field}' in {self.annotation_file}"
+                    )
                     return result
 
             # Load dataset info (optional)
-            self.dataset_info = {k: v for k, v in coco_data.items()
-                               if k not in ['images', 'annotations', 'categories']}
+            self.dataset_info = {
+                k: v
+                for k, v in coco_data.items()
+                if k not in ["images", "annotations", "categories"]
+            }
 
             # Load categories
-            self.categories = self._load_categories(coco_data['categories'])
+            self.categories = self._load_categories(coco_data["categories"])
 
             # Load images
-            self.images = self._load_images(coco_data['images'])
-            self.original_images = coco_data['images'].copy()  # Store for lossless preservation
+            self.images = self._load_images(coco_data["images"])
+            self.original_images = coco_data[
+                "images"
+            ].copy()  # Store for lossless preservation
 
             # Load annotations
-            self.annotations = coco_data['annotations']
+            self.annotations = coco_data["annotations"]
 
             # Detect RLE format
             self.is_rle = self._detect_rle_format(self.annotations)
@@ -124,8 +132,8 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         # Store full category data for lossless preservation
         self.original_categories = coco_categories.copy()
         for cat in coco_categories:
-            cat_id = cat.get('id')
-            cat_name = cat.get('name', '')
+            cat_id = cat.get("id")
+            cat_name = cat.get("name", "")
             if cat_id is not None:
                 categories[cat_id] = cat_name
         return categories
@@ -138,23 +146,23 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         """
         images = {}
         for img in coco_images:
-            img_id = img.get('id')
+            img_id = img.get("id")
             if img_id is not None:
                 images[img_id] = {
-                    'file_name': img.get('file_name', ''),
-                    'width': img.get('width', 0),
-                    'height': img.get('height', 0),
-                    'coco_url': img.get('coco_url', ''),
-                    'flickr_url': img.get('flickr_url', '')
+                    "file_name": img.get("file_name", ""),
+                    "width": img.get("width", 0),
+                    "height": img.get("height", 0),
+                    "coco_url": img.get("coco_url", ""),
+                    "flickr_url": img.get("flickr_url", ""),
                 }
         return images
 
     def _detect_rle_format(self, annotations: List[Dict]) -> bool:
         """Detect if annotations contain RLE format segmentation."""
         for ann in annotations:
-            if 'segmentation' in ann:
-                seg = ann['segmentation']
-                if isinstance(seg, dict) and 'counts' in seg:
+            if "segmentation" in ann:
+                seg = ann["segmentation"]
+                if isinstance(seg, dict) and "counts" in seg:
                     return True
         return False
 
@@ -167,22 +175,26 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         dataset.dataset_info["__coco_original_data__"] = {
             "images": self.original_images.copy(),  # Store full original image data
             "annotations": self.annotations.copy(),
-            "categories": self.original_categories.copy()
+            "categories": self.original_categories.copy(),
         }
 
         # Create mapping from image_id to full original image data
         original_image_map = {}
         for img_data in self.original_images:
-            img_id = img_data.get('id')
+            img_id = img_data.get("id")
             if img_id is not None:
                 original_image_map[img_id] = img_data.copy()
 
         # Create image annotations
         for img_id, img_info in self.images.items():
             # Find annotations for this image
-            img_anns = [ann for ann in self.annotations if ann.get('image_id') == img_id]
+            img_anns = [
+                ann for ann in self.annotations if ann.get("image_id") == img_id
+            ]
 
-            objects = self._create_objects(img_anns, img_info['width'], img_info['height'])
+            objects = self._create_objects(
+                img_anns, img_info["width"], img_info["height"]
+            )
 
             # Get full original image data for lossless preservation
             original_img_data = original_image_map.get(img_id, img_info.copy())
@@ -192,39 +204,40 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 format=AnnotationFormat.COCO.value,
                 raw_data={
                     "image_info": original_img_data,  # Store full original image data
-                    "image_annotations": img_anns.copy()
+                    "image_annotations": img_anns.copy(),
                 },
-                metadata={
-                    "image_id": img_id,
-                    "total_annotations": len(img_anns)
-                }
+                metadata={"image_id": img_id, "total_annotations": len(img_anns)},
             )
 
             image_ann = ImageAnnotation(
                 image_id=str(img_id),
-                image_path=img_info['file_name'],
-                width=img_info['width'],
-                height=img_info['height'],
+                image_path=img_info["file_name"],
+                width=img_info["width"],
+                height=img_info["height"],
                 objects=objects,
-                original_data=image_original_data
+                original_data=image_original_data,
             )
             dataset.add_image(image_ann)
 
         return dataset
 
-    def _create_objects(self, img_anns: List[Dict], img_width: int, img_height: int) -> List[ObjectAnnotation]:
+    def _create_objects(
+        self, img_anns: List[Dict], img_width: int, img_height: int
+    ) -> List[ObjectAnnotation]:
         """Create ObjectAnnotations from COCO annotations for a single image."""
         objects = []
 
         for ann in img_anns:
             try:
-                class_id = ann.get('category_id')
+                class_id = ann.get("category_id")
                 if class_id is None or class_id not in self.categories:
-                    self._log_warning(f"Skipping annotation with invalid category_id: {ann.get('category_id')}")
+                    self._log_warning(
+                        f"Skipping annotation with invalid category_id: {ann.get('category_id')}"
+                    )
                     continue
 
                 class_name = self.categories[class_id]
-                is_crowd = ann.get('iscrowd', 0) == 1
+                is_crowd = ann.get("iscrowd", 0) == 1
                 bbox = None
                 segmentation = None
 
@@ -232,15 +245,12 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 original_data = OriginalData(
                     format=AnnotationFormat.COCO.value,
                     raw_data=ann.copy(),
-                    metadata={
-                        "image_width": img_width,
-                        "image_height": img_height
-                    }
+                    metadata={"image_width": img_width, "image_height": img_height},
                 )
 
                 # Parse bbox if present
-                if 'bbox' in ann and ann['bbox']:
-                    bbox_data = ann['bbox']
+                if "bbox" in ann and ann["bbox"]:
+                    bbox_data = ann["bbox"]
                     if len(bbox_data) == 4:
                         # COCO bbox: [x, y, width, height] in absolute pixels
                         x_abs, y_abs, w_abs, h_abs = bbox_data
@@ -255,35 +265,51 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                             y=y_center,
                             width=width_norm,
                             height=height_norm,
-                            original_data=original_data
+                            original_data=original_data,
                         )
                         if not self._validate_bbox(bbox):
-                            self._log_warning(f"Invalid bbox in annotation {ann.get('id')}")
+                            self._log_warning(
+                                f"Invalid bbox in annotation {ann.get('id')}"
+                            )
                             bbox = None
 
                 # Parse segmentation
-                if 'segmentation' in ann and ann['segmentation']:
-                    seg_data = ann['segmentation']
-                    if isinstance(seg_data, dict) and 'counts' in seg_data:
+                if "segmentation" in ann and ann["segmentation"]:
+                    seg_data = ann["segmentation"]
+                    if isinstance(seg_data, dict) and "counts" in seg_data:
                         # RLE format - preserve original RLE data
                         rle_dict = seg_data  # Keep original RLE dict
                         points = []
                         if HAS_COCO_MASK:
                             try:
-                                points = self._decode_rle_to_polygon(seg_data, img_width, img_height)
+                                points = self._decode_rle_to_polygon(
+                                    seg_data, img_width, img_height
+                                )
                             except Exception as e:
-                                self._log_warning(f"Failed to decode RLE for annotation {ann.get('id')}: {e}")
+                                self._log_warning(
+                                    f"Failed to decode RLE for annotation {ann.get('id')}: {e}"
+                                )
                                 # Continue with empty points, but preserve RLE
                         else:
-                            self._log_warning(f"pycocotools not available, preserving RLE without decoding for annotation {ann.get('id')}")
-                        segmentation = Segmentation(points=points, rle=rle_dict, original_data=original_data)
+                            self._log_warning(
+                                f"pycocotools not available, preserving RLE without decoding for annotation {ann.get('id')}"
+                            )
+                        segmentation = Segmentation(
+                            points=points, rle=rle_dict, original_data=original_data
+                        )
                     elif isinstance(seg_data, list) and len(seg_data) > 0:
                         # Polygon format (list of lists)
-                        points = self._parse_polygon_segmentation(seg_data, img_width, img_height)
+                        points = self._parse_polygon_segmentation(
+                            seg_data, img_width, img_height
+                        )
                         if points:
-                            segmentation = Segmentation(points=points, rle=None, original_data=original_data)
+                            segmentation = Segmentation(
+                                points=points, rle=None, original_data=original_data
+                            )
                         else:
-                            self._log_warning(f"Invalid polygon segmentation in annotation {ann.get('id')}")
+                            self._log_warning(
+                                f"Invalid polygon segmentation in annotation {ann.get('id')}"
+                            )
 
                 # Create object annotation
                 obj = ObjectAnnotation(
@@ -293,7 +319,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                     segmentation=segmentation,
                     confidence=1.0,
                     is_crowd=is_crowd,
-                    original_data=original_data
+                    original_data=original_data,
                 )
                 objects.append(obj)
 
@@ -303,7 +329,9 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
         return objects
 
-    def _decode_rle_to_polygon(self, rle: Dict, img_width: int, img_height: int) -> List[Tuple[float, float]]:
+    def _decode_rle_to_polygon(
+        self, rle: Dict, img_width: int, img_height: int
+    ) -> List[Tuple[float, float]]:
         """
         Decode RLE to polygon point list.
 
@@ -326,14 +354,16 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             rle_dict = dict(rle)
 
             # Ensure 'counts' is bytes for coco_mask.decode
-            if 'counts' in rle_dict and isinstance(rle_dict['counts'], str):
-                rle_dict['counts'] = rle_dict['counts'].encode('utf-8')
+            if "counts" in rle_dict and isinstance(rle_dict["counts"], str):
+                rle_dict["counts"] = rle_dict["counts"].encode("utf-8")
 
             # Decode RLE to binary mask
             binary_mask = coco_mask.decode(rle_dict)
 
             # Extract contours from mask
-            contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contours, _ = cv2.findContours(
+                binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
 
             if not contours:
                 return []
@@ -355,8 +385,9 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             self._log_error(f"Error decoding RLE: {e}")
             return []
 
-    def _encode_polygon_to_rle(self, points: List[Tuple[float, float]],
-                              img_width: int, img_height: int) -> Dict:
+    def _encode_polygon_to_rle(
+        self, points: List[Tuple[float, float]], img_width: int, img_height: int
+    ) -> Dict:
         """
         Encode polygon points to RLE format.
 
@@ -392,9 +423,9 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             if isinstance(rle, dict):
                 # Make a copy to avoid modifying original
                 rle_dict = dict(rle)
-                if 'counts' in rle_dict and isinstance(rle_dict['counts'], bytes):
+                if "counts" in rle_dict and isinstance(rle_dict["counts"], bytes):
                     # Convert bytes to string (UTF-8 encoding should work for RLE)
-                    rle_dict['counts'] = rle_dict['counts'].decode('utf-8')
+                    rle_dict["counts"] = rle_dict["counts"].decode("utf-8")
                 return rle_dict
             else:
                 # If not a dict, return as-is (shouldn't happen with pycocotools)
@@ -405,7 +436,9 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             self._log_error(f"Error encoding polygon to RLE: {e}")
             raise
 
-    def _parse_polygon_segmentation(self, seg_data: List, img_width: int, img_height: int) -> List[Tuple[float, float]]:
+    def _parse_polygon_segmentation(
+        self, seg_data: List, img_width: int, img_height: int
+    ) -> List[Tuple[float, float]]:
         """Parse polygon segmentation data to normalized point list."""
         points = []
 
@@ -413,7 +446,9 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         # We'll combine all polygons into one (assuming single object)
         for polygon in seg_data:
             if len(polygon) % 2 != 0:
-                self._log_warning(f"Odd number of coordinates in polygon: {len(polygon)}")
+                self._log_warning(
+                    f"Odd number of coordinates in polygon: {len(polygon)}"
+                )
                 continue
 
             # Convert to (x, y) pairs and normalize
@@ -424,8 +459,12 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
         return points
 
-    def write(self, annotations: DatasetAnnotations, output_file: str,
-              output_rle: Optional[bool] = None) -> AnnotationResult:
+    def write(
+        self,
+        annotations: DatasetAnnotations,
+        output_file: str,
+        output_rle: Optional[bool] = None,
+    ) -> AnnotationResult:
         """
         Write annotations to COCO JSON format.
 
@@ -457,7 +496,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             coco_data = self._prepare_coco_data(annotations)
 
             # Write JSON file
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(coco_data, f, indent=2, ensure_ascii=False)
 
             result.success = True
@@ -470,7 +509,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         except Exception as e:
             result.add_error(f"Error writing COCO annotations: {e}")
             # Ensure original setting is restored even on error
-            if 'original_output_rle' in locals():
+            if "original_output_rle" in locals():
                 self.output_rle = original_output_rle
 
         return result
@@ -484,7 +523,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             "version": "1.0",
             "year": 2026,
             "contributor": "",
-            "date_created": "2026-03-22"
+            "date_created": "2026-03-22",
         }
         # Check if we have original COCO data
         original_coco_data = annotations.dataset_info.get("__coco_original_data__")
@@ -498,15 +537,15 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         if original_coco_data and "categories" in original_coco_data:
             # Use original categories with all fields preserved
             categories = original_coco_data["categories"].copy()
-            self._log_debug(f"Using original COCO categories data: {len(categories)} categories")
+            self._log_debug(
+                f"Using original COCO categories data: {len(categories)} categories"
+            )
         else:
             # Fallback to building categories from annotations.categories
             for cat_id, cat_name in annotations.categories.items():
-                categories.append({
-                    "id": cat_id,
-                    "name": cat_name,
-                    "supercategory": "none"
-                })
+                categories.append(
+                    {"id": cat_id, "name": cat_name, "supercategory": "none"}
+                )
 
         # Prepare images and annotations
         images = []
@@ -515,32 +554,45 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
         for img in annotations.images:
             # Priority: Use original data if available and format matches
-            if img.has_original_data() and img.original_data.format == AnnotationFormat.COCO.value:
+            if (
+                img.has_original_data()
+                and img.original_data.format == AnnotationFormat.COCO.value
+            ):
                 original_data = img.original_data.raw_data.get("image_info", {})
                 image_info = original_data.copy()
                 # Update fields that may have changed
-                image_info["id"] = int(img.image_id) if img.image_id.isdigit() else ann_id
+                image_info["id"] = (
+                    int(img.image_id) if img.image_id.isdigit() else ann_id
+                )
                 image_info["width"] = img.width
                 image_info["height"] = img.height
                 image_info["file_name"] = img.image_path
                 # Ensure required fields exist
                 for field in ["license", "flickr_url", "coco_url", "date_captured"]:
                     if field not in image_info:
-                        image_info[field] = "" if field.endswith("_url") or field == "date_captured" else 1
+                        image_info[field] = (
+                            ""
+                            if field.endswith("_url") or field == "date_captured"
+                            else 1
+                        )
                 images.append(image_info)
-                self._log_debug(f"Using original COCO image data for image {img.image_id}")
+                self._log_debug(
+                    f"Using original COCO image data for image {img.image_id}"
+                )
             else:
                 # Add image info
-                images.append({
-                    "id": int(img.image_id) if img.image_id.isdigit() else ann_id,
-                    "width": img.width,
-                    "height": img.height,
-                    "file_name": img.image_path,
-                    "license": 1,
-                    "flickr_url": "",
-                    "coco_url": "",
-                    "date_captured": ""
-                })
+                images.append(
+                    {
+                        "id": int(img.image_id) if img.image_id.isdigit() else ann_id,
+                        "width": img.width,
+                        "height": img.height,
+                        "file_name": img.image_path,
+                        "license": 1,
+                        "flickr_url": "",
+                        "coco_url": "",
+                        "date_captured": "",
+                    }
+                )
 
             # Add object annotations
             for obj in img.objects:
@@ -550,7 +602,9 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                     ann_id += 1
 
         # Prepare dataset info - preserve original dataset info for lossless preservation
-        dataset_info = annotations.dataset_info.copy() if annotations.dataset_info else {}
+        dataset_info = (
+            annotations.dataset_info.copy() if annotations.dataset_info else {}
+        )
 
         # Remove the internal __coco_original_data__ field as it's for internal use only
         dataset_info.pop("__coco_original_data__", None)
@@ -563,7 +617,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 "version": "1.0",
                 "year": 2026,
                 "contributor": "",
-                "date_created": "2026-03-21"
+                "date_created": "2026-03-21",
             }
         else:
             # Ensure info dict has all required fields, but preserve original values
@@ -579,17 +633,22 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             **dataset_info,
             "images": images,
             "annotations": coco_annotations,
-            "categories": categories
+            "categories": categories,
         }
 
-    def _object_to_coco_annotation(self, obj: ObjectAnnotation, img: ImageAnnotation, ann_id: int) -> Optional[Dict]:
+    def _object_to_coco_annotation(
+        self, obj: ObjectAnnotation, img: ImageAnnotation, ann_id: int
+    ) -> Optional[Dict]:
         """Convert ObjectAnnotation to COCO annotation dict."""
         try:
             # Priority 1: Use original data if available and format matches
             use_original_data = False
             original_data_copy = None
 
-            if obj.has_original_data() and obj.original_data.format == AnnotationFormat.COCO.value:
+            if (
+                obj.has_original_data()
+                and obj.original_data.format == AnnotationFormat.COCO.value
+            ):
                 original_data_copy = obj.original_data.raw_data.copy()
 
                 # Check if we need to convert RLE to polygon based on output_rle and is_crowd
@@ -618,7 +677,9 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 # ID should be new to avoid conflicts
                 original_data["id"] = ann_id
                 # Update image_id to match current image
-                original_data["image_id"] = int(img.image_id) if img.image_id.isdigit() else ann_id
+                original_data["image_id"] = (
+                    int(img.image_id) if img.image_id.isdigit() else ann_id
+                )
                 # Update category_id to current class_id (class mapping may have changed)
                 original_data["category_id"] = obj.class_id
                 # Update iscrowd flag
@@ -652,7 +713,9 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                     use_rle = True
 
                 has_rle = seg.has_rle()
-                self._log_debug(f"RLE conversion: use_rle={use_rle}, has_rle={has_rle}, HAS_COCO_MASK={HAS_COCO_MASK}, is_crowd={obj.is_crowd}")
+                self._log_debug(
+                    f"RLE conversion: use_rle={use_rle}, has_rle={has_rle}, HAS_COCO_MASK={HAS_COCO_MASK}, is_crowd={obj.is_crowd}"
+                )
                 if use_rle and has_rle:
                     # Use preserved RLE data directly
                     segmentation = seg.rle
@@ -660,17 +723,23 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 elif use_rle and HAS_COCO_MASK:
                     try:
                         # Encode polygon to RLE
-                        self._log_debug(f"Encoding polygon to RLE, points count: {len(seg.points) if seg.points else 0}")
+                        self._log_debug(
+                            f"Encoding polygon to RLE, points count: {len(seg.points) if seg.points else 0}"
+                        )
                         rle = self._encode_polygon_to_rle(
                             seg.points, img.width, img.height
                         )
                         segmentation = rle
                         self._log_debug(f"Successfully encoded to RLE")
                     except ImportError:
-                        self._log_warning("pycocotools not available, falling back to polygon format")
+                        self._log_warning(
+                            "pycocotools not available, falling back to polygon format"
+                        )
                         use_rle = False
                     except Exception as e:
-                        self._log_warning(f"Failed to encode RLE: {e}, falling back to polygon format")
+                        self._log_warning(
+                            f"Failed to encode RLE: {e}, falling back to polygon format"
+                        )
                         use_rle = False
 
                 if not use_rle:
@@ -679,12 +748,18 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                     # If points empty but RLE exists, attempt to decode RLE to polygon
                     if not points and has_rle and HAS_COCO_MASK:
                         try:
-                            points = self._decode_rle_to_polygon(seg.rle, img.width, img.height)
+                            points = self._decode_rle_to_polygon(
+                                seg.rle, img.width, img.height
+                            )
                         except Exception as e:
-                            self._log_warning(f"Failed to decode RLE to polygon: {e}, skipping segmentation")
+                            self._log_warning(
+                                f"Failed to decode RLE to polygon: {e}, skipping segmentation"
+                            )
                             points = []
                     if points:
-                        points_abs = [(int(x * img.width), int(y * img.height)) for x, y in points]
+                        points_abs = [
+                            (int(x * img.width), int(y * img.height)) for x, y in points
+                        ]
                         # Flatten points
                         polygon = []
                         for x, y in points_abs:
@@ -706,7 +781,9 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 segmentation = []
                 iscrowd = 0
             else:
-                self._log_warning(f"Object {obj.class_name} has neither bbox nor segmentation")
+                self._log_warning(
+                    f"Object {obj.class_name} has neither bbox nor segmentation"
+                )
                 return None
 
             # Convert bbox to COCO format: [x, y, width, height] in absolute pixels
@@ -716,7 +793,12 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 x_abs, y_abs, w_abs, h_abs = obj.bbox.xywh_abs(img.width, img.height)
                 bbox = [float(x_abs), float(y_abs), float(w_abs), float(h_abs)]
                 area = float(w_abs * h_abs)
-            elif obj.segmentation and segmentation and isinstance(segmentation, list) and segmentation:
+            elif (
+                obj.segmentation
+                and segmentation
+                and isinstance(segmentation, list)
+                and segmentation
+            ):
                 # Estimate area from segmentation polygon (approximate)
                 # For simplicity, use bounding box of polygon points
                 points_abs = obj.segmentation.points_abs(img.width, img.height)
@@ -734,7 +816,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 "segmentation": segmentation,
                 "area": area,
                 "bbox": bbox,
-                "iscrowd": iscrowd
+                "iscrowd": iscrowd,
             }
 
         except Exception as e:
@@ -744,31 +826,31 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
     def validate(self) -> bool:
         """Validate COCO JSON file."""
         try:
-            with open(self.annotation_file, 'r', encoding='utf-8') as f:
+            with open(self.annotation_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             # Check required fields
-            required_fields = ['images', 'annotations', 'categories']
+            required_fields = ["images", "annotations", "categories"]
             for field in required_fields:
                 if field not in data:
                     self.logger.error(f"Missing required field '{field}'")
                     return False
 
             # Validate images
-            for img in data['images']:
-                if 'id' not in img or 'file_name' not in img:
+            for img in data["images"]:
+                if "id" not in img or "file_name" not in img:
                     self.logger.error(f"Image missing required fields: {img}")
                     return False
 
             # Validate categories
-            for cat in data['categories']:
-                if 'id' not in cat or 'name' not in cat:
+            for cat in data["categories"]:
+                if "id" not in cat or "name" not in cat:
                     self.logger.error(f"Category missing required fields: {cat}")
                     return False
 
             # Validate annotations
-            for ann in data['annotations']:
-                if 'id' not in ann or 'image_id' not in ann or 'category_id' not in ann:
+            for ann in data["annotations"]:
+                if "id" not in ann or "image_id" not in ann or "category_id" not in ann:
                     self.logger.error(f"Annotation missing required fields: {ann}")
                     return False
 

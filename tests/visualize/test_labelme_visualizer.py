@@ -2,10 +2,11 @@
 Unit tests for LabelMeVisualizer.
 """
 
-import pytest
-from pathlib import Path
-import tempfile
 import shutil
+import tempfile
+from pathlib import Path
+
+import pytest
 
 from dataflow.visualize import LabelMeVisualizer
 
@@ -33,7 +34,7 @@ class TestLabelMeVisualizer:
             class_file=TEST_DATA_DET / "classes.txt",
             is_show=False,
             is_save=False,
-            strict_mode=True
+            strict_mode=True,
         )
 
         assert visualizer.label_dir == TEST_DATA_DET
@@ -51,7 +52,7 @@ class TestLabelMeVisualizer:
             image_dir=TEST_DATA_DET,
             class_file=TEST_DATA_DET / "classes.txt",
             is_show=False,
-            is_save=False
+            is_save=False,
         )
 
         annotations = visualizer.load_annotations()
@@ -77,7 +78,7 @@ class TestLabelMeVisualizer:
             image_dir=TEST_DATA_SEG,
             class_file=TEST_DATA_SEG / "classes.txt",
             is_show=False,
-            is_save=False
+            is_save=False,
         )
 
         annotations = visualizer.load_annotations()
@@ -101,12 +102,14 @@ class TestLabelMeVisualizer:
             class_file=TEST_DATA_DET / "classes.txt",
             is_show=False,
             is_save=False,
-            strict_mode=True
+            strict_mode=True,
         )
 
         result = visualizer.visualize()
         assert result.success is True
-        assert result.data["processed_count"] == visualizer.load_annotations().num_images
+        assert (
+            result.data["processed_count"] == visualizer.load_annotations().num_images
+        )
         assert "Successfully visualized" in result.message
 
     def test_visualize_with_save(self, temp_dir):
@@ -118,7 +121,7 @@ class TestLabelMeVisualizer:
             is_show=False,
             is_save=True,
             output_dir=temp_dir,
-            strict_mode=True
+            strict_mode=True,
         )
 
         result = visualizer.visualize()
@@ -136,7 +139,7 @@ class TestLabelMeVisualizer:
                 image_dir="/invalid/path",
                 is_show=False,
                 is_save=False,
-                strict_mode=True
+                strict_mode=True,
             )
             visualizer.load_annotations()
 
@@ -148,10 +151,56 @@ class TestLabelMeVisualizer:
             class_file=None,  # No class file
             is_show=False,
             is_save=False,
-            strict_mode=False  # Non-strict to avoid errors
+            strict_mode=False,  # Non-strict to avoid errors
         )
 
         # Should still work (categories extracted from annotations)
         annotations = visualizer.load_annotations()
         assert annotations is not None
         assert len(annotations.categories) > 0
+
+    def test_verbose_parameter(self):
+        """Test verbose parameter functionality."""
+        # Test verbose=False (default)
+        visualizer_no_verbose = LabelMeVisualizer(
+            label_dir=TEST_DATA_DET,
+            image_dir=TEST_DATA_DET,
+            class_file=TEST_DATA_DET / "classes.txt",
+            is_show=False,
+            is_save=False,
+            verbose=False,
+        )
+        assert visualizer_no_verbose.verbose is False
+        assert visualizer_no_verbose.progress_logger is None
+
+        # Test verbose=True
+        visualizer_verbose = LabelMeVisualizer(
+            label_dir=TEST_DATA_DET,
+            image_dir=TEST_DATA_DET,
+            class_file=TEST_DATA_DET / "classes.txt",
+            is_show=False,
+            is_save=False,
+            verbose=True,
+        )
+        assert visualizer_verbose.verbose is True
+        assert hasattr(visualizer_verbose, "progress_logger")
+        assert visualizer_verbose.progress_logger is not None
+
+    def test_visualize_with_verbose(self, temp_dir):
+        """Test visualization with verbose mode."""
+        visualizer = LabelMeVisualizer(
+            label_dir=TEST_DATA_DET,
+            image_dir=TEST_DATA_DET,
+            class_file=TEST_DATA_DET / "classes.txt",
+            is_show=False,
+            is_save=True,
+            output_dir=temp_dir,
+            verbose=True,
+        )
+
+        result = visualizer.visualize()
+        assert result.success is True
+
+        # Check that output files were created
+        output_files = list(temp_dir.glob("*_visualized.jpg"))
+        assert len(output_files) == visualizer.load_annotations().num_images

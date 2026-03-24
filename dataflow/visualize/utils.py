@@ -2,14 +2,13 @@
 Utility functions for visualization module.
 """
 
-from typing import Tuple, List
+from typing import List, Tuple
+
 import cv2
 import numpy as np
 
 
-def scale_image_to_max_size(
-    image: np.ndarray, max_size: int = 1920
-) -> np.ndarray:
+def scale_image_to_max_size(image: np.ndarray, max_size: int = 1920) -> np.ndarray:
     """
     Scale image to fit within maximum dimension while maintaining aspect ratio.
 
@@ -28,13 +27,12 @@ def scale_image_to_max_size(
     new_width = int(width * scale)
     new_height = int(height * scale)
 
-    return cv2.resize(
-        image, (new_width, new_height), interpolation=cv2.INTER_LINEAR
-    )
+    return cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
 
 
-def blend_with_background(foreground: np.ndarray, background: np.ndarray,
-                          alpha: float = 0.7) -> np.ndarray:
+def blend_with_background(
+    foreground: np.ndarray, background: np.ndarray, alpha: float = 0.7
+) -> np.ndarray:
     """
     Blend foreground image with background using alpha blending.
 

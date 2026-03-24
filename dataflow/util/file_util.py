@@ -4,12 +4,12 @@ File operations utility for DataFlow-CV.
 Provides cross-platform file operations with proper error handling and logging.
 """
 
+import logging
 import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import List, Tuple, Optional, Union
-import logging
+from typing import List, Optional, Tuple, Union
 
 
 class FileOperations:
@@ -42,8 +42,9 @@ class FileOperations:
                 return False
         return False
 
-    def copy_files(self, src_pattern: str, dst_dir: Union[str, Path],
-                  overwrite: bool = False) -> List[Tuple[Path, bool]]:
+    def copy_files(
+        self, src_pattern: str, dst_dir: Union[str, Path], overwrite: bool = False
+    ) -> List[Tuple[Path, bool]]:
         """Batch copy files matching a pattern."""
         results = []
         dst_path = Path(dst_dir)
@@ -51,13 +52,13 @@ class FileOperations:
 
         # Parse source pattern, support patterns with directories (e.g., "data/*.json")
         src_path = Path(src_pattern)
-        if src_path.parent != Path('.'):
+        if src_path.parent != Path("."):
             # Pattern includes directory part
             search_dir = src_path.parent
             pattern = src_path.name
         else:
             # Simple pattern, search in current directory
-            search_dir = Path('.')
+            search_dir = Path(".")
             pattern = src_pattern
 
         for src_file in search_dir.glob(pattern):
@@ -77,8 +78,9 @@ class FileOperations:
 
         return results
 
-    def find_files(self, directory: Union[str, Path],
-                  pattern: str = "*", recursive: bool = True) -> List[Path]:
+    def find_files(
+        self, directory: Union[str, Path], pattern: str = "*", recursive: bool = True
+    ) -> List[Path]:
         """Find files matching pattern in directory."""
         dir_path = Path(directory)
         if not dir_path.exists():
@@ -102,20 +104,22 @@ class FileOperations:
             raise FileNotFoundError(f"File not found: {file_path}")
         return path.stat().st_size
 
-    def read_lines(self, file_path: Union[str, Path],
-                  encoding: str = "utf-8") -> List[str]:
+    def read_lines(
+        self, file_path: Union[str, Path], encoding: str = "utf-8"
+    ) -> List[str]:
         """Read all lines from a file."""
         path = Path(file_path)
-        with open(path, 'r', encoding=encoding) as f:
+        with open(path, "r", encoding=encoding) as f:
             return [line.strip() for line in f.readlines()]
 
-    def write_lines(self, file_path: Union[str, Path],
-                   lines: List[str], encoding: str = "utf-8") -> bool:
+    def write_lines(
+        self, file_path: Union[str, Path], lines: List[str], encoding: str = "utf-8"
+    ) -> bool:
         """Write multiple lines to a file."""
         path = Path(file_path)
         try:
-            with open(path, 'w', encoding=encoding) as f:
-                f.write('\n'.join(lines))
+            with open(path, "w", encoding=encoding) as f:
+                f.write("\n".join(lines))
             self.logger.info(f"Written {len(lines)} lines to: {path}")
             return True
         except Exception as e:

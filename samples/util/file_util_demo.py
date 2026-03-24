@@ -91,7 +91,7 @@ def main():
         "First line of text",
         "Second line with some data",
         "Third line for demonstration",
-        "Fourth line to show batch writing"
+        "Fourth line to show batch writing",
     ]
 
     success = file_ops.write_lines(lines_file, sample_lines)

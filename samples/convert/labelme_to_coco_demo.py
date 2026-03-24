@@ -3,8 +3,16 @@
 LabelMe到COCO格式转换示例
 
 展示如何使用CocoAndLabelMeConverter将LabelMe格式标注转换为COCO格式。
+
+使用方法：
+    python labelme_to_coco_demo.py [--verbose]
+
+示例：
+    python labelme_to_coco_demo.py           # 普通模式
+    python labelme_to_coco_demo.py --verbose # 详细日志模式
 """
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -13,13 +21,24 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from dataflow.convert import CocoAndLabelMeConverter
-from dataflow.util import LoggingOperations
+from dataflow.util import LoggingOperations, VerboseLoggingOperations
+
 
 def main():
     """主函数"""
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description="LabelMe到COCO格式转换示例")
+    parser.add_argument("--verbose", action="store_true", help="启用详细日志模式")
+    args = parser.parse_args()
+
     # 配置日志
-    log_ops = LoggingOperations()
-    logger = log_ops.get_logger("labelme_to_coco_demo", level="INFO")
+    if args.verbose:
+        log_ops = VerboseLoggingOperations()
+        logger = log_ops.get_logger("labelme_to_coco_demo", level="INFO")
+        logger.info("详细日志模式已启用")
+    else:
+        log_ops = LoggingOperations()
+        logger = log_ops.get_logger("labelme_to_coco_demo", level="INFO")
 
     # 示例数据路径
     data_dir = project_root / "assets" / "test_data" / "det" / "labelme"
@@ -45,8 +64,9 @@ def main():
     logger.info("创建LabelMe→COCO转换器")
     converter = CocoAndLabelMeConverter(
         source_to_target=False,  # LabelMe→COCO
+        verbose=args.verbose,  # 详细日志模式
         strict_mode=True,
-        logger=logger
+        logger=logger,
     )
 
     # 执行转换（不使用RLE，保持多边形格式）
@@ -59,7 +79,7 @@ def main():
         source_path=str(data_dir),
         target_path=str(coco_file),
         class_file=str(class_file),
-        do_rle=False  # 不使用RLE，输出多边形点列表
+        do_rle=False,  # 不使用RLE，输出多边形点列表
     )
 
     # 显示结果
@@ -70,19 +90,21 @@ def main():
 
     if result.success:
         logger.info(f"  输出文件: {coco_file}")
-        logger.info(f"  文件大小: {coco_file.stat().st_size if coco_file.exists() else 0} 字节")
+        logger.info(
+            f"  文件大小: {coco_file.stat().st_size if coco_file.exists() else 0} 字节"
+        )
 
         # 显示COCO数据集信息
-        if 'dataset_info' in result.metadata:
-            info = result.metadata['dataset_info']
+        if "dataset_info" in result.metadata:
+            info = result.metadata["dataset_info"]
             logger.info(f"  COCO数据集信息:")
             logger.info(f"    - 描述: {info.get('description', 'N/A')}")
             logger.info(f"    - 版本: {info.get('version', 'N/A')}")
             logger.info(f"    - 贡献者: {info.get('contributor', 'N/A')}")
             logger.info(f"    - 创建日期: {info.get('year', 'N/A')}")
 
-        if 'categories' in result.metadata:
-            categories = result.metadata['categories']
+        if "categories" in result.metadata:
+            categories = result.metadata["categories"]
             logger.info(f"  生成类别数: {len(categories)}")
             for cat_id, cat_name in categories.items():
                 logger.info(f"    - ID {cat_id}: {cat_name}")
@@ -97,6 +119,7 @@ def main():
             logger.warning(f"    - {warning}")
 
     logger.info("\n示例完成！")
+
 
 if __name__ == "__main__":
     main()

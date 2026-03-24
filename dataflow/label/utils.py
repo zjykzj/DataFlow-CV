@@ -2,18 +2,20 @@
 Utility functions for the label module.
 """
 
-import json
-import hashlib
-from pathlib import Path
-from typing import Type, Optional, Dict, Any
-import filecmp
 import difflib
+import filecmp
+import hashlib
+import json
+from pathlib import Path
+from typing import Any, Dict, Optional, Type
 
 from .base import BaseAnnotationHandler
-from .models import DatasetAnnotations, AnnotationFormat
+from .models import AnnotationFormat, DatasetAnnotations
 
 
-def verify_lossless_roundtrip(input_path: str, output_path: str, handler_class: Type[BaseAnnotationHandler]) -> bool:
+def verify_lossless_roundtrip(
+    input_path: str, output_path: str, handler_class: Type[BaseAnnotationHandler]
+) -> bool:
     """
     Verify that reading and writing produces identical output.
 
@@ -30,8 +32,8 @@ def verify_lossless_roundtrip(input_path: str, output_path: str, handler_class: 
         For directory-based formats (LabelMe, YOLO), it compares all files.
         For single-file formats (COCO), it compares JSON structure.
     """
-    import tempfile
     import shutil
+    import tempfile
 
     # Create a temporary directory for the output
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -59,7 +61,9 @@ def verify_lossless_roundtrip(input_path: str, output_path: str, handler_class: 
         return _compare_annotation_files(input_path, str(temp_output), handler_class)
 
 
-def _compare_annotation_files(input_path: str, output_path: str, handler_class: Type[BaseAnnotationHandler]) -> bool:
+def _compare_annotation_files(
+    input_path: str, output_path: str, handler_class: Type[BaseAnnotationHandler]
+) -> bool:
     """
     Compare two annotation files/directories.
 
@@ -77,11 +81,11 @@ def _compare_annotation_files(input_path: str, output_path: str, handler_class: 
     # Determine format based on handler class name
     handler_name = handler_class.__name__.lower()
 
-    if 'labelme' in handler_name:
+    if "labelme" in handler_name:
         return _compare_labelme_dirs(input_path_obj, output_path_obj)
-    elif 'yolo' in handler_name:
+    elif "yolo" in handler_name:
         return _compare_yolo_dirs(input_path_obj, output_path_obj)
-    elif 'coco' in handler_name:
+    elif "coco" in handler_name:
         return _compare_coco_files(input_path_obj, output_path_obj)
     else:
         # Generic comparison
@@ -99,7 +103,9 @@ def _compare_labelme_dirs(input_dir: Path, output_dir: Path) -> bool:
     output_files = sorted(output_dir.glob("*.json"))
 
     if len(input_files) != len(output_files):
-        print(f"Different number of JSON files: input={len(input_files)}, output={len(output_files)}")
+        print(
+            f"Different number of JSON files: input={len(input_files)}, output={len(output_files)}"
+        )
         return False
 
     all_match = True
@@ -124,7 +130,9 @@ def _compare_yolo_dirs(input_dir: Path, output_dir: Path) -> bool:
     output_files = sorted(output_dir.glob("*.txt"))
 
     if len(input_files) != len(output_files):
-        print(f"Different number of text files: input={len(input_files)}, output={len(output_files)}")
+        print(
+            f"Different number of text files: input={len(input_files)}, output={len(output_files)}"
+        )
         return False
 
     all_match = True
@@ -146,19 +154,26 @@ def _compare_coco_files(input_file: Path, output_file: Path) -> bool:
 
     # Ignore fields that may be auto-generated or vary between runs
     ignore_fields = [
-        "date_created", "date_captured",
-        "description", "url", "version", "year", "contributor",
-        "__coco_original_data__"
+        "date_created",
+        "date_captured",
+        "description",
+        "url",
+        "version",
+        "year",
+        "contributor",
+        "__coco_original_data__",
     ]
     return _compare_json_files(input_file, output_file, ignore_fields=ignore_fields)
 
 
-def _compare_json_files(file1: Path, file2: Path, ignore_fields: Optional[list] = None) -> bool:
+def _compare_json_files(
+    file1: Path, file2: Path, ignore_fields: Optional[list] = None
+) -> bool:
     """Compare two JSON files, optionally ignoring certain fields."""
     try:
-        with open(file1, 'r', encoding='utf-8') as f1:
+        with open(file1, "r", encoding="utf-8") as f1:
             data1 = json.load(f1)
-        with open(file2, 'r', encoding='utf-8') as f2:
+        with open(file2, "r", encoding="utf-8") as f2:
             data2 = json.load(f2)
 
         # Remove ignored fields
@@ -175,9 +190,9 @@ def _compare_json_files(file1: Path, file2: Path, ignore_fields: Optional[list] 
 def _compare_text_files(file1: Path, file2: Path) -> bool:
     """Compare two text files line by line."""
     try:
-        with open(file1, 'r', encoding='utf-8') as f1:
+        with open(file1, "r", encoding="utf-8") as f1:
             lines1 = f1.readlines()
-        with open(file2, 'r', encoding='utf-8') as f2:
+        with open(file2, "r", encoding="utf-8") as f2:
             lines2 = f2.readlines()
 
         # Normalize line endings and strip whitespace
@@ -210,9 +225,9 @@ def _remove_fields(data: Any, fields: list) -> Any:
 def _show_json_diff(file1: Path, file2: Path, ignore_fields: Optional[list] = None):
     """Show differences between two JSON files."""
     try:
-        with open(file1, 'r', encoding='utf-8') as f1:
+        with open(file1, "r", encoding="utf-8") as f1:
             data1 = json.load(f1)
-        with open(file2, 'r', encoding='utf-8') as f2:
+        with open(file2, "r", encoding="utf-8") as f2:
             data2 = json.load(f2)
 
         if ignore_fields:
@@ -226,7 +241,7 @@ def _show_json_diff(file1: Path, file2: Path, ignore_fields: Optional[list] = No
         lines1 = json1.splitlines()
         lines2 = json2.splitlines()
 
-        diff = list(difflib.unified_diff(lines1, lines2, lineterm=''))
+        diff = list(difflib.unified_diff(lines1, lines2, lineterm=""))
         if diff:
             print("\n".join(diff[:50]))  # Limit output
     except Exception as e:
@@ -236,12 +251,12 @@ def _show_json_diff(file1: Path, file2: Path, ignore_fields: Optional[list] = No
 def _show_text_diff(file1: Path, file2: Path):
     """Show differences between two text files."""
     try:
-        with open(file1, 'r', encoding='utf-8') as f1:
+        with open(file1, "r", encoding="utf-8") as f1:
             lines1 = f1.readlines()
-        with open(file2, 'r', encoding='utf-8') as f2:
+        with open(file2, "r", encoding="utf-8") as f2:
             lines2 = f2.readlines()
 
-        diff = list(difflib.unified_diff(lines1, lines2, lineterm=''))
+        diff = list(difflib.unified_diff(lines1, lines2, lineterm=""))
         if diff:
             print("\n".join(diff[:50]))  # Limit output
     except Exception as e:
@@ -254,23 +269,28 @@ def _generic_file_comparison(input_path: Path, output_path: Path) -> bool:
         return filecmp.cmp(input_path, output_path, shallow=False)
     elif input_path.is_dir() and output_path.is_dir():
         comparison = filecmp.dircmp(input_path, output_path)
-        return (not comparison.left_only and not comparison.right_only and
-                not comparison.diff_files and not comparison.funny_files)
+        return (
+            not comparison.left_only
+            and not comparison.right_only
+            and not comparison.diff_files
+            and not comparison.funny_files
+        )
     else:
         print(f"Incompatible path types: {input_path} vs {output_path}")
         return False
 
 
-def calculate_file_hash(file_path: Path, algorithm: str = 'md5') -> str:
+def calculate_file_hash(file_path: Path, algorithm: str = "md5") -> str:
     """Calculate hash of a file."""
     hash_func = hashlib.new(algorithm)
-    with open(file_path, 'rb') as f:
-        for chunk in iter(lambda: f.read(4096), b''):
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
             hash_func.update(chunk)
     return hash_func.hexdigest()
 
 
 # Category management utilities
+
 
 def extract_categories_from_coco_data(coco_data: dict) -> Dict[int, str]:
     """
@@ -303,14 +323,17 @@ def generate_classes_file(categories: Dict[int, str], output_path: Path) -> bool
         True if successful, False otherwise
     """
     try:
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             # Write categories sorted by ID
             for cat_id in sorted(categories.keys()):
                 f.write(f"{categories[cat_id]}\n")
         return True
     except Exception as e:
         import logging
-        logging.getLogger(__name__).error(f"Failed to write classes file {output_path}: {e}")
+
+        logging.getLogger(__name__).error(
+            f"Failed to write classes file {output_path}: {e}"
+        )
         return False
 
 
@@ -326,12 +349,15 @@ def load_classes_file(class_file: Path) -> Dict[int, str]:
     """
     categories = {}
     try:
-        with open(class_file, 'r', encoding='utf-8') as f:
+        with open(class_file, "r", encoding="utf-8") as f:
             for i, line in enumerate(f):
                 line = line.strip()
                 if line:  # Skip empty lines
                     categories[i] = line
     except Exception as e:
         import logging
-        logging.getLogger(__name__).error(f"Failed to load classes file {class_file}: {e}")
+
+        logging.getLogger(__name__).error(
+            f"Failed to load classes file {class_file}: {e}"
+        )
     return categories

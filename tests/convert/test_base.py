@@ -2,21 +2,25 @@
 Unit tests for base.py
 """
 
-import pytest
 import logging
-from unittest.mock import Mock, MagicMock
-from pathlib import Path
 import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, Mock
+
+import pytest
 
 from dataflow.convert.base import BaseConverter, ConversionResult
 from dataflow.label.base import AnnotationResult
-from dataflow.label.models import DatasetAnnotations, ImageAnnotation, ObjectAnnotation, BoundingBox
+from dataflow.label.models import (BoundingBox, DatasetAnnotations,
+                                   ImageAnnotation, ObjectAnnotation)
 
 
 class ConcreteConverter(BaseConverter):
     """Concrete implementation for testing abstract base class."""
 
-    def __init__(self, source_format="test_source", target_format="test_target", **kwargs):
+    def __init__(
+        self, source_format="test_source", target_format="test_target", **kwargs
+    ):
         super().__init__(source_format, target_format, **kwargs)
 
     def convert(self, source_path: str, target_path: str, **kwargs) -> ConversionResult:
@@ -28,7 +32,7 @@ class ConcreteConverter(BaseConverter):
             source_path=source_path,
             target_path=target_path,
             num_images_converted=1,
-            num_objects_converted=2
+            num_objects_converted=2,
         )
 
     def create_source_handler(self, source_path: str, kwargs: dict):
@@ -48,7 +52,7 @@ class TestConversionResult:
             source_format="labelme",
             target_format="yolo",
             source_path="/path/source",
-            target_path="/path/target"
+            target_path="/path/target",
         )
         assert result.success is True
         assert result.source_format == "labelme"
@@ -76,7 +80,7 @@ class TestConversionResult:
             num_objects_converted=25,
             warnings=warnings,
             errors=errors,
-            metadata=metadata
+            metadata=metadata,
         )
         assert result.success is False
         assert result.source_format == "yolo"
@@ -94,7 +98,7 @@ class TestConversionResult:
             source_format="a",
             target_format="b",
             source_path="",
-            target_path=""
+            target_path="",
         )
         result.add_warning("Test warning")
         assert len(result.warnings) == 1
@@ -108,7 +112,7 @@ class TestConversionResult:
             source_format="a",
             target_format="b",
             source_path="",
-            target_path=""
+            target_path="",
         )
         result.add_error("Test error")
         assert len(result.errors) == 1
@@ -122,7 +126,7 @@ class TestConversionResult:
             source_format="a",
             target_format="b",
             source_path="",
-            target_path=""
+            target_path="",
         )
         result.add_metadata("key1", "value1")
         result.add_metadata("key2", 123)
@@ -138,7 +142,7 @@ class TestConversionResult:
             source_path="/src",
             target_path="/dst",
             num_images_converted=5,
-            num_objects_converted=12
+            num_objects_converted=12,
         )
         summary = result.get_summary()
         assert "Successfully converted" in summary
@@ -154,7 +158,7 @@ class TestConversionResult:
             source_format="yolo",
             target_format="coco",
             source_path="/src",
-            target_path="/dst"
+            target_path="/dst",
         )
         result.add_error("Error 1")
         result.add_error("Error 2")
@@ -172,7 +176,7 @@ class TestBaseConverter:
             source_format="labelme",
             target_format="yolo",
             strict_mode=False,
-            logger=logging.getLogger("test")
+            logger=logging.getLogger("test"),
         )
         assert converter.source_format == "labelme"
         assert converter.target_format == "yolo"
@@ -203,9 +207,7 @@ class TestBaseConverter:
 
         # Test with minimal parameters
         result1 = converter._create_conversion_result(
-            success=True,
-            source_path="/src",
-            target_path="/dst"
+            success=True, source_path="/src", target_path="/dst"
         )
         assert result1.success is True
         assert result1.source_path == "/src"
@@ -222,9 +224,17 @@ class TestBaseConverter:
                     width=100,
                     height=100,
                     objects=[
-                        ObjectAnnotation(class_id=0, class_name="cat", bbox=BoundingBox(0.1, 0.1, 0.2, 0.2)),
-                        ObjectAnnotation(class_id=1, class_name="dog", bbox=BoundingBox(0.3, 0.3, 0.2, 0.2)),
-                    ]
+                        ObjectAnnotation(
+                            class_id=0,
+                            class_name="cat",
+                            bbox=BoundingBox(0.1, 0.1, 0.2, 0.2),
+                        ),
+                        ObjectAnnotation(
+                            class_id=1,
+                            class_name="dog",
+                            bbox=BoundingBox(0.3, 0.3, 0.2, 0.2),
+                        ),
+                    ],
                 ),
                 ImageAnnotation(
                     image_id="img2",
@@ -232,17 +242,21 @@ class TestBaseConverter:
                     width=200,
                     height=200,
                     objects=[
-                        ObjectAnnotation(class_id=0, class_name="cat", bbox=BoundingBox(0.2, 0.2, 0.1, 0.1)),
-                    ]
-                )
+                        ObjectAnnotation(
+                            class_id=0,
+                            class_name="cat",
+                            bbox=BoundingBox(0.2, 0.2, 0.1, 0.1),
+                        ),
+                    ],
+                ),
             ],
-            categories={0: "cat", 1: "dog"}
+            categories={0: "cat", 1: "dog"},
         )
         result2 = converter._create_conversion_result(
             success=True,
             source_path="/src",
             target_path="/dst",
-            annotations=annotations
+            annotations=annotations,
         )
         assert result2.num_images_converted == 2
         assert result2.num_objects_converted == 3
@@ -254,7 +268,7 @@ class TestBaseConverter:
             success=False,
             source_path="/src",
             target_path="/dst",
-            write_result=write_result
+            write_result=write_result,
         )
         assert result3.success is False
         assert len(result3.errors) == 1

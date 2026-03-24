@@ -5,23 +5,20 @@ Defines the abstract base class for all visualizers and supporting
 data structures.
 """
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Dict, List, Tuple, Optional, Union, Any
-from pathlib import Path
+import datetime
 import logging
 import sys
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
 
-from dataflow.label.models import (
-    DatasetAnnotations,
-    ImageAnnotation,
-    ObjectAnnotation,
-    BoundingBox,
-    Segmentation,
-)
+from dataflow.label.models import (BoundingBox, DatasetAnnotations,
+                                   ImageAnnotation, ObjectAnnotation,
+                                   Segmentation)
 from dataflow.util import FileOperations
 
 
@@ -72,7 +69,11 @@ class ColorManager:
             # Convert to BGR
             hsv_color = np.uint8([[[hue, saturation, value]]])
             bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)
-            color = (int(bgr_color[0,0,0]), int(bgr_color[0,0,1]), int(bgr_color[0,0,2]))
+            color = (
+                int(bgr_color[0, 0, 0]),
+                int(bgr_color[0, 0, 1]),
+                int(bgr_color[0, 0, 2]),
+            )
 
             # If color already exists (unlikely but possible due to rounding),
             # adjust saturation and value
@@ -83,7 +84,11 @@ class ColorManager:
                 value = (value + 37) % 100 + 155
                 hsv_color = np.uint8([[[hue, saturation, value]]])
                 bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)
-                color = (int(bgr_color[0,0,0]), int(bgr_color[0,0,1]), int(bgr_color[0,0,2]))
+                color = (
+                    int(bgr_color[0, 0, 0]),
+                    int(bgr_color[0, 0, 1]),
+                    int(bgr_color[0, 0, 2]),
+                )
                 attempt += 1
 
             if color in colors_set:
@@ -93,7 +98,11 @@ class ColorManager:
                 value = 155 + ((i + 13) % 100)
                 hsv_color = np.uint8([[[hue, saturation, value]]])
                 bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)
-                color = (int(bgr_color[0,0,0]), int(bgr_color[0,0,1]), int(bgr_color[0,0,2]))
+                color = (
+                    int(bgr_color[0, 0, 0]),
+                    int(bgr_color[0, 0, 1]),
+                    int(bgr_color[0, 0, 2]),
+                )
 
             colors_set.add(color)
             self.predefined_colors.append(color)
@@ -107,7 +116,10 @@ class ColorManager:
         if class_id < len(self.predefined_colors):
             color = self.predefined_colors[class_id]
             if self.debug:
-                print(f"[ColorManager] class_id={class_id}, using predefined unique color {color}", file=sys.stderr)
+                print(
+                    f"[ColorManager] class_id={class_id}, using predefined unique color {color}",
+                    file=sys.stderr,
+                )
         else:
             # For classes beyond predefined, use deterministic algorithm
             # with larger steps to avoid conflicts
@@ -118,9 +130,16 @@ class ColorManager:
             # Convert HSV to BGR
             hsv_color = np.uint8([[[hue, saturation, value]]])
             bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)
-            color = (int(bgr_color[0,0,0]), int(bgr_color[0,0,1]), int(bgr_color[0,0,2]))
+            color = (
+                int(bgr_color[0, 0, 0]),
+                int(bgr_color[0, 0, 1]),
+                int(bgr_color[0, 0, 2]),
+            )
             if self.debug:
-                print(f"[ColorManager] class_id={class_id}, generating HSV color {color}", file=sys.stderr)
+                print(
+                    f"[ColorManager] class_id={class_id}, generating HSV color {color}",
+                    file=sys.stderr,
+                )
 
         self.color_cache[class_id] = color
         return color
@@ -137,6 +156,7 @@ class BaseVisualizer(ABC):
         is_show: bool = True,
         is_save: bool = False,
         strict_mode: bool = True,
+        verbose: bool = False,  # New: verbose parameter
         logger: Optional[logging.Logger] = None,
     ):
         self.label_dir = Path(label_dir)
@@ -145,7 +165,21 @@ class BaseVisualizer(ABC):
         self.is_show = is_show
         self.is_save = is_save
         self.strict_mode = strict_mode
-        self.logger = logger or logging.getLogger(__name__)
+        self.verbose = verbose  # Store verbose setting
+
+        # Configure logger based on verbose
+        if verbose and logger is None:
+            from dataflow.util.logging_util import VerboseLoggingOperations
+
+            logging_ops = VerboseLoggingOperations()
+            self.logger = logging_ops.get_verbose_logger(
+                name=f"visualize.{self.__class__.__name__.lower()}", verbose=verbose
+            )
+            self.progress_logger = logging_ops.create_progress_logger()
+        else:
+            self.logger = logger or logging.getLogger(__name__)
+            self.progress_logger = None
+
         self.file_ops = FileOperations(logger=self.logger)
 
         # Configuration parameters
@@ -159,8 +193,18 @@ class BaseVisualizer(ABC):
             "font": cv2.FONT_HERSHEY_SIMPLEX,  # Font
         }
 
-        # Color manager
-        self.color_manager = ColorManager(debug=False)
+        # Color manager's debug mode
+        self.color_manager = ColorManager(debug=verbose)
+
+        # Summary data collection
+        self.summary_data = {
+            "total_images": 0,
+            "processed_images": 0,
+            "failed_images": 0,
+            "total_objects": 0,
+            "start_time": None,
+            "end_time": None,
+        }
 
     @abstractmethod
     def load_annotations(self) -> DatasetAnnotations:
@@ -168,12 +212,31 @@ class BaseVisualizer(ABC):
         pass
 
     def visualize(self) -> VisualizationResult:
-        """Execute visualization pipeline."""
+        """Execute visualization pipeline (enhanced version)."""
+        start_time = datetime.datetime.now()
+        self.summary_data["start_time"] = start_time
+
+        if self.verbose:
+            self.logger.debug(f"Starting visualization pipeline: {self.label_dir}")
+            self.logger.debug(
+                f"Configuration: show={self.is_show}, save={self.is_save}"
+            )
+
         result = VisualizationResult(success=False)
 
         try:
             # 1. Load annotation data
             annotations = self.load_annotations()
+            self.summary_data["total_images"] = len(annotations.images)
+            self.summary_data["total_objects"] = sum(
+                len(img.objects) for img in annotations.images
+            )
+
+            if self.verbose:
+                self.logger.info(
+                    f"Loaded annotations for {len(annotations.images)} images"
+                )
+                self.logger.debug(f"Category mapping: {annotations.categories}")
 
             # 2. Validate output directory (if save mode is enabled)
             if self.is_save:
@@ -184,15 +247,31 @@ class BaseVisualizer(ABC):
 
             # 3. Process all images for visualization
             processed_count = 0
-            for image_ann in annotations.images:
+            for i, image_ann in enumerate(annotations.images):
+                # Progress feedback
+                if (
+                    self.progress_logger and i % 10 == 0
+                ):  # Update progress every 10 images
+                    self._log_progress(
+                        i, len(annotations.images), f"Processing {image_ann.image_id}"
+                    )
+
+                if self.verbose:
+                    self.logger.debug(f"Processing image: {image_ann.image_id}")
+                    self.logger.debug(
+                        f"Image dimensions: {image_ann.width}x{image_ann.height}"
+                    )
+                    self.logger.debug(f"Number of objects: {len(image_ann.objects)}")
+
                 success = self._visualize_single_image(image_ann)
                 if success:
                     processed_count += 1
+                    self.summary_data["processed_images"] = processed_count
                 elif self.strict_mode:
-                    result.add_error(
-                        f"Failed to visualize image: {image_ann.image_id}"
-                    )
+                    result.add_error(f"Failed to visualize image: {image_ann.image_id}")
                     return result
+                else:
+                    self.summary_data["failed_images"] += 1
 
             result.success = True
             result.message = (
@@ -201,8 +280,15 @@ class BaseVisualizer(ABC):
             )
             result.data = {"processed_count": processed_count}
 
+            # Record summary
+            self.summary_data["end_time"] = datetime.datetime.now()
+            if self.verbose:
+                self._log_visualization_summary(result)
+
         except Exception as e:
             result.add_error(f"Unexpected error during visualization: {e}")
+            if self.verbose:
+                self.logger.exception("Visualization failed")
 
         return result
 
@@ -225,9 +311,7 @@ class BaseVisualizer(ABC):
 
             # 2. Draw all objects
             for obj in image_ann.objects:
-                self._draw_object(
-                    image, obj, image_ann.width, image_ann.height
-                )
+                self._draw_object(image, obj, image_ann.width, image_ann.height)
 
             # 3. Display or save
             if self.is_show:
@@ -242,20 +326,14 @@ class BaseVisualizer(ABC):
                 # Enter key or space key continue
 
             if self.is_save:
-                output_file = (
-                    self.output_dir / f"{image_ann.image_id}_visualized.jpg"
-                )
-                cv2.imwrite(
-                    str(output_file), image, [cv2.IMWRITE_JPEG_QUALITY, 95]
-                )
+                output_file = self.output_dir / f"{image_ann.image_id}_visualized.jpg"
+                cv2.imwrite(str(output_file), image, [cv2.IMWRITE_JPEG_QUALITY, 95])
                 self._log_info(f"Saved visualization to: {output_file}")
 
             return True
 
         except Exception as e:
-            self._log_error(
-                f"Error visualizing image {image_ann.image_id}: {e}"
-            )
+            self._log_error(f"Error visualizing image {image_ann.image_id}: {e}")
             return False
 
     def _draw_object(
@@ -319,9 +397,7 @@ class BaseVisualizer(ABC):
             f"image shape: {image.shape if image is not None else 'None'}"
         )
         if image is not None:
-            self.logger.debug(
-                f"Image dtype: {image.dtype}, flags: {image.flags}"
-            )
+            self.logger.debug(f"Image dtype: {image.dtype}, flags: {image.flags}")
             self.logger.debug(f"Image is writable: {image.flags['WRITEABLE']}")
         self.logger.debug(
             f"Coordinate types: x1={type(x1)}, y1={type(y1)}, "
@@ -334,12 +410,9 @@ class BaseVisualizer(ABC):
             pt1 = (x1, y1)
             pt2 = (x2, y2)
             self.logger.debug(
-                f"Attempting cv2.rectangle with pt1={pt1}, "
-                f"pt2={pt2}, color={color}"
+                f"Attempting cv2.rectangle with pt1={pt1}, " f"pt2={pt2}, color={color}"
             )
-            cv2.rectangle(
-                image, pt1, pt2, color, self.config["bbox_thickness"]
-            )
+            cv2.rectangle(image, pt1, pt2, color, self.config["bbox_thickness"])
             self.logger.debug("cv2.rectangle completed without exception")
         except BaseException as e:
             self.logger.error(f"cv2.rectangle raised exception: {e}")
@@ -388,9 +461,7 @@ class BaseVisualizer(ABC):
         )
 
         # Draw polygon outline
-        cv2.polylines(
-            image, [points_np], True, color, self.config["seg_thickness"]
-        )
+        cv2.polylines(image, [points_np], True, color, self.config["seg_thickness"])
 
         # Draw class label (use first point)
         if points:
@@ -516,3 +587,60 @@ class BaseVisualizer(ABC):
     def _log_warning(self, message: str) -> None:
         """Log warning message."""
         self.logger.warning(message)
+
+    def _log_visualization_summary(self, result: VisualizationResult):
+        """Log visualization summary."""
+        duration = self.summary_data["end_time"] - self.summary_data["start_time"]
+
+        summary_data = {
+            "Module Name": self.__class__.__name__,
+            "Runtime": f"{duration.total_seconds():.2f} seconds",
+            "Input Label Directory": str(self.label_dir),
+            "Input Image Directory": str(self.image_dir),
+            "Output Directory": str(self.output_dir) if self.output_dir else "None",
+            "Image Statistics": {
+                "Total": self.summary_data["total_images"],
+                "Success": self.summary_data["processed_images"],
+                "Failed": self.summary_data["failed_images"],
+                "Success Rate": f"{(self.summary_data['processed_images']/self.summary_data['total_images']*100):.1f}%",
+            },
+            "Total Objects": self.summary_data["total_objects"],
+            "Operation Status": "Success" if result.success else "Failed",
+        }
+
+        from dataflow.util.logging_util import VerboseLoggingOperations
+
+        logging_ops = VerboseLoggingOperations()
+        logging_ops.log_summary(
+            self.logger, "Visualization Operation Summary", summary_data
+        )
+
+    def _log_progress(self, current: int, total: int, message: str = ""):
+        """Log progress information."""
+        if self.progress_logger and total > 0:
+            percentage = (current / total) * 100
+            progress_bar = self._create_progress_bar(current, total)
+            self.progress_logger.info(f"{progress_bar} {percentage:.1f}% {message}")
+
+    def _create_progress_bar(self, current: int, total: int, width: int = 40) -> str:
+        """Create text progress bar."""
+        if total == 0:
+            return "[>······································]"
+
+        filled = int(width * current / total)
+        bar = "[" + "=" * filled + ">" + "." * (width - filled - 1) + "]"
+        return bar
+
+    def _log_color_info(self, class_id: int, color: Tuple[int, int, int]):
+        """Log color assignment information (verbose mode only)."""
+        if self.verbose:
+            class_name = self._get_class_name(class_id)
+            self.logger.debug(
+                f"Color assignment - Class ID: {class_id}, Name: {class_name}, "
+                f"Color (BGR): {color}"
+            )
+
+    def _get_class_name(self, class_id: int) -> str:
+        """Get class name from class ID (to be implemented by subclasses)."""
+        # Default implementation, subclasses should override
+        return f"class_{class_id}"

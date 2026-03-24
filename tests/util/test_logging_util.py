@@ -2,12 +2,16 @@
 Unit tests for logging_util.py
 """
 
-import pytest
 import logging
-import tempfile
 import shutil
+import sys
+import tempfile
 from pathlib import Path
-from dataflow.util.logging_util import LoggingOperations
+
+import pytest
+
+from dataflow.util.logging_util import (LoggingOperations,
+                                        VerboseLoggingOperations)
 
 
 class TestLoggingOperations:
@@ -49,7 +53,9 @@ class TestLoggingOperations:
         logger = log_ops.get_logger("file_logger", log_file=str(log_file))
 
         assert len(logger.handlers) == 2  # Console + file
-        file_handlers = [h for h in logger.handlers if isinstance(h, logging.FileHandler)]
+        file_handlers = [
+            h for h in logger.handlers if isinstance(h, logging.FileHandler)
+        ]
         assert len(file_handlers) == 1
         assert log_file.exists()
 
@@ -100,6 +106,7 @@ class TestLoggingOperations:
 
         # Check timestamp format (YYYYMMDD_HHMMSS)
         import re
+
         filename = Path(log_path).name
         timestamp = filename.replace("test_app_", "").replace(".log", "")
         assert re.match(r"\d{8}_\d{6}", timestamp)
@@ -150,3 +157,101 @@ class TestLoggingOperations:
         assert len(logger1.handlers) == 0
         assert len(logger2.handlers) == 1
         assert logger1 is not logger2
+
+
+class TestVerboseLoggingOperations:
+    """Test suite for VerboseLoggingOperations class."""
+
+    @pytest.fixture
+    def verbose_log_ops(self):
+        """Create a VerboseLoggingOperations instance for testing."""
+        return VerboseLoggingOperations()
+
+    @pytest.fixture
+    def temp_log_dir(self):
+        """Create a temporary directory for log files."""
+        import shutil
+        import tempfile
+
+        temp_dir = tempfile.mkdtemp()
+        yield Path(temp_dir)
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_verbose_logger_creation(self, verbose_log_ops):
+        """Test verbose logger creation."""
+        logger = verbose_log_ops.get_verbose_logger("test", verbose=True)
+        assert logger.name == "test.verbose"
+        # Should have 2 handlers: console + file
+        assert len(logger.handlers) == 2
+
+    def test_verbose_logger_without_verbose(self, verbose_log_ops):
+        """Test verbose logger without verbose flag."""
+        logger = verbose_log_ops.get_verbose_logger("test", verbose=False)
+        assert logger.name == "test.verbose"
+        # Should have only console handler when verbose=False
+        assert len(logger.handlers) == 1
+        assert isinstance(logger.handlers[0], logging.StreamHandler)
+
+    def test_log_file_creation(self, verbose_log_ops, temp_log_dir):
+        """Test log file creation."""
+        logger = verbose_log_ops.get_verbose_logger(
+            "test", verbose=True, log_dir=str(temp_log_dir)
+        )
+
+        # Log a message to trigger file creation
+        logger.info("Test message")
+        for handler in logger.handlers:
+            handler.flush()
+
+        # Check if log files were created
+        log_files = list(temp_log_dir.glob("log_*.log"))
+        assert len(log_files) > 0
+
+        # Check file content
+        log_content = log_files[0].read_text()
+        assert "Test message" in log_content
+
+    def test_progress_logger(self, verbose_log_ops):
+        """Test progress logger."""
+        logger = verbose_log_ops.create_progress_logger()
+        assert logger.name == "dataflow.progress"
+        assert len(logger.handlers) == 1
+        assert isinstance(logger.handlers[0], logging.StreamHandler)
+
+    def test_log_summary(self, verbose_log_ops, capsys):
+        """Test log_summary method."""
+        logger = logging.getLogger("summary_test")
+        logger.handlers.clear()
+        logger.setLevel(logging.INFO)
+
+        # Create console handler that outputs to sys.stdout
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(logging.INFO)
+        # Use simple formatter like log_summary expects
+        console_handler.setFormatter(logging.Formatter("%(message)s"))
+        logger.addHandler(console_handler)
+
+        test_data = {
+            "module": "TestModule",
+            "runtime": "12.34s",
+            "stats": {"processed": 150, "failed": 0},
+        }
+
+        verbose_log_ops.log_summary(logger, "Test Summary", test_data)
+
+        # Force flush to ensure output is captured
+        for handler in logger.handlers:
+            handler.flush()
+
+        # Capture output
+        captured = capsys.readouterr()
+        assert "Test Summary" in captured.out
+        assert "TestModule" in captured.out
+        assert "processed" in captured.out
+
+    def test_verbose_logger_caching(self, verbose_log_ops):
+        """Test verbose logger caching."""
+        logger1 = verbose_log_ops.get_verbose_logger("cached_test", verbose=True)
+        logger2 = verbose_log_ops.get_verbose_logger("cached_test", verbose=True)
+
+        assert logger1 is logger2

@@ -16,6 +16,7 @@ sys.path.insert(0, str(project_root))
 from dataflow.label import YoloAnnotationHandler
 from dataflow.util import LoggingOperations
 
+
 def demo_detection():
     """目标检测数据演示"""
     log_ops = LoggingOperations()
@@ -46,7 +47,7 @@ def demo_detection():
         class_file=str(class_file),
         image_dir=str(image_dir),
         strict_mode=True,
-        logger=logger
+        logger=logger,
     )
 
     # 读取标注数据
@@ -80,8 +81,10 @@ def demo_detection():
         for i, obj in enumerate(img.objects[:3]):  # 显示前3个对象
             logger.info(f"  对象 {i+1}: {obj.class_name} (ID: {obj.class_id})")
             if obj.bbox:
-                logger.info(f"    边界框: x={obj.bbox.x:.3f}, y={obj.bbox.y:.3f}, "
-                          f"w={obj.bbox.width:.3f}, h={obj.bbox.height:.3f}")
+                logger.info(
+                    f"    边界框: x={obj.bbox.x:.3f}, y={obj.bbox.y:.3f}, "
+                    f"w={obj.bbox.width:.3f}, h={obj.bbox.height:.3f}"
+                )
 
     # 格式转换示例：YOLO -> 统一格式 -> 新的YOLO
     logger.info("\n进行格式转换测试...")
@@ -97,6 +100,7 @@ def demo_detection():
         logger.error(f"写入失败: {write_result.message}")
 
     logger.info("\n目标检测示例完成！\n")
+
 
 def demo_segmentation():
     """实例分割数据演示"""
@@ -128,7 +132,7 @@ def demo_segmentation():
         class_file=str(class_file),
         image_dir=str(image_dir),
         strict_mode=True,
-        logger=logger
+        logger=logger,
     )
 
     # 读取标注数据
@@ -182,6 +186,7 @@ def demo_segmentation():
 
     logger.info("\n实例分割示例完成！\n")
 
+
 def main():
     """主函数"""
     log_ops = LoggingOperations()
@@ -198,6 +203,7 @@ def main():
     demo_segmentation()
 
     logger.info("所有示例完成！")
+
 
 if __name__ == "__main__":
     main()

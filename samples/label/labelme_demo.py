@@ -15,6 +15,7 @@ sys.path.insert(0, str(project_root))
 from dataflow.label import LabelMeAnnotationHandler
 from dataflow.util import LoggingOperations
 
+
 def main():
     """主函数"""
     # 配置日志
@@ -40,7 +41,7 @@ def main():
         label_dir=str(data_dir),
         class_file=str(class_file) if class_file.exists() else None,
         strict_mode=True,
-        logger=logger
+        logger=logger,
     )
 
     # 读取标注数据
@@ -67,10 +68,13 @@ def main():
         for j, obj in enumerate(image_ann.objects[:2]):  # 每张图片显示前2个对象
             logger.info(f"    对象 {j+1}: {obj.class_name} (ID: {obj.class_id})")
             if obj.bbox:
-                logger.info(f"      边界框: x={obj.bbox.x:.3f}, y={obj.bbox.y:.3f}, "
-                          f"w={obj.bbox.width:.3f}, h={obj.bbox.height:.3f}")
+                logger.info(
+                    f"      边界框: x={obj.bbox.x:.3f}, y={obj.bbox.y:.3f}, "
+                    f"w={obj.bbox.width:.3f}, h={obj.bbox.height:.3f}"
+                )
 
     logger.info("\n示例完成！")
+
 
 if __name__ == "__main__":
     main()

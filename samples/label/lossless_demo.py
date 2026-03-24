@@ -12,24 +12,19 @@ Lossless annotation processing demonstration.
 4. 混合数据处理：支持同时包含原始数据和新创建数据的标注
 """
 
+import json
+import shutil
 import sys
 import tempfile
-import shutil
 from pathlib import Path
-import json
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from dataflow.label import (
-    LabelMeAnnotationHandler,
-    YoloAnnotationHandler,
-    CocoAnnotationHandler,
-    verify_lossless_roundtrip,
-    OriginalData,
-    AnnotationFormat
-)
+from dataflow.label import (AnnotationFormat, CocoAnnotationHandler,
+                            LabelMeAnnotationHandler, OriginalData,
+                            YoloAnnotationHandler, verify_lossless_roundtrip)
 from dataflow.util import LoggingOperations
 
 
@@ -57,7 +52,7 @@ def demo_labelme_lossless(logger):
         handler = LabelMeAnnotationHandler(
             label_dir=str(data_dir),
             class_file=str(class_file) if class_file.exists() else None,
-            strict_mode=True
+            strict_mode=True,
         )
 
         read_result = handler.read()
@@ -82,7 +77,9 @@ def demo_labelme_lossless(logger):
                     objects_with_original += 1
                     # 验证原始数据格式
                     if obj.original_data.format == AnnotationFormat.LABELME.value:
-                        logger.debug(f"     对象 {obj.class_name} 保存了LabelMe原始数据")
+                        logger.debug(
+                            f"     对象 {obj.class_name} 保存了LabelMe原始数据"
+                        )
 
         logger.info(f"   {image_with_original} 张图片保存了原始数据")
         logger.info(f"   {objects_with_original} 个对象保存了原始数据")
@@ -100,14 +97,16 @@ def demo_labelme_lossless(logger):
         output_files = sorted(output_dir.glob("*.json"))
 
         if len(input_files) != len(output_files):
-            logger.error(f"文件数量不匹配: 输入={len(input_files)}, 输出={len(output_files)}")
+            logger.error(
+                f"文件数量不匹配: 输入={len(input_files)}, 输出={len(output_files)}"
+            )
             return False
 
         all_match = True
         for in_file, out_file in zip(input_files, output_files):
-            with open(in_file, 'r', encoding='utf-8') as f1:
+            with open(in_file, "r", encoding="utf-8") as f1:
                 data1 = json.load(f1)
-            with open(out_file, 'r', encoding='utf-8') as f2:
+            with open(out_file, "r", encoding="utf-8") as f2:
                 data2 = json.load(f2)
 
             # 移除imageData字段（可能为null）
@@ -159,7 +158,7 @@ def demo_yolo_lossless(logger):
             image_dir=str(image_dir),
             label_dir=str(labels_dir),
             class_file=str(class_file) if class_file.exists() else None,
-            strict_mode=True
+            strict_mode=True,
         )
 
         read_result = handler.read()
@@ -180,7 +179,9 @@ def demo_yolo_lossless(logger):
                         logger.debug(f"     对象 {obj.class_name} 保存了YOLO原始数据")
                         # 显示原始行数据
                         if "line" in obj.original_data.raw_data:
-                            logger.debug(f"       原始行: {obj.original_data.raw_data['line'].strip()}")
+                            logger.debug(
+                                f"       原始行: {obj.original_data.raw_data['line'].strip()}"
+                            )
 
         logger.info(f"   {objects_with_original} 个对象保存了原始数据")
 
@@ -197,14 +198,16 @@ def demo_yolo_lossless(logger):
         output_files = sorted(output_dir.glob("*.txt"))
 
         if len(input_files) != len(output_files):
-            logger.error(f"文件数量不匹配: 输入={len(input_files)}, 输出={len(output_files)}")
+            logger.error(
+                f"文件数量不匹配: 输入={len(input_files)}, 输出={len(output_files)}"
+            )
             return False
 
         all_match = True
         for in_file, out_file in zip(input_files, output_files):
-            with open(in_file, 'r', encoding='utf-8') as f1:
+            with open(in_file, "r", encoding="utf-8") as f1:
                 lines1 = [line.rstrip() for line in f1.readlines()]
-            with open(out_file, 'r', encoding='utf-8') as f2:
+            with open(out_file, "r", encoding="utf-8") as f2:
                 lines2 = [line.rstrip() for line in f2.readlines()]
 
             if lines1 != lines2:
@@ -230,7 +233,9 @@ def demo_coco_lossless(logger):
     logger.info("=" * 60)
 
     # 使用目标检测测试数据
-    data_file = project_root / "assets" / "test_data" / "det" / "coco" / "annotations.json"
+    data_file = (
+        project_root / "assets" / "test_data" / "det" / "coco" / "annotations.json"
+    )
 
     if not data_file.exists():
         logger.error(f"COCO文件不存在: {data_file}")
@@ -244,8 +249,7 @@ def demo_coco_lossless(logger):
         # 1. 读取原始数据
         logger.info(f"1. 读取COCO标注数据: {data_file}")
         handler = CocoAnnotationHandler(
-            annotation_file=str(data_file),
-            strict_mode=True
+            annotation_file=str(data_file), strict_mode=True
         )
 
         read_result = handler.read()
@@ -289,25 +293,36 @@ def demo_coco_lossless(logger):
 
         # 3. 验证无损性
         logger.info("3. 验证无损性")
-        with open(data_file, 'r', encoding='utf-8') as f1:
+        with open(data_file, "r", encoding="utf-8") as f1:
             data1 = json.load(f1)
-        with open(output_file, 'r', encoding='utf-8') as f2:
+        with open(output_file, "r", encoding="utf-8") as f2:
             data2 = json.load(f2)
 
         # 移除自动生成的字段
         for data in [data1, data2]:
             data.pop("__coco_original_data__", None)
             # 移除可能不同的描述字段
-            for field in ["description", "url", "version", "year", "contributor", "date_created"]:
+            for field in [
+                "description",
+                "url",
+                "version",
+                "year",
+                "contributor",
+                "date_created",
+            ]:
                 data.pop(field, None)
 
         # 比较标注（ID可能重新生成，比较内容）
         if len(data1["annotations"]) != len(data2["annotations"]):
-            logger.error(f"标注数量不匹配: 输入={len(data1['annotations'])}, 输出={len(data2['annotations'])}")
+            logger.error(
+                f"标注数量不匹配: 输入={len(data1['annotations'])}, 输出={len(data2['annotations'])}"
+            )
             return False
 
         all_match = True
-        for i, (ann1, ann2) in enumerate(zip(data1["annotations"], data2["annotations"])):
+        for i, (ann1, ann2) in enumerate(
+            zip(data1["annotations"], data2["annotations"])
+        ):
             # 移除ID比较
             ann1_copy = {k: v for k, v in ann1.items() if k != "id"}
             ann2_copy = {k: v for k, v in ann2.items() if k != "id"}
@@ -344,18 +359,23 @@ def demo_utility_functions(logger):
     # 使用目标检测测试数据
     labelme_dir = project_root / "assets" / "test_data" / "det" / "labelme"
     yolo_dir = project_root / "assets" / "test_data" / "det" / "yolo" / "labels"
-    yolo_class_file = project_root / "assets" / "test_data" / "det" / "yolo" / "classes.txt"
-    coco_file = project_root / "assets" / "test_data" / "det" / "coco" / "annotations.json"
+    yolo_class_file = (
+        project_root / "assets" / "test_data" / "det" / "yolo" / "classes.txt"
+    )
+    coco_file = (
+        project_root / "assets" / "test_data" / "det" / "coco" / "annotations.json"
+    )
 
     # 测试LabelMe验证
     logger.info("1. 测试LabelMe无损验证")
     if labelme_dir.exists():
         # 创建自定义处理器（演示使用方法）
         from dataflow.label.labelme_handler import LabelMeAnnotationHandler
+
         result = verify_lossless_roundtrip(
             input_path=str(labelme_dir),
             output_path="/tmp/test_output",
-            handler_class=LabelMeAnnotationHandler
+            handler_class=LabelMeAnnotationHandler,
         )
         logger.info(f"   LabelMe无损验证结果: {'通过' if result else '失败'}")
     else:
@@ -373,10 +393,11 @@ def demo_utility_functions(logger):
     logger.info("3. 测试COCO无损验证")
     if coco_file.exists():
         from dataflow.label.coco_handler import CocoAnnotationHandler
+
         result = verify_lossless_roundtrip(
             input_path=str(coco_file),
             output_path="/tmp/test_output_coco.json",
-            handler_class=CocoAnnotationHandler
+            handler_class=CocoAnnotationHandler,
         )
         logger.info(f"   COCO无损验证结果: {'通过' if result else '失败'}")
     else:

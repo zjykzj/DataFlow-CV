@@ -2,13 +2,14 @@
 Unit tests for rle_converter.py
 """
 
-import pytest
 import logging
-import tempfile
 import shutil
-from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
 import sys
+import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 from dataflow.convert.rle_converter import RLEConverter
 
@@ -18,14 +19,14 @@ class TestRLEConverter:
 
     def test_init_with_coco_mask(self):
         """Test initialization when pycocotools is available."""
-        with patch('dataflow.convert.rle_converter.HAS_COCO_MASK', True):
+        with patch("dataflow.convert.rle_converter.HAS_COCO_MASK", True):
             converter = RLEConverter()
             assert converter.has_coco_mask is True
             assert converter.logger is not None
 
     def test_init_without_coco_mask(self):
         """Test initialization when pycocotools is not available."""
-        with patch('dataflow.convert.rle_converter.HAS_COCO_MASK', False):
+        with patch("dataflow.convert.rle_converter.HAS_COCO_MASK", False):
             converter = RLEConverter()
             assert converter.has_coco_mask is False
             assert converter.logger is not None
@@ -40,50 +41,47 @@ class TestRLEConverter:
 
     def test_check_coco_mask_available_true(self):
         """Test check_coco_mask_available when pycocotools is available."""
-        with patch('dataflow.convert.rle_converter.HAS_COCO_MASK', True):
+        with patch("dataflow.convert.rle_converter.HAS_COCO_MASK", True):
             converter = RLEConverter()
             assert converter.check_coco_mask_available() is True
 
     def test_check_coco_mask_available_false(self):
         """Test check_coco_mask_available when pycocotools is not available."""
-        with patch('dataflow.convert.rle_converter.HAS_COCO_MASK', False):
+        with patch("dataflow.convert.rle_converter.HAS_COCO_MASK", False):
             converter = RLEConverter()
             assert converter.check_coco_mask_available() is False
 
     def test_validate_rle_dict_valid(self):
         """Test validate_rle_dict with valid RLE dict."""
         converter = RLEConverter()
-        valid_rle = {
-            'size': [100, 200],
-            'counts': 'some_rle_string'
-        }
+        valid_rle = {"size": [100, 200], "counts": "some_rle_string"}
         assert converter.validate_rle_dict(valid_rle) is True
 
     def test_validate_rle_dict_invalid_missing_fields(self):
         """Test validate_rle_dict with missing fields."""
         converter = RLEConverter()
-        invalid_rle = {'size': [100, 200]}  # missing 'counts'
+        invalid_rle = {"size": [100, 200]}  # missing 'counts'
         assert converter.validate_rle_dict(invalid_rle) is False
 
-        invalid_rle2 = {'counts': 'some_rle_string'}  # missing 'size'
+        invalid_rle2 = {"counts": "some_rle_string"}  # missing 'size'
         assert converter.validate_rle_dict(invalid_rle2) is False
 
     def test_validate_rle_dict_invalid_size_format(self):
         """Test validate_rle_dict with invalid size format."""
         converter = RLEConverter()
         # size not a list
-        invalid_rle = {'size': (100, 200), 'counts': 'some_rle_string'}
+        invalid_rle = {"size": (100, 200), "counts": "some_rle_string"}
         assert converter.validate_rle_dict(invalid_rle) is False
 
         # size list length not 2
-        invalid_rle = {'size': [100, 200, 300], 'counts': 'some_rle_string'}
+        invalid_rle = {"size": [100, 200, 300], "counts": "some_rle_string"}
         assert converter.validate_rle_dict(invalid_rle) is False
 
         # size values not positive integers
-        invalid_rle = {'size': [0, 200], 'counts': 'some_rle_string'}
+        invalid_rle = {"size": [0, 200], "counts": "some_rle_string"}
         assert converter.validate_rle_dict(invalid_rle) is False
 
-        invalid_rle = {'size': [100, -200], 'counts': 'some_rle_string'}
+        invalid_rle = {"size": [100, -200], "counts": "some_rle_string"}
         assert converter.validate_rle_dict(invalid_rle) is False
 
     def test_validate_rle_dict_not_dict(self):
@@ -93,13 +91,13 @@ class TestRLEConverter:
         assert converter.validate_rle_dict("not a dict") is False
         assert converter.validate_rle_dict([]) is False
 
-    @patch('dataflow.convert.rle_converter.HAS_COCO_MASK', True)
-    @patch('dataflow.convert.rle_converter.coco_mask')
-    @patch('dataflow.convert.rle_converter.np')
+    @patch("dataflow.convert.rle_converter.HAS_COCO_MASK", True)
+    @patch("dataflow.convert.rle_converter.coco_mask")
+    @patch("dataflow.convert.rle_converter.np")
     def test_polygon_to_rle_with_coco_mask(self, mock_np, mock_coco_mask):
         """Test polygon_to_rle when pycocotools is available."""
         # Mock cv2 module before importing it in the method
-        with patch.dict('sys.modules', {'cv2': MagicMock()}):
+        with patch.dict("sys.modules", {"cv2": MagicMock()}):
             converter = RLEConverter()
 
             # Setup mocks
@@ -108,11 +106,15 @@ class TestRLEConverter:
             mock_np.asfortranarray.return_value = mock_mask
             mock_np.array.return_value = Mock()
 
-            mock_coco_mask.encode.return_value = {'size': [100, 200], 'counts': b'rle_bytes'}
+            mock_coco_mask.encode.return_value = {
+                "size": [100, 200],
+                "counts": b"rle_bytes",
+            }
 
             # Get the mocked cv2 module
             import sys
-            mock_cv2 = sys.modules['cv2']
+
+            mock_cv2 = sys.modules["cv2"]
             mock_cv2.fillPoly = Mock()
 
             # Test data
@@ -124,17 +126,17 @@ class TestRLEConverter:
 
             # Verify result
             assert result is not None
-            assert 'size' in result
-            assert 'counts' in result
+            assert "size" in result
+            assert "counts" in result
             # counts should be string (converted from bytes)
-            assert isinstance(result['counts'], str)
+            assert isinstance(result["counts"], str)
 
             # Verify mocks were called
             mock_np.zeros.assert_called_once()
             mock_cv2.fillPoly.assert_called_once()
             mock_coco_mask.encode.assert_called_once_with(mock_mask)
 
-    @patch('dataflow.convert.rle_converter.HAS_COCO_MASK', False)
+    @patch("dataflow.convert.rle_converter.HAS_COCO_MASK", False)
     def test_polygon_to_rle_without_coco_mask_require_false(self):
         """Test polygon_to_rle when pycocotools not available and require_coco_mask=False."""
         converter = RLEConverter()
@@ -144,10 +146,12 @@ class TestRLEConverter:
         img_height = 300
 
         # Should return None without raising exception
-        result = converter.polygon_to_rle(points, img_width, img_height, require_coco_mask=False)
+        result = converter.polygon_to_rle(
+            points, img_width, img_height, require_coco_mask=False
+        )
         assert result is None
 
-    @patch('dataflow.convert.rle_converter.HAS_COCO_MASK', False)
+    @patch("dataflow.convert.rle_converter.HAS_COCO_MASK", False)
     def test_polygon_to_rle_without_coco_mask_require_true(self):
         """Test polygon_to_rle when pycocotools not available and require_coco_mask=True."""
         converter = RLEConverter()
@@ -158,7 +162,9 @@ class TestRLEConverter:
 
         # Should raise ImportError
         with pytest.raises(ImportError, match="pycocotools required"):
-            converter.polygon_to_rle(points, img_width, img_height, require_coco_mask=True)
+            converter.polygon_to_rle(
+                points, img_width, img_height, require_coco_mask=True
+            )
 
     def test_polygon_to_rle_empty_points(self):
         """Test polygon_to_rle with empty points list."""
@@ -185,12 +191,12 @@ class TestRLEConverter:
         with pytest.raises(ValueError):
             converter.polygon_to_rle(points, -100, 100)
 
-    @patch('dataflow.convert.rle_converter.HAS_COCO_MASK', True)
-    @patch('dataflow.convert.rle_converter.coco_mask')
+    @patch("dataflow.convert.rle_converter.HAS_COCO_MASK", True)
+    @patch("dataflow.convert.rle_converter.coco_mask")
     def test_rle_to_polygon_with_coco_mask(self, mock_coco_mask):
         """Test rle_to_polygon when pycocotools is available."""
         # Mock cv2 module before importing it in the method
-        with patch.dict('sys.modules', {'cv2': MagicMock()}):
+        with patch.dict("sys.modules", {"cv2": MagicMock()}):
             converter = RLEConverter()
 
             # Setup mocks
@@ -199,7 +205,8 @@ class TestRLEConverter:
 
             # Get the mocked cv2 module
             import sys
-            mock_cv2 = sys.modules['cv2']
+
+            mock_cv2 = sys.modules["cv2"]
             mock_contours = [Mock(), Mock()]
             mock_cv2.findContours = Mock(return_value=(mock_contours, None))
             mock_cv2.contourArea = Mock(side_effect=[100, 50])  # First contour larger
@@ -209,7 +216,7 @@ class TestRLEConverter:
             mock_contours[0] = mock_contour
 
             # Test data
-            rle_dict = {'size': [100, 200], 'counts': 'rle_string'}
+            rle_dict = {"size": [100, 200], "counts": "rle_string"}
             img_width = 200
             img_height = 100
 
@@ -224,31 +231,35 @@ class TestRLEConverter:
             mock_coco_mask.decode.assert_called_once()
             mock_cv2.findContours.assert_called_once()
 
-    @patch('dataflow.convert.rle_converter.HAS_COCO_MASK', False)
+    @patch("dataflow.convert.rle_converter.HAS_COCO_MASK", False)
     def test_rle_to_polygon_without_coco_mask_require_false(self):
         """Test rle_to_polygon when pycocotools not available and require_coco_mask=False."""
         converter = RLEConverter()
 
-        rle_dict = {'size': [100, 200], 'counts': 'rle_string'}
+        rle_dict = {"size": [100, 200], "counts": "rle_string"}
         img_width = 200
         img_height = 100
 
         # Should return None without raising exception
-        result = converter.rle_to_polygon(rle_dict, img_width, img_height, require_coco_mask=False)
+        result = converter.rle_to_polygon(
+            rle_dict, img_width, img_height, require_coco_mask=False
+        )
         assert result is None
 
-    @patch('dataflow.convert.rle_converter.HAS_COCO_MASK', False)
+    @patch("dataflow.convert.rle_converter.HAS_COCO_MASK", False)
     def test_rle_to_polygon_without_coco_mask_require_true(self):
         """Test rle_to_polygon when pycocotools not available and require_coco_mask=True."""
         converter = RLEConverter()
 
-        rle_dict = {'size': [100, 200], 'counts': 'rle_string'}
+        rle_dict = {"size": [100, 200], "counts": "rle_string"}
         img_width = 200
         img_height = 100
 
         # Should raise ImportError
         with pytest.raises(ImportError, match="pycocotools required"):
-            converter.rle_to_polygon(rle_dict, img_width, img_height, require_coco_mask=True)
+            converter.rle_to_polygon(
+                rle_dict, img_width, img_height, require_coco_mask=True
+            )
 
     def test_rle_to_polygon_invalid_rle_dict(self):
         """Test rle_to_polygon with invalid RLE dict."""
@@ -256,11 +267,11 @@ class TestRLEConverter:
 
         # Missing 'size' field
         with pytest.raises(ValueError, match="Invalid RLE dict"):
-            converter.rle_to_polygon({'counts': 'rle_string'}, 100, 100)
+            converter.rle_to_polygon({"counts": "rle_string"}, 100, 100)
 
         # Missing 'counts' field
         with pytest.raises(ValueError, match="Invalid RLE dict"):
-            converter.rle_to_polygon({'size': [100, 200]}, 100, 100)
+            converter.rle_to_polygon({"size": [100, 200]}, 100, 100)
 
         # Empty dict
         with pytest.raises(ValueError, match="Invalid RLE dict"):
@@ -270,7 +281,7 @@ class TestRLEConverter:
         """Test rle_to_polygon with invalid image dimensions."""
         converter = RLEConverter()
 
-        rle_dict = {'size': [100, 200], 'counts': 'rle_string'}
+        rle_dict = {"size": [100, 200], "counts": "rle_string"}
 
         # Zero width
         with pytest.raises(ValueError):

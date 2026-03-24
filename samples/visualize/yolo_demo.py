@@ -6,36 +6,48 @@ YOLO标注可视化示例
 支持自动检测目标检测和实例分割格式。
 
 使用方法：
-    python yolo_demo.py [--task {det,seg}]
+    python yolo_demo.py [--task {det,seg}] [--verbose]
 
 示例：
-    python yolo_demo.py             # 可视化目标检测标注（默认）
-    python yolo_demo.py --task seg  # 可视化实例分割标注
+    python yolo_demo.py                     # 可视化目标检测标注（默认）
+    python yolo_demo.py --task seg          # 可视化实例分割标注
+    python yolo_demo.py --verbose           # 启用详细日志模式
+    python yolo_demo.py --task seg --verbose # 实例分割+详细日志
 """
 
-import sys
 import argparse
+import sys
 from pathlib import Path
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from dataflow.util import LoggingOperations, VerboseLoggingOperations
 from dataflow.visualize import YOLOVisualizer
-from dataflow.util import LoggingOperations
 
 
 def main():
     """主函数"""
     # 解析命令行参数
     parser = argparse.ArgumentParser(description="YOLO标注可视化示例")
-    parser.add_argument("--task", choices=["det", "seg"], default="det",
-                       help="任务类型: det=目标检测, seg=实例分割 (默认: det)")
+    parser.add_argument(
+        "--task",
+        choices=["det", "seg"],
+        default="det",
+        help="任务类型: det=目标检测, seg=实例分割 (默认: det)",
+    )
+    parser.add_argument("--verbose", action="store_true", help="启用详细日志模式")
     args = parser.parse_args()
 
     # 配置日志
-    log_ops = LoggingOperations()
-    logger = log_ops.get_logger("yolo_visualize_demo", level="INFO")
+    if args.verbose:
+        log_ops = VerboseLoggingOperations()
+        logger = log_ops.get_logger("yolo_visualize_demo", level="INFO")
+        logger.info("详细日志模式已启用")
+    else:
+        log_ops = LoggingOperations()
+        logger = log_ops.get_logger("yolo_visualize_demo", level="INFO")
 
     # 根据任务类型选择数据路径
     if args.task == "det":
@@ -72,11 +84,12 @@ def main():
         label_dir=str(label_dir),
         image_dir=str(image_dir),
         class_file=str(class_file),
-        is_show=True,      # 显示窗口
-        is_save=True,      # 同时保存
+        verbose=args.verbose,  # 详细日志模式
+        is_show=True,  # 显示窗口
+        is_save=True,  # 同时保存
         output_dir=output_dir,
         strict_mode=True,
-        logger=logger
+        logger=logger,
     )
 
     # 执行可视化

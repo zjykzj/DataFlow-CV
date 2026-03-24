@@ -6,36 +6,47 @@ COCO标注可视化示例
 支持目标检测和实例分割标注，以及多边形格式和RLE格式。
 
 使用方法：
-    python coco_demo.py [--task {det,seg}] [--format {polygon,rle}]
+    python coco_demo.py [--task {det,seg}] [--format {polygon,rle}] [--verbose]
 
 示例：
     python coco_demo.py                      # 可视化目标检测标注（多边形格式，默认）
     python coco_demo.py --task seg           # 可视化实例分割标注（多边形格式）
     python coco_demo.py --task seg --format rle  # 可视化实例分割标注（RLE格式）
+    python coco_demo.py --verbose            # 启用详细日志模式
+    python coco_demo.py --task seg --verbose # 实例分割+详细日志
 
 注意：目标检测任务仅支持多边形格式。
 """
 
-import sys
 import argparse
+import sys
 from pathlib import Path
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from dataflow.util import LoggingOperations, VerboseLoggingOperations
 from dataflow.visualize import COCOVisualizer
-from dataflow.util import LoggingOperations
 
 
 def main():
     """主函数"""
     # 解析命令行参数
     parser = argparse.ArgumentParser(description="COCO标注可视化示例")
-    parser.add_argument("--task", choices=["det", "seg"], default="det",
-                       help="任务类型: det=目标检测, seg=实例分割 (默认: det)")
-    parser.add_argument("--format", choices=["polygon", "rle"], default="polygon",
-                       help="标注格式: polygon=多边形格式, rle=RLE格式 (默认: polygon)")
+    parser.add_argument(
+        "--task",
+        choices=["det", "seg"],
+        default="det",
+        help="任务类型: det=目标检测, seg=实例分割 (默认: det)",
+    )
+    parser.add_argument(
+        "--format",
+        choices=["polygon", "rle"],
+        default="polygon",
+        help="标注格式: polygon=多边形格式, rle=RLE格式 (默认: polygon)",
+    )
+    parser.add_argument("--verbose", action="store_true", help="启用详细日志模式")
     args = parser.parse_args()
 
     # 参数验证
@@ -45,8 +56,13 @@ def main():
         return
 
     # 配置日志
-    log_ops = LoggingOperations()
-    logger = log_ops.get_logger("coco_visualize_demo", level="INFO")
+    if args.verbose:
+        log_ops = VerboseLoggingOperations()
+        logger = log_ops.get_logger("coco_visualize_demo", level="INFO")
+        logger.info("详细日志模式已启用")
+    else:
+        log_ops = LoggingOperations()
+        logger = log_ops.get_logger("coco_visualize_demo", level="INFO")
 
     # 根据任务类型和格式选择数据路径
     if args.task == "det":
@@ -85,10 +101,11 @@ def main():
     visualizer = COCOVisualizer(
         annotation_file=str(annotation_file),
         image_dir=str(image_dir),
-        is_show=True,      # 显示窗口
-        is_save=False,     # 不保存
+        verbose=args.verbose,  # 详细日志模式
+        is_show=True,  # 显示窗口
+        is_save=False,  # 不保存
         strict_mode=True,
-        logger=logger
+        logger=logger,
     )
 
     # 执行可视化

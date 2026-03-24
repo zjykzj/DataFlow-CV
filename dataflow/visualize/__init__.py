@@ -27,18 +27,18 @@ Example usage:
     >>> result = visualizer.visualize()
 """
 
-from .base import BaseVisualizer, VisualizationResult, ColorManager
+from . import utils
+from .base import BaseVisualizer, ColorManager, VisualizationResult
+from .coco_visualizer import COCOVisualizer
 from .labelme_visualizer import LabelMeVisualizer
 from .yolo_visualizer import YOLOVisualizer
-from .coco_visualizer import COCOVisualizer
-from . import utils
 
 __all__ = [
-    'BaseVisualizer',
-    'VisualizationResult',
-    'ColorManager',
-    'LabelMeVisualizer',
-    'YOLOVisualizer',
-    'COCOVisualizer',
-    'utils',
+    "BaseVisualizer",
+    "VisualizationResult",
+    "ColorManager",
+    "LabelMeVisualizer",
+    "YOLOVisualizer",
+    "COCOVisualizer",
+    "utils",
 ]

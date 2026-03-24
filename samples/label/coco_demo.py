@@ -37,9 +37,7 @@ def demo_standard_format():
     # 创建COCO处理器
     logger.info(f"创建COCO处理器，标注文件: {annotation_file}")
     handler = CocoAnnotationHandler(
-        annotation_file=str(annotation_file),
-        strict_mode=True,
-        logger=logger
+        annotation_file=str(annotation_file), strict_mode=True, logger=logger
     )
 
     # 读取标注数据
@@ -79,8 +77,10 @@ def demo_standard_format():
         for i, obj in enumerate(img.objects[:3]):  # 显示前3个对象
             logger.info(f"  对象 {i+1}: {obj.class_name} (ID: {obj.class_id})")
             if obj.bbox:
-                logger.info(f"    边界框: x={obj.bbox.x:.3f}, y={obj.bbox.y:.3f}, "
-                          f"w={obj.bbox.width:.3f}, h={obj.bbox.height:.3f}")
+                logger.info(
+                    f"    边界框: x={obj.bbox.x:.3f}, y={obj.bbox.y:.3f}, "
+                    f"w={obj.bbox.width:.3f}, h={obj.bbox.height:.3f}"
+                )
             if obj.segmentation:
                 logger.info(f"    分割点数: {len(obj.segmentation.points)}")
                 # 显示前3个点
@@ -99,8 +99,7 @@ def demo_standard_format():
         # 验证写入的文件
         logger.info("验证写入的文件...")
         verify_handler = CocoAnnotationHandler(
-            annotation_file=str(output_file),
-            strict_mode=False  # 验证时使用非严格模式
+            annotation_file=str(output_file), strict_mode=False  # 验证时使用非严格模式
         )
         verify_result = verify_handler.read()
 
@@ -134,6 +133,7 @@ def demo_rle_format():
     # 检查pycocotools是否安装
     try:
         from pycocotools import mask as coco_mask
+
         logger.info("pycocotools已安装，支持RLE处理")
     except ImportError:
         logger.warning("pycocotools未安装，RLE功能受限")
@@ -145,7 +145,7 @@ def demo_rle_format():
     handler = CocoAnnotationHandler(
         annotation_file=str(annotation_file),
         strict_mode=False,  # 使用非严格模式，因为RLE解码可能失败
-        logger=logger
+        logger=logger,
     )
 
     # 读取标注数据
@@ -184,12 +184,15 @@ def demo_rle_format():
 
         # 检查输出是否包含RLE
         import json
-        with open(output_file, 'r', encoding='utf-8') as f:
+
+        with open(output_file, "r", encoding="utf-8") as f:
             output_data = json.load(f)
 
         rle_count = sum(
-            1 for ann in output_data['annotations']
-            if isinstance(ann.get('segmentation'), dict) and 'counts' in ann.get('segmentation', {})
+            1
+            for ann in output_data["annotations"]
+            if isinstance(ann.get("segmentation"), dict)
+            and "counts" in ann.get("segmentation", {})
         )
         logger.info(f"  输出中包含 {rle_count} 个RLE格式标注")
 
@@ -223,6 +226,7 @@ def demo_format_conversion():
     # 检查pycocotools
     try:
         from pycocotools import mask as coco_mask
+
         has_pycocotools = True
     except ImportError:
         has_pycocotools = False
@@ -230,9 +234,7 @@ def demo_format_conversion():
         logger.info("安装命令: pip install pycocotools")
 
     handler = CocoAnnotationHandler(
-        annotation_file=str(annotation_file),
-        strict_mode=True,
-        logger=logger
+        annotation_file=str(annotation_file), strict_mode=True, logger=logger
     )
 
     # 读取数据
@@ -260,9 +262,7 @@ def demo_format_conversion():
 
         # 3. 读取RLE输出并验证
         handler2 = CocoAnnotationHandler(
-            annotation_file=str(output2),
-            strict_mode=False,
-            logger=logger
+            annotation_file=str(output2), strict_mode=False, logger=logger
         )
         result2 = handler2.read()
         if result2.success:

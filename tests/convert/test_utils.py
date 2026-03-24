@@ -2,14 +2,16 @@
 Unit tests for utils.py
 """
 
-import pytest
+import logging
 import tempfile
 from pathlib import Path
-import logging
 from unittest.mock import Mock
 
+import pytest
+
 from dataflow.convert import utils
-from dataflow.label.models import DatasetAnnotations, ImageAnnotation, ObjectAnnotation, BoundingBox
+from dataflow.label.models import (BoundingBox, DatasetAnnotations,
+                                   ImageAnnotation, ObjectAnnotation)
 
 
 class TestCategoryFunctions:
@@ -17,9 +19,7 @@ class TestCategoryFunctions:
 
     def test_extract_categories_from_annotations(self):
         """Test extracting categories from DatasetAnnotations."""
-        annotations = DatasetAnnotations(
-            categories={0: "cat", 1: "dog", 2: "bird"}
-        )
+        annotations = DatasetAnnotations(categories={0: "cat", 1: "dog", 2: "bird"})
         categories = utils.extract_categories_from_annotations(annotations)
         assert categories == {0: "cat", 1: "dog", 2: "bird"}
 
@@ -34,7 +34,7 @@ class TestCategoryFunctions:
             assert output_path.exists()
 
             # Verify file content
-            with open(output_path, 'r', encoding='utf-8') as f:
+            with open(output_path, "r", encoding="utf-8") as f:
                 lines = [line.strip() for line in f.readlines()]
             assert lines == ["cat", "dog", "bird"]
 
@@ -50,7 +50,7 @@ class TestCategoryFunctions:
         """Test loading categories from classes.txt."""
         with tempfile.TemporaryDirectory() as tmpdir:
             class_file = Path(tmpdir) / "classes.txt"
-            with open(class_file, 'w', encoding='utf-8') as f:
+            with open(class_file, "w", encoding="utf-8") as f:
                 f.write("cat\n")
                 f.write("dog\n")
                 f.write("bird\n")
@@ -74,7 +74,7 @@ class TestCategoryFunctions:
             "categories": [
                 {"id": 1, "name": "person", "supercategory": "human"},
                 {"id": 2, "name": "bicycle", "supercategory": "vehicle"},
-                {"id": 3, "name": "car", "supercategory": "vehicle"}
+                {"id": 3, "name": "car", "supercategory": "vehicle"},
             ]
         }
         categories = utils.extract_categories_from_coco(coco_data)
@@ -88,9 +88,7 @@ class TestCategoryFunctions:
 
     def test_ensure_categories_in_annotations(self):
         """Test ensuring annotations have specific categories."""
-        annotations = DatasetAnnotations(
-            categories={0: "old_cat", 1: "old_dog"}
-        )
+        annotations = DatasetAnnotations(categories={0: "old_cat", 1: "old_dog"})
         new_categories = {0: "cat", 1: "dog", 2: "bird"}
 
         updated = utils.ensure_categories_in_annotations(annotations, new_categories)
@@ -98,9 +96,7 @@ class TestCategoryFunctions:
 
     def test_ensure_categories_in_annotations_conflict(self):
         """Test ensuring categories with conflicts (should log warning)."""
-        annotations = DatasetAnnotations(
-            categories={0: "cat", 1: "dog"}
-        )
+        annotations = DatasetAnnotations(categories={0: "cat", 1: "dog"})
         new_categories = {0: "CAT", 1: "dog"}  # Conflict at ID 0
 
         # This should log a warning but update categories
@@ -129,26 +125,24 @@ class TestPathFunctions:
 
     def test_validate_conversion_chain(self):
         """Test validating conversion chains."""
-        allowed_chains = [
-            ("labelme", "yolo"),
-            ("yolo", "coco"),
-            ("coco", "labelme")
-        ]
+        allowed_chains = [("labelme", "yolo"), ("yolo", "coco"), ("coco", "labelme")]
 
-        assert utils.validate_conversion_chain("labelme", "yolo", allowed_chains) is True
+        assert (
+            utils.validate_conversion_chain("labelme", "yolo", allowed_chains) is True
+        )
         assert utils.validate_conversion_chain("yolo", "coco", allowed_chains) is True
-        assert utils.validate_conversion_chain("labelme", "coco", allowed_chains) is False
-        assert utils.validate_conversion_chain("unknown", "yolo", allowed_chains) is False
+        assert (
+            utils.validate_conversion_chain("labelme", "coco", allowed_chains) is False
+        )
+        assert (
+            utils.validate_conversion_chain("unknown", "yolo", allowed_chains) is False
+        )
 
     def test_create_conversion_chain(self):
         """Test creating conversion steps from format chain."""
         chain = ["labelme", "yolo", "coco", "labelme"]
         steps = utils.create_conversion_chain(chain)
-        assert steps == [
-            ("labelme", "yolo"),
-            ("yolo", "coco"),
-            ("coco", "labelme")
-        ]
+        assert steps == [("labelme", "yolo"), ("yolo", "coco"), ("coco", "labelme")]
 
         # Test with minimal chain
         chain2 = ["a", "b"]
@@ -179,15 +173,15 @@ class TestPathFunctions:
                         image_path="images/img1.jpg",  # Relative path
                         width=100,
                         height=100,
-                        objects=[]
+                        objects=[],
                     ),
                     ImageAnnotation(
                         image_id="img2",
                         image_path=str(source_dir / "img2.jpg"),  # Absolute path
                         width=200,
                         height=200,
-                        objects=[]
-                    )
+                        objects=[],
+                    ),
                 ]
             )
 
@@ -205,19 +199,21 @@ class TestImageDimensionFunction:
     def test_get_image_dimensions_from_handler_missing_libs(self, monkeypatch):
         """Test getting image dimensions when no imaging lib is available."""
         import builtins
+
         original_import = builtins.__import__
 
         def mock_import(name, globals=None, locals=None, fromlist=(), level=0):
-            if name == 'cv2' or (name == 'PIL' and 'Image' in fromlist):
+            if name == "cv2" or (name == "PIL" and "Image" in fromlist):
                 raise ImportError(f"No module named '{name}'")
             return original_import(name, globals, locals, fromlist, level)
 
-        monkeypatch.setattr(builtins, '__import__', mock_import)
+        monkeypatch.setattr(builtins, "__import__", mock_import)
 
         handler = Mock()
         image_path = "/path/to/image.jpg"
 
         from dataflow.convert import utils
+
         with pytest.raises(ImportError) as exc_info:
             utils.get_image_dimensions_from_handler(handler, image_path)
         assert "Cannot determine image dimensions" in str(exc_info.value)

@@ -4,29 +4,45 @@
 
 展示如何将LabelMe格式转换为YOLO，再转换为COCO，最后转回LabelMe，
 验证无损转换（除RLE精度损失外）。
+
+使用方法：
+    python full_conversion_demo.py [--verbose]
+
+示例：
+    python full_conversion_demo.py           # 普通模式
+    python full_conversion_demo.py --verbose # 详细日志模式
 """
 
-import sys
-from pathlib import Path
-import tempfile
+import argparse
 import shutil
+import sys
+import tempfile
+from pathlib import Path
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from dataflow.convert import (
-    LabelMeAndYoloConverter,
-    YoloAndCocoConverter,
-    CocoAndLabelMeConverter
-)
-from dataflow.util import LoggingOperations
+from dataflow.convert import (CocoAndLabelMeConverter, LabelMeAndYoloConverter,
+                              YoloAndCocoConverter)
+from dataflow.util import LoggingOperations, VerboseLoggingOperations
+
 
 def main():
     """主函数"""
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description="完整格式转换链示例")
+    parser.add_argument("--verbose", action="store_true", help="启用详细日志模式")
+    args = parser.parse_args()
+
     # 配置日志
-    log_ops = LoggingOperations()
-    logger = log_ops.get_logger("full_conversion_demo", level="INFO")
+    if args.verbose:
+        log_ops = VerboseLoggingOperations()
+        logger = log_ops.get_logger("full_conversion_demo", level="INFO")
+        logger.info("详细日志模式已启用")
+    else:
+        log_ops = LoggingOperations()
+        logger = log_ops.get_logger("full_conversion_demo", level="INFO")
 
     # 创建临时工作目录
     temp_dir = Path(tempfile.mkdtemp(prefix="dataflow_convert_"))
@@ -50,15 +66,13 @@ def main():
         yolo_dir = temp_dir / "yolo_output"
 
         converter1 = LabelMeAndYoloConverter(
-            source_to_target=True,
-            strict_mode=True,
-            logger=logger
+            source_to_target=True, strict_mode=True, logger=logger
         )
 
         result1 = converter1.convert(
             source_path=str(data_dir),
             target_path=str(yolo_dir),
-            class_file=str(class_file)
+            class_file=str(class_file),
         )
 
         if not result1.success:
@@ -70,9 +84,7 @@ def main():
         coco_file = temp_dir / "coco_output.json"
 
         converter2 = YoloAndCocoConverter(
-            source_to_target=True,
-            strict_mode=True,
-            logger=logger
+            source_to_target=True, strict_mode=True, logger=logger
         )
 
         result2 = converter2.convert(
@@ -80,7 +92,7 @@ def main():
             target_path=str(coco_file),
             class_file=str(yolo_dir / "classes.txt"),
             image_dir=str(yolo_dir / "images"),
-            do_rle=False  # 不使用RLE以确保无损
+            do_rle=False,  # 不使用RLE以确保无损
         )
 
         if not result2.success:
@@ -92,14 +104,11 @@ def main():
         labelme_dir = temp_dir / "labelme_output"
 
         converter3 = CocoAndLabelMeConverter(
-            source_to_target=True,
-            strict_mode=True,
-            logger=logger
+            source_to_target=True, strict_mode=True, logger=logger
         )
 
         result3 = converter3.convert(
-            source_path=str(coco_file),
-            target_path=str(labelme_dir)
+            source_path=str(coco_file), target_path=str(labelme_dir)
         )
 
         if not result3.success:
@@ -112,13 +121,15 @@ def main():
         logger.info(f"最终LabelMe文件数: {len(list(labelme_dir.glob('*.json')))}")
 
         # 简单验证：文件数量一致
-        original_count = len(list(data_dir.glob('*.json')))
-        final_count = len(list(labelme_dir.glob('*.json')))
+        original_count = len(list(data_dir.glob("*.json")))
+        final_count = len(list(labelme_dir.glob("*.json")))
 
         if original_count == final_count:
             logger.info("✓ 文件数量一致，转换链完整")
         else:
-            logger.warning(f"⚠ 文件数量不一致: 原始={original_count}, 最终={final_count}")
+            logger.warning(
+                f"⚠ 文件数量不一致: 原始={original_count}, 最终={final_count}"
+            )
 
         logger.info(f"\n临时工作目录: {temp_dir}")
         logger.info("（程序结束后会自动清理）")
@@ -130,6 +141,7 @@ def main():
             logger.info(f"已清理临时目录: {temp_dir}")
 
     logger.info("\n示例完成！")
+
 
 if __name__ == "__main__":
     main()

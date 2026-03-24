@@ -2,15 +2,16 @@
 Unit tests for base visualization classes.
 """
 
-import pytest
-from unittest.mock import Mock, patch
 from pathlib import Path
+from unittest.mock import Mock, patch
 
-from dataflow.visualize.base import BaseVisualizer, ColorManager, VisualizationResult
-from dataflow.label.models import (
-    DatasetAnnotations, ImageAnnotation, ObjectAnnotation,
-    BoundingBox, Segmentation
-)
+import pytest
+
+from dataflow.label.models import (BoundingBox, DatasetAnnotations,
+                                   ImageAnnotation, ObjectAnnotation,
+                                   Segmentation)
+from dataflow.visualize.base import (BaseVisualizer, ColorManager,
+                                     VisualizationResult)
 
 
 class MockVisualizer(BaseVisualizer):
@@ -52,7 +53,9 @@ class TestColorManager:
         first_batch = [manager.get_color(i) for i in range(num_colors)]
 
         # Next batch should be different (no cycling)
-        second_batch = [manager.get_color(i + num_colors) for i in range(min(10, num_colors))]
+        second_batch = [
+            manager.get_color(i + num_colors) for i in range(min(10, num_colors))
+        ]
 
         # Colors should be different (no cycling)
         for i in range(min(10, num_colors)):
@@ -97,7 +100,7 @@ class TestBaseVisualizer:
             output_dir="/tmp/output",
             is_show=False,
             is_save=False,
-            strict_mode=True
+            strict_mode=True,
         )
 
         assert visualizer.label_dir == Path("/tmp/labels")
@@ -115,13 +118,13 @@ class TestBaseVisualizer:
         visualizer = MockVisualizer("/tmp/labels", "/tmp/images")
 
         config = visualizer.config
-        assert config['bbox_thickness'] == 2
-        assert config['seg_thickness'] == 1
-        assert config['seg_alpha'] == 0.3
-        assert config['text_thickness'] == 1
-        assert config['text_scale'] == 0.5
-        assert config['text_padding'] == 5
-        assert config['font'] is not None
+        assert config["bbox_thickness"] == 2
+        assert config["seg_thickness"] == 1
+        assert config["seg_alpha"] == 0.3
+        assert config["text_thickness"] == 1
+        assert config["text_scale"] == 0.5
+        assert config["text_padding"] == 5
+        assert config["font"] is not None
 
     def test_visualize_abstract_method(self):
         """Test that abstract method raises error."""
@@ -134,7 +137,9 @@ class TestBaseVisualizer:
         visualizer = MockVisualizer("/tmp/labels", "/tmp/images", is_save=True)
 
         # Mock load_annotations to return empty dataset
-        with patch.object(visualizer, 'load_annotations', return_value=DatasetAnnotations()):
+        with patch.object(
+            visualizer, "load_annotations", return_value=DatasetAnnotations()
+        ):
             result = visualizer.visualize()
 
             assert result.success is False
@@ -148,11 +153,13 @@ class TestBaseVisualizer:
             image_dir="/tmp/images",
             output_dir="/tmp/output",
             is_show=False,
-            is_save=False
+            is_save=False,
         )
 
         # Mock load_annotations to return empty dataset
-        with patch.object(visualizer, 'load_annotations', return_value=DatasetAnnotations()):
+        with patch.object(
+            visualizer, "load_annotations", return_value=DatasetAnnotations()
+        ):
             result = visualizer.visualize()
 
             assert result.success is True
@@ -179,12 +186,14 @@ class TestBaseVisualizer:
         except ValueError:
             pytest.fail("_log_error should not raise exception in non-strict mode")
 
-    @patch('cv2.imshow')
-    @patch('cv2.waitKey')
-    @patch('cv2.destroyWindow')
-    @patch('cv2.imread')
-    @patch('pathlib.Path.exists')
-    def test_visualize_single_image_is_show_mode(self, mock_exists, mock_imread, mock_destroy_window, mock_wait_key, mock_imshow):
+    @patch("cv2.imshow")
+    @patch("cv2.waitKey")
+    @patch("cv2.destroyWindow")
+    @patch("cv2.imread")
+    @patch("pathlib.Path.exists")
+    def test_visualize_single_image_is_show_mode(
+        self, mock_exists, mock_imread, mock_destroy_window, mock_wait_key, mock_imshow
+    ):
         """Test visualization in is_show mode with keyboard interaction."""
         # Create a mock image
         mock_image = Mock()
@@ -198,7 +207,7 @@ class TestBaseVisualizer:
             image_dir="/tmp/images",
             is_show=True,
             is_save=False,
-            strict_mode=True
+            strict_mode=True,
         )
 
         # Create a mock image annotation with absolute path
@@ -207,7 +216,7 @@ class TestBaseVisualizer:
             image_path="/tmp/images/test.jpg",  # Absolute path
             width=800,
             height=600,
-            objects=[]
+            objects=[],
         )
 
         # Test Enter key (continue)
@@ -239,7 +248,7 @@ class TestBaseVisualizer:
         mock_imread.reset_mock()
 
         # Test 'q' key (quit)
-        mock_wait_key.return_value = ord('q')
+        mock_wait_key.return_value = ord("q")
         success = visualizer._visualize_single_image(image_ann)
         assert success is False  # Should return False to stop visualization
         mock_imshow.assert_called_once()
@@ -260,10 +269,12 @@ class TestBaseVisualizer:
         mock_wait_key.assert_called_once_with(0)
         mock_destroy_window.assert_called_once()
 
-    @patch('cv2.imwrite')
-    @patch('cv2.imread')
-    @patch('pathlib.Path.exists')
-    def test_visualize_single_image_is_save_mode(self, mock_exists, mock_imread, mock_imwrite):
+    @patch("cv2.imwrite")
+    @patch("cv2.imread")
+    @patch("pathlib.Path.exists")
+    def test_visualize_single_image_is_save_mode(
+        self, mock_exists, mock_imread, mock_imwrite
+    ):
         """Test visualization in is_save mode with image saving."""
         # Create a mock image
         mock_image = Mock()
@@ -282,7 +293,7 @@ class TestBaseVisualizer:
             output_dir=output_dir,
             is_show=False,
             is_save=True,
-            strict_mode=True
+            strict_mode=True,
         )
 
         # Create a mock image annotation with absolute path
@@ -291,7 +302,7 @@ class TestBaseVisualizer:
             image_path="/tmp/images/test.jpg",  # Absolute path
             width=800,
             height=600,
-            objects=[]
+            objects=[],
         )
 
         success = visualizer._visualize_single_image(image_ann)
@@ -316,11 +327,11 @@ def test_draw_methods_signatures():
     visualizer = MockVisualizer("/tmp/labels", "/tmp/images")
 
     # Check that draw methods exist and are callable
-    assert hasattr(visualizer, '_draw_object')
-    assert hasattr(visualizer, '_draw_bbox')
-    assert hasattr(visualizer, '_draw_polygon')
-    assert hasattr(visualizer, '_draw_rle_mask')
-    assert hasattr(visualizer, '_draw_text')
+    assert hasattr(visualizer, "_draw_object")
+    assert hasattr(visualizer, "_draw_bbox")
+    assert hasattr(visualizer, "_draw_polygon")
+    assert hasattr(visualizer, "_draw_rle_mask")
+    assert hasattr(visualizer, "_draw_text")
 
     # Check they are methods (callable)
     assert callable(visualizer._draw_object)

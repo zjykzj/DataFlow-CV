@@ -4,14 +4,16 @@ Utility functions for format conversion.
 Provides helper functions for category handling, path resolution, and conversion validation.
 """
 
-from pathlib import Path
-from typing import Dict, List, Tuple, Any, Optional
 import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..label.models import DatasetAnnotations
 
 
-def extract_categories_from_annotations(annotations: DatasetAnnotations) -> Dict[int, str]:
+def extract_categories_from_annotations(
+    annotations: DatasetAnnotations,
+) -> Dict[int, str]:
     """Extract category mapping from DatasetAnnotations."""
     return annotations.categories.copy()
 
@@ -28,13 +30,15 @@ def generate_classes_file(categories: Dict[int, str], output_path: Path) -> bool
         True if successful, False otherwise
     """
     try:
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             # Write categories sorted by ID
             for cat_id in sorted(categories.keys()):
                 f.write(f"{categories[cat_id]}\n")
         return True
     except Exception as e:
-        logging.getLogger(__name__).error(f"Failed to write classes file {output_path}: {e}")
+        logging.getLogger(__name__).error(
+            f"Failed to write classes file {output_path}: {e}"
+        )
         return False
 
 
@@ -50,13 +54,15 @@ def load_classes_file(class_file: Path) -> Dict[int, str]:
     """
     categories = {}
     try:
-        with open(class_file, 'r', encoding='utf-8') as f:
+        with open(class_file, "r", encoding="utf-8") as f:
             for i, line in enumerate(f):
                 line = line.strip()
                 if line:  # Skip empty lines
                     categories[i] = line
     except Exception as e:
-        logging.getLogger(__name__).error(f"Failed to load classes file {class_file}: {e}")
+        logging.getLogger(__name__).error(
+            f"Failed to load classes file {class_file}: {e}"
+        )
     return categories
 
 
@@ -79,8 +85,9 @@ def extract_categories_from_coco(coco_data: Dict) -> Dict[int, str]:
     return categories
 
 
-def ensure_categories_in_annotations(annotations: DatasetAnnotations,
-                                    categories: Dict[int, str]) -> DatasetAnnotations:
+def ensure_categories_in_annotations(
+    annotations: DatasetAnnotations, categories: Dict[int, str]
+) -> DatasetAnnotations:
     """
     Ensure annotations contain the specified category mapping.
 
@@ -95,7 +102,10 @@ def ensure_categories_in_annotations(annotations: DatasetAnnotations,
     if annotations.categories:
         # Check for conflicts
         for cat_id, cat_name in categories.items():
-            if cat_id in annotations.categories and annotations.categories[cat_id] != cat_name:
+            if (
+                cat_id in annotations.categories
+                and annotations.categories[cat_id] != cat_name
+            ):
                 logging.getLogger(__name__).warning(
                     f"Category ID {cat_id} conflict: "
                     f"existing='{annotations.categories[cat_id]}', new='{cat_name}'"
@@ -121,6 +131,7 @@ def get_image_dimensions_from_handler(handler: Any, image_path: str) -> Tuple[in
     # For now, we'll try to import OpenCV if available
     try:
         import cv2
+
         img = cv2.imread(image_path)
         if img is not None:
             return img.shape[1], img.shape[0]
@@ -130,6 +141,7 @@ def get_image_dimensions_from_handler(handler: Any, image_path: str) -> Tuple[in
     # Fallback: use PIL if available
     try:
         from PIL import Image
+
         with Image.open(image_path) as img:
             return img.size
     except ImportError:
@@ -156,8 +168,9 @@ def normalize_path(path: str, base_dir: Path) -> Path:
     return path_obj.resolve()
 
 
-def validate_conversion_chain(source_format: str, target_format: str,
-                             allowed_chains: List[Tuple[str, str]]) -> bool:
+def validate_conversion_chain(
+    source_format: str, target_format: str, allowed_chains: List[Tuple[str, str]]
+) -> bool:
     """
     Validate if a conversion chain is allowed.
 
@@ -188,9 +201,9 @@ def create_conversion_chain(chain: List[str]) -> List[Tuple[str, str]]:
     return steps
 
 
-def resolve_image_paths(annotations: DatasetAnnotations,
-                       source_dir: Path,
-                       target_dir: Path) -> DatasetAnnotations:
+def resolve_image_paths(
+    annotations: DatasetAnnotations, source_dir: Path, target_dir: Path
+) -> DatasetAnnotations:
     """
     Resolve and normalize image paths.
 
@@ -222,12 +235,12 @@ def resolve_image_paths(annotations: DatasetAnnotations,
             width=image_ann.width,
             height=image_ann.height,
             objects=image_ann.objects,
-            original_data=image_ann.original_data
+            original_data=image_ann.original_data,
         )
         updated_images.append(updated_ann)
 
     return DatasetAnnotations(
         images=updated_images,
         categories=annotations.categories,
-        dataset_info=annotations.dataset_info
+        dataset_info=annotations.dataset_info,
     )

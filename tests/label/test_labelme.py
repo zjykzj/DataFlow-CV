@@ -2,13 +2,16 @@
 Unit tests for labelme_handler.py
 """
 
-import pytest
 import json
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
+
+import pytest
+
 from dataflow.label.labelme_handler import LabelMeAnnotationHandler
-from dataflow.label.models import DatasetAnnotations, BoundingBox, Segmentation, ObjectAnnotation
+from dataflow.label.models import (BoundingBox, DatasetAnnotations,
+                                   ObjectAnnotation, Segmentation)
 
 
 class TestLabelMeAnnotationHandler:
@@ -33,20 +36,20 @@ class TestLabelMeAnnotationHandler:
                     "points": [[10, 20], [30, 40]],
                     "group_id": None,
                     "shape_type": "rectangle",
-                    "flags": {}
+                    "flags": {},
                 },
                 {
                     "label": "dog",
                     "points": [[50, 60], [70, 80], [80, 90]],
                     "group_id": None,
                     "shape_type": "polygon",
-                    "flags": {}
-                }
+                    "flags": {},
+                },
             ],
             "imagePath": "test.jpg",
             "imageData": None,
             "imageHeight": 100,
-            "imageWidth": 200
+            "imageWidth": 200,
         }
 
     @pytest.fixture
@@ -58,7 +61,7 @@ class TestLabelMeAnnotationHandler:
 
         # Create JSON file
         json_file = temp_dir / "test.json"
-        with open(json_file, 'w', encoding='utf-8') as f:
+        with open(json_file, "w", encoding="utf-8") as f:
             json.dump(sample_labelme_data, f, indent=2)
 
         # Create class file
@@ -71,8 +74,7 @@ class TestLabelMeAnnotationHandler:
         """Test initialization with class file."""
         class_file = labelme_dir_with_data / "classes.txt"
         handler = LabelMeAnnotationHandler(
-            label_dir=str(labelme_dir_with_data),
-            class_file=str(class_file)
+            label_dir=str(labelme_dir_with_data), class_file=str(class_file)
         )
         assert len(handler.categories) == 3
         assert handler.categories[0] == "cat"
@@ -88,8 +90,7 @@ class TestLabelMeAnnotationHandler:
     def test_read_success(self, labelme_dir_with_data):
         """Test successful reading of LabelMe annotations."""
         handler = LabelMeAnnotationHandler(
-            label_dir=str(labelme_dir_with_data),
-            strict_mode=True
+            label_dir=str(labelme_dir_with_data), strict_mode=True
         )
 
         result = handler.read()
@@ -143,7 +144,7 @@ class TestLabelMeAnnotationHandler:
         del sample_labelme_data["imagePath"]
 
         json_file = temp_dir / "test.json"
-        with open(json_file, 'w', encoding='utf-8') as f:
+        with open(json_file, "w", encoding="utf-8") as f:
             json.dump(sample_labelme_data, f)
 
         handler = LabelMeAnnotationHandler(label_dir=str(temp_dir), strict_mode=True)
@@ -155,7 +156,7 @@ class TestLabelMeAnnotationHandler:
         """Test reading with strict_mode=False skips invalid files."""
         # Create one valid file
         valid_file = temp_dir / "valid.json"
-        with open(valid_file, 'w', encoding='utf-8') as f:
+        with open(valid_file, "w", encoding="utf-8") as f:
             json.dump(sample_labelme_data, f)
 
         # Create one invalid file
@@ -174,7 +175,7 @@ class TestLabelMeAnnotationHandler:
         shape = {
             "label": "car",
             "points": [[10, 20], [30, 40]],
-            "shape_type": "rectangle"
+            "shape_type": "rectangle",
         }
 
         # Mock categories
@@ -199,7 +200,7 @@ class TestLabelMeAnnotationHandler:
         shape = {
             "label": "person",
             "points": [[10, 20], [30, 40], [50, 60]],
-            "shape_type": "polygon"
+            "shape_type": "polygon",
         }
 
         handler.categories = {0: "person"}
@@ -224,7 +225,7 @@ class TestLabelMeAnnotationHandler:
         shape = {
             "label": "test",
             "points": [[10, 20]],
-            "shape_type": "circle"  # Unsupported
+            "shape_type": "circle",  # Unsupported
         }
 
         result = handler._parse_shape(shape, img_width=100, img_height=100)
@@ -234,11 +235,7 @@ class TestLabelMeAnnotationHandler:
     def test_parse_shape_missing_label(self):
         """Test parsing shape with missing label."""
         handler = LabelMeAnnotationHandler(label_dir=".")
-        shape = {
-            "label": "",
-            "points": [[10, 20], [30, 40]],
-            "shape_type": "rectangle"
-        }
+        shape = {"label": "", "points": [[10, 20], [30, 40]], "shape_type": "rectangle"}
 
         result = handler._parse_shape(shape, img_width=100, img_height=100)
         assert result.success is False
@@ -248,7 +245,7 @@ class TestLabelMeAnnotationHandler:
         """Test successful writing of LabelMe annotations."""
         # First read sample data
         json_file = temp_dir / "test.json"
-        with open(json_file, 'w', encoding='utf-8') as f:
+        with open(json_file, "w", encoding="utf-8") as f:
             json.dump(sample_labelme_data, f)
 
         handler = LabelMeAnnotationHandler(label_dir=str(temp_dir))
@@ -266,7 +263,7 @@ class TestLabelMeAnnotationHandler:
         assert output_file.exists()
 
         # Verify output JSON structure
-        with open(output_file, 'r', encoding='utf-8') as f:
+        with open(output_file, "r", encoding="utf-8") as f:
             output_data = json.load(f)
 
         assert output_data["version"] == "5.0.1"
@@ -286,10 +283,9 @@ class TestLabelMeAnnotationHandler:
 
     def test_write_with_bbox_and_segmentation(self, temp_dir):
         """Test writing annotations with both bbox and segmentation."""
-        from dataflow.label.models import (
-            DatasetAnnotations, ImageAnnotation, ObjectAnnotation,
-            BoundingBox, Segmentation
-        )
+        from dataflow.label.models import (BoundingBox, DatasetAnnotations,
+                                           ImageAnnotation, ObjectAnnotation,
+                                           Segmentation)
 
         # Create dataset with mixed annotations
         dataset = DatasetAnnotations()
@@ -305,14 +301,16 @@ class TestLabelMeAnnotationHandler:
                 ObjectAnnotation(
                     class_id=0,
                     class_name="cat",
-                    bbox=BoundingBox(x=0.5, y=0.5, width=0.2, height=0.2)
+                    bbox=BoundingBox(x=0.5, y=0.5, width=0.2, height=0.2),
                 ),
                 ObjectAnnotation(
                     class_id=1,
                     class_name="dog",
-                    segmentation=Segmentation(points=[(0.1, 0.1), (0.2, 0.1), (0.2, 0.2)])
-                )
-            ]
+                    segmentation=Segmentation(
+                        points=[(0.1, 0.1), (0.2, 0.1), (0.2, 0.2)]
+                    ),
+                ),
+            ],
         )
         dataset.add_image(image)
 
@@ -325,7 +323,7 @@ class TestLabelMeAnnotationHandler:
         output_file = output_dir / "mixed.json"
         assert output_file.exists()
 
-        with open(output_file, 'r', encoding='utf-8') as f:
+        with open(output_file, "r", encoding="utf-8") as f:
             output_data = json.load(f)
 
         assert len(output_data["shapes"]) == 2
@@ -336,7 +334,7 @@ class TestLabelMeAnnotationHandler:
     def test_validate_valid_file(self, temp_dir, sample_labelme_data):
         """Test validation of valid LabelMe JSON file."""
         json_file = temp_dir / "valid.json"
-        with open(json_file, 'w', encoding='utf-8') as f:
+        with open(json_file, "w", encoding="utf-8") as f:
             json.dump(sample_labelme_data, f)
 
         handler = LabelMeAnnotationHandler(label_dir=str(temp_dir))
@@ -354,7 +352,7 @@ class TestLabelMeAnnotationHandler:
         """Test validation of JSON with missing required field."""
         del sample_labelme_data["shapes"]
         json_file = temp_dir / "invalid.json"
-        with open(json_file, 'w', encoding='utf-8') as f:
+        with open(json_file, "w", encoding="utf-8") as f:
             json.dump(sample_labelme_data, f)
 
         handler = LabelMeAnnotationHandler(label_dir=str(temp_dir), strict_mode=False)
@@ -366,7 +364,7 @@ class TestLabelMeAnnotationHandler:
         obj = ObjectAnnotation(
             class_id=0,
             class_name="car",
-            bbox=BoundingBox(x=0.5, y=0.5, width=0.2, height=0.2)
+            bbox=BoundingBox(x=0.5, y=0.5, width=0.2, height=0.2),
         )
 
         shape = handler._object_to_shape(obj, img_width=100, img_height=100)
@@ -386,7 +384,7 @@ class TestLabelMeAnnotationHandler:
         obj = ObjectAnnotation(
             class_id=0,
             class_name="person",
-            segmentation=Segmentation(points=[(0.1, 0.2), (0.3, 0.4), (0.5, 0.6)])
+            segmentation=Segmentation(points=[(0.1, 0.2), (0.3, 0.4), (0.5, 0.6)]),
         )
 
         shape = handler._object_to_shape(obj, img_width=100, img_height=100)
@@ -405,7 +403,7 @@ class TestLabelMeAnnotationHandler:
         obj = ObjectAnnotation(
             class_id=0,
             class_name="ghost",
-            bbox=BoundingBox(x=0.5, y=0.5, width=0.2, height=0.2)
+            bbox=BoundingBox(x=0.5, y=0.5, width=0.2, height=0.2),
         )
         # Remove bbox to simulate object with no annotations
         obj.bbox = None

@@ -2,18 +2,20 @@
 Unit tests for lossless read/write functionality.
 """
 
-import pytest
-import json
-import tempfile
-import shutil
-from pathlib import Path
 import filecmp
 import hashlib
+import json
+import shutil
+import tempfile
+from pathlib import Path
 
-from dataflow.label.labelme_handler import LabelMeAnnotationHandler
-from dataflow.label.yolo_handler import YoloAnnotationHandler
+import pytest
+
 from dataflow.label.coco_handler import CocoAnnotationHandler
-from dataflow.label.models import DatasetAnnotations, OriginalData, AnnotationFormat
+from dataflow.label.labelme_handler import LabelMeAnnotationHandler
+from dataflow.label.models import (AnnotationFormat, DatasetAnnotations,
+                                   OriginalData)
+from dataflow.label.yolo_handler import YoloAnnotationHandler
 
 
 class TestLosslessFunctionality:
@@ -44,20 +46,20 @@ class TestLosslessFunctionality:
                     "points": [[10.5, 20.5], [30.5, 40.5]],  # Float coordinates
                     "group_id": None,
                     "shape_type": "rectangle",
-                    "flags": {}
+                    "flags": {},
                 },
                 {
                     "label": "dog",
                     "points": [[50.5, 60.5], [70.5, 80.5], [80.5, 90.5], [60.5, 70.5]],
                     "group_id": 1,
                     "shape_type": "polygon",
-                    "flags": {"occluded": True}
-                }
+                    "flags": {"occluded": True},
+                },
             ],
             "imagePath": "test.jpg",
             "imageData": None,
             "imageHeight": 100,
-            "imageWidth": 200
+            "imageWidth": 200,
         }
         json_file.write_text(json.dumps(labelme_data, indent=2))
         return temp_dir
@@ -71,23 +73,28 @@ class TestLosslessFunctionality:
 
         # Create label file for detection
         label_file = temp_dir / "image1.txt"
-        label_file.write_text("0 0.25 0.375 0.1 0.15\n1 0.55 0.66 0.12 0.18\n")  # cat and dog
+        label_file.write_text(
+            "0 0.25 0.375 0.1 0.15\n1 0.55 0.66 0.12 0.18\n"
+        )  # cat and dog
 
         # Create label file for segmentation
         label_file2 = temp_dir / "image2.txt"
-        label_file2.write_text("2 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8\n")  # bird with polygon
+        label_file2.write_text(
+            "2 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8\n"
+        )  # bird with polygon
 
         # Create image files (small dummy images)
         try:
             from PIL import Image
+
             # Create 100x100 black JPEG images
-            img = Image.new('RGB', (100, 100), color='black')
-            img.save(temp_dir / "image1.jpg", format='JPEG')
-            img.save(temp_dir / "image2.jpg", format='JPEG')
+            img = Image.new("RGB", (100, 100), color="black")
+            img.save(temp_dir / "image1.jpg", format="JPEG")
+            img.save(temp_dir / "image2.jpg", format="JPEG")
         except ImportError:
             # Fallback: create minimal valid JPEG headers (not real images)
             # This may still fail but better than empty files
-            jpeg_header = b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01'
+            jpeg_header = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01"
             (temp_dir / "image1.jpg").write_bytes(jpeg_header)
             (temp_dir / "image2.jpg").write_bytes(jpeg_header)
 
@@ -103,7 +110,7 @@ class TestLosslessFunctionality:
                 "version": "1.0",
                 "year": 2026,
                 "contributor": "Test",
-                "date_created": "2026-03-22"
+                "date_created": "2026-03-22",
             },
             "images": [
                 {
@@ -114,22 +121,24 @@ class TestLosslessFunctionality:
                     "license": 1,
                     "flickr_url": "",
                     "coco_url": "",
-                    "date_captured": ""
+                    "date_captured": "",
                 }
             ],
             "categories": [
                 {"id": 1, "name": "person", "supercategory": "human"},
-                {"id": 2, "name": "bicycle", "supercategory": "vehicle"}
+                {"id": 2, "name": "bicycle", "supercategory": "vehicle"},
             ],
             "annotations": [
                 {
                     "id": 1,
                     "image_id": 1,
                     "category_id": 1,
-                    "segmentation": [[100.5, 100.5, 200.5, 100.5, 200.5, 200.5, 100.5, 200.5]],
+                    "segmentation": [
+                        [100.5, 100.5, 200.5, 100.5, 200.5, 200.5, 100.5, 200.5]
+                    ],
                     "area": 10000.0,
                     "bbox": [100.5, 100.5, 100.0, 100.0],
-                    "iscrowd": 0
+                    "iscrowd": 0,
                 },
                 {
                     "id": 2,
@@ -138,9 +147,9 @@ class TestLosslessFunctionality:
                     "segmentation": [],
                     "area": 5000.0,
                     "bbox": [300.5, 200.5, 50.0, 100.0],
-                    "iscrowd": 0
-                }
-            ]
+                    "iscrowd": 0,
+                },
+            ],
         }
         coco_file.write_text(json.dumps(coco_data, indent=2))
         return str(coco_file)
@@ -181,9 +190,9 @@ class TestLosslessFunctionality:
         assert len(input_files) == len(output_files) == 1
 
         # Load and compare JSON (ignore imageData which is None)
-        with open(input_files[0], 'r', encoding='utf-8') as f:
+        with open(input_files[0], "r", encoding="utf-8") as f:
             input_data = json.load(f)
-        with open(output_files[0], 'r', encoding='utf-8') as f:
+        with open(output_files[0], "r", encoding="utf-8") as f:
             output_data = json.load(f)
 
         # Remove imageData for comparison (may be null)
@@ -199,7 +208,7 @@ class TestLosslessFunctionality:
             image_dir=str(sample_yolo_dir),
             label_dir=str(sample_yolo_dir),
             class_file=str(sample_yolo_dir / "classes.txt"),
-            strict_mode=False
+            strict_mode=False,
         )
         read_result = handler.read()
         assert read_result.success is True
@@ -264,21 +273,30 @@ class TestLosslessFunctionality:
         assert write_result.success is True
 
         # Compare input and output files
-        with open(sample_coco_file, 'r', encoding='utf-8') as f:
+        with open(sample_coco_file, "r", encoding="utf-8") as f:
             input_data = json.load(f)
-        with open(output_file, 'r', encoding='utf-8') as f:
+        with open(output_file, "r", encoding="utf-8") as f:
             output_data = json.load(f)
 
         # Remove auto-generated fields that may differ
         for data in [input_data, output_data]:
             data.pop("__coco_original_data__", None)
             # Remove generated description fields
-            for field in ["description", "url", "version", "year", "contributor", "date_created"]:
+            for field in [
+                "description",
+                "url",
+                "version",
+                "year",
+                "contributor",
+                "date_created",
+            ]:
                 data.pop(field, None)
 
         # Compare annotations (IDs may be regenerated, so compare content)
         assert len(input_data["annotations"]) == len(output_data["annotations"])
-        for i, (in_ann, out_ann) in enumerate(zip(input_data["annotations"], output_data["annotations"])):
+        for i, (in_ann, out_ann) in enumerate(
+            zip(input_data["annotations"], output_data["annotations"])
+        ):
             # Remove ID for comparison
             in_copy = {k: v for k, v in in_ann.items() if k != "id"}
             out_copy = {k: v for k, v in out_ann.items() if k != "id"}
@@ -290,17 +308,17 @@ class TestLosslessFunctionality:
 
     def test_original_data_manager(self):
         """Test OriginalDataManager functionality."""
-        from dataflow.label.models import OriginalDataManager, OriginalData, ObjectAnnotation, BoundingBox
+        from dataflow.label.models import (BoundingBox, ObjectAnnotation,
+                                           OriginalData, OriginalDataManager)
 
         # Create test objects
         original_data1 = OriginalData(
             format=AnnotationFormat.LABELME.value,
-            raw_data={"label": "cat", "points": [[10, 20], [30, 40]]}
+            raw_data={"label": "cat", "points": [[10, 20], [30, 40]]},
         )
 
         original_data2 = OriginalData(
-            format=AnnotationFormat.YOLO.value,
-            raw_data={"line": "0 0.5 0.5 0.1 0.1"}
+            format=AnnotationFormat.YOLO.value, raw_data={"line": "0 0.5 0.5 0.1 0.1"}
         )
 
         # Test should_use_original
@@ -308,16 +326,24 @@ class TestLosslessFunctionality:
             class_id=0,
             class_name="cat",
             bbox=BoundingBox(x=0.5, y=0.5, width=0.1, height=0.1),
-            original_data=original_data1
+            original_data=original_data1,
         )
 
         # Should use original if format matches
-        assert OriginalDataManager.should_use_original(obj, AnnotationFormat.LABELME.value) is True
-        assert OriginalDataManager.should_use_original(obj, AnnotationFormat.YOLO.value) is False
+        assert (
+            OriginalDataManager.should_use_original(obj, AnnotationFormat.LABELME.value)
+            is True
+        )
+        assert (
+            OriginalDataManager.should_use_original(obj, AnnotationFormat.YOLO.value)
+            is False
+        )
 
         # Test merge_original_data
         merged = OriginalDataManager.merge_original_data(original_data1, original_data2)
-        assert merged.format == AnnotationFormat.YOLO.value  # Different formats, keep newer one
+        assert (
+            merged.format == AnnotationFormat.YOLO.value
+        )  # Different formats, keep newer one
 
         merged2 = OriginalDataManager.merge_original_data(None, original_data2)
         assert merged2.format == AnnotationFormat.YOLO.value
@@ -344,7 +370,7 @@ class TestLosslessFunctionality:
 
         # Load written file
         output_file = output_dir / "test.json"
-        with open(output_file, 'r', encoding='utf-8') as f:
+        with open(output_file, "r", encoding="utf-8") as f:
             output_data = json.load(f)
 
         # Check that label was updated but coordinates preserved

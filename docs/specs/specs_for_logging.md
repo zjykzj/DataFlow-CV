@@ -1228,10 +1228,8 @@ python samples/convert/labelme_to_yolo_demo.py \
 
 #### 阶段四详细任务
 - [ ] 编写集成测试用例
-- [ ] 性能基准测试（有/无verbose）
 
 #### 阶段五详细任务
-- [ ] 编写`specs_for_logging.md`文档
 - [ ] 改造现有的`samples/visualize/`示例（`labelme_demo.py`, `yolo_demo.py`, `coco_demo.py`），添加`--verbose`命令行选项
 - [ ] 改造现有的`samples/convert/`示例（`labelme_to_yolo_demo.py`, `yolo_to_labelme_demo.py`, `yolo_to_coco_demo.py`, `coco_to_yolo_demo.py`, `coco_to_labelme_demo.py`, `labelme_to_coco_demo.py`, `full_conversion_demo.py`），添加`--verbose`命令行选项
 - [ ] 更新README中的使用说明
@@ -1254,10 +1252,8 @@ python samples/convert/labelme_to_yolo_demo.py \
 - [ ] 文档字符串覆盖率100%
 
 #### 性能要求
-- [ ] verbose模式性能影响<10%
 - [ ] 内存使用正常，无泄漏
 - [ ] 日志文件轮转有效
-- [ ] 大文件处理稳定
 
 #### 用户体验
 - [ ] summary输出美观易读

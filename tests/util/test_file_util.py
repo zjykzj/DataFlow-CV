@@ -2,10 +2,12 @@
 Unit tests for file_util.py
 """
 
-import pytest
-from pathlib import Path
-import tempfile
 import shutil
+import tempfile
+from pathlib import Path
+
+import pytest
+
 from dataflow.util.file_util import FileOperations
 
 
@@ -146,7 +148,7 @@ class TestFileOperations:
         test_file.write_text(content)
 
         size = file_ops.get_file_size(test_file)
-        expected = len(content.encode('utf-8'))
+        expected = len(content.encode("utf-8"))
         assert size == expected
 
     def test_get_file_size_nonexistent(self, file_ops, temp_dir):
