@@ -167,7 +167,7 @@ class VerboseLoggingOperations(LoggingOperations):
         logger.handlers.clear()
 
         # Add console handler (always added)
-        console_formatter = logging.Formatter(self.SUMMARY_FORMAT)
+        console_formatter = logging.Formatter(self.DEFAULT_FORMAT)
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.INFO)
         console_handler.setFormatter(console_formatter)

@@ -43,7 +43,11 @@ def main():
     # 配置日志
     if args.verbose:
         log_ops = VerboseLoggingOperations()
-        logger = log_ops.get_logger("labelme_visualize_demo", level="INFO")
+        logger = log_ops.get_verbose_logger(
+            name="labelme_visualize_demo",
+            verbose=True,
+            log_dir=str(project_root / "logs")
+        )
         logger.info("详细日志模式已启用")
     else:
         log_ops = LoggingOperations()
