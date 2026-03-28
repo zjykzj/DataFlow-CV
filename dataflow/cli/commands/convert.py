@@ -11,7 +11,7 @@ from dataflow.cli.exceptions import RuntimeCLIError
 
 @click.group(name="convert")
 def convert_group():
-    """格式转换命令组 - 支持多种标签格式间的转换"""
+    """Format conversion command group - supports conversion between multiple label formats"""
     pass
 
 
@@ -23,28 +23,28 @@ def convert_group():
     "--image-dir",
     "-i",
     type=click.Path(path_type=Path),
-    help="图像文件目录（用于获取图像尺寸）",
+    help="Image file directory (for obtaining image dimensions)",
 )
 @click.option(
     "--class-file",
     "-c",
     type=click.Path(path_type=Path),
-    help="类别文件路径（YOLO格式需要）",
+    help="Class file path (required for YOLO format)",
 )
 @click.option(
     "--do-rle",
     is_flag=True,
-    help="对COCO格式使用RLE编码",
+    help="Use RLE encoding for COCO format",
 )
 @click.option(
     "--category-mapping",
     type=click.Path(path_type=Path),
-    help="自定义类别映射文件（JSON格式）",
+    help="Custom category mapping file (JSON format)",
 )
 @click.option(
     "--skip-errors",
     is_flag=True,
-    help="跳过错误继续处理（宽松模式）",
+    help="Skip errors and continue processing (lenient mode)",
 )
 def yolo2coco(
     ctx,
@@ -56,26 +56,26 @@ def yolo2coco(
     category_mapping: Optional[Path],
     skip_errors: bool,
 ):
-    """YOLO格式转COCO格式"""
+    """Convert YOLO format to COCO format"""
     from dataflow.convert.yolo_and_coco import YoloAndCocoConverter
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
-    strict = ctx.obj["strict"] and not skip_errors  # 结合全局strict和本地skip-errors
+    strict = ctx.obj["strict"] and not skip_errors  # Combine global strict and local skip-errors
 
-    logger.info(f"开始转换YOLO到COCO: {input_path} -> {output_path}")
+    logger.info(f"Starting conversion ofYOLOtoCOCO: {input_path} -> {output_path}")
 
-    # 参数验证
+    # Parameter validation
     validate_convert_params("yolo", "coco", input_path, output_path, image_dir, class_file)
 
-    # 加载类别映射
+    # Load category mapping
     category_mapping_dict = None
     if category_mapping:
-        category_mapping = validate_path_exists(category_mapping, "类别映射文件")
+        category_mapping = validate_path_exists(category_mapping, "category mapping file")
         with open(category_mapping, "r", encoding="utf-8") as f:
             category_mapping_dict = json.load(f)
 
-    # 调用现有API
+    # Call existing API
     converter = YoloAndCocoConverter(source_to_target=True, verbose=verbose, strict_mode=strict)
     result = converter.convert(
         source_path=str(input_path),
@@ -87,12 +87,12 @@ def yolo2coco(
     )
 
     if result.success:
-        logger.info(f"转换完成: {result.get_summary()}")
+        logger.info(f"Conversion completed: {result.get_summary()}")
     else:
         # Use first error message if available, otherwise generic message
-        error_msg = result.errors[0] if result.errors else "转换失败"
-        logger.error(f"转换失败: {error_msg}")
-        raise RuntimeCLIError(f"转换失败: {error_msg}")
+        error_msg = result.errors[0] if result.errors else "Conversion failed"
+        logger.error(f"Conversion failed: {error_msg}")
+        raise RuntimeCLIError(f"Conversion failed: {error_msg}")
 
 
 @convert_group.command()
@@ -103,23 +103,23 @@ def yolo2coco(
     "--image-dir",
     "-i",
     type=click.Path(path_type=Path),
-    help="图像文件目录（用于获取图像尺寸）",
+    help="Image file directory (for obtaining image dimensions)",
 )
 @click.option(
     "--class-file",
     "-c",
     type=click.Path(path_type=Path),
-    help="类别文件路径（YOLO格式需要）",
+    help="Class file path (required for YOLO format)",
 )
 @click.option(
     "--category-mapping",
     type=click.Path(path_type=Path),
-    help="自定义类别映射文件（JSON格式）",
+    help="Custom category mapping file (JSON format)",
 )
 @click.option(
     "--skip-errors",
     is_flag=True,
-    help="跳过错误继续处理（宽松模式）",
+    help="Skip errors and continue processing (lenient mode)",
 )
 def yolo2labelme(
     ctx,
@@ -130,26 +130,26 @@ def yolo2labelme(
     category_mapping: Optional[Path],
     skip_errors: bool,
 ):
-    """YOLO格式转LabelMe格式"""
+    """Convert YOLO format to LabelMe format"""
     from dataflow.convert.labelme_and_yolo import LabelMeAndYoloConverter
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"] and not skip_errors
 
-    logger.info(f"开始转换YOLO到LabelMe: {input_path} -> {output_path}")
+    logger.info(f"Starting conversion ofYOLOtoLabelMe: {input_path} -> {output_path}")
 
-    # 参数验证
+    # Parameter validation
     validate_convert_params("yolo", "labelme", input_path, output_path, image_dir, class_file)
 
-    # 加载类别映射
+    # Load category mapping
     category_mapping_dict = None
     if category_mapping:
-        category_mapping = validate_path_exists(category_mapping, "类别映射文件")
+        category_mapping = validate_path_exists(category_mapping, "category mapping file")
         with open(category_mapping, "r", encoding="utf-8") as f:
             category_mapping_dict = json.load(f)
 
-    # 调用现有API
+    # Call existing API
     converter = LabelMeAndYoloConverter(source_to_target=True, verbose=verbose, strict_mode=strict)
     result = converter.convert(
         source_path=str(input_path),
@@ -160,12 +160,12 @@ def yolo2labelme(
     )
 
     if result.success:
-        logger.info(f"转换完成: {result.get_summary()}")
+        logger.info(f"Conversion completed: {result.get_summary()}")
     else:
         # Use first error message if available, otherwise generic message
-        error_msg = result.errors[0] if result.errors else "转换失败"
-        logger.error(f"转换失败: {error_msg}")
-        raise RuntimeCLIError(f"转换失败: {error_msg}")
+        error_msg = result.errors[0] if result.errors else "Conversion failed"
+        logger.error(f"Conversion failed: {error_msg}")
+        raise RuntimeCLIError(f"Conversion failed: {error_msg}")
 
 
 @convert_group.command()
@@ -176,23 +176,23 @@ def yolo2labelme(
     "--image-dir",
     "-i",
     type=click.Path(path_type=Path),
-    help="图像文件目录（用于获取图像尺寸）",
+    help="Image file directory (for obtaining image dimensions)",
 )
 @click.option(
     "--class-file",
     "-c",
     type=click.Path(path_type=Path),
-    help="类别文件路径（YOLO格式需要）",
+    help="Class file path (required for YOLO format)",
 )
 @click.option(
     "--category-mapping",
     type=click.Path(path_type=Path),
-    help="自定义类别映射文件（JSON格式）",
+    help="Custom category mapping file (JSON format)",
 )
 @click.option(
     "--skip-errors",
     is_flag=True,
-    help="跳过错误继续处理（宽松模式）",
+    help="Skip errors and continue processing (lenient mode)",
 )
 def coco2yolo(
     ctx,
@@ -203,26 +203,26 @@ def coco2yolo(
     category_mapping: Optional[Path],
     skip_errors: bool,
 ):
-    """COCO格式转YOLO格式"""
+    """Convert COCO format to YOLO format"""
     from dataflow.convert.yolo_and_coco import YoloAndCocoConverter
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"] and not skip_errors
 
-    logger.info(f"开始转换COCO到YOLO: {input_path} -> {output_path}")
+    logger.info(f"Starting conversion ofCOCOtoYOLO: {input_path} -> {output_path}")
 
-    # 参数验证
+    # Parameter validation
     validate_convert_params("coco", "yolo", input_path, output_path, image_dir, class_file)
 
-    # 加载类别映射
+    # Load category mapping
     category_mapping_dict = None
     if category_mapping:
-        category_mapping = validate_path_exists(category_mapping, "类别映射文件")
+        category_mapping = validate_path_exists(category_mapping, "category mapping file")
         with open(category_mapping, "r", encoding="utf-8") as f:
             category_mapping_dict = json.load(f)
 
-    # 调用现有API
+    # Call existing API
     converter = YoloAndCocoConverter(source_to_target=False, verbose=verbose, strict_mode=strict)
     result = converter.convert(
         source_path=str(input_path),
@@ -233,12 +233,12 @@ def coco2yolo(
     )
 
     if result.success:
-        logger.info(f"转换完成: {result.get_summary()}")
+        logger.info(f"Conversion completed: {result.get_summary()}")
     else:
         # Use first error message if available, otherwise generic message
-        error_msg = result.errors[0] if result.errors else "转换失败"
-        logger.error(f"转换失败: {error_msg}")
-        raise RuntimeCLIError(f"转换失败: {error_msg}")
+        error_msg = result.errors[0] if result.errors else "Conversion failed"
+        logger.error(f"Conversion failed: {error_msg}")
+        raise RuntimeCLIError(f"Conversion failed: {error_msg}")
 
 
 @convert_group.command()
@@ -249,17 +249,17 @@ def coco2yolo(
     "--image-dir",
     "-i",
     type=click.Path(path_type=Path),
-    help="图像文件目录（用于获取图像尺寸）",
+    help="Image file directory (for obtaining image dimensions)",
 )
 @click.option(
     "--category-mapping",
     type=click.Path(path_type=Path),
-    help="自定义类别映射文件（JSON格式）",
+    help="Custom category mapping file (JSON format)",
 )
 @click.option(
     "--skip-errors",
     is_flag=True,
-    help="跳过错误继续处理（宽松模式）",
+    help="Skip errors and continue processing (lenient mode)",
 )
 def coco2labelme(
     ctx,
@@ -269,26 +269,26 @@ def coco2labelme(
     category_mapping: Optional[Path],
     skip_errors: bool,
 ):
-    """COCO格式转LabelMe格式"""
+    """Convert COCO format to LabelMe format"""
     from dataflow.convert.coco_and_labelme import CocoAndLabelMeConverter
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"] and not skip_errors
 
-    logger.info(f"开始转换COCO到LabelMe: {input_path} -> {output_path}")
+    logger.info(f"Starting conversion ofCOCOtoLabelMe: {input_path} -> {output_path}")
 
-    # 参数验证
+    # Parameter validation
     validate_convert_params("coco", "labelme", input_path, output_path, image_dir, None)
 
-    # 加载类别映射
+    # Load category mapping
     category_mapping_dict = None
     if category_mapping:
-        category_mapping = validate_path_exists(category_mapping, "类别映射文件")
+        category_mapping = validate_path_exists(category_mapping, "category mapping file")
         with open(category_mapping, "r", encoding="utf-8") as f:
             category_mapping_dict = json.load(f)
 
-    # 调用现有API
+    # Call existing API
     converter = CocoAndLabelMeConverter(source_to_target=True, verbose=verbose, strict_mode=strict)
     result = converter.convert(
         source_path=str(input_path),
@@ -298,12 +298,12 @@ def coco2labelme(
     )
 
     if result.success:
-        logger.info(f"转换完成: {result.get_summary()}")
+        logger.info(f"Conversion completed: {result.get_summary()}")
     else:
         # Use first error message if available, otherwise generic message
-        error_msg = result.errors[0] if result.errors else "转换失败"
-        logger.error(f"转换失败: {error_msg}")
-        raise RuntimeCLIError(f"转换失败: {error_msg}")
+        error_msg = result.errors[0] if result.errors else "Conversion failed"
+        logger.error(f"Conversion failed: {error_msg}")
+        raise RuntimeCLIError(f"Conversion failed: {error_msg}")
 
 
 @convert_group.command()
@@ -314,23 +314,23 @@ def coco2labelme(
     "--image-dir",
     "-i",
     type=click.Path(path_type=Path),
-    help="图像文件目录（用于获取图像尺寸）",
+    help="Image file directory (for obtaining image dimensions)",
 )
 @click.option(
     "--class-file",
     "-c",
     type=click.Path(path_type=Path),
-    help="类别文件路径（YOLO格式需要）",
+    help="Class file path (required for YOLO format)",
 )
 @click.option(
     "--category-mapping",
     type=click.Path(path_type=Path),
-    help="自定义类别映射文件（JSON格式）",
+    help="Custom category mapping file (JSON format)",
 )
 @click.option(
     "--skip-errors",
     is_flag=True,
-    help="跳过错误继续处理（宽松模式）",
+    help="Skip errors and continue processing (lenient mode)",
 )
 def labelme2yolo(
     ctx,
@@ -341,26 +341,26 @@ def labelme2yolo(
     category_mapping: Optional[Path],
     skip_errors: bool,
 ):
-    """LabelMe格式转YOLO格式"""
+    """Convert LabelMe format to YOLO format"""
     from dataflow.convert.labelme_and_yolo import LabelMeAndYoloConverter
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"] and not skip_errors
 
-    logger.info(f"开始转换LabelMe到YOLO: {input_path} -> {output_path}")
+    logger.info(f"Starting conversion ofLabelMetoYOLO: {input_path} -> {output_path}")
 
-    # 参数验证
+    # Parameter validation
     validate_convert_params("labelme", "yolo", input_path, output_path, image_dir, class_file)
 
-    # 加载类别映射
+    # Load category mapping
     category_mapping_dict = None
     if category_mapping:
-        category_mapping = validate_path_exists(category_mapping, "类别映射文件")
+        category_mapping = validate_path_exists(category_mapping, "category mapping file")
         with open(category_mapping, "r", encoding="utf-8") as f:
             category_mapping_dict = json.load(f)
 
-    # 调用现有API
+    # Call existing API
     converter = LabelMeAndYoloConverter(source_to_target=False, verbose=verbose, strict_mode=strict)
     result = converter.convert(
         source_path=str(input_path),
@@ -371,12 +371,12 @@ def labelme2yolo(
     )
 
     if result.success:
-        logger.info(f"转换完成: {result.get_summary()}")
+        logger.info(f"Conversion completed: {result.get_summary()}")
     else:
         # Use first error message if available, otherwise generic message
-        error_msg = result.errors[0] if result.errors else "转换失败"
-        logger.error(f"转换失败: {error_msg}")
-        raise RuntimeCLIError(f"转换失败: {error_msg}")
+        error_msg = result.errors[0] if result.errors else "Conversion failed"
+        logger.error(f"Conversion failed: {error_msg}")
+        raise RuntimeCLIError(f"Conversion failed: {error_msg}")
 
 
 @convert_group.command()
@@ -387,17 +387,17 @@ def labelme2yolo(
     "--image-dir",
     "-i",
     type=click.Path(path_type=Path),
-    help="图像文件目录（用于获取图像尺寸）",
+    help="Image file directory (for obtaining image dimensions)",
 )
 @click.option(
     "--category-mapping",
     type=click.Path(path_type=Path),
-    help="自定义类别映射文件（JSON格式）",
+    help="Custom category mapping file (JSON format)",
 )
 @click.option(
     "--skip-errors",
     is_flag=True,
-    help="跳过错误继续处理（宽松模式）",
+    help="Skip errors and continue processing (lenient mode)",
 )
 def labelme2coco(
     ctx,
@@ -407,26 +407,26 @@ def labelme2coco(
     category_mapping: Optional[Path],
     skip_errors: bool,
 ):
-    """LabelMe格式转COCO格式"""
+    """Convert LabelMe format to COCO format"""
     from dataflow.convert.coco_and_labelme import CocoAndLabelMeConverter
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"] and not skip_errors
 
-    logger.info(f"开始转换LabelMe到COCO: {input_path} -> {output_path}")
+    logger.info(f"Starting conversion ofLabelMetoCOCO: {input_path} -> {output_path}")
 
-    # 参数验证
+    # Parameter validation
     validate_convert_params("labelme", "coco", input_path, output_path, image_dir, None)
 
-    # 加载类别映射
+    # Load category mapping
     category_mapping_dict = None
     if category_mapping:
-        category_mapping = validate_path_exists(category_mapping, "类别映射文件")
+        category_mapping = validate_path_exists(category_mapping, "category mapping file")
         with open(category_mapping, "r", encoding="utf-8") as f:
             category_mapping_dict = json.load(f)
 
-    # 调用现有API
+    # Call existing API
     converter = CocoAndLabelMeConverter(source_to_target=False, verbose=verbose, strict_mode=strict)
     result = converter.convert(
         source_path=str(input_path),
@@ -436,17 +436,17 @@ def labelme2coco(
     )
 
     if result.success:
-        logger.info(f"转换完成: {result.get_summary()}")
+        logger.info(f"Conversion completed: {result.get_summary()}")
     else:
         # Use first error message if available, otherwise generic message
-        error_msg = result.errors[0] if result.errors else "转换失败"
-        logger.error(f"转换失败: {error_msg}")
-        raise RuntimeCLIError(f"转换失败: {error_msg}")
+        error_msg = result.errors[0] if result.errors else "Conversion failed"
+        logger.error(f"Conversion failed: {error_msg}")
+        raise RuntimeCLIError(f"Conversion failed: {error_msg}")
 
 
-def validate_path_exists(path: Path, name: str = "路径") -> Path:
-    """验证路径是否存在"""
+def validate_path_exists(path: Path, name: str = "path") -> Path:
+    """Validate if path exists"""
     if not path.exists():
         from dataflow.cli.exceptions import InputError
-        raise InputError(f"{name}不存在: {path}")
+        raise InputError(f"{name} does not exist: {path}")
     return path

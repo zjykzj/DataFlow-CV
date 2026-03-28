@@ -10,7 +10,7 @@ from dataflow.cli.exceptions import RuntimeCLIError
 
 @click.group(name="visualize")
 def visualize_group():
-    """可视化命令组 - 支持多种标签格式的可视化"""
+    """Visualization command group - supports visualization of multiple label formats"""
     pass
 
 
@@ -21,58 +21,57 @@ def visualize_group():
     "--image-dir",
     "-i",
     type=click.Path(path_type=Path),
-    help="图像文件目录（如与标签文件分离）",
+    required=True,
+    help="Image file directory (required)",
 )
 @click.option(
     "--output-dir",
     "-o",
     type=click.Path(path_type=Path),
-    help="可视化结果保存目录",
+    help="Directory to save visualization results",
 )
 @click.option(
     "--class-file",
     "-c",
     type=click.Path(path_type=Path),
-    help="类别文件路径（YOLO格式需要）",
+    required=True,
+    help="Class file path (required for YOLO format)",
 )
-@click.option("--display", "-d", is_flag=True, help="交互式显示结果")
+@click.option("--display", "-d", is_flag=True, help="Display results interactively")
 @click.option(
-    "--save", "-s", is_flag=True, default=True, help="保存可视化结果到文件"
+    "--save", "-s", is_flag=True, default=True, help="Save visualization results to files"
 )
 @click.option(
     "--color-scheme",
     type=click.Choice(["random", "category", "consistent"]),
     default="random",
-    help="颜色方案：random/category/consistent",
+    help="Color scheme: random/category/consistent",
 )
-@click.option("--thickness", type=int, default=2, help="边界框/多边形线宽")
+@click.option("--thickness", type=int, default=2, help="Bounding box/polygon line thickness")
 def yolo(
     ctx,
     input_path: Path,
-    image_dir: Optional[Path],
+    image_dir: Path,
     output_dir: Optional[Path],
-    class_file: Optional[Path],
+    class_file: Path,
     display: bool,
     save: bool,
     color_scheme: str,
     thickness: int,
 ):
-    """可视化YOLO格式标签"""
+    """Visualize YOLO format labels"""
     from dataflow.visualize.yolo_visualizer import YOLOVisualizer
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"]
 
-    logger.info(f"开始可视化YOLO标签: {input_path}")
+    logger.info(f"Starting visualization of YOLO labels: {input_path}")
 
-    # 参数验证
+    # Parameter validation
     validate_visualize_params(input_path, image_dir, output_dir)
-    if class_file is None:
-        from dataflow.cli.exceptions import ParameterError
-        raise ParameterError("YOLO格式需要--class-file参数")
 
-    # 调用现有API
+    # Call existing API
     visualizer = YOLOVisualizer(
         label_dir=input_path,
         image_dir=image_dir,
@@ -87,10 +86,10 @@ def yolo(
     result = visualizer.visualize()
 
     if result.success:
-        logger.info(f"可视化完成: 处理了{result.data.get('processed_images', 0)}张图像")
+        logger.info(f"Visualization completed: processed {result.data.get('processed_images', 0)} images")
     else:
-        logger.error(f"可视化失败: {result.message}")
-        raise RuntimeCLIError(f"可视化失败: {result.message}")
+        logger.error(f"Visualization failed: {result.message}")
+        raise RuntimeCLIError(f"Visualization failed: {result.message}")
 
 
 @visualize_group.command()
@@ -100,48 +99,49 @@ def yolo(
     "--image-dir",
     "-i",
     type=click.Path(path_type=Path),
-    help="图像文件目录（如与标签文件分离）",
+    required=True,
+    help="Image file directory (required)",
 )
 @click.option(
     "--output-dir",
     "-o",
     type=click.Path(path_type=Path),
-    help="可视化结果保存目录",
+    help="Directory to save visualization results",
 )
-@click.option("--display", "-d", is_flag=True, help="交互式显示结果")
+@click.option("--display", "-d", is_flag=True, help="Display results interactively")
 @click.option(
-    "--save", "-s", is_flag=True, default=True, help="保存可视化结果到文件",
+    "--save", "-s", is_flag=True, default=True, help="Save visualization results to files",
 )
 @click.option(
     "--color-scheme",
     type=click.Choice(["random", "category", "consistent"]),
     default="random",
-    help="颜色方案：random/category/consistent",
+    help="Color scheme: random/category/consistent",
 )
-@click.option("--thickness", type=int, default=2, help="边界框/多边形线宽")
+@click.option("--thickness", type=int, default=2, help="Bounding box/polygon line thickness")
 def coco(
     ctx,
     input_path: Path,
-    image_dir: Optional[Path],
+    image_dir: Path,
     output_dir: Optional[Path],
     display: bool,
     save: bool,
     color_scheme: str,
     thickness: int,
 ):
-    """可视化COCO格式标签"""
+    """Visualize COCO format labels"""
     from dataflow.visualize.coco_visualizer import COCOVisualizer
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"]
 
-    logger.info(f"开始可视化COCO标签: {input_path}")
+    logger.info(f"Starting visualization of COCO labels: {input_path}")
 
-    # 参数验证
+    # Parameter validation
     validate_visualize_params(input_path, image_dir, output_dir)
 
-    # 调用现有API
+    # Call existing API
     visualizer = COCOVisualizer(
         annotation_file=input_path,
         image_dir=image_dir,
@@ -155,10 +155,10 @@ def coco(
     result = visualizer.visualize()
 
     if result.success:
-        logger.info(f"可视化完成: 处理了{result.data.get('processed_images', 0)}张图像")
+        logger.info(f"Visualization completed: processed {result.data.get('processed_images', 0)} images")
     else:
-        logger.error(f"可视化失败: {result.message}")
-        raise RuntimeCLIError(f"可视化失败: {result.message}")
+        logger.error(f"Visualization failed: {result.message}")
+        raise RuntimeCLIError(f"Visualization failed: {result.message}")
 
 
 @visualize_group.command()
@@ -168,48 +168,49 @@ def coco(
     "--image-dir",
     "-i",
     type=click.Path(path_type=Path),
-    help="图像文件目录（如与标签文件分离）",
+    required=True,
+    help="Image file directory (required)",
 )
 @click.option(
     "--output-dir",
     "-o",
     type=click.Path(path_type=Path),
-    help="可视化结果保存目录",
+    help="Directory to save visualization results",
 )
-@click.option("--display", "-d", is_flag=True, help="交互式显示结果")
+@click.option("--display", "-d", is_flag=True, help="Display results interactively")
 @click.option(
-    "--save", "-s", is_flag=True, default=True, help="保存可视化结果到文件",
+    "--save", "-s", is_flag=True, default=True, help="Save visualization results to files",
 )
 @click.option(
     "--color-scheme",
     type=click.Choice(["random", "category", "consistent"]),
     default="random",
-    help="颜色方案：random/category/consistent",
+    help="Color scheme: random/category/consistent",
 )
-@click.option("--thickness", type=int, default=2, help="边界框/多边形线宽")
+@click.option("--thickness", type=int, default=2, help="Bounding box/polygon line thickness")
 def labelme(
     ctx,
     input_path: Path,
-    image_dir: Optional[Path],
+    image_dir: Path,
     output_dir: Optional[Path],
     display: bool,
     save: bool,
     color_scheme: str,
     thickness: int,
 ):
-    """可视化LabelMe格式标签"""
+    """Visualize LabelMe format labels"""
     from dataflow.visualize.labelme_visualizer import LabelMeVisualizer
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"]
 
-    logger.info(f"开始可视化LabelMe标签: {input_path}")
+    logger.info(f"Starting visualization of LabelMe labels: {input_path}")
 
-    # 参数验证
+    # Parameter validation
     validate_visualize_params(input_path, image_dir, output_dir)
 
-    # 调用现有API
+    # Call existing API
     visualizer = LabelMeVisualizer(
         label_dir=input_path,
         image_dir=image_dir,
@@ -223,7 +224,7 @@ def labelme(
     result = visualizer.visualize()
 
     if result.success:
-        logger.info(f"可视化完成: 处理了{result.data.get('processed_images', 0)}张图像")
+        logger.info(f"Visualization completed: processed {result.data.get('processed_images', 0)} images")
     else:
-        logger.error(f"可视化失败: {result.message}")
-        raise RuntimeCLIError(f"可视化失败: {result.message}")
+        logger.error(f"Visualization failed: {result.message}")
+        raise RuntimeCLIError(f"Visualization failed: {result.message}")

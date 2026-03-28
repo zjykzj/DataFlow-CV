@@ -7,7 +7,7 @@ from dataflow.util.logging_util import LoggingOperations, VerboseLoggingOperatio
 
 
 def print_version(ctx, param, value):
-    """回调函数：显示版本信息"""
+    """Callback function: display version information"""
     if not value or ctx.resilient_parsing:
         return
     from dataflow import __version__
@@ -23,24 +23,24 @@ def print_version(ctx, param, value):
     is_eager=True,
     expose_value=False,
     callback=print_version,
-    help="显示版本信息",
+    help="Display version information",
 )
 @click.pass_context
 def cli(ctx):
-    """DataFlow-CV命令行工具 - 计算机视觉数据处理工具集"""
-    # 初始化上下文对象（默认值）
+    """DataFlow-CV command line tool - Computer vision dataset processing toolkit"""
+    # Initialize context object (default values)
     ctx.ensure_object(dict)
     ctx.obj["verbose"] = False
     ctx.obj["log_dir"] = Path("./logs")
     ctx.obj["strict"] = True
 
-    # 配置默认日志（非详细模式）
+    # Configure default logging (non-verbose mode)
     logger = LoggingOperations().get_logger("dataflow.cli")
     ctx.obj["logger"] = logger
-    logger.debug("CLI上下文初始化完成")
+    logger.debug("CLI context initialization completed")
 
 
-# 注册子命令组
+# Register subcommand groups
 from .commands import visualize, convert
 
 cli.add_command(visualize.visualize_group)

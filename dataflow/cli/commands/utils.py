@@ -9,35 +9,35 @@ from dataflow.util.logging_util import LoggingOperations, VerboseLoggingOperatio
 
 
 def add_common_options(func):
-    """装饰器：为子命令添加通用选项（--verbose, --log-dir, --strict）"""
+    """Decorator: add common options to subcommands (--verbose, --log-dir, --strict)"""
     @click.option(
         "--verbose",
         is_flag=True,
-        help="启用详细日志输出",
+        help="Enable verbose log output",
     )
     @click.option(
         "--log-dir",
         type=click.Path(path_type=Path),
         default="./logs",
-        help="日志文件保存目录",
+        help="Directory to save log files",
     )
     @click.option(
         "--strict",
         is_flag=True,
         default=True,
-        help="严格模式（遇错停止）",
+        help="Strict mode (stop on error)",
     )
     @click.pass_context
     @wraps(func)
     def wrapper(ctx, verbose, log_dir, strict, *args, **kwargs):
         import sys
         print(f"DEBUG wrapper called: ctx={ctx}, verbose={verbose}, log_dir={log_dir}, strict={strict}, args={args}, kwargs={kwargs}", file=sys.stderr)
-        # 更新上下文对象中的选项
+        # Update options in context object
         ctx.obj["verbose"] = verbose
         ctx.obj["log_dir"] = log_dir
         ctx.obj["strict"] = strict
 
-        # 重新配置日志（基于verbose标志）
+        # Reconfigure logging (based on verbose flag)
         if verbose:
             logger = VerboseLoggingOperations().get_verbose_logger(
                 name=ctx.command.name,
@@ -48,30 +48,28 @@ def add_common_options(func):
             logger = LoggingOperations().get_logger(ctx.command.name)
         ctx.obj["logger"] = logger
 
-        logger.debug(f"子命令上下文更新: verbose={verbose}, log_dir={log_dir}, strict={strict}")
-        # 调用原始函数，传递ctx作为第一个参数
+        logger.debug(f"Subcommand context updated: verbose={verbose}, log_dir={log_dir}, strict={strict}")
+        # Call original function, passing ctx as first argument
         return func(ctx, *args, **kwargs)
     return wrapper
 
 
-def validate_path_exists(path: Path, name: str = "路径") -> Path:
-    """验证路径是否存在"""
+def validate_path_exists(path: Path, name: str = "path") -> Path:
+    """Validate if path exists"""
     if not path.exists():
         from dataflow.cli.exceptions import InputError
-        raise InputError(f"{name}不存在: {path}")
+        raise InputError(f"{name} does not exist: {path}")
     return path
 
 
 def validate_visualize_params(
     input_path: Path,
-    image_dir: Optional[Path],
+    image_dir: Path,
     output_dir: Optional[Path],
-) -> Tuple[Path, Optional[Path], Optional[Path]]:
-    """验证可视化参数"""
-    input_path = validate_path_exists(input_path, "输入路径")
-
-    if image_dir:
-        image_dir = validate_path_exists(image_dir, "图像目录")
+) -> Tuple[Path, Path, Optional[Path]]:
+    """Validate visualization parameters"""
+    input_path = validate_path_exists(input_path, "input path")
+    image_dir = validate_path_exists(image_dir, "image directory")
 
     if output_dir:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -87,19 +85,19 @@ def validate_convert_params(
     image_dir: Optional[Path],
     class_file: Optional[Path],
 ) -> Tuple[Path, Path, Optional[Path], Optional[Path]]:
-    """验证转换参数"""
-    input_path = validate_path_exists(input_path, "输入路径")
+    """Validate conversion parameters"""
+    input_path = validate_path_exists(input_path, "input path")
 
-    # 确保输出目录存在
-    if output_path.suffix:  # 是文件
+    # Ensure output directory exists
+    if output_path.suffix:  # Is a file
         output_path.parent.mkdir(parents=True, exist_ok=True)
-    else:  # 是目录
+    else:  # Is a directory
         output_path.mkdir(parents=True, exist_ok=True)
 
     if image_dir:
-        image_dir = validate_path_exists(image_dir, "图像目录")
+        image_dir = validate_path_exists(image_dir, "image directory")
 
     if class_file:
-        class_file = validate_path_exists(class_file, "类别文件")
+        class_file = validate_path_exists(class_file, "class file")
 
     return input_path, output_path, image_dir, class_file
