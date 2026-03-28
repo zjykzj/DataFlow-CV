@@ -315,15 +315,21 @@ class BaseVisualizer(ABC):
 
             # 3. Display or save
             if self.is_show:
-                window_name = f"Visualization - {image_ann.image_id}"
-                cv2.imshow(window_name, image)
-                key = cv2.waitKey(0)
-                cv2.destroyWindow(window_name)
+                try:
+                    window_name = f"Visualization - {image_ann.image_id}"
+                    cv2.imshow(window_name, image)
+                    key = cv2.waitKey(0)
+                    cv2.destroyWindow(window_name)
 
-                # Handle keyboard input
-                if key == ord("q") or key == 27:  # 'q' key or ESC
-                    return False  # Stop visualization
-                # Enter key or space key continue
+                    # Handle keyboard input
+                    if key == ord("q") or key == 27:  # 'q' key or ESC
+                        return False  # Stop visualization
+                    # Enter key or space key continue
+                except Exception as e:
+                    self._log_warning(f"Failed to display visualization window: {e}")
+                    # Continue without display if in non-strict mode
+                    if self.strict_mode:
+                        raise
 
             if self.is_save:
                 output_file = self.output_dir / f"{image_ann.image_id}_visualized.jpg"

@@ -89,7 +89,7 @@ def yolo(
         image_dir=image_dir,
         class_file=class_file,
         output_dir=save,
-        is_show=False,  # Don't display, only save if output directory provided
+        is_show=True,  # Always display visualization window
         is_save=save is not None,
         strict_mode=strict,
         verbose=verbose,
@@ -137,7 +137,7 @@ def coco(
         annotation_file=coco_file,
         image_dir=image_dir,
         output_dir=save,
-        is_show=False,  # Don't display, only save if output directory provided
+        is_show=True,  # Always display visualization window
         is_save=save is not None,
         strict_mode=strict,
         verbose=verbose,
@@ -185,7 +185,7 @@ def labelme(
         label_dir=label_dir,
         image_dir=image_dir,
         output_dir=save,
-        is_show=False,  # Don't display, only save if output directory provided
+        is_show=True,  # Always display visualization window
         is_save=save is not None,
         strict_mode=strict,
         verbose=verbose,
