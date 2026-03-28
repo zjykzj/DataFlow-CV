@@ -68,6 +68,11 @@ setup(
     extras_require=extras_require,
     include_package_data=True,
     zip_safe=False,
+    entry_points={
+        'console_scripts': [
+            'dataflow-cv=dataflow.cli.main:cli',
+        ],
+    },
     keywords='computer-vision, dataset, annotation, label, labelme, yolo, coco',
     project_urls={
         'Bug Reports': 'https://github.com/yourusername/DataFlow-CV/issues',

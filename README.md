@@ -194,6 +194,120 @@ pip install opencv-python  # Required
 pip install pycocotools    # Optional, for COCO RLE support
 ```
 
+## Command Line Interface (CLI)
+
+DataFlow-CV provides a comprehensive command-line interface for quick and easy access to all core functionality. The CLI follows a `<main-task> <sub-task>` pattern and supports all format conversions and visualization features.
+
+### Quick Start
+
+```bash
+# Install with CLI support
+pip install dataflow-cv
+
+# Get help
+dataflow-cv --help
+
+# Visualize YOLO annotations
+dataflow-cv visualize yolo path/to/yolo/labels --image-dir path/to/images --save
+
+# Convert YOLO to COCO format
+dataflow-cv convert yolo2coco path/to/yolo path/to/output.json --class-file path/to/classes.txt
+```
+
+### Command Structure
+
+```
+dataflow-cv <main-task> <sub-task> [options...]
+```
+
+#### Main Tasks
+- **visualize**: Annotation visualization for YOLO, COCO, and LabelMe formats
+- **convert**: Format conversion between all supported formats (6 conversion directions)
+
+#### Visualization Commands
+- `dataflow-cv visualize yolo <input_path>` - Visualize YOLO format annotations
+- `dataflow-cv visualize coco <input_path>` - Visualize COCO format annotations
+- `dataflow-cv visualize labelme <input_path>` - Visualize LabelMe format annotations
+
+#### Conversion Commands
+- `dataflow-cv convert yolo2coco <input> <output>` - YOLO to COCO conversion
+- `dataflow-cv convert yolo2labelme <input> <output>` - YOLO to LabelMe conversion
+- `dataflow-cv convert coco2yolo <input> <output>` - COCO to YOLO conversion
+- `dataflow-cv convert coco2labelme <input> <output>` - COCO to LabelMe conversion
+- `dataflow-cv convert labelme2yolo <input> <output>` - LabelMe to YOLO conversion
+- `dataflow-cv convert labelme2coco <input> <output>` - LabelMe to COCO conversion
+
+### Common Options
+
+- `-v, --verbose`: Enable detailed logging with log files
+- `--log-dir PATH`: Directory for log files (default: `./logs`)
+- `--strict`: Strict mode stops on first error (default: True)
+- `-h, --help`: Show help message
+
+### Visualization Options
+
+- `-i, --image-dir`: Image directory (if separate from label files)
+- `-o, --output-dir`: Output directory for saved visualizations
+- `-d, --display`: Interactive display mode (OpenCV window)
+- `-s, --save`: Save visualizations to files (default: True)
+
+### Conversion Options
+
+- `-i, --image-dir`: Image directory (for obtaining image dimensions)
+- `-c, --class-file`: Class file path (required for YOLO format)
+- `--do-rle`: Use RLE encoding for COCO format (requires `pycocotools`)
+- `--category-mapping`: Custom category mapping JSON file
+- `--skip-errors`: Skip errors and continue processing (lenient mode)
+
+### Examples
+
+#### Batch Processing
+```bash
+# Batch convert multiple YOLO datasets to COCO
+for dataset in dataset1 dataset2 dataset3; do
+    dataflow-cv convert yolo2coco \
+        "data/$dataset/yolo" \
+        "data/$dataset/annotations.json" \
+        --image-dir "data/$dataset/images" \
+        --class-file "data/$dataset/classes.txt" \
+        --verbose
+done
+```
+
+#### Pipeline Workflow
+```bash
+# Convert YOLO to COCO, then visualize result
+dataflow-cv convert yolo2coco input/yolo output/annotations.json && \
+dataflow-cv visualize coco output/annotations.json --image-dir input/images
+```
+
+#### With Category Mapping
+```json
+// category_mapping.json
+{
+  "person": "human",
+  "car": "vehicle",
+  "dog": "animal"
+}
+```
+
+```bash
+dataflow-cv convert yolo2coco input/yolo output.json \
+  --category-mapping category_mapping.json
+```
+
+### Demo Scripts
+
+Complete examples are available in `samples/cli/`:
+- `visualize_demo.py`: Visualization of all three formats
+- `convert_demo.py`: All six format conversions
+- `full_cli_demo.py`: Complete workflow demonstration
+
+Run demo scripts from the project root:
+```bash
+python samples/cli/full_cli_demo.py
+```
+
 ## Development
 
 ### Installation for Development
