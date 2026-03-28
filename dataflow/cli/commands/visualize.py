@@ -16,26 +16,14 @@ def visualize_group():
 
 @visualize_group.command()
 @add_common_options
-@click.argument("input_path", type=click.Path(exists=True, path_type=Path))
-@click.option(
-    "--image-dir",
-    "-i",
-    type=click.Path(path_type=Path),
-    required=True,
-    help="Image file directory (required)",
-)
+@click.argument("image_dir", type=click.Path(exists=True, path_type=Path))
+@click.argument("label_dir", type=click.Path(exists=True, path_type=Path))
+@click.argument("class_file", type=click.Path(exists=True, path_type=Path))
 @click.option(
     "--output-dir",
     "-o",
     type=click.Path(path_type=Path),
     help="Directory to save visualization results",
-)
-@click.option(
-    "--class-file",
-    "-c",
-    type=click.Path(path_type=Path),
-    required=True,
-    help="Class file path (required for YOLO format)",
 )
 @click.option("--display", "-d", is_flag=True, help="Display results interactively")
 @click.option(
@@ -50,10 +38,10 @@ def visualize_group():
 @click.option("--thickness", type=int, default=2, help="Bounding box/polygon line thickness")
 def yolo(
     ctx,
-    input_path: Path,
     image_dir: Path,
-    output_dir: Optional[Path],
+    label_dir: Path,
     class_file: Path,
+    output_dir: Optional[Path],
     display: bool,
     save: bool,
     color_scheme: str,
@@ -66,14 +54,14 @@ def yolo(
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"]
 
-    logger.info(f"Starting visualization of YOLO labels: {input_path}")
+    logger.info(f"Starting visualization of YOLO labels: image_dir={image_dir}, label_dir={label_dir}")
 
     # Parameter validation
-    validate_visualize_params(input_path, image_dir, output_dir)
+    validate_visualize_params(label_dir, image_dir, output_dir)
 
     # Call existing API
     visualizer = YOLOVisualizer(
-        label_dir=input_path,
+        label_dir=label_dir,
         image_dir=image_dir,
         class_file=class_file,
         output_dir=output_dir,
@@ -94,14 +82,8 @@ def yolo(
 
 @visualize_group.command()
 @add_common_options
-@click.argument("input_path", type=click.Path(exists=True, path_type=Path))
-@click.option(
-    "--image-dir",
-    "-i",
-    type=click.Path(path_type=Path),
-    required=True,
-    help="Image file directory (required)",
-)
+@click.argument("image_dir", type=click.Path(exists=True, path_type=Path))
+@click.argument("coco_file", type=click.Path(exists=True, path_type=Path))
 @click.option(
     "--output-dir",
     "-o",
@@ -121,8 +103,8 @@ def yolo(
 @click.option("--thickness", type=int, default=2, help="Bounding box/polygon line thickness")
 def coco(
     ctx,
-    input_path: Path,
     image_dir: Path,
+    coco_file: Path,
     output_dir: Optional[Path],
     display: bool,
     save: bool,
@@ -136,14 +118,14 @@ def coco(
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"]
 
-    logger.info(f"Starting visualization of COCO labels: {input_path}")
+    logger.info(f"Starting visualization of COCO labels: {coco_file}")
 
     # Parameter validation
-    validate_visualize_params(input_path, image_dir, output_dir)
+    validate_visualize_params(coco_file, image_dir, output_dir)
 
     # Call existing API
     visualizer = COCOVisualizer(
-        annotation_file=input_path,
+        annotation_file=coco_file,
         image_dir=image_dir,
         output_dir=output_dir,
         is_show=display,
@@ -163,14 +145,8 @@ def coco(
 
 @visualize_group.command()
 @add_common_options
-@click.argument("input_path", type=click.Path(exists=True, path_type=Path))
-@click.option(
-    "--image-dir",
-    "-i",
-    type=click.Path(path_type=Path),
-    required=True,
-    help="Image file directory (required)",
-)
+@click.argument("image_dir", type=click.Path(exists=True, path_type=Path))
+@click.argument("label_dir", type=click.Path(exists=True, path_type=Path))
 @click.option(
     "--output-dir",
     "-o",
@@ -190,8 +166,8 @@ def coco(
 @click.option("--thickness", type=int, default=2, help="Bounding box/polygon line thickness")
 def labelme(
     ctx,
-    input_path: Path,
     image_dir: Path,
+    label_dir: Path,
     output_dir: Optional[Path],
     display: bool,
     save: bool,
@@ -205,14 +181,14 @@ def labelme(
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"]
 
-    logger.info(f"Starting visualization of LabelMe labels: {input_path}")
+    logger.info(f"Starting visualization of LabelMe labels: {label_dir}")
 
     # Parameter validation
-    validate_visualize_params(input_path, image_dir, output_dir)
+    validate_visualize_params(label_dir, image_dir, output_dir)
 
     # Call existing API
     visualizer = LabelMeVisualizer(
-        label_dir=input_path,
+        label_dir=label_dir,
         image_dir=image_dir,
         output_dir=output_dir,
         is_show=display,
