@@ -185,6 +185,7 @@ See `samples/` directory for comprehensive examples:
 - All file paths should use `pathlib.Path` for cross-platform compatibility
 - Chinese comments are present in some files; maintain bilingual clarity where appropriate
 - Follow existing patterns for adding new format handlers or converters
+- The actual LLM used for this project is DeepSeek-V3.2; do not use `Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>` in commit messages
 - When modifying logging behavior, ensure both console and file logging work correctly in verbose mode
 
 ## Related Documentation
