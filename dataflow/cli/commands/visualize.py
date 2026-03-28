@@ -46,7 +46,6 @@ def visualize_group():
     help="颜色方案：random/category/consistent",
 )
 @click.option("--thickness", type=int, default=2, help="边界框/多边形线宽")
-@click.pass_context
 def yolo(
     ctx,
     input_path: Path,
@@ -111,7 +110,7 @@ def yolo(
 )
 @click.option("--display", "-d", is_flag=True, help="交互式显示结果")
 @click.option(
-    "--save", "-s", is_flag=True, default=True, help="保存可视化结果到文件"
+    "--save", "-s", is_flag=True, default=True, help="保存可视化结果到文件",
 )
 @click.option(
     "--color-scheme",
@@ -120,7 +119,6 @@ def yolo(
     help="颜色方案：random/category/consistent",
 )
 @click.option("--thickness", type=int, default=2, help="边界框/多边形线宽")
-@click.pass_context
 def coco(
     ctx,
     input_path: Path,
@@ -180,7 +178,7 @@ def coco(
 )
 @click.option("--display", "-d", is_flag=True, help="交互式显示结果")
 @click.option(
-    "--save", "-s", is_flag=True, default=True, help="保存可视化结果到文件"
+    "--save", "-s", is_flag=True, default=True, help="保存可视化结果到文件",
 )
 @click.option(
     "--color-scheme",
@@ -189,7 +187,6 @@ def coco(
     help="颜色方案：random/category/consistent",
 )
 @click.option("--thickness", type=int, default=2, help="边界框/多边形线宽")
-@click.pass_context
 def labelme(
     ctx,
     input_path: Path,

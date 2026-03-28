@@ -27,8 +27,11 @@ def add_common_options(func):
         default=True,
         help="严格模式（遇错停止）",
     )
+    @click.pass_context
     @wraps(func)
     def wrapper(ctx, verbose, log_dir, strict, *args, **kwargs):
+        import sys
+        print(f"DEBUG wrapper called: ctx={ctx}, verbose={verbose}, log_dir={log_dir}, strict={strict}, args={args}, kwargs={kwargs}", file=sys.stderr)
         # 更新上下文对象中的选项
         ctx.obj["verbose"] = verbose
         ctx.obj["log_dir"] = log_dir
@@ -46,6 +49,7 @@ def add_common_options(func):
         ctx.obj["logger"] = logger
 
         logger.debug(f"子命令上下文更新: verbose={verbose}, log_dir={log_dir}, strict={strict}")
+        # 调用原始函数，传递ctx作为第一个参数
         return func(ctx, *args, **kwargs)
     return wrapper
 

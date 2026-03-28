@@ -26,10 +26,12 @@ sys.path.insert(0, str(project_root))
 
 def run_cli_command(cmd_args):
     """运行CLI命令并返回结果"""
-    print(f"执行命令: dataflow-cv {' '.join(cmd_args)}")
+    import sys
+    cmd = [sys.executable, "-m", "dataflow.cli.main"] + cmd_args
+    print(f"执行命令: {' '.join(cmd)}")
     try:
         result = subprocess.run(
-            ["dataflow-cv"] + cmd_args,
+            cmd,
             capture_output=True,
             text=True,
             cwd=project_root,
@@ -45,7 +47,7 @@ def run_cli_command(cmd_args):
         print("错误: 命令执行超时")
         return False
     except FileNotFoundError:
-        print("错误: 未找到dataflow-cv命令，请先安装包: pip install -e .")
+        print("错误: 未找到Python解释器")
         return False
     except Exception as e:
         print(f"错误: 执行命令时发生异常: {e}")

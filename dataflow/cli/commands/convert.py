@@ -46,7 +46,6 @@ def convert_group():
     is_flag=True,
     help="跳过错误继续处理（宽松模式）",
 )
-@click.pass_context
 def yolo2coco(
     ctx,
     input_path: Path,
@@ -122,7 +121,6 @@ def yolo2coco(
     is_flag=True,
     help="跳过错误继续处理（宽松模式）",
 )
-@click.pass_context
 def yolo2labelme(
     ctx,
     input_path: Path,
@@ -196,7 +194,6 @@ def yolo2labelme(
     is_flag=True,
     help="跳过错误继续处理（宽松模式）",
 )
-@click.pass_context
 def coco2yolo(
     ctx,
     input_path: Path,
@@ -264,7 +261,6 @@ def coco2yolo(
     is_flag=True,
     help="跳过错误继续处理（宽松模式）",
 )
-@click.pass_context
 def coco2labelme(
     ctx,
     input_path: Path,
@@ -336,7 +332,6 @@ def coco2labelme(
     is_flag=True,
     help="跳过错误继续处理（宽松模式）",
 )
-@click.pass_context
 def labelme2yolo(
     ctx,
     input_path: Path,
@@ -404,7 +399,6 @@ def labelme2yolo(
     is_flag=True,
     help="跳过错误继续处理（宽松模式）",
 )
-@click.pass_context
 def labelme2coco(
     ctx,
     input_path: Path,

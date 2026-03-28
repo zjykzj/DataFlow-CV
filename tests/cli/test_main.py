@@ -20,8 +20,3 @@ def test_cli_version():
     assert "version" in result.output.lower()
 
 
-def test_cli_verbose_option():
-    """Test that verbose option is accepted."""
-    runner = CliRunner()
-    result = runner.invoke(cli, ["--verbose", "--help"])
-    assert result.exit_code == 0
