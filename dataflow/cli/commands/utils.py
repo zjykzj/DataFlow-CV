@@ -3,6 +3,51 @@
 from pathlib import Path
 from typing import Optional, Tuple
 import click
+from functools import wraps
+
+from dataflow.util.logging_util import LoggingOperations, VerboseLoggingOperations
+
+
+def add_common_options(func):
+    """装饰器：为子命令添加通用选项（--verbose, --log-dir, --strict）"""
+    @click.option(
+        "--verbose",
+        is_flag=True,
+        help="启用详细日志输出",
+    )
+    @click.option(
+        "--log-dir",
+        type=click.Path(path_type=Path),
+        default="./logs",
+        help="日志文件保存目录",
+    )
+    @click.option(
+        "--strict",
+        is_flag=True,
+        default=True,
+        help="严格模式（遇错停止）",
+    )
+    @wraps(func)
+    def wrapper(ctx, verbose, log_dir, strict, *args, **kwargs):
+        # 更新上下文对象中的选项
+        ctx.obj["verbose"] = verbose
+        ctx.obj["log_dir"] = log_dir
+        ctx.obj["strict"] = strict
+
+        # 重新配置日志（基于verbose标志）
+        if verbose:
+            logger = VerboseLoggingOperations().get_verbose_logger(
+                name=ctx.command.name,
+                verbose=True,
+                log_dir=log_dir,
+            )
+        else:
+            logger = LoggingOperations().get_logger(ctx.command.name)
+        ctx.obj["logger"] = logger
+
+        logger.debug(f"子命令上下文更新: verbose={verbose}, log_dir={log_dir}, strict={strict}")
+        return func(ctx, *args, **kwargs)
+    return wrapper
 
 
 def validate_path_exists(path: Path, name: str = "路径") -> Path:

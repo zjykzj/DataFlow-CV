@@ -6,47 +6,38 @@ from pathlib import Path
 from dataflow.util.logging_util import LoggingOperations, VerboseLoggingOperations
 
 
-@click.group()
-@click.version_option()
+def print_version(ctx, param, value):
+    """回调函数：显示版本信息"""
+    if not value or ctx.resilient_parsing:
+        return
+    from dataflow import __version__
+    click.echo(f"dataflow-cv version {__version__}")
+    ctx.exit()
+
+
+@click.group(context_settings={"help_option_names": ["-h", "--help"]})
 @click.option(
-    "--verbose",
+    "--version",
     "-v",
     is_flag=True,
-    help="启用详细日志输出",
-)
-@click.option(
-    "--log-dir",
-    type=click.Path(path_type=Path),
-    default="./logs",
-    help="日志文件保存目录",
-)
-@click.option(
-    "--strict",
-    is_flag=True,
-    default=True,
-    help="严格模式（遇错停止）",
+    is_eager=True,
+    expose_value=False,
+    callback=print_version,
+    help="显示版本信息",
 )
 @click.pass_context
-def cli(ctx, verbose, log_dir, strict):
+def cli(ctx):
     """DataFlow-CV命令行工具 - 计算机视觉数据处理工具集"""
-    # 初始化上下文对象
+    # 初始化上下文对象（默认值）
     ctx.ensure_object(dict)
-    ctx.obj["verbose"] = verbose
-    ctx.obj["log_dir"] = log_dir
-    ctx.obj["strict"] = strict
+    ctx.obj["verbose"] = False
+    ctx.obj["log_dir"] = Path("./logs")
+    ctx.obj["strict"] = True
 
-    # 配置日志
-    if verbose:
-        logger = VerboseLoggingOperations().get_verbose_logger(
-            name="dataflow.cli",
-            verbose=True,
-            log_dir=log_dir,
-        )
-    else:
-        logger = LoggingOperations().get_logger("dataflow.cli")
-
+    # 配置默认日志（非详细模式）
+    logger = LoggingOperations().get_logger("dataflow.cli")
     ctx.obj["logger"] = logger
-    logger.debug(f"CLI上下文初始化完成: verbose={verbose}, log_dir={log_dir}, strict={strict}")
+    logger.debug("CLI上下文初始化完成")
 
 
 # 注册子命令组

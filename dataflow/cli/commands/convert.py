@@ -5,7 +5,7 @@ import click
 from pathlib import Path
 from typing import Optional
 
-from dataflow.cli.commands.utils import validate_convert_params
+from dataflow.cli.commands.utils import validate_convert_params, add_common_options
 from dataflow.cli.exceptions import RuntimeCLIError
 
 
@@ -16,6 +16,7 @@ def convert_group():
 
 
 @convert_group.command()
+@add_common_options
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path))
 @click.argument("output_path", type=click.Path(path_type=Path))
 @click.option(
@@ -61,7 +62,7 @@ def yolo2coco(
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
-    strict = not skip_errors  # 如果跳过错误，则非严格模式
+    strict = ctx.obj["strict"] and not skip_errors  # 结合全局strict和本地skip-errors
 
     logger.info(f"开始转换YOLO到COCO: {input_path} -> {output_path}")
 
@@ -96,6 +97,7 @@ def yolo2coco(
 
 
 @convert_group.command()
+@add_common_options
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path))
 @click.argument("output_path", type=click.Path(path_type=Path))
 @click.option(
@@ -135,7 +137,7 @@ def yolo2labelme(
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
-    strict = not skip_errors
+    strict = ctx.obj["strict"] and not skip_errors
 
     logger.info(f"开始转换YOLO到LabelMe: {input_path} -> {output_path}")
 
@@ -169,6 +171,7 @@ def yolo2labelme(
 
 
 @convert_group.command()
+@add_common_options
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path))
 @click.argument("output_path", type=click.Path(path_type=Path))
 @click.option(
@@ -208,7 +211,7 @@ def coco2yolo(
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
-    strict = not skip_errors
+    strict = ctx.obj["strict"] and not skip_errors
 
     logger.info(f"开始转换COCO到YOLO: {input_path} -> {output_path}")
 
@@ -242,6 +245,7 @@ def coco2yolo(
 
 
 @convert_group.command()
+@add_common_options
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path))
 @click.argument("output_path", type=click.Path(path_type=Path))
 @click.option(
@@ -274,7 +278,7 @@ def coco2labelme(
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
-    strict = not skip_errors
+    strict = ctx.obj["strict"] and not skip_errors
 
     logger.info(f"开始转换COCO到LabelMe: {input_path} -> {output_path}")
 
@@ -307,6 +311,7 @@ def coco2labelme(
 
 
 @convert_group.command()
+@add_common_options
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path))
 @click.argument("output_path", type=click.Path(path_type=Path))
 @click.option(
@@ -346,7 +351,7 @@ def labelme2yolo(
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
-    strict = not skip_errors
+    strict = ctx.obj["strict"] and not skip_errors
 
     logger.info(f"开始转换LabelMe到YOLO: {input_path} -> {output_path}")
 
@@ -380,6 +385,7 @@ def labelme2yolo(
 
 
 @convert_group.command()
+@add_common_options
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path))
 @click.argument("output_path", type=click.Path(path_type=Path))
 @click.option(
@@ -412,7 +418,7 @@ def labelme2coco(
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
-    strict = not skip_errors
+    strict = ctx.obj["strict"] and not skip_errors
 
     logger.info(f"开始转换LabelMe到COCO: {input_path} -> {output_path}")
 

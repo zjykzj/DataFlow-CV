@@ -4,7 +4,7 @@ import click
 from pathlib import Path
 from typing import Optional
 
-from dataflow.cli.commands.utils import validate_visualize_params
+from dataflow.cli.commands.utils import validate_visualize_params, add_common_options
 from dataflow.cli.exceptions import RuntimeCLIError
 
 
@@ -15,6 +15,7 @@ def visualize_group():
 
 
 @visualize_group.command()
+@add_common_options
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path))
 @click.option(
     "--image-dir",
@@ -94,6 +95,7 @@ def yolo(
 
 
 @visualize_group.command()
+@add_common_options
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path))
 @click.option(
     "--image-dir",
@@ -162,6 +164,7 @@ def coco(
 
 
 @visualize_group.command()
+@add_common_options
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path))
 @click.option(
     "--image-dir",
