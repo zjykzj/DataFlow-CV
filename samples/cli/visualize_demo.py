@@ -54,6 +54,8 @@ def demo_yolo_visualization():
     print("="*60)
 
     yolo_dir = project_root / "assets" / "test_data" / "seg" / "yolo"
+    image_dir = yolo_dir / "images"
+    label_dir = yolo_dir / "labels"
     class_file = yolo_dir / "classes.txt"
     output_dir = project_root / "temp_output" / "visualize" / "yolo"
 
@@ -64,10 +66,8 @@ def demo_yolo_visualization():
 
     cmd = [
         "visualize", "yolo",
-        str(yolo_dir),
-        "--class-file", str(class_file),
-        "--output-dir", str(output_dir),
-        "--save",
+        str(image_dir), str(label_dir), str(class_file),
+        "--save", str(output_dir),
         "--verbose"
     ]
 
@@ -98,10 +98,8 @@ def demo_coco_visualization():
 
     cmd = [
         "visualize", "coco",
-        str(coco_file),
-        "--image-dir", str(image_dir),
-        "--output-dir", str(output_dir),
-        "--save",
+        str(image_dir), str(coco_file),
+        "--save", str(output_dir),
         "--verbose"
     ]
 
@@ -128,11 +126,11 @@ def demo_labelme_visualization():
         import shutil
         shutil.rmtree(output_dir)
 
+    # LabelMe格式：图片和JSON文件在同一目录
     cmd = [
         "visualize", "labelme",
-        str(labelme_dir),
-        "--output-dir", str(output_dir),
-        "--save",
+        str(labelme_dir), str(labelme_dir),
+        "--save", str(output_dir),
         "--verbose"
     ]
 
@@ -181,9 +179,9 @@ def main():
         print("✓ 所有演示都成功完成!")
         print(f"可视化结果保存在: {project_root / 'temp_output' / 'visualize'}")
         print("\n您可以使用以下命令手动测试:")
-        print("  dataflow-cv visualize yolo assets/test_data/seg/yolo --class-file assets/test_data/seg/yolo/classes.txt --output-dir ./output --save")
-        print("  dataflow-cv visualize coco assets/test_data/seg/coco/annotations.json --image-dir assets/test_data/seg/coco/images --output-dir ./output --save")
-        print("  dataflow-cv visualize labelme assets/test_data/seg/labelme --output-dir ./output --save")
+        print("  dataflow-cv visualize yolo assets/test_data/seg/yolo/images assets/test_data/seg/yolo/labels assets/test_data/seg/yolo/classes.txt --save ./output")
+        print("  dataflow-cv visualize coco assets/test_data/seg/coco/images assets/test_data/seg/coco/annotations.json --save ./output")
+        print("  dataflow-cv visualize labelme assets/test_data/seg/labelme assets/test_data/seg/labelme --save ./output")
         return 0
     else:
         print("✗ 部分演示失败，请检查错误信息")

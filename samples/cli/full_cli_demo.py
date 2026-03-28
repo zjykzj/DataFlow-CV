@@ -76,11 +76,11 @@ def step1_visualize_yolo():
 
     cmd = [
         "visualize", "yolo",
-        str(yolo_dir),
-        "--class-file", str(class_file),
-        "--image-dir", str(image_dir),
-        "--output-dir", str(output_dir),
+        str(image_dir),  # image_dir (positional)
+        str(yolo_dir / "labels"),  # label_dir (positional)
+        str(class_file),  # class_file (positional)
         "--save",
+        str(output_dir),  # output directory for --save
         "--verbose"
     ]
 
@@ -109,7 +109,7 @@ def step2_yolo_to_coco():
 
     cmd = [
         "convert", "yolo2coco",
-        str(yolo_dir),
+        str(yolo_dir / "labels"),  # YOLO label directory
         str(output_file),
         "--class-file", str(class_file),
         "--image-dir", str(image_dir),
@@ -144,10 +144,10 @@ def step3_visualize_coco(coco_file):
 
     cmd = [
         "visualize", "coco",
-        str(coco_file),
-        "--image-dir", str(image_dir),
-        "--output-dir", str(output_dir),
+        str(image_dir),  # image_dir (positional)
+        str(coco_file),  # coco_file (positional)
         "--save",
+        str(output_dir),  # output directory for --save
         "--verbose"
     ]
 
@@ -181,8 +181,15 @@ def step4_coco_to_yolo(coco_file):
 
     success = run_cli_command(cmd)
     if success:
-        txt_files = list(output_dir.glob("*.txt"))
-        print(f"✓ 步骤4完成: 生成了 {len(txt_files)} 个YOLO标注文件")
+        # YOLO标签文件可能在labels子目录中
+        labels_dir = output_dir / "labels"
+        if labels_dir.exists():
+            txt_files = list(labels_dir.rglob("*.txt"))
+        else:
+            txt_files = list(output_dir.rglob("*.txt"))
+        # 过滤掉classes.txt文件（不是标注文件）
+        label_files = [f for f in txt_files if f.name != "classes.txt"]
+        print(f"✓ 步骤4完成: 生成了 {len(label_files)} 个YOLO标注文件")
         return True, output_dir
     else:
         print("✗ 步骤4失败")
@@ -194,14 +201,22 @@ def step5_compare_yolo_dirs(original_dir, converted_dir):
     print("步骤5: 验证转换准确性")
     print("="*60)
 
-    # 简单比较：检查文件数量
-    original_files = list(original_dir.glob("*.txt"))
-    converted_files = list(converted_dir.glob("*.txt"))
+    # YOLO标签文件可能在labels子目录中
+    original_labels_dir = original_dir
+    converted_labels_dir = converted_dir / "labels" if (converted_dir / "labels").exists() else converted_dir
 
-    print(f"原始YOLO目录: {len(original_files)} 个标注文件")
-    print(f"转换后YOLO目录: {len(converted_files)} 个标注文件")
+    # 查找所有.txt文件（递归）
+    original_files = list(original_labels_dir.rglob("*.txt"))
+    converted_files = list(converted_labels_dir.rglob("*.txt"))
 
-    if len(original_files) == len(converted_files):
+    # 过滤掉classes.txt文件（不是标注文件）
+    original_label_files = [f for f in original_files if f.name != "classes.txt"]
+    converted_label_files = [f for f in converted_files if f.name != "classes.txt"]
+
+    print(f"原始YOLO目录: {len(original_label_files)} 个标注文件")
+    print(f"转换后YOLO目录: {len(converted_label_files)} 个标注文件")
+
+    if len(original_label_files) == len(converted_label_files):
         print("✓ 文件数量匹配，转换基本准确")
         # 可以添加更详细的比较，如内容对比
         return True

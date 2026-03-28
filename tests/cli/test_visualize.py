@@ -12,7 +12,7 @@ def test_visualize_help():
     runner = CliRunner()
     result = runner.invoke(cli, ["visualize", "--help"])
     assert result.exit_code == 0
-    assert "可视化命令组" in result.output
+    assert "Visualization command group" in result.output
 
 
 def test_visualize_yolo_help():
@@ -20,7 +20,7 @@ def test_visualize_yolo_help():
     runner = CliRunner()
     result = runner.invoke(cli, ["visualize", "yolo", "--help"])
     assert result.exit_code == 0
-    assert "可视化YOLO格式标签" in result.output
+    assert "Visualize YOLO format labels" in result.output
 
 
 def test_visualize_coco_help():
@@ -28,7 +28,7 @@ def test_visualize_coco_help():
     runner = CliRunner()
     result = runner.invoke(cli, ["visualize", "coco", "--help"])
     assert result.exit_code == 0
-    assert "可视化COCO格式标签" in result.output
+    assert "Visualize COCO format labels" in result.output
 
 
 def test_visualize_labelme_help():
@@ -36,7 +36,7 @@ def test_visualize_labelme_help():
     runner = CliRunner()
     result = runner.invoke(cli, ["visualize", "labelme", "--help"])
     assert result.exit_code == 0
-    assert "可视化LabelMe格式标签" in result.output
+    assert "Visualize LabelMe format labels" in result.output
 
 
 def test_visualize_yolo_success():
@@ -47,9 +47,10 @@ def test_visualize_yolo_success():
         tmpdir_path = Path(tmpdir)
 
         # Create test files
-        input_dir = tmpdir_path / "input"
-        input_dir.mkdir()
-
+        image_dir = tmpdir_path / "images"
+        image_dir.mkdir()
+        label_dir = tmpdir_path / "labels"
+        label_dir.mkdir()
         class_file = tmpdir_path / "classes.txt"
         class_file.write_text("person\ncar\n")
 
@@ -70,12 +71,11 @@ def test_visualize_yolo_success():
                 [
                     "visualize",
                     "yolo",
-                    str(input_dir),
-                    "--class-file",
+                    str(image_dir),
+                    str(label_dir),
                     str(class_file),
-                    "--output-dir",
-                    str(output_dir),
                     "--save",
+                    str(output_dir),
                 ]
             )
 
@@ -93,22 +93,27 @@ def test_visualize_yolo_missing_class_file():
         tmpdir_path = Path(tmpdir)
 
         # Create test directory
-        input_dir = tmpdir_path / "input"
-        input_dir.mkdir()
+        image_dir = tmpdir_path / "images"
+        image_dir.mkdir()
+        label_dir = tmpdir_path / "labels"
+        label_dir.mkdir()
+        # No class file created
 
-        # Run command without required --class-file
+        # Run command without required class file (positional argument)
         result = runner.invoke(
             cli,
             [
                 "visualize",
                 "yolo",
-                str(input_dir),
+                str(image_dir),
+                str(label_dir),
+                # Missing class_file argument
             ]
         )
 
         # Should fail with error about missing class file
         assert result.exit_code != 0
-        assert "需要" in result.output or "required" in result.output or "class-file" in result.output
+        assert "Missing argument" in result.output or "required" in result.output or "class-file" in result.output
 
 
 def test_visualize_coco_success():
@@ -119,8 +124,10 @@ def test_visualize_coco_success():
         tmpdir_path = Path(tmpdir)
 
         # Create test files
-        input_file = tmpdir_path / "annotations.json"
-        input_file.write_text('{"images": [], "annotations": []}')
+        image_dir = tmpdir_path / "images"
+        image_dir.mkdir()
+        coco_file = tmpdir_path / "annotations.json"
+        coco_file.write_text('{"images": [], "annotations": []}')
 
         output_dir = tmpdir_path / "output"
 
@@ -139,10 +146,10 @@ def test_visualize_coco_success():
                 [
                     "visualize",
                     "coco",
-                    str(input_file),
-                    "--output-dir",
-                    str(output_dir),
+                    str(image_dir),
+                    str(coco_file),
                     "--save",
+                    str(output_dir),
                 ]
             )
 
@@ -160,8 +167,10 @@ def test_visualize_labelme_success():
         tmpdir_path = Path(tmpdir)
 
         # Create test directory
-        input_dir = tmpdir_path / "input"
-        input_dir.mkdir()
+        image_dir = tmpdir_path / "images"
+        image_dir.mkdir()
+        label_dir = tmpdir_path / "labels"
+        label_dir.mkdir()
 
         output_dir = tmpdir_path / "output"
 
@@ -180,10 +189,10 @@ def test_visualize_labelme_success():
                 [
                     "visualize",
                     "labelme",
-                    str(input_dir),
-                    "--output-dir",
-                    str(output_dir),
+                    str(image_dir),
+                    str(label_dir),
                     "--save",
+                    str(output_dir),
                 ]
             )
 
@@ -201,9 +210,10 @@ def test_visualize_failure():
         tmpdir_path = Path(tmpdir)
 
         # Create test files
-        input_dir = tmpdir_path / "input"
-        input_dir.mkdir()
-
+        image_dir = tmpdir_path / "images"
+        image_dir.mkdir()
+        label_dir = tmpdir_path / "labels"
+        label_dir.mkdir()
         class_file = tmpdir_path / "classes.txt"
         class_file.write_text("person\ncar\n")
 
@@ -223,15 +233,14 @@ def test_visualize_failure():
                 [
                     "visualize",
                     "yolo",
-                    str(input_dir),
-                    "--class-file",
+                    str(image_dir),
+                    str(label_dir),
                     str(class_file),
-                    "--output-dir",
-                    str(output_dir),
                     "--save",
+                    str(output_dir),
                 ]
             )
 
             # Should fail with error
             assert result.exit_code != 0
-            assert "失败" in result.output or "failed" in result.output
+            assert "failed" in result.output

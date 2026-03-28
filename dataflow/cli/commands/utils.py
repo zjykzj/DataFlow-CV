@@ -64,12 +64,14 @@ def validate_path_exists(path: Path, name: str = "path") -> Path:
 
 def validate_visualize_params(
     input_path: Path,
-    image_dir: Path,
+    image_dir: Optional[Path],
     output_dir: Optional[Path],
-) -> Tuple[Path, Path, Optional[Path]]:
+) -> Tuple[Path, Optional[Path], Optional[Path]]:
     """Validate visualization parameters"""
     input_path = validate_path_exists(input_path, "input path")
-    image_dir = validate_path_exists(image_dir, "image directory")
+
+    if image_dir:
+        image_dir = validate_path_exists(image_dir, "image directory")
 
     if output_dir:
         output_dir.mkdir(parents=True, exist_ok=True)

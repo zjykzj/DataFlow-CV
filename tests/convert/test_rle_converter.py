@@ -36,8 +36,8 @@ class TestRLEConverter:
         converter = RLEConverter()
         warning_msg = converter.get_rle_accuracy_warning()
         assert isinstance(warning_msg, str)
-        assert "accuracy loss" in warning_msg.lower() or "精度损失" in warning_msg
-        assert "polygon" in warning_msg.lower() or "多边形" in warning_msg
+        assert "accuracy loss" in warning_msg.lower()
+        assert "polygon" in warning_msg.lower()
 
     def test_check_coco_mask_available_true(self):
         """Test check_coco_mask_available when pycocotools is available."""

@@ -275,7 +275,7 @@ class TestIntegrationConversions:
                 source_path=str(yolo_dir / "labels"),
                 target_path=str(coco_file),
                 class_file=str(yolo_dir / "classes.txt"),
-                image_dir=str(yolo_dir / "images"),
+                image_dir=str(source_dir),  # 使用原始LabelMe目录中的图像文件
                 do_rle=False,
             )
             assert result2.success, f"YOLO→COCO转换失败: {result2.errors}"

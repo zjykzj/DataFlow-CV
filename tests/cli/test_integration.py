@@ -170,7 +170,7 @@ def test_cli_error_handling():
 
     # Should fail with error
     assert result.exit_code != 0, "Should fail with non-existent path"
-    assert "不存在" in result.output or "Error" in result.output or "not exist" in result.output
+    assert "does not exist" in result.output or "Error" in result.output or "not exist" in result.output
 
     # Test with missing required argument
     result = runner.invoke(
@@ -201,6 +201,6 @@ def test_cli_error_handling():
             ]
         )
 
-        # Should fail with error about missing class file
-        assert result.exit_code != 0, "Should fail with missing class file"
-        assert "需要" in result.output or "required" in result.output or "class-file" in result.output
+        # Should fail with error about missing arguments (label_dir and class_file are now required positional arguments)
+        assert result.exit_code != 0, "Should fail with missing arguments"
+        assert "Missing argument" in result.output or "required" in result.output

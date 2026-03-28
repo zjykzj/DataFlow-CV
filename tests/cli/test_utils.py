@@ -28,7 +28,7 @@ def test_validate_path_exists():
         with pytest.raises(InputError) as exc_info:
             validate_path_exists(non_existent, "测试路径")
 
-        assert "不存在" in str(exc_info.value)
+        assert "does not exist" in str(exc_info.value)
         assert str(non_existent) in str(exc_info.value)
 
 

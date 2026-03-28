@@ -9,7 +9,7 @@ def test_cli_help():
     runner = CliRunner()
     result = runner.invoke(cli, ["--help"])
     assert result.exit_code == 0
-    assert "DataFlow-CV命令行工具" in result.output
+    assert "DataFlow-CV" in result.output
 
 
 def test_cli_version():

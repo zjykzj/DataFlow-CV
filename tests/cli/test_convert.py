@@ -9,7 +9,7 @@ def test_convert_help():
     runner = CliRunner()
     result = runner.invoke(cli, ["convert", "--help"])
     assert result.exit_code == 0
-    assert "格式转换命令组" in result.output
+    assert "Format conversion command group" in result.output
 
 
 def test_convert_yolo2coco_help():
@@ -17,7 +17,7 @@ def test_convert_yolo2coco_help():
     runner = CliRunner()
     result = runner.invoke(cli, ["convert", "yolo2coco", "--help"])
     assert result.exit_code == 0
-    assert "YOLO格式转COCO格式" in result.output
+    assert "Convert YOLO format to COCO format" in result.output
 
 
 def test_convert_yolo2labelme_help():
@@ -25,7 +25,7 @@ def test_convert_yolo2labelme_help():
     runner = CliRunner()
     result = runner.invoke(cli, ["convert", "yolo2labelme", "--help"])
     assert result.exit_code == 0
-    assert "YOLO格式转LabelMe格式" in result.output
+    assert "Convert YOLO format to LabelMe format" in result.output
 
 
 def test_convert_coco2yolo_help():
@@ -33,7 +33,7 @@ def test_convert_coco2yolo_help():
     runner = CliRunner()
     result = runner.invoke(cli, ["convert", "coco2yolo", "--help"])
     assert result.exit_code == 0
-    assert "COCO格式转YOLO格式" in result.output
+    assert "Convert COCO format to YOLO format" in result.output
 
 
 def test_convert_coco2labelme_help():
@@ -41,7 +41,7 @@ def test_convert_coco2labelme_help():
     runner = CliRunner()
     result = runner.invoke(cli, ["convert", "coco2labelme", "--help"])
     assert result.exit_code == 0
-    assert "COCO格式转LabelMe格式" in result.output
+    assert "Convert COCO format to LabelMe format" in result.output
 
 
 def test_convert_labelme2yolo_help():
@@ -49,7 +49,7 @@ def test_convert_labelme2yolo_help():
     runner = CliRunner()
     result = runner.invoke(cli, ["convert", "labelme2yolo", "--help"])
     assert result.exit_code == 0
-    assert "LabelMe格式转YOLO格式" in result.output
+    assert "Convert LabelMe format to YOLO format" in result.output
 
 
 def test_convert_labelme2coco_help():
@@ -57,4 +57,4 @@ def test_convert_labelme2coco_help():
     runner = CliRunner()
     result = runner.invoke(cli, ["convert", "labelme2coco", "--help"])
     assert result.exit_code == 0
-    assert "LabelMe格式转COCO格式" in result.output
+    assert "Convert LabelMe format to COCO format" in result.output
