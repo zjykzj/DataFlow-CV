@@ -59,10 +59,10 @@ Visualizers support both display and save modes, with automatic detection of ann
 pip install .
 
 # Editable installation (development)
-python setup.py develop
+pip install -e .
 ```
 
-**Note**: `pip install -e .` may not work due to setuptools compatibility issues; use `python setup.py develop` instead. With editable installation, use `python -m dataflow.cli` instead of the `dataflow-cv` command.
+**Note**: With editable installation, use `python -m dataflow.cli` instead of the `dataflow-cv` command.
 
 ### Testing
 ```bash
@@ -80,7 +80,7 @@ pytest -v
 ```
 
 ### Linting and Formatting
-Development dependencies are defined in `setup.py` extras_require['dev']:
+Development dependencies are defined in `pyproject.toml` project.optional-dependencies['dev']:
 ```bash
 # Install development dependencies
 pip install -e .[dev]

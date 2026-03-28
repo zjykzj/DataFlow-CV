@@ -17,6 +17,30 @@ A computer vision dataset processing library for seamless format conversion and 
 - **Verbose Logging**: Detailed logging with file output for debugging
 - **Cross-platform**: Full support for Windows, Linux, and macOS
 
+## Table of Contents
+
+- [DataFlow-CV](#dataflow-cv)
+  - [Features](#features)
+  - [Table of Contents](#table-of-contents)
+  - [Installation](#installation)
+    - [From PyPI](#from-pypi)
+    - [From Source](#from-source)
+    - [Optional Dependencies](#optional-dependencies)
+  - [Quick Start](#quick-start)
+    - [Command-line Interface](#command-line-interface)
+      - [Format Conversion](#format-conversion)
+      - [Visualization](#visualization)
+    - [Python API](#python-api)
+  - [Documentation](#documentation)
+    - [Key Concepts](#key-concepts)
+  - [Development](#development)
+    - [Testing](#testing)
+    - [Linting and Formatting](#linting-and-formatting)
+    - [Project Structure](#project-structure)
+  - [Contributing](#contributing)
+  - [License](#license)
+  - [Acknowledgments](#acknowledgments)
+
 ## Installation
 
 ### From PyPI
@@ -34,10 +58,10 @@ cd DataFlow-CV
 pip install .
 
 # Editable installation (for development)
-python setup.py develop
+pip install -e .
 ```
 
-**Note**: For editable installation, use `python setup.py develop` instead of `pip install -e .` due to setuptools compatibility. When installed in editable mode, use `python -m dataflow.cli` instead of the `dataflow-cv` command.
+**Note**: When installed in editable mode, use `python -m dataflow.cli` instead of the `dataflow-cv` command.
 
 ### Optional Dependencies
 - `pycocotools`: Required for COCO RLE segmentation support
