@@ -90,7 +90,7 @@ dataflow-cv convert labelme2yolo labelme-json/ yolo-labels/ \
   --class-file classes.txt
 
 # Enable verbose logging
-dataflow-cv --verbose --log-dir ./logs convert yolo2coco ...
+dataflow-cv convert yolo2coco --verbose --log-dir ./logs ...
 ```
 
 #### Visualization
@@ -162,6 +162,7 @@ See the `samples/` directory for complete examples:
 - **Verbose Logging**: Detailed debug logs saved to files when `--verbose` is used
 
 ## Development
+For detailed developer guidance including advanced test commands, debugging, and architecture overview, see [CLAUDE.md](CLAUDE.md).
 
 ### Testing
 ```bash
@@ -209,6 +210,8 @@ assets/             # Sample data for testing
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+Before contributing, review [CLAUDE.md](CLAUDE.md) for architecture and development patterns.
 
 1. Fork the repository
 2. Create a feature branch

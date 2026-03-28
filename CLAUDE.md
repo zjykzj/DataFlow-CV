@@ -77,7 +77,53 @@ pytest tests/convert/test_yolo_and_coco.py
 
 # Run tests with verbose output
 pytest -v
+
+# Run specific test class
+pytest tests/label/test_yolo.py::TestYoloAnnotationHandler
+
+# Run specific test method
+pytest tests/label/test_yolo.py::TestYoloAnnotationHandler::test_read_detection
+
+# Run tests with coverage report (HTML)
+pytest --cov=dataflow --cov-report=html
+
+# Run tests in parallel
+pytest -n auto
+
+# Run tests with markers (exclude slow tests)
+pytest -m "not slow"
+
+# Run tests and generate JUnit XML report (for CI)
+pytest --junitxml=test-results.xml
 ```
+
+### Debugging Conversion Issues
+
+```bash
+# Enable verbose logging for debugging
+dataflow-cv convert yolo2coco --verbose --log-dir ./logs ...
+
+# Check log files in logs/ directory
+ls -la logs/
+
+# Run conversion with strict mode disabled to see warnings
+dataflow-cv --skip-errors convert yolo2coco ...
+
+# Use Python API with verbose mode for detailed inspection
+python -c "from dataflow.convert import YoloAndCocoConverter; converter = YoloAndCocoConverter(verbose=True); result = converter.convert(...); print(result)"
+```
+
+### Adding New Format Support
+
+To add support for a new annotation format:
+
+1. **Extend `BaseAnnotationHandler`** in `dataflow/label/`
+2. **Add to `AnnotationFormat` enum** in `models.py`
+3. **Create corresponding converter** in `dataflow/convert/`
+4. **Add visualizer** in `dataflow/visualize/`
+5. **Update CLI commands** in `dataflow/cli/commands/`
+
+Refer to existing implementations (YOLO, LabelMe, COCO) for patterns.
 
 ### Linting and Formatting
 Development dependencies are defined in `pyproject.toml` project.optional-dependencies['dev']:
@@ -126,7 +172,7 @@ dataflow-cv convert coco2yolo annotations_trainval2017/ yolo-labels/ --image-dir
 dataflow-cv convert labelme2yolo labelme-json/ yolo-labels/ --image-dir images/ --class-file classes.txt
 
 # With verbose logging
-dataflow-cv --verbose convert yolo2coco ... --log-dir ./logs
+dataflow-cv convert yolo2coco --verbose --log-dir ./logs ...
 ```
 
 ### Visualization
@@ -168,15 +214,72 @@ See `samples/` directory for comprehensive examples:
 - This enables converting A→B→A without precision loss
 
 ### Coordinate System
-- Internal coordinates are normalized (0-1 range)
-- Handlers convert between absolute pixel coordinates and normalized coordinates
-- Bounding boxes use center-x, center-y, width, height (YOLO format)
-- Segmentation polygons are lists of normalized (x, y) points
+
+- **Normalized Coordinates**: All internal coordinates are 0-1 normalized
+- **Conversion**: Handlers convert between normalized and absolute pixel coordinates
+- **Bounding Boxes**: Center-x, center-y, width, height (YOLO format)
+- **Segmentation**: Lists of normalized (x, y) points
+- **Example**: Pixel coordinate (x=320, y=240) in 640×480 image → normalized (0.5, 0.5)
+- **Preservation**: Original coordinates stored in `OriginalData` for lossless round-trip conversion
 
 ### Error Handling
 - Operations return `AnnotationResult` or `ConversionResult` with success flag, messages, errors, warnings
 - CLI commands raise `RuntimeCLIError` for user-facing errors
 - Use `validate_inputs()` pattern in converters
+
+### Data Flow Pattern
+
+1. **Handlers** (`dataflow/label/`) read/write specific formats to/from the internal `DatasetAnnotations` model
+2. **Converters** (`dataflow/convert/`) orchestrate: source handler → convert → target handler
+3. **Visualizers** (`dataflow/visualize/`) display or save annotated images
+4. **Utilities** (`dataflow/util/`) provide cross-cutting concerns (logging, file operations)
+
+
+### Result Objects Pattern
+
+- `AnnotationResult` and `ConversionResult` provide structured error handling
+- Contains success flag, messages, errors, warnings lists
+- Allows operations to continue in non-strict mode while collecting issues
+- Used throughout handlers, converters, and visualizers
+
+## Troubleshooting
+
+### Editable Installation Quirk
+- With editable installation (`pip install -e .`), use `python -m dataflow.cli` instead of `dataflow-cv` command
+- This is because entry point scripts may not be properly linked in development mode
+
+### Path Handling Issues
+- Use `pathlib.Path` for cross-platform compatibility
+- Ensure image directories exist before conversion
+- Relative paths are resolved relative to the current working directory
+
+### Log File Locations
+- With `--verbose` flag, log files are created in `logs/` directory (default)
+- Custom log directory can be specified with `--log-dir`
+- Log files have timestamped names (e.g., `log_20260324_222035.log`)
+- Files contain DEBUG details including filename/line numbers
+
+### COCO RLE Support
+- Requires optional dependency `pycocotools`
+- Install with `pip install dataflow-cv[coco]` or `pip install pycocotools`
+- Without it, COCO segmentation conversions will fall back to polygon format
+
+## Dependency Management
+
+### Core Dependencies
+- `numpy>=1.24.0`
+- `opencv-python>=4.6.0.66`
+- `click>=7.0.0`
+
+### Optional Dependencies
+- `pycocotools>=2.0.0`: Required for COCO RLE segmentation support
+  - Install with `pip install dataflow-cv[coco]` or `pip install pycocotools`
+- Without pycocotools, COCO segmentation conversions fall back to polygon format
+
+### Development Dependencies
+- Defined in `pyproject.toml` project.optional-dependencies['dev']
+- Install with `pip install -e .[dev]`
+- Includes pytest, black, isort, flake8, mypy, pylint
 
 ## Notes for Contributors
 
@@ -185,10 +288,27 @@ See `samples/` directory for comprehensive examples:
 - All file paths should use `pathlib.Path` for cross-platform compatibility
 - Chinese comments are present in some files; maintain bilingual clarity where appropriate
 - Follow existing patterns for adding new format handlers or converters
-- The actual LLM used for this project is DeepSeek-V3.2; do not use `Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>` in commit messages
+- The actual LLM used for this project is DeepSeek-V3.2; use `Co-Authored-By: DeepSeek-V3.2 <noreply@deepseek.com>` in commit messages
 - When modifying logging behavior, ensure both console and file logging work correctly in verbose mode
 
 ## Related Documentation
-- `CHANGELOG.md`: Version history and breaking changes
-- `docs/specs/`: Detailed specifications for each module
+
+### Specifications
+- `docs/specs/`: Detailed specifications for each module (in Chinese)
+  - `specs_for_label.md`: Label module specification
+  - `specs_for_convert.md`: Converter specification
+  - `specs_for_visualize.md`: Visualizer specification
+
+### Examples
+- `samples/`: Comprehensive usage examples
+  - `samples/visualize/`: Visualization demos
+  - `samples/convert/`: Conversion examples
+  - `samples/label/`: Handler usage examples
+  - `samples/cli/`: CLI usage patterns
+
+### Test Data
 - `assets/`: Sample data for testing and demonstrations
+  - `assets/test_data/`: Organized by format (det/seg) and annotation type
+
+### Project History
+- `CHANGELOG.md`: Version history and breaking changes
