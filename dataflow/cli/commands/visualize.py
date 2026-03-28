@@ -3,9 +3,48 @@
 import click
 from pathlib import Path
 from typing import Optional
+from functools import wraps
 
-from dataflow.cli.commands.utils import validate_visualize_params, add_common_options
+from dataflow.cli.commands.utils import validate_visualize_params
 from dataflow.cli.exceptions import RuntimeCLIError
+from dataflow.util.logging_util import LoggingOperations, VerboseLoggingOperations
+
+
+def add_visualize_options(func):
+    """Decorator: add visualize-specific options (--verbose only)"""
+    @click.option(
+        "--verbose",
+        is_flag=True,
+        help="Enable verbose log output and save to logs/ directory",
+    )
+    @click.pass_context
+    @wraps(func)
+    def wrapper(ctx, verbose, *args, **kwargs):
+        import sys
+        print(f"DEBUG wrapper called: ctx={ctx}, verbose={verbose}, args={args}, kwargs={kwargs}", file=sys.stderr)
+        # Update options in context object
+        ctx.obj["verbose"] = verbose
+        # Use default log directory
+        log_dir = Path("./logs")
+        ctx.obj["log_dir"] = log_dir
+        # Strict mode is always True (no option)
+        ctx.obj["strict"] = True
+
+        # Reconfigure logging (based on verbose flag)
+        if verbose:
+            logger = VerboseLoggingOperations().get_verbose_logger(
+                name=ctx.command.name,
+                verbose=True,
+                log_dir=log_dir,
+            )
+        else:
+            logger = LoggingOperations().get_logger(ctx.command.name)
+        ctx.obj["logger"] = logger
+
+        logger.debug(f"Subcommand context updated: verbose={verbose}, log_dir={log_dir}")
+        # Call original function, passing ctx as first argument
+        return func(ctx, *args, **kwargs)
+    return wrapper
 
 
 @click.group(name="visualize")
@@ -15,37 +54,22 @@ def visualize_group():
 
 
 @visualize_group.command()
-@add_common_options
+@add_visualize_options
 @click.argument("image_dir", type=click.Path(exists=True, path_type=Path))
 @click.argument("label_dir", type=click.Path(exists=True, path_type=Path))
 @click.argument("class_file", type=click.Path(exists=True, path_type=Path))
 @click.option(
-    "--output-dir",
-    "-o",
+    "--save",
+    "-s",
     type=click.Path(path_type=Path),
     help="Directory to save visualization results",
 )
-@click.option("--display", "-d", is_flag=True, help="Display results interactively")
-@click.option(
-    "--save", "-s", is_flag=True, default=True, help="Save visualization results to files"
-)
-@click.option(
-    "--color-scheme",
-    type=click.Choice(["random", "category", "consistent"]),
-    default="random",
-    help="Color scheme: random/category/consistent",
-)
-@click.option("--thickness", type=int, default=2, help="Bounding box/polygon line thickness")
 def yolo(
     ctx,
     image_dir: Path,
     label_dir: Path,
     class_file: Path,
-    output_dir: Optional[Path],
-    display: bool,
-    save: bool,
-    color_scheme: str,
-    thickness: int,
+    save: Optional[Path],
 ):
     """Visualize YOLO format labels"""
     from dataflow.visualize.yolo_visualizer import YOLOVisualizer
@@ -57,16 +81,16 @@ def yolo(
     logger.info(f"Starting visualization of YOLO labels: image_dir={image_dir}, label_dir={label_dir}")
 
     # Parameter validation
-    validate_visualize_params(label_dir, image_dir, output_dir)
+    validate_visualize_params(label_dir, image_dir, save)
 
     # Call existing API
     visualizer = YOLOVisualizer(
         label_dir=label_dir,
         image_dir=image_dir,
         class_file=class_file,
-        output_dir=output_dir,
-        is_show=display,
-        is_save=save,
+        output_dir=save,
+        is_show=False,  # Don't display, only save if output directory provided
+        is_save=save is not None,
         strict_mode=strict,
         verbose=verbose,
         logger=logger,
@@ -81,35 +105,20 @@ def yolo(
 
 
 @visualize_group.command()
-@add_common_options
+@add_visualize_options
 @click.argument("image_dir", type=click.Path(exists=True, path_type=Path))
 @click.argument("coco_file", type=click.Path(exists=True, path_type=Path))
 @click.option(
-    "--output-dir",
-    "-o",
+    "--save",
+    "-s",
     type=click.Path(path_type=Path),
     help="Directory to save visualization results",
 )
-@click.option("--display", "-d", is_flag=True, help="Display results interactively")
-@click.option(
-    "--save", "-s", is_flag=True, default=True, help="Save visualization results to files",
-)
-@click.option(
-    "--color-scheme",
-    type=click.Choice(["random", "category", "consistent"]),
-    default="random",
-    help="Color scheme: random/category/consistent",
-)
-@click.option("--thickness", type=int, default=2, help="Bounding box/polygon line thickness")
 def coco(
     ctx,
     image_dir: Path,
     coco_file: Path,
-    output_dir: Optional[Path],
-    display: bool,
-    save: bool,
-    color_scheme: str,
-    thickness: int,
+    save: Optional[Path],
 ):
     """Visualize COCO format labels"""
     from dataflow.visualize.coco_visualizer import COCOVisualizer
@@ -121,15 +130,15 @@ def coco(
     logger.info(f"Starting visualization of COCO labels: {coco_file}")
 
     # Parameter validation
-    validate_visualize_params(coco_file, image_dir, output_dir)
+    validate_visualize_params(coco_file, image_dir, save)
 
     # Call existing API
     visualizer = COCOVisualizer(
         annotation_file=coco_file,
         image_dir=image_dir,
-        output_dir=output_dir,
-        is_show=display,
-        is_save=save,
+        output_dir=save,
+        is_show=False,  # Don't display, only save if output directory provided
+        is_save=save is not None,
         strict_mode=strict,
         verbose=verbose,
         logger=logger,
@@ -144,35 +153,20 @@ def coco(
 
 
 @visualize_group.command()
-@add_common_options
+@add_visualize_options
 @click.argument("image_dir", type=click.Path(exists=True, path_type=Path))
 @click.argument("label_dir", type=click.Path(exists=True, path_type=Path))
 @click.option(
-    "--output-dir",
-    "-o",
+    "--save",
+    "-s",
     type=click.Path(path_type=Path),
     help="Directory to save visualization results",
 )
-@click.option("--display", "-d", is_flag=True, help="Display results interactively")
-@click.option(
-    "--save", "-s", is_flag=True, default=True, help="Save visualization results to files",
-)
-@click.option(
-    "--color-scheme",
-    type=click.Choice(["random", "category", "consistent"]),
-    default="random",
-    help="Color scheme: random/category/consistent",
-)
-@click.option("--thickness", type=int, default=2, help="Bounding box/polygon line thickness")
 def labelme(
     ctx,
     image_dir: Path,
     label_dir: Path,
-    output_dir: Optional[Path],
-    display: bool,
-    save: bool,
-    color_scheme: str,
-    thickness: int,
+    save: Optional[Path],
 ):
     """Visualize LabelMe format labels"""
     from dataflow.visualize.labelme_visualizer import LabelMeVisualizer
@@ -184,15 +178,15 @@ def labelme(
     logger.info(f"Starting visualization of LabelMe labels: {label_dir}")
 
     # Parameter validation
-    validate_visualize_params(label_dir, image_dir, output_dir)
+    validate_visualize_params(label_dir, image_dir, save)
 
     # Call existing API
     visualizer = LabelMeVisualizer(
         label_dir=label_dir,
         image_dir=image_dir,
-        output_dir=output_dir,
-        is_show=display,
-        is_save=save,
+        output_dir=save,
+        is_show=False,  # Don't display, only save if output directory provided
+        is_save=save is not None,
         strict_mode=strict,
         verbose=verbose,
         logger=logger,
