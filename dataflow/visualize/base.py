@@ -278,7 +278,7 @@ class BaseVisualizer(ABC):
                 f"Successfully visualized {processed_count}/"
                 f"{len(annotations.images)} images"
             )
-            result.data = {"processed_count": processed_count}
+            result.data = {"processed_count": processed_count, "processed_images": processed_count}
 
             # Record summary
             self.summary_data["end_time"] = datetime.datetime.now()

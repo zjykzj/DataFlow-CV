@@ -396,9 +396,19 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                         continue
 
             # Create image annotation
+            # Store relative path to image_dir for consistent path handling
+            try:
+                relative_image_path = image_path.relative_to(self.image_dir)
+                image_path_str = str(relative_image_path)
+            except ValueError:
+                # If image_path is not relative to image_dir, store the full path
+                # This might happen if paths are in different directories
+                image_path_str = str(image_path)
+                self._log_warning(f"Image path {image_path} is not relative to image directory {self.image_dir}")
+
             image_ann = ImageAnnotation(
                 image_id=image_stem,
-                image_path=str(image_path),
+                image_path=image_path_str,
                 width=img_width,
                 height=img_height,
                 objects=objects,
