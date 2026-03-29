@@ -60,8 +60,9 @@ def demo_yolo_to_coco():
     print("="*60)
 
     yolo_dir = project_root / "assets" / "test_data" / "seg" / "yolo"
+    label_dir = yolo_dir / "labels"
     class_file = yolo_dir / "classes.txt"
-    image_dir = project_root / "assets" / "test_data" / "seg" / "yolo" / "images"
+    image_dir = yolo_dir / "images"
     output_file = project_root / "temp_output" / "convert" / "yolo_to_coco.json"
 
     # 清理旧输出文件
@@ -70,10 +71,10 @@ def demo_yolo_to_coco():
 
     cmd = [
         "convert", "yolo2coco",
-        str(yolo_dir),
-        str(output_file),
-        "--class-file", str(class_file),
-        "--image-dir", str(image_dir),
+        str(image_dir),     # IMAGE_DIR (positional)
+        str(label_dir),     # LABEL_DIR (positional)
+        str(class_file),    # CLASS_FILE (positional)
+        str(output_file),   # OUTPUT_FILE (positional)
         "--verbose"
     ]
 
@@ -100,8 +101,9 @@ def demo_yolo_to_labelme():
     print("="*60)
 
     yolo_dir = project_root / "assets" / "test_data" / "seg" / "yolo"
+    label_dir = yolo_dir / "labels"
     class_file = yolo_dir / "classes.txt"
-    image_dir = project_root / "assets" / "test_data" / "seg" / "yolo" / "images"
+    image_dir = yolo_dir / "images"
     output_dir = project_root / "temp_output" / "convert" / "yolo_to_labelme"
 
     # 清理旧输出目录
@@ -111,10 +113,10 @@ def demo_yolo_to_labelme():
 
     cmd = [
         "convert", "yolo2labelme",
-        str(yolo_dir),
-        str(output_dir),
-        "--class-file", str(class_file),
-        "--image-dir", str(image_dir),
+        str(image_dir),     # IMAGE_DIR (positional)
+        str(label_dir),     # LABEL_DIR (positional)
+        str(class_file),    # CLASS_FILE (positional)
+        str(output_dir),    # OUTPUT_DIR (positional)
         "--verbose"
     ]
 
@@ -146,9 +148,8 @@ def demo_coco_to_yolo():
 
     cmd = [
         "convert", "coco2yolo",
-        str(coco_file),
-        str(output_dir),
-        "--image-dir", str(image_dir),
+        str(coco_file),    # COCO_FILE (positional)
+        str(output_dir),   # OUTPUT_DIR (positional)
         "--verbose"
     ]
 
@@ -180,9 +181,8 @@ def demo_coco_to_labelme():
 
     cmd = [
         "convert", "coco2labelme",
-        str(coco_file),
-        str(output_dir),
-        "--image-dir", str(image_dir),
+        str(coco_file),    # COCO_FILE (positional)
+        str(output_dir),   # OUTPUT_DIR (positional)
         "--verbose"
     ]
 
@@ -204,6 +204,7 @@ def demo_labelme_to_yolo():
     print("="*60)
 
     labelme_dir = project_root / "assets" / "test_data" / "seg" / "labelme"
+    class_file = labelme_dir / "classes.txt"
     output_dir = project_root / "temp_output" / "convert" / "labelme_to_yolo"
 
     # 清理旧输出目录
@@ -213,8 +214,9 @@ def demo_labelme_to_yolo():
 
     cmd = [
         "convert", "labelme2yolo",
-        str(labelme_dir),
-        str(output_dir),
+        str(labelme_dir),  # LABELME_DIR (positional)
+        str(class_file),   # CLASS_FILE (positional)
+        str(output_dir),   # OUTPUT_DIR (positional)
         "--verbose"
     ]
 
@@ -236,6 +238,7 @@ def demo_labelme_to_coco():
     print("="*60)
 
     labelme_dir = project_root / "assets" / "test_data" / "seg" / "labelme"
+    class_file = labelme_dir / "classes.txt"
     output_file = project_root / "temp_output" / "convert" / "labelme_to_coco.json"
 
     # 清理旧输出文件
@@ -244,8 +247,9 @@ def demo_labelme_to_coco():
 
     cmd = [
         "convert", "labelme2coco",
-        str(labelme_dir),
-        str(output_file),
+        str(labelme_dir),  # LABELME_DIR (positional)
+        str(class_file),   # CLASS_FILE (positional)
+        str(output_file),  # OUTPUT_FILE (positional)
         "--verbose"
     ]
 
@@ -304,12 +308,12 @@ def main():
         print("✓ 所有演示都成功完成!")
         print(f"转换结果保存在: {project_root / 'temp_output' / 'convert'}")
         print("\n您可以使用以下命令手动测试:")
-        print("  dataflow-cv convert yolo2coco assets/test_data/seg/yolo ./output.json --class-file assets/test_data/seg/yolo/classes.txt --image-dir assets/test_data/seg/yolo/images")
-        print("  dataflow-cv convert yolo2labelme assets/test_data/seg/yolo ./output --class-file assets/test_data/seg/yolo/classes.txt --image-dir assets/test_data/seg/yolo/images")
-        print("  dataflow-cv convert coco2yolo assets/test_data/seg/coco/annotations.json ./output --image-dir assets/test_data/seg/coco/images")
-        print("  dataflow-cv convert coco2labelme assets/test_data/seg/coco/annotations.json ./output --image-dir assets/test_data/seg/coco/images")
-        print("  dataflow-cv convert labelme2yolo assets/test_data/seg/labelme ./output")
-        print("  dataflow-cv convert labelme2coco assets/test_data/seg/labelme ./output.json")
+        print("  dataflow-cv convert yolo2coco assets/test_data/seg/yolo/images assets/test_data/seg/yolo/labels assets/test_data/seg/yolo/classes.txt ./output.json")
+        print("  dataflow-cv convert yolo2labelme assets/test_data/seg/yolo/images assets/test_data/seg/yolo/labels assets/test_data/seg/yolo/classes.txt ./output")
+        print("  dataflow-cv convert coco2yolo assets/test_data/seg/coco/annotations.json ./output")
+        print("  dataflow-cv convert coco2labelme assets/test_data/seg/coco/annotations.json ./output")
+        print("  dataflow-cv convert labelme2yolo assets/test_data/seg/labelme assets/test_data/seg/labelme/classes.txt ./output")
+        print("  dataflow-cv convert labelme2coco assets/test_data/seg/labelme assets/test_data/seg/labelme/classes.txt ./output.json")
         return 0
     else:
         print("✗ 部分演示失败，请检查错误信息")

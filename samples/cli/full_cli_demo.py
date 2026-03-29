@@ -109,10 +109,10 @@ def step2_yolo_to_coco():
 
     cmd = [
         "convert", "yolo2coco",
-        str(yolo_dir / "labels"),  # YOLO label directory
-        str(output_file),
-        "--class-file", str(class_file),
-        "--image-dir", str(image_dir),
+        str(image_dir),     # IMAGE_DIR (positional)
+        str(yolo_dir / "labels"),  # LABEL_DIR (positional)
+        str(class_file),    # CLASS_FILE (positional)
+        str(output_file),   # OUTPUT_FILE (positional)
         "--verbose"
     ]
 
@@ -173,9 +173,8 @@ def step4_coco_to_yolo(coco_file):
 
     cmd = [
         "convert", "coco2yolo",
-        str(coco_file),
-        str(output_dir),
-        "--image-dir", str(image_dir),
+        str(coco_file),    # COCO_FILE (positional)
+        str(output_dir),   # OUTPUT_DIR (positional)
         "--verbose"
     ]
 

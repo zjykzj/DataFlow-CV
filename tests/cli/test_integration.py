@@ -27,13 +27,10 @@ def test_yolo2coco_integration():
             [
                 "convert",
                 "yolo2coco",
-                str(yolo_labels_dir),
-                str(output_file),
-                "--image-dir",
-                str(yolo_images_dir),
-                "--class-file",
-                str(yolo_classes_file),
-                "--skip-errors",  # Use skip-errors to avoid test failures
+                str(yolo_images_dir),    # IMAGE_DIR (positional)
+                str(yolo_labels_dir),    # LABEL_DIR (positional)
+                str(yolo_classes_file),  # CLASS_FILE (positional)
+                str(output_file),        # OUTPUT_FILE (positional)
             ]
         )
 
@@ -73,18 +70,18 @@ def test_coco_visualize_integration():
         output_dir = tmpdir_path / "visualization_output"
 
         # Run coco visualize command (save only, no display)
+        # Note: visualize coco command now takes IMAGE_DIR and COCO_FILE as positional arguments
         result = runner.invoke(
             cli,
             [
                 "visualize",
                 "coco",
-                str(coco_annotations),
-                "--image-dir",
-                str(coco_images_dir),
-                "--output-dir",
-                str(output_dir),
+                str(coco_images_dir),  # IMAGE_DIR (positional)
+                str(coco_annotations),  # COCO_FILE (positional)
                 "--save",
-                "--no-display",  # Note: our CLI uses --display flag, not --no-display
+                str(output_dir),  # output directory for --save
+                # Note: --display flag is not used, default is to display
+                # Use --no-display if the visualizer supports it, but our CLI doesn't have that flag
             ]
         )
 
@@ -125,13 +122,9 @@ def test_labelme2yolo_integration():
             [
                 "convert",
                 "labelme2yolo",
-                str(labelme_dir),
-                str(output_dir),
-                "--image-dir",
-                str(labelme_dir),  # Images are in the same directory as JSON files
-                "--class-file",
-                str(class_file),
-                "--skip-errors",
+                str(labelme_dir),   # LABELME_DIR (positional)
+                str(class_file),    # CLASS_FILE (positional)
+                str(output_dir),    # OUTPUT_DIR (positional)
             ]
         )
 
@@ -163,8 +156,10 @@ def test_cli_error_handling():
         [
             "convert",
             "yolo2coco",
-            "/nonexistent/path",
-            "/tmp/output.json",
+            "/nonexistent/image_dir",   # IMAGE_DIR (invalid)
+            "/nonexistent/label_dir",   # LABEL_DIR (invalid)
+            "/nonexistent/class.txt",   # CLASS_FILE (invalid)
+            "/tmp/output.json",         # OUTPUT_FILE
         ]
     )
 
@@ -197,7 +192,7 @@ def test_cli_error_handling():
                 "visualize",
                 "yolo",
                 str(test_dir),
-                # Missing --class-file
+                # Missing label_dir and class_file arguments (visualize yolo requires 3 positional arguments)
             ]
         )
 

@@ -147,20 +147,16 @@ class FormattedCommand(click.Command):
             return
 
         with formatter.section("Arguments"):
-            # 计算最大参数名长度以便对齐
-            max_length = 0
-            param_items = []
+            # 创建参数名和帮助文本的列表，用于formatter.write_dl
+            # write_dl会自动对齐，与Options使用相同的机制
+            rows = []
             for param in args:
                 param_name = param.make_metavar()
                 help_text = self._get_argument_help(param.name) if hasattr(param, 'name') else ""
-                max_length = max(max_length, len(param_name))
-                param_items.append((param_name, help_text))
+                rows.append((param_name, help_text))
 
-            # 使用固定格式输出，模仿Options的对齐
-            for param_name, help_text in param_items:
-                # 参数名左对齐，后面跟两个空格，然后是描述
-                # 使用与Options类似的格式（左对齐）
-                formatter.write_text(f"  {param_name:<{max_length}}  {help_text}")
+            # 使用write_dl获得与Options一致的对齐效果
+            formatter.write_dl(rows)
 
     def _get_argument_help(self, param_name):
         """根据参数名获取帮助文本"""
