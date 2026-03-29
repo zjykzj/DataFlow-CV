@@ -88,6 +88,8 @@ def validate_convert_params(
     class_file: Optional[Path],
 ) -> Tuple[Path, Path, Optional[Path], Optional[Path]]:
     """Validate conversion parameters"""
+    from dataflow.cli.exceptions import InputError
+
     input_path = validate_path_exists(input_path, "input path")
 
     # Ensure output directory exists
@@ -95,6 +97,26 @@ def validate_convert_params(
         output_path.parent.mkdir(parents=True, exist_ok=True)
     else:  # Is a directory
         output_path.mkdir(parents=True, exist_ok=True)
+
+    # Check required parameters based on conversion direction
+    if source_format == "yolo" and target_format == "coco":
+        if not image_dir:
+            raise InputError("--image-dir is required for YOLO→COCO conversion")
+        if not class_file:
+            raise InputError("--class-file is required for YOLO→COCO conversion")
+    elif source_format == "yolo" and target_format == "labelme":
+        if not image_dir:
+            raise InputError("--image-dir is required for YOLO→LabelMe conversion")
+        if not class_file:
+            raise InputError("--class-file is required for YOLO→LabelMe conversion")
+    elif source_format == "labelme" and target_format == "coco":
+        if not class_file:
+            raise InputError("--class-file is required for LabelMe→COCO conversion")
+    elif source_format == "labelme" and target_format == "yolo":
+        if not class_file:
+            raise InputError("--class-file is required for LabelMe→YOLO conversion")
+    # For coco→yolo: both optional
+    # For coco→labelme: both optional
 
     if image_dir:
         image_dir = validate_path_exists(image_dir, "image directory")
