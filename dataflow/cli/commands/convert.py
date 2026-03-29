@@ -17,24 +17,14 @@ def convert_group():
 
 @convert_group.command()
 @add_common_options
-@click.argument("image_dir", type=click.Path(exists=True, path_type=Path))
-@click.argument("label_dir", type=click.Path(exists=True, path_type=Path))
-@click.argument("class_file", type=click.Path(exists=True, path_type=Path))
-@click.argument("output_file", type=click.Path(path_type=Path))
+@click.argument("image_dir", type=click.Path(exists=True, path_type=Path), metavar="IMAGE_DIR")
+@click.argument("label_dir", type=click.Path(exists=True, path_type=Path), metavar="LABEL_DIR")
+@click.argument("class_file", type=click.Path(exists=True, path_type=Path), metavar="CLASS_FILE")
+@click.argument("output_file", type=click.Path(path_type=Path), metavar="OUTPUT_FILE")
 @click.option(
     "--do-rle",
     is_flag=True,
     help="Use RLE encoding for COCO format",
-)
-@click.option(
-    "--category-mapping",
-    type=click.Path(path_type=Path),
-    help="Custom category mapping file (JSON format)",
-)
-@click.option(
-    "--skip-errors",
-    is_flag=True,
-    help="Skip errors and continue processing (lenient mode)",
 )
 def yolo2coco(
     ctx,
@@ -43,8 +33,6 @@ def yolo2coco(
     class_file: Path,
     output_file: Path,
     do_rle: bool,
-    category_mapping: Optional[Path],
-    skip_errors: bool,
 ):
     """Convert YOLO format to COCO format
 
@@ -58,19 +46,12 @@ def yolo2coco(
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
-    strict = ctx.obj["strict"] and not skip_errors  # Combine global strict and local skip-errors
+    strict = ctx.obj["strict"]  # Use global strict mode (default True)
 
     logger.info(f"Starting conversion ofYOLOtoCOCO: {label_dir} -> {output_file}")
 
     # Parameter validation
     validate_convert_params("yolo", "coco", label_dir, output_file, image_dir, class_file)
-
-    # Load category mapping
-    category_mapping_dict = None
-    if category_mapping:
-        category_mapping = validate_path_exists(category_mapping, "category mapping file")
-        with open(category_mapping, "r", encoding="utf-8") as f:
-            category_mapping_dict = json.load(f)
 
     # Call existing API
     converter = YoloAndCocoConverter(source_to_target=True, verbose=verbose, strict_mode=strict)
@@ -80,7 +61,7 @@ def yolo2coco(
         class_file=str(class_file),
         image_dir=str(image_dir),
         do_rle=do_rle,
-        category_mapping=category_mapping_dict,
+        category_mapping=None,
     )
 
     if result.success:
@@ -94,28 +75,16 @@ def yolo2coco(
 
 @convert_group.command()
 @add_common_options
-@click.argument("image_dir", type=click.Path(exists=True, path_type=Path))
-@click.argument("label_dir", type=click.Path(exists=True, path_type=Path))
-@click.argument("class_file", type=click.Path(exists=True, path_type=Path))
-@click.argument("output_dir", type=click.Path(path_type=Path))
-@click.option(
-    "--category-mapping",
-    type=click.Path(path_type=Path),
-    help="Custom category mapping file (JSON format)",
-)
-@click.option(
-    "--skip-errors",
-    is_flag=True,
-    help="Skip errors and continue processing (lenient mode)",
-)
+@click.argument("image_dir", type=click.Path(exists=True, path_type=Path), metavar="IMAGE_DIR")
+@click.argument("label_dir", type=click.Path(exists=True, path_type=Path), metavar="LABEL_DIR")
+@click.argument("class_file", type=click.Path(exists=True, path_type=Path), metavar="CLASS_FILE")
+@click.argument("output_dir", type=click.Path(path_type=Path), metavar="OUTPUT_DIR")
 def yolo2labelme(
     ctx,
     image_dir: Path,
     label_dir: Path,
     class_file: Path,
     output_dir: Path,
-    category_mapping: Optional[Path],
-    skip_errors: bool,
 ):
     """Convert YOLO format to LabelMe format
 
@@ -129,19 +98,12 @@ def yolo2labelme(
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
-    strict = ctx.obj["strict"] and not skip_errors
+    strict = ctx.obj["strict"]
 
     logger.info(f"Starting conversion ofYOLOtoLabelMe: {label_dir} -> {output_dir}")
 
     # Parameter validation
     validate_convert_params("yolo", "labelme", label_dir, output_dir, image_dir, class_file)
-
-    # Load category mapping
-    category_mapping_dict = None
-    if category_mapping:
-        category_mapping = validate_path_exists(category_mapping, "category mapping file")
-        with open(category_mapping, "r", encoding="utf-8") as f:
-            category_mapping_dict = json.load(f)
 
     # Call existing API
     converter = LabelMeAndYoloConverter(source_to_target=True, verbose=verbose, strict_mode=strict)
@@ -150,7 +112,7 @@ def yolo2labelme(
         target_path=str(output_dir),
         class_file=str(class_file),
         image_dir=str(image_dir),
-        category_mapping=category_mapping_dict,
+        category_mapping=None,
     )
 
     if result.success:
@@ -166,36 +128,10 @@ def yolo2labelme(
 @add_common_options
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path), metavar="COCO_FILE")
 @click.argument("output_path", type=click.Path(path_type=Path), metavar="OUTPUT_DIR")
-@click.option(
-    "--image-dir",
-    "-i",
-    type=click.Path(path_type=Path),
-    help="Image file directory (for obtaining image dimensions) [OPTIONAL]",
-)
-@click.option(
-    "--class-file",
-    "-c",
-    type=click.Path(path_type=Path),
-    help="Class file path [OPTIONAL]",
-)
-@click.option(
-    "--category-mapping",
-    type=click.Path(path_type=Path),
-    help="Custom category mapping file (JSON format)",
-)
-@click.option(
-    "--skip-errors",
-    is_flag=True,
-    help="Skip errors and continue processing (lenient mode)",
-)
 def coco2yolo(
     ctx,
     input_path: Path,
     output_path: Path,
-    image_dir: Optional[Path],
-    class_file: Optional[Path],
-    category_mapping: Optional[Path],
-    skip_errors: bool,
 ):
     """Convert COCO format to YOLO format
 
@@ -209,28 +145,21 @@ def coco2yolo(
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
-    strict = ctx.obj["strict"] and not skip_errors
+    strict = ctx.obj["strict"]
 
     logger.info(f"Starting conversion ofCOCOtoYOLO: {input_path} -> {output_path}")
 
     # Parameter validation
-    validate_convert_params("coco", "yolo", input_path, output_path, image_dir, class_file)
-
-    # Load category mapping
-    category_mapping_dict = None
-    if category_mapping:
-        category_mapping = validate_path_exists(category_mapping, "category mapping file")
-        with open(category_mapping, "r", encoding="utf-8") as f:
-            category_mapping_dict = json.load(f)
+    validate_convert_params("coco", "yolo", input_path, output_path, None, None)
 
     # Call existing API
     converter = YoloAndCocoConverter(source_to_target=False, verbose=verbose, strict_mode=strict)
     result = converter.convert(
         source_path=str(input_path),
         target_path=str(output_path),
-        class_file=str(class_file) if class_file else None,
-        image_dir=str(image_dir) if image_dir else None,
-        category_mapping=category_mapping_dict,
+        class_file=None,
+        image_dir=None,
+        category_mapping=None,
     )
 
     if result.success:
@@ -246,36 +175,10 @@ def coco2yolo(
 @add_common_options
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path), metavar="COCO_FILE")
 @click.argument("output_path", type=click.Path(path_type=Path), metavar="OUTPUT_DIR")
-@click.option(
-    "--image-dir",
-    "-i",
-    type=click.Path(path_type=Path),
-    help="Image file directory (for obtaining image dimensions) [OPTIONAL]",
-)
-@click.option(
-    "--class-file",
-    "-c",
-    type=click.Path(path_type=Path),
-    help="Class file path [OPTIONAL]",
-)
-@click.option(
-    "--category-mapping",
-    type=click.Path(path_type=Path),
-    help="Custom category mapping file (JSON format)",
-)
-@click.option(
-    "--skip-errors",
-    is_flag=True,
-    help="Skip errors and continue processing (lenient mode)",
-)
 def coco2labelme(
     ctx,
     input_path: Path,
     output_path: Path,
-    image_dir: Optional[Path],
-    class_file: Optional[Path],
-    category_mapping: Optional[Path],
-    skip_errors: bool,
 ):
     """Convert COCO format to LabelMe format
 
@@ -289,28 +192,21 @@ def coco2labelme(
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
-    strict = ctx.obj["strict"] and not skip_errors
+    strict = ctx.obj["strict"]
 
     logger.info(f"Starting conversion ofCOCOtoLabelMe: {input_path} -> {output_path}")
 
     # Parameter validation
-    validate_convert_params("coco", "labelme", input_path, output_path, image_dir, class_file)
-
-    # Load category mapping
-    category_mapping_dict = None
-    if category_mapping:
-        category_mapping = validate_path_exists(category_mapping, "category mapping file")
-        with open(category_mapping, "r", encoding="utf-8") as f:
-            category_mapping_dict = json.load(f)
+    validate_convert_params("coco", "labelme", input_path, output_path, None, None)
 
     # Call existing API
     converter = CocoAndLabelMeConverter(source_to_target=True, verbose=verbose, strict_mode=strict)
     result = converter.convert(
         source_path=str(input_path),
         target_path=str(output_path),
-        class_file=str(class_file) if class_file else None,
-        image_dir=str(image_dir) if image_dir else None,
-        category_mapping=category_mapping_dict,
+        class_file=None,
+        image_dir=None,
+        category_mapping=None,
     )
 
     if result.success:
@@ -324,33 +220,14 @@ def coco2labelme(
 
 @convert_group.command()
 @add_common_options
-@click.argument("labelme_dir", type=click.Path(exists=True, path_type=Path))
-@click.argument("class_file", type=click.Path(exists=True, path_type=Path))
-@click.argument("output_dir", type=click.Path(path_type=Path))
-@click.option(
-    "--image-dir",
-    "-i",
-    type=click.Path(path_type=Path),
-    help="Image file directory (for obtaining image dimensions) [OPTIONAL]",
-)
-@click.option(
-    "--category-mapping",
-    type=click.Path(path_type=Path),
-    help="Custom category mapping file (JSON format)",
-)
-@click.option(
-    "--skip-errors",
-    is_flag=True,
-    help="Skip errors and continue processing (lenient mode)",
-)
+@click.argument("labelme_dir", type=click.Path(exists=True, path_type=Path), metavar="LABELME_DIR")
+@click.argument("class_file", type=click.Path(exists=True, path_type=Path), metavar="CLASS_FILE")
+@click.argument("output_dir", type=click.Path(path_type=Path), metavar="OUTPUT_DIR")
 def labelme2yolo(
     ctx,
     labelme_dir: Path,
     class_file: Path,
     output_dir: Path,
-    image_dir: Optional[Path],
-    category_mapping: Optional[Path],
-    skip_errors: bool,
 ):
     """Convert LabelMe format to YOLO format
 
@@ -365,19 +242,12 @@ def labelme2yolo(
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
-    strict = ctx.obj["strict"] and not skip_errors
+    strict = ctx.obj["strict"]
 
     logger.info(f"Starting conversion ofLabelMetoYOLO: {labelme_dir} -> {output_dir}")
 
     # Parameter validation
-    validate_convert_params("labelme", "yolo", labelme_dir, output_dir, image_dir, class_file)
-
-    # Load category mapping
-    category_mapping_dict = None
-    if category_mapping:
-        category_mapping = validate_path_exists(category_mapping, "category mapping file")
-        with open(category_mapping, "r", encoding="utf-8") as f:
-            category_mapping_dict = json.load(f)
+    validate_convert_params("labelme", "yolo", labelme_dir, output_dir, None, class_file)
 
     # Call existing API
     converter = LabelMeAndYoloConverter(source_to_target=False, verbose=verbose, strict_mode=strict)
@@ -385,8 +255,8 @@ def labelme2yolo(
         source_path=str(labelme_dir),
         target_path=str(output_dir),
         class_file=str(class_file),
-        image_dir=str(image_dir),
-        category_mapping=category_mapping_dict,
+        image_dir=None,
+        category_mapping=None,
     )
 
     if result.success:
@@ -400,33 +270,14 @@ def labelme2yolo(
 
 @convert_group.command()
 @add_common_options
-@click.argument("labelme_dir", type=click.Path(exists=True, path_type=Path))
-@click.argument("class_file", type=click.Path(exists=True, path_type=Path))
-@click.argument("output_file", type=click.Path(path_type=Path))
-@click.option(
-    "--image-dir",
-    "-i",
-    type=click.Path(path_type=Path),
-    help="Image file directory (for obtaining image dimensions) [OPTIONAL]",
-)
-@click.option(
-    "--category-mapping",
-    type=click.Path(path_type=Path),
-    help="Custom category mapping file (JSON format)",
-)
-@click.option(
-    "--skip-errors",
-    is_flag=True,
-    help="Skip errors and continue processing (lenient mode)",
-)
+@click.argument("labelme_dir", type=click.Path(exists=True, path_type=Path), metavar="LABELME_DIR")
+@click.argument("class_file", type=click.Path(exists=True, path_type=Path), metavar="CLASS_FILE")
+@click.argument("output_file", type=click.Path(path_type=Path), metavar="OUTPUT_FILE")
 def labelme2coco(
     ctx,
     labelme_dir: Path,
     class_file: Path,
     output_file: Path,
-    image_dir: Optional[Path],
-    category_mapping: Optional[Path],
-    skip_errors: bool,
 ):
     """Convert LabelMe format to COCO format
 
@@ -441,19 +292,12 @@ def labelme2coco(
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
-    strict = ctx.obj["strict"] and not skip_errors
+    strict = ctx.obj["strict"]
 
     logger.info(f"Starting conversion ofLabelMetoCOCO: {labelme_dir} -> {output_file}")
 
     # Parameter validation
-    validate_convert_params("labelme", "coco", labelme_dir, output_file, image_dir, class_file)
-
-    # Load category mapping
-    category_mapping_dict = None
-    if category_mapping:
-        category_mapping = validate_path_exists(category_mapping, "category mapping file")
-        with open(category_mapping, "r", encoding="utf-8") as f:
-            category_mapping_dict = json.load(f)
+    validate_convert_params("labelme", "coco", labelme_dir, output_file, None, class_file)
 
     # Call existing API
     converter = CocoAndLabelMeConverter(source_to_target=False, verbose=verbose, strict_mode=strict)
@@ -461,8 +305,8 @@ def labelme2coco(
         source_path=str(labelme_dir),
         target_path=str(output_file),
         class_file=str(class_file),
-        image_dir=str(image_dir) if image_dir else None,
-        category_mapping=category_mapping_dict,
+        image_dir=None,
+        category_mapping=None,
     )
 
     if result.success:

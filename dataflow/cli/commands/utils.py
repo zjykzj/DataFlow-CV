@@ -9,46 +9,33 @@ from dataflow.util.logging_util import LoggingOperations, VerboseLoggingOperatio
 
 
 def add_common_options(func):
-    """Decorator: add common options to subcommands (--verbose, --log-dir, --strict)"""
+    """Decorator: add common options to subcommands (--verbose only)"""
     @click.option(
         "--verbose",
         is_flag=True,
         help="Enable verbose log output",
     )
-    @click.option(
-        "--log-dir",
-        type=click.Path(path_type=Path),
-        default="./logs",
-        help="Directory to save log files",
-    )
-    @click.option(
-        "--strict",
-        is_flag=True,
-        default=True,
-        help="Strict mode (stop on error)",
-    )
     @click.pass_context
     @wraps(func)
-    def wrapper(ctx, verbose, log_dir, strict, *args, **kwargs):
-        import sys
-        print(f"DEBUG wrapper called: ctx={ctx}, verbose={verbose}, log_dir={log_dir}, strict={strict}, args={args}, kwargs={kwargs}", file=sys.stderr)
+    def wrapper(ctx, verbose, *args, **kwargs):
         # Update options in context object
         ctx.obj["verbose"] = verbose
-        ctx.obj["log_dir"] = log_dir
-        ctx.obj["strict"] = strict
+        # Set default strict value (True, strict mode)
+        ctx.obj["strict"] = True
 
         # Reconfigure logging (based on verbose flag)
         if verbose:
+            # Use default log directory ./logs
             logger = VerboseLoggingOperations().get_verbose_logger(
                 name=ctx.command.name,
                 verbose=True,
-                log_dir=log_dir,
+                log_dir=Path("./logs"),
             )
         else:
             logger = LoggingOperations().get_logger(ctx.command.name)
         ctx.obj["logger"] = logger
 
-        logger.debug(f"Subcommand context updated: verbose={verbose}, log_dir={log_dir}, strict={strict}")
+        logger.debug(f"Subcommand context updated: verbose={verbose}")
         # Call original function, passing ctx as first argument
         return func(ctx, *args, **kwargs)
     return wrapper
