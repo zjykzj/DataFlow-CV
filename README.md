@@ -1,8 +1,10 @@
 # DataFlow-CV
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![GitHub Actions](https://github.com/zjykzj/DataFlow-CV/actions/workflows/python-publish.yml/badge.svg)](https://github.com/zjykzj/DataFlow-CV/actions)
+> **Where Vibe Coding meets CV data.** 🌊
+> Convert & visualize datasets. Built with the flow of Claude Code.
+
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/) ![License](https://img.shields.io/badge/license-MIT-green) [![PyPI](https://img.shields.io/pypi/v/dataflow-cv.svg)](https://pypi.org/project/dataflow-cv/) ![Development Status](https://img.shields.io/badge/status-alpha-yellow) [![GitHub Actions](https://github.com/zjykzj/DataFlow-CV/actions/workflows/python-publish.yml/badge.svg)](https://github.com/zjykzj/DataFlow-CV/actions/workflows/python-publish.yml) 
+![Linux](https://img.shields.io/badge/Linux-Supported-fcc624?logo=linux) ![Windows](https://img.shields.io/badge/Windows-Supported-00a2e8?logo=windows) ![macOS](https://img.shields.io/badge/macOS-Supported-999999?logo=apple)
 
 A computer vision dataset processing library for seamless format conversion and visualization between LabelMe, COCO, and YOLO annotation formats. Designed for researchers and developers working with multi-format annotation pipelines.
 
@@ -76,43 +78,43 @@ pip install -e .
 #### Format Conversion
 ```bash
 # YOLO to COCO
-dataflow-cv convert yolo2coco yolov8-labels/ coco-annotations/ \
-  --image-dir images/ \
-  --class-file classes.txt
+dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt coco_annotations.json
+
+# With RLE encoding
+dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt coco_annotations.json --do-rle
+
+# YOLO to LabelMe
+dataflow-cv convert yolo2labelme images/ yolo_labels/ classes.txt labelme_json/
+
+# COCO to YOLO
+dataflow-cv convert coco2yolo coco_annotations.json yolo_labels/
 
 # COCO to LabelMe
-dataflow-cv convert coco2labelme annotations_trainval2017/ labelme-json/ \
-  --image-dir images/
+dataflow-cv convert coco2labelme coco_annotations.json labelme_json/
 
 # LabelMe to YOLO
-dataflow-cv convert labelme2yolo labelme-json/ yolo-labels/ \
-  --image-dir images/ \
-  --class-file classes.txt
+dataflow-cv convert labelme2yolo labelme_json/ classes.txt yolo_labels/
+
+# LabelMe to COCO
+dataflow-cv convert labelme2coco labelme_json/ classes.txt coco_annotations.json
+
+# With RLE encoding
+dataflow-cv convert labelme2coco labelme_json/ classes.txt coco_annotations.json --do-rle
 
 # Enable verbose logging
-dataflow-cv convert yolo2coco --verbose --log-dir ./logs ...
+dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt coco_annotations.json --verbose
 ```
 
 #### Visualization
 ```bash
 # Visualize YOLO annotations
-dataflow-cv visualize yolo \
-  --label-dir yolov8-labels/ \
-  --image-dir images/ \
-  --class-file classes.txt \
-  --output-dir visualized/
+dataflow-cv visualize yolo images/ yolo_labels/ classes.txt --save visualized/
 
 # Visualize COCO annotations
-dataflow-cv visualize coco \
-  --coco-json annotations_trainval2017/annotations.json \
-  --image-dir images/ \
-  --output-dir visualized/
+dataflow-cv visualize coco images/ coco_annotations.json --save visualized/
 
 # Visualize LabelMe annotations
-dataflow-cv visualize labelme \
-  --label-dir labelme-json/ \
-  --image-dir images/ \
-  --output-dir visualized/
+dataflow-cv visualize labelme images/ labelme_json/ --save visualized/
 ```
 
 ### Python API
@@ -122,22 +124,25 @@ from dataflow.convert import YoloAndCocoConverter
 from dataflow.visualize import YOLOVisualizer
 
 # Convert YOLO to COCO
-converter = YoloAndCocoConverter(source_to_target=True, verbose=True)
+converter = YoloAndCocoConverter(source_to_target=True, verbose=True, strict_mode=True)
 result = converter.convert(
-    source_path="yolov8-labels/",
-    target_path="coco-annotations/",
+    source_path="yolo_labels/",
+    target_path="coco_annotations.json",
     class_file="classes.txt",
-    image_dir="images/"
+    image_dir="images/",
+    do_rle=False  # Set to True for RLE encoding
 )
 
 # Visualize YOLO annotations
 visualizer = YOLOVisualizer(
-    label_dir="yolov8-labels/",
+    label_dir="yolo_labels/",
     image_dir="images/",
     class_file="classes.txt",
     is_show=True,
     is_save=True,
-    output_dir="visualized/"
+    output_dir="visualized/",
+    verbose=True,
+    strict_mode=True
 )
 result = visualizer.visualize()
 ```
@@ -158,7 +163,7 @@ See the `samples/` directory for complete examples:
 
 - **Normalized Coordinates**: All internal coordinates are in 0-1 range
 - **Original Data Preservation**: Lossless round-trip conversion through `OriginalData` system
-- **Strict Mode**: Validation errors raise exceptions (default: enabled, disable with `--skip-errors`)
+- **Strict Mode**: Validation errors raise exceptions (default: enabled in CLI, can be disabled via `strict_mode=False` parameter in Python API)
 - **Verbose Logging**: Detailed debug logs saved to files when `--verbose` is used
 
 ## Development

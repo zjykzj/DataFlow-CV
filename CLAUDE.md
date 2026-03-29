@@ -8,6 +8,37 @@ DataFlow-CV is a computer vision dataset processing library for format conversio
 
 The project follows a modular architecture with clear separation between format handlers, converters, visualizers, and utilities. All coordinates are normalized (0-1 range) in the internal data model.
 
+## Git Commits
+
+When creating git commits via Claude Code, avoid using the default "Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>" line. Instead, use the following format (optionally including a Co-Authored-By line for DeepSeek):
+
+```bash
+git commit -m "$(cat <<'EOF'
+<type>(<scope>): <subject>
+
+<body if needed>
+
+Co-Authored-By: DeepSeek-V3.2 <noreply@deepseek.com>
+EOF
+)"
+```
+
+The Co-Authored-By line is optional and can be omitted if desired.
+
+Follow conventional commit style:
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `build`: Build system or external dependencies
+- `test`: Adding missing tests or correcting existing tests
+- `refactor`: Code change that neither fixes a bug nor adds a feature
+- `style`: Changes that do not affect the meaning of the code (white-space, formatting, etc.)
+- `perf`: Code change that improves performance
+- `ci`: Changes to CI configuration files and scripts
+- `chore`: Other changes that don't modify src or test files
+
+The AI model used in this project is DeepSeek-V3.2 (128K context length), not Claude Opus.
+
 ## Architecture Overview
 
 ### Core Data Model (`dataflow/label/models.py`)
@@ -41,7 +72,7 @@ Converters orchestrate the conversion process: read with source handler → conv
 Visualizers support both display and save modes, with automatic detection of annotation type (detection vs segmentation).
 
 ### CLI Structure (`dataflow/cli/`)
-- `main.py`: Entry point with global options (`--verbose`, `--log-dir`, `--strict`)
+- `main.py`: Entry point with global `--version`/`-v` flag; subcommands have local `--verbose` option for detailed logging
 - `commands/convert.py`: `dataflow convert` subcommands:
   - `yolo2coco`, `yolo2labelme`, `coco2yolo`, `coco2labelme`, `labelme2yolo`, `labelme2coco`
 - `commands/visualize.py`: `dataflow visualize` subcommands:
@@ -101,16 +132,15 @@ pytest --junitxml=test-results.xml
 
 ```bash
 # Enable verbose logging for debugging
-dataflow-cv convert yolo2coco --verbose --log-dir ./logs ...
+dataflow-cv convert yolo2coco --verbose images/ yolo_labels/ classes.txt coco_annotations.json
 
 # Check log files in logs/ directory
 ls -la logs/
 
-# Run conversion with strict mode disabled to see warnings
-dataflow-cv --skip-errors convert yolo2coco ...
+# Run conversion with strict mode disabled using Python API (CLI always uses strict mode)
 
 # Use Python API with verbose mode for detailed inspection
-python -c "from dataflow.convert import YoloAndCocoConverter; converter = YoloAndCocoConverter(verbose=True); result = converter.convert(...); print(result)"
+python -c "from dataflow.convert import YoloAndCocoConverter; converter = YoloAndCocoConverter(verbose=True, strict_mode=False); result = converter.convert(...); print(result)"
 ```
 
 ### Adding New Format Support
@@ -163,28 +193,43 @@ The project uses setuptools for packaging. The GitHub workflow `.github/workflow
 ### Format Conversion
 ```bash
 # YOLO to COCO
-dataflow-cv convert yolo2coco yolov8-labels/ coco-annotations/ --image-dir images/ --class-file classes.txt
+dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt coco_annotations.json
+
+# With RLE encoding
+dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt coco_annotations.json --do-rle
+
+# YOLO to LabelMe
+dataflow-cv convert yolo2labelme images/ yolo_labels/ classes.txt labelme_json/
 
 # COCO to YOLO
-dataflow-cv convert coco2yolo annotations_trainval2017/ yolo-labels/ --image-dir images/ --class-file classes.txt
+dataflow-cv convert coco2yolo coco_annotations.json yolo_labels/
+
+# COCO to LabelMe
+dataflow-cv convert coco2labelme coco_annotations.json labelme_json/
 
 # LabelMe to YOLO
-dataflow-cv convert labelme2yolo labelme-json/ yolo-labels/ --image-dir images/ --class-file classes.txt
+dataflow-cv convert labelme2yolo labelme_json/ classes.txt yolo_labels/
 
-# With verbose logging
-dataflow-cv convert yolo2coco --verbose --log-dir ./logs ...
+# LabelMe to COCO
+dataflow-cv convert labelme2coco labelme_json/ classes.txt coco_annotations.json
+
+# With RLE encoding
+dataflow-cv convert labelme2coco labelme_json/ classes.txt coco_annotations.json --do-rle
+
+# Enable verbose logging
+dataflow-cv convert yolo2coco --verbose images/ yolo_labels/ classes.txt coco_annotations.json
 ```
 
 ### Visualization
 ```bash
 # Visualize YOLO annotations
-dataflow-cv visualize yolo --label-dir yolov8-labels/ --image-dir images/ --class-file classes.txt --output-dir visualized/
+dataflow-cv visualize yolo images/ yolo_labels/ classes.txt --save visualized/
 
 # Visualize COCO annotations
-dataflow-cv visualize coco --coco-json annotations_trainval2017/annotations.json --image-dir images/ --output-dir visualized/
+dataflow-cv visualize coco images/ coco_annotations.json --save visualized/
 
 # Visualize LabelMe annotations
-dataflow-cv visualize labelme --label-dir labelme-json/ --image-dir images/ --output-dir visualized/
+dataflow-cv visualize labelme images/ labelme_json/ --save visualized/
 ```
 
 ### Python API Examples
@@ -206,7 +251,7 @@ See `samples/` directory for comprehensive examples:
 - Handlers and converters have `strict_mode` parameter (default: `True`)
 - In strict mode, validation errors raise exceptions
 - In non-strict mode, errors are logged but processing continues where possible
-- CLI `--strict` flag controls this globally; `--skip-errors` sets strict=false
+- CLI always uses strict mode (errors raise exceptions); the Python API allows configuring `strict_mode` parameter.
 
 ### Original Data Preservation
 - The `OriginalData` system preserves original annotation coordinates for lossless round-trip conversions
@@ -217,6 +262,8 @@ See `samples/` directory for comprehensive examples:
 
 - **Normalized Coordinates**: All internal coordinates are 0-1 normalized
 - **Conversion**: Handlers convert between normalized and absolute pixel coordinates
+- **COCO Format**: Uses absolute pixel coordinates for bounding boxes (x_min, y_min, width, height) and segmentation polygons; handlers convert between COCO's absolute coordinates and normalized internal representation
+- **LabelMe Format**: Uses absolute pixel coordinates for polygons and rectangles; handlers convert accordingly
 - **Bounding Boxes**: Center-x, center-y, width, height (YOLO format)
 - **Segmentation**: Lists of normalized (x, y) points
 - **Example**: Pixel coordinate (x=320, y=240) in 640×480 image → normalized (0.5, 0.5)
@@ -255,7 +302,6 @@ See `samples/` directory for comprehensive examples:
 
 ### Log File Locations
 - With `--verbose` flag, log files are created in `logs/` directory (default)
-- Custom log directory can be specified with `--log-dir`
 - Log files have timestamped names (e.g., `log_20260324_222035.log`)
 - Files contain DEBUG details including filename/line numbers
 
@@ -288,7 +334,6 @@ See `samples/` directory for comprehensive examples:
 - All file paths should use `pathlib.Path` for cross-platform compatibility
 - Chinese comments are present in some files; maintain bilingual clarity where appropriate
 - Follow existing patterns for adding new format handlers or converters
-- The actual LLM used for this project is DeepSeek-V3.2; use `Co-Authored-By: DeepSeek-V3.2 <noreply@deepseek.com>` in commit messages
 - When modifying logging behavior, ensure both console and file logging work correctly in verbose mode
 
 ## Related Documentation
