@@ -112,3 +112,67 @@ def validate_convert_params(
         class_file = validate_path_exists(class_file, "class file")
 
     return input_path, output_path, image_dir, class_file
+
+
+class FormattedCommand(click.Command):
+    """自定义Command类，提供格式化的Arguments显示"""
+
+    def format_help(self, ctx, formatter):
+        """重写帮助输出格式"""
+        # 写入用法
+        self.format_usage(ctx, formatter)
+
+        # 写入命令描述
+        if self.help:
+            formatter.write_paragraph()
+            with formatter.indentation():
+                formatter.write_text(self.help)
+
+        # 写入Arguments（自定义格式）
+        self._format_arguments(ctx, formatter)
+
+        # 写入Options
+        self.format_options(ctx, formatter)
+
+        # 写入epilog
+        if self.epilog:
+            formatter.write_paragraph()
+            formatter.write_text(self.epilog)
+
+    def _format_arguments(self, ctx, formatter):
+        """格式化Arguments部分，模仿Options的格式"""
+        args = [param for param in self.params
+                if isinstance(param, click.Argument) and param.expose_value]
+        if not args:
+            return
+
+        with formatter.section("Arguments"):
+            # 计算最大参数名长度以便对齐
+            max_length = 0
+            param_items = []
+            for param in args:
+                param_name = param.make_metavar()
+                help_text = self._get_argument_help(param.name) if hasattr(param, 'name') else ""
+                max_length = max(max_length, len(param_name))
+                param_items.append((param_name, help_text))
+
+            # 使用固定格式输出，模仿Options的对齐
+            for param_name, help_text in param_items:
+                # 参数名左对齐，后面跟两个空格，然后是描述
+                # 使用与Options类似的格式（左对齐）
+                formatter.write_text(f"  {param_name:<{max_length}}  {help_text}")
+
+    def _get_argument_help(self, param_name):
+        """根据参数名获取帮助文本"""
+        # 参数名到帮助文本的映射
+        help_map = {
+            "image_dir": "Image file directory (for obtaining image dimensions)",
+            "label_dir": "YOLO label directory",
+            "class_file": "Class file path",
+            "output_file": "Output COCO JSON file path",
+            "output_dir": "Output directory (will contain classes.txt and labels/)",
+            "output_path": "Output directory (will contain classes.txt and labels/)",
+            "labelme_dir": "LabelMe annotation directory",
+            "input_path": "Input COCO JSON annotation file",
+        }
+        return help_map.get(param_name, "")

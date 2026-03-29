@@ -5,7 +5,7 @@ import click
 from pathlib import Path
 from typing import Optional
 
-from dataflow.cli.commands.utils import validate_convert_params, add_common_options
+from dataflow.cli.commands.utils import validate_convert_params, add_common_options, FormattedCommand
 from dataflow.cli.exceptions import RuntimeCLIError
 
 
@@ -15,7 +15,7 @@ def convert_group():
     pass
 
 
-@convert_group.command()
+@convert_group.command(cls=FormattedCommand)
 @add_common_options
 @click.argument("image_dir", type=click.Path(exists=True, path_type=Path), metavar="IMAGE_DIR")
 @click.argument("label_dir", type=click.Path(exists=True, path_type=Path), metavar="LABEL_DIR")
@@ -34,14 +34,7 @@ def yolo2coco(
     output_file: Path,
     do_rle: bool,
 ):
-    """Convert YOLO format to COCO format
-
-    Arguments:
-        IMAGE_DIR: Image file directory (for obtaining image dimensions)
-        LABEL_DIR: YOLO label directory
-        CLASS_FILE: Class file path
-        OUTPUT_FILE: Output COCO JSON file path
-    """
+    """Convert YOLO format to COCO format"""
     from dataflow.convert.yolo_and_coco import YoloAndCocoConverter
 
     logger = ctx.obj["logger"]
@@ -73,7 +66,7 @@ def yolo2coco(
         raise RuntimeCLIError(f"Conversion failed: {error_msg}")
 
 
-@convert_group.command()
+@convert_group.command(cls=FormattedCommand)
 @add_common_options
 @click.argument("image_dir", type=click.Path(exists=True, path_type=Path), metavar="IMAGE_DIR")
 @click.argument("label_dir", type=click.Path(exists=True, path_type=Path), metavar="LABEL_DIR")
@@ -86,14 +79,7 @@ def yolo2labelme(
     class_file: Path,
     output_dir: Path,
 ):
-    """Convert YOLO format to LabelMe format
-
-    Arguments:
-        IMAGE_DIR: Image file directory (for obtaining image dimensions)
-        LABEL_DIR: YOLO label directory
-        CLASS_FILE: Class file path
-        OUTPUT_DIR: Output directory (will contain classes.txt and labels/)
-    """
+    """Convert YOLO format to LabelMe format"""
     from dataflow.convert.labelme_and_yolo import LabelMeAndYoloConverter
 
     logger = ctx.obj["logger"]
@@ -106,7 +92,7 @@ def yolo2labelme(
     validate_convert_params("yolo", "labelme", label_dir, output_dir, image_dir, class_file)
 
     # Call existing API
-    converter = LabelMeAndYoloConverter(source_to_target=True, verbose=verbose, strict_mode=strict)
+    converter = LabelMeAndYoloConverter(source_to_target=False, verbose=verbose, strict_mode=strict)
     result = converter.convert(
         source_path=str(label_dir),
         target_path=str(output_dir),
@@ -124,7 +110,7 @@ def yolo2labelme(
         raise RuntimeCLIError(f"Conversion failed: {error_msg}")
 
 
-@convert_group.command()
+@convert_group.command(cls=FormattedCommand)
 @add_common_options
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path), metavar="COCO_FILE")
 @click.argument("output_path", type=click.Path(path_type=Path), metavar="OUTPUT_DIR")
@@ -133,14 +119,7 @@ def coco2yolo(
     input_path: Path,
     output_path: Path,
 ):
-    """Convert COCO format to YOLO format
-
-    Arguments:
-        COCO_FILE: Input COCO JSON annotation file
-        OUTPUT_DIR: Output directory (will contain classes.txt and labels/)
-
-    --image-dir and --class-file are optional.
-    """
+    """Convert COCO format to YOLO format"""
     from dataflow.convert.yolo_and_coco import YoloAndCocoConverter
 
     logger = ctx.obj["logger"]
@@ -171,7 +150,7 @@ def coco2yolo(
         raise RuntimeCLIError(f"Conversion failed: {error_msg}")
 
 
-@convert_group.command()
+@convert_group.command(cls=FormattedCommand)
 @add_common_options
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path), metavar="COCO_FILE")
 @click.argument("output_path", type=click.Path(path_type=Path), metavar="OUTPUT_DIR")
@@ -180,14 +159,7 @@ def coco2labelme(
     input_path: Path,
     output_path: Path,
 ):
-    """Convert COCO format to LabelMe format
-
-    Arguments:
-        COCO_FILE: Input COCO JSON annotation file
-        OUTPUT_DIR: Output directory (will contain classes.txt and labels/)
-
-    --image-dir and --class-file are optional.
-    """
+    """Convert COCO format to LabelMe format"""
     from dataflow.convert.coco_and_labelme import CocoAndLabelMeConverter
 
     logger = ctx.obj["logger"]
@@ -218,7 +190,7 @@ def coco2labelme(
         raise RuntimeCLIError(f"Conversion failed: {error_msg}")
 
 
-@convert_group.command()
+@convert_group.command(cls=FormattedCommand)
 @add_common_options
 @click.argument("labelme_dir", type=click.Path(exists=True, path_type=Path), metavar="LABELME_DIR")
 @click.argument("class_file", type=click.Path(exists=True, path_type=Path), metavar="CLASS_FILE")
@@ -229,15 +201,7 @@ def labelme2yolo(
     class_file: Path,
     output_dir: Path,
 ):
-    """Convert LabelMe format to YOLO format
-
-    Arguments:
-        LABELME_DIR: LabelMe annotation directory
-        CLASS_FILE: Class file path
-        OUTPUT_DIR: Output directory (will contain classes.txt and labels/)
-
-    --image-dir is optional.
-    """
+    """Convert LabelMe format to YOLO format"""
     from dataflow.convert.labelme_and_yolo import LabelMeAndYoloConverter
 
     logger = ctx.obj["logger"]
@@ -250,7 +214,7 @@ def labelme2yolo(
     validate_convert_params("labelme", "yolo", labelme_dir, output_dir, None, class_file)
 
     # Call existing API
-    converter = LabelMeAndYoloConverter(source_to_target=False, verbose=verbose, strict_mode=strict)
+    converter = LabelMeAndYoloConverter(source_to_target=True, verbose=verbose, strict_mode=strict)
     result = converter.convert(
         source_path=str(labelme_dir),
         target_path=str(output_dir),
@@ -268,26 +232,24 @@ def labelme2yolo(
         raise RuntimeCLIError(f"Conversion failed: {error_msg}")
 
 
-@convert_group.command()
+@convert_group.command(cls=FormattedCommand)
 @add_common_options
 @click.argument("labelme_dir", type=click.Path(exists=True, path_type=Path), metavar="LABELME_DIR")
 @click.argument("class_file", type=click.Path(exists=True, path_type=Path), metavar="CLASS_FILE")
 @click.argument("output_file", type=click.Path(path_type=Path), metavar="OUTPUT_FILE")
+@click.option(
+    "--do-rle",
+    is_flag=True,
+    help="Use RLE encoding for COCO format",
+)
 def labelme2coco(
     ctx,
     labelme_dir: Path,
     class_file: Path,
     output_file: Path,
+    do_rle: bool,
 ):
-    """Convert LabelMe format to COCO format
-
-    Arguments:
-        LABELME_DIR: LabelMe annotation directory
-        CLASS_FILE: Class file path
-        OUTPUT_FILE: Output COCO JSON file path
-
-    --image-dir is optional.
-    """
+    """Convert LabelMe format to COCO format"""
     from dataflow.convert.coco_and_labelme import CocoAndLabelMeConverter
 
     logger = ctx.obj["logger"]
@@ -307,6 +269,7 @@ def labelme2coco(
         class_file=str(class_file),
         image_dir=None,
         category_mapping=None,
+        do_rle=do_rle,
     )
 
     if result.success:
