@@ -156,6 +156,7 @@ See the `samples/` directory for complete examples:
 ## Documentation
 
 - **[CLAUDE.md](CLAUDE.md)**: Detailed architecture and development guide
+- **`docs/formats/`**: Format specifications (YOLO, COCO, LabelMe)
 - **`docs/specs/`**: Module specifications and design documents
 - **`CHANGELOG.md`**: Version history and breaking changes
 

@@ -338,6 +338,12 @@ See `samples/` directory for comprehensive examples:
 
 ## Related Documentation
 
+### Format Documentation
+- `docs/formats/`: Detailed documentation for each supported annotation format
+  - `yolo.md`: YOLO format specification and coordinate conversion
+  - `coco.md`: COCO format specification and RLE encoding
+  - `labelme.md`: LabelMe format specification and polygon representation
+
 ### Specifications
 - `docs/specs/`: Detailed specifications for each module (in Chinese)
   - `specs_for_label.md`: Label module specification
