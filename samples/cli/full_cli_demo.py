@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-CLI完整工作流示例脚本
+CLI complete workflow example script
 
-展示完整的计算机视觉数据处理工作流：
-1. 可视化原始YOLO标签
-2. 将YOLO标签转换为COCO格式
-3. 可视化转换后的COCO标签
-4. 将COCO标签转换回YOLO格式
-5. 验证转换的准确性
+Demonstrates a complete computer vision data processing workflow:
+1. Visualize original YOLO labels
+2. Convert YOLO labels to COCO format
+3. Visualize converted COCO labels
+4. Convert COCO labels back to YOLO format
+5. Verify conversion accuracy
 
-使用方法：
-1. 在项目根目录运行：python samples/cli/full_cli_demo.py
-2. 或者直接运行：./samples/cli/full_cli_demo.py
+Usage:
+1. Run in project root directory: python samples/cli/full_cli_demo.py
+2. Or run directly: ./samples/cli/full_cli_demo.py
 """
 
 import subprocess
@@ -20,13 +20,13 @@ import json
 import shutil
 from pathlib import Path
 
-# 添加项目根目录到PATH，以便导入dataflow模块
+# Add project root directory to PATH to import dataflow module
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 def run_cli_command(cmd_args, check=True):
-    """运行CLI命令并返回结果"""
-    print(f"执行命令: dataflow-cv {' '.join(cmd_args)}")
+    """Run CLI command and return result"""
+    print(f"Executing command: dataflow-cv {' '.join(cmd_args)}")
     try:
         result = subprocess.run(
             ["dataflow-cv"] + cmd_args,
@@ -35,36 +35,36 @@ def run_cli_command(cmd_args, check=True):
             cwd=project_root,
             timeout=30,
         )
-        print(f"退出码: {result.returncode}")
+        print(f"Exit code: {result.returncode}")
         if result.stdout:
-            print(f"标准输出:\n{result.stdout}")
+            print(f"Standard output:\n{result.stdout}")
         if result.stderr:
-            print(f"标准错误:\n{result.stderr}")
+            print(f"Standard error:\n{result.stderr}")
 
         if check and result.returncode != 0:
-            print(f"命令执行失败，退出码: {result.returncode}")
+            print(f"Command execution failed, exit code: {result.returncode}")
             return False
         return result.returncode == 0
     except subprocess.TimeoutExpired:
-        print("错误: 命令执行超时")
+        print("Error: Command execution timeout")
         return False
     except FileNotFoundError:
-        print("错误: 未找到dataflow-cv命令，请先安装包: pip install -e .")
+        print("Error: dataflow-cv command not found, please install package first: pip install -e .")
         return False
     except Exception as e:
-        print(f"错误: 执行命令时发生异常: {e}")
+        print(f"Error: Exception occurred while executing command: {e}")
         return False
 
 def cleanup_directory(dir_path):
-    """清理目录"""
+    """Clean up directory"""
     if dir_path.exists():
         shutil.rmtree(dir_path)
     dir_path.mkdir(parents=True, exist_ok=True)
 
 def step1_visualize_yolo():
-    """步骤1: 可视化原始YOLO标签"""
+    """Step 1: Visualize original YOLO labels"""
     print("\n" + "="*60)
-    print("步骤1: 可视化原始YOLO标签")
+    print("Step 1: Visualize original YOLO labels")
     print("="*60)
 
     yolo_dir = project_root / "assets" / "test_data" / "seg" / "yolo"
@@ -87,16 +87,16 @@ def step1_visualize_yolo():
     success = run_cli_command(cmd)
     if success:
         image_files = list(output_dir.glob("*.jpg")) + list(output_dir.glob("*.png"))
-        print(f"✓ 步骤1完成: 生成了 {len(image_files)} 张YOLO可视化图像")
+        print(f"✓ Step 1 completed: Generated {len(image_files)} YOLO visualization images")
         return True, output_dir
     else:
-        print("✗ 步骤1失败")
+        print("✗ Step 1 failed")
         return False, None
 
 def step2_yolo_to_coco():
-    """步骤2: YOLO转COCO格式"""
+    """Step 2: YOLO to COCO format conversion"""
     print("\n" + "="*60)
-    print("步骤2: YOLO转COCO格式")
+    print("Step 2: YOLO to COCO format conversion")
     print("="*60)
 
     yolo_dir = project_root / "assets" / "test_data" / "seg" / "yolo"
@@ -118,23 +118,23 @@ def step2_yolo_to_coco():
 
     success = run_cli_command(cmd)
     if success:
-        # 验证输出文件
+        # Verify output file
         if output_file.exists():
             with open(output_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 image_count = len(data.get("images", []))
                 annotation_count = len(data.get("annotations", []))
                 category_count = len(data.get("categories", []))
-                print(f"✓ 步骤2完成: 转换成功，包含 {image_count} 张图像, {annotation_count} 个标注, {category_count} 个类别")
+                print(f"✓ Step 2 completed: Conversion successful, contains {image_count} images, {annotation_count} annotations, {category_count} categories")
         return True, output_file
     else:
-        print("✗ 步骤2失败")
+        print("✗ Step 2 failed")
         return False, None
 
 def step3_visualize_coco(coco_file):
-    """步骤3: 可视化COCO标签"""
+    """Step 3: Visualize COCO labels"""
     print("\n" + "="*60)
-    print("步骤3: 可视化COCO标签")
+    print("Step 3: Visualize COCO labels")
     print("="*60)
 
     image_dir = project_root / "assets" / "test_data" / "seg" / "coco" / "images"
@@ -154,16 +154,16 @@ def step3_visualize_coco(coco_file):
     success = run_cli_command(cmd)
     if success:
         image_files = list(output_dir.glob("*.jpg")) + list(output_dir.glob("*.png"))
-        print(f"✓ 步骤3完成: 生成了 {len(image_files)} 张COCO可视化图像")
+        print(f"✓ Step 3 completed: Generated {len(image_files)} COCO visualization images")
         return True, output_dir
     else:
-        print("✗ 步骤3失败")
+        print("✗ Step 3 failed")
         return False, None
 
 def step4_coco_to_yolo(coco_file):
-    """步骤4: COCO转YOLO格式"""
+    """Step 4: COCO to YOLO format conversion"""
     print("\n" + "="*60)
-    print("步骤4: COCO转YOLO格式")
+    print("Step 4: COCO to YOLO format conversion")
     print("="*60)
 
     image_dir = project_root / "assets" / "test_data" / "seg" / "coco" / "images"
@@ -180,86 +180,86 @@ def step4_coco_to_yolo(coco_file):
 
     success = run_cli_command(cmd)
     if success:
-        # YOLO标签文件可能在labels子目录中
+        # YOLO label files may be in the labels subdirectory
         labels_dir = output_dir / "labels"
         if labels_dir.exists():
             txt_files = list(labels_dir.rglob("*.txt"))
         else:
             txt_files = list(output_dir.rglob("*.txt"))
-        # 过滤掉classes.txt文件（不是标注文件）
+        # Filter out classes.txt file (not an annotation file)
         label_files = [f for f in txt_files if f.name != "classes.txt"]
-        print(f"✓ 步骤4完成: 生成了 {len(label_files)} 个YOLO标注文件")
+        print(f"✓ Step 4 completed: Generated {len(label_files)} YOLO annotation files")
         return True, output_dir
     else:
-        print("✗ 步骤4失败")
+        print("✗ Step 4 failed")
         return False, None
 
 def step5_compare_yolo_dirs(original_dir, converted_dir):
-    """步骤5: 比较原始YOLO和转换后的YOLO目录"""
+    """Step 5: Compare original YOLO and converted YOLO directories"""
     print("\n" + "="*60)
-    print("步骤5: 验证转换准确性")
+    print("Step 5: Verify conversion accuracy")
     print("="*60)
 
-    # YOLO标签文件可能在labels子目录中
+    # YOLO label files may be in the labels subdirectory
     original_labels_dir = original_dir
     converted_labels_dir = converted_dir / "labels" if (converted_dir / "labels").exists() else converted_dir
 
-    # 查找所有.txt文件（递归）
+    # Find all .txt files (recursive)
     original_files = list(original_labels_dir.rglob("*.txt"))
     converted_files = list(converted_labels_dir.rglob("*.txt"))
 
-    # 过滤掉classes.txt文件（不是标注文件）
+    # Filter out classes.txt file (not an annotation file)
     original_label_files = [f for f in original_files if f.name != "classes.txt"]
     converted_label_files = [f for f in converted_files if f.name != "classes.txt"]
 
-    print(f"原始YOLO目录: {len(original_label_files)} 个标注文件")
-    print(f"转换后YOLO目录: {len(converted_label_files)} 个标注文件")
+    print(f"Original YOLO directory: {len(original_label_files)} annotation files")
+    print(f"Converted YOLO directory: {len(converted_label_files)} annotation files")
 
     if len(original_label_files) == len(converted_label_files):
-        print("✓ 文件数量匹配，转换基本准确")
-        # 可以添加更详细的比较，如内容对比
+        print("✓ File count matches, conversion is basically accurate")
+        # Can add more detailed comparison, such as content comparison
         return True
     else:
-        print("✗ 文件数量不匹配，转换可能有问题")
+        print("✗ File count does not match, conversion may have issues")
         return False
 
 def main():
-    """主函数"""
-    print("DataFlow-CV CLI完整工作流演示")
+    """Main function"""
+    print("DataFlow-CV CLI complete workflow demonstration")
     print("="*60)
-    print("本演示将展示完整的标签处理工作流：")
-    print("1. 可视化原始YOLO标签")
-    print("2. 将YOLO标签转换为COCO格式")
-    print("3. 可视化转换后的COCO标签")
-    print("4. 将COCO标签转换回YOLO格式")
-    print("5. 验证转换的准确性")
+    print("This demonstration will show a complete label processing workflow:")
+    print("1. Visualize original YOLO labels")
+    print("2. Convert YOLO labels to COCO format")
+    print("3. Visualize converted COCO labels")
+    print("4. Convert COCO labels back to YOLO format")
+    print("5. Verify conversion accuracy")
     print("="*60)
 
-    # 检查测试数据是否存在
+    # Check if test data exists
     test_data_root = project_root / "assets" / "test_data" / "seg"
     if not test_data_root.exists():
-        print(f"错误: 测试数据目录不存在: {test_data_root}")
-        print("请确保在项目根目录运行此脚本")
+        print(f"Error: Test data directory does not exist: {test_data_root}")
+        print("Please ensure running this script in the project root directory")
         return 1
 
-    # 创建临时输出目录
+    # Create temporary output directory
     temp_root = project_root / "temp_output" / "full_demo"
     cleanup_directory(temp_root)
 
     all_success = True
     results = {}
 
-    # 步骤1: 可视化原始YOLO标签
+    # Step 1: Visualize original YOLO labels
     success1, yolo_viz_dir = step1_visualize_yolo()
     all_success = all_success and success1
     results["step1"] = success1
 
-    # 步骤2: YOLO转COCO格式
+    # Step 2: YOLO to COCO format conversion
     success2, coco_file = step2_yolo_to_coco()
     all_success = all_success and success2
     results["step2"] = success2
 
-    # 步骤3: 可视化COCO标签
+    # Step 3: Visualize COCO labels
     if success2:
         success3, coco_viz_dir = step3_visualize_coco(coco_file)
         all_success = all_success and success3
@@ -267,7 +267,7 @@ def main():
     else:
         results["step3"] = False
 
-    # 步骤4: COCO转YOLO格式
+    # Step 4: COCO to YOLO format conversion
     if success2:
         success4, yolo_converted_dir = step4_coco_to_yolo(coco_file)
         all_success = all_success and success4
@@ -275,7 +275,7 @@ def main():
     else:
         results["step4"] = False
 
-    # 步骤5: 比较原始YOLO和转换后的YOLO
+    # Step 5: Compare original YOLO and converted YOLO
     if success1 and success4:
         original_yolo_dir = project_root / "assets" / "test_data" / "seg" / "yolo" / "labels"
         success5 = step5_compare_yolo_dirs(original_yolo_dir, yolo_converted_dir)
@@ -284,33 +284,33 @@ def main():
     else:
         results["step5"] = False
 
-    # 总结
+    # Summary
     print("\n" + "="*60)
-    print("工作流演示总结")
+    print("Workflow demonstration summary")
     print("="*60)
-    print("步骤完成情况:")
+    print("Step completion status:")
     for i, (step, success) in enumerate(results.items(), 1):
         status = "✓" if success else "✗"
         step_name = {
-            "step1": "可视化原始YOLO标签",
-            "step2": "YOLO转COCO格式",
-            "step3": "可视化COCO标签",
-            "step4": "COCO转YOLO格式",
-            "step5": "验证转换准确性",
+            "step1": "Visualize original YOLO labels",
+            "step2": "YOLO to COCO format conversion",
+            "step3": "Visualize COCO labels",
+            "step4": "COCO to YOLO format conversion",
+            "step5": "Verify conversion accuracy",
         }.get(step, step)
-        print(f"  步骤{i}: {step_name} {status}")
+        print(f"  Step {i}: {step_name} {status}")
 
     if all_success:
-        print("\n✓ 完整工作流演示成功完成!")
-        print(f"所有结果保存在: {project_root / 'temp_output' / 'full_demo'}")
-        print("\n您已成功体验了DataFlow-CV CLI的核心功能:")
-        print("  - 可视化YOLO和COCO格式标签")
-        print("  - 在YOLO和COCO格式间进行双向转换")
-        print("  - 验证转换的准确性")
+        print("\n✓ Complete workflow demonstration successfully completed!")
+        print(f"All results saved at: {project_root / 'temp_output' / 'full_demo'}")
+        print("\nYou have successfully experienced the core functionality of DataFlow-CV CLI:")
+        print("  - Visualize YOLO and COCO format labels")
+        print("  - Perform bidirectional conversion between YOLO and COCO formats")
+        print("  - Verify conversion accuracy")
         return 0
     else:
-        print("\n✗ 工作流演示部分失败")
-        print("请检查错误信息，或尝试单独运行各个步骤")
+        print("\n✗ Workflow demonstration partially failed")
+        print("Please check error messages, or try running each step individually")
         return 1
 
 if __name__ == "__main__":

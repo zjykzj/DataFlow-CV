@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-完整格式转换链示例
+Complete format conversion chain example
 
-展示如何将LabelMe格式转换为YOLO，再转换为COCO，最后转回LabelMe，
-验证无损转换（除RLE精度损失外）。
+Demonstrates how to convert LabelMe format to YOLO, then to COCO, then back to LabelMe,
+verifying lossless conversion (except for RLE precision loss).
 
-使用方法：
+Usage:
     python full_conversion_demo.py [--verbose]
 
-示例：
-    python full_conversion_demo.py           # 普通模式
-    python full_conversion_demo.py --verbose # 详细日志模式
+Examples:
+    python full_conversion_demo.py           # Normal mode
+    python full_conversion_demo.py --verbose # Verbose logging mode
 """
 
 import argparse
@@ -19,7 +19,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-# 添加项目根目录到Python路径
+# Add project root directory to Python path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
@@ -29,13 +29,13 @@ from dataflow.util import LoggingOperations, VerboseLoggingOperations
 
 
 def main():
-    """主函数"""
-    # 解析命令行参数
-    parser = argparse.ArgumentParser(description="完整格式转换链示例")
-    parser.add_argument("--verbose", action="store_true", help="启用详细日志模式")
+    """Main function"""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Complete format conversion chain example")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging mode")
     args = parser.parse_args()
 
-    # 配置日志
+    # Configure logging
     if args.verbose:
         log_ops = VerboseLoggingOperations()
         logger = log_ops.get_verbose_logger(
@@ -43,30 +43,30 @@ def main():
             verbose=True,
             log_dir=str(project_root / "logs")
         )
-        logger.info("详细日志模式已启用")
+        logger.info("Verbose logging mode enabled")
     else:
         log_ops = LoggingOperations()
         logger = log_ops.get_logger("full_conversion_demo", level="INFO")
 
-    # 创建临时工作目录
+    # Create temporary working directory
     temp_dir = Path(tempfile.mkdtemp(prefix="dataflow_convert_"))
-    logger.info(f"创建临时工作目录: {temp_dir}")
+    logger.info(f"Created temporary working directory: {temp_dir}")
 
     try:
-        # 示例数据路径
+        # Example data paths
         data_dir = project_root / "assets" / "test_data" / "det" / "labelme"
         class_file = data_dir / "classes.txt"
 
         if not data_dir.exists():
-            logger.error(f"数据目录不存在: {data_dir}")
+            logger.error(f"Data directory does not exist: {data_dir}")
             return
 
         logger.info("=" * 50)
-        logger.info("完整格式转换链示例")
+        logger.info("Complete format conversion chain example")
         logger.info("=" * 50)
 
-        # 第1步：LabelMe → YOLO
-        logger.info("\n1. LabelMe → YOLO 转换")
+        # Step 1: LabelMe → YOLO
+        logger.info("\n1. LabelMe → YOLO conversion")
         yolo_dir = temp_dir / "yolo_output"
 
         converter1 = LabelMeAndYoloConverter(
@@ -80,11 +80,11 @@ def main():
         )
 
         if not result1.success:
-            logger.error("LabelMe→YOLO转换失败")
+            logger.error("LabelMe→YOLO conversion failed")
             return
 
-        # 第2步：YOLO → COCO
-        logger.info("\n2. YOLO → COCO 转换")
+        # Step 2: YOLO → COCO
+        logger.info("\n2. YOLO → COCO conversion")
         coco_file = temp_dir / "coco_output.json"
 
         converter2 = YoloAndCocoConverter(
@@ -96,15 +96,15 @@ def main():
             target_path=str(coco_file),
             class_file=str(yolo_dir / "classes.txt"),
             image_dir=str(yolo_dir / "images"),
-            do_rle=False,  # 不使用RLE以确保无损
+            do_rle=False,  # No RLE to ensure lossless
         )
 
         if not result2.success:
-            logger.error("YOLO→COCO转换失败")
+            logger.error("YOLO→COCO conversion failed")
             return
 
-        # 第3步：COCO → LabelMe
-        logger.info("\n3. COCO → LabelMe 转换")
+        # Step 3: COCO → LabelMe
+        logger.info("\n3. COCO → LabelMe conversion")
         labelme_dir = temp_dir / "labelme_output"
 
         converter3 = CocoAndLabelMeConverter(
@@ -116,35 +116,35 @@ def main():
         )
 
         if not result3.success:
-            logger.error("COCO→LabelMe转换失败")
+            logger.error("COCO→LabelMe conversion failed")
             return
 
-        # 验证结果
-        logger.info("\n转换链完成！")
-        logger.info(f"原始LabelMe文件数: {len(list(data_dir.glob('*.json')))}")
-        logger.info(f"最终LabelMe文件数: {len(list(labelme_dir.glob('*.json')))}")
+        # Verify results
+        logger.info("\nConversion chain completed!")
+        logger.info(f"Original LabelMe file count: {len(list(data_dir.glob('*.json')))}")
+        logger.info(f"Final LabelMe file count: {len(list(labelme_dir.glob('*.json')))}")
 
-        # 简单验证：文件数量一致
+        # Simple verification: file count consistency
         original_count = len(list(data_dir.glob("*.json")))
         final_count = len(list(labelme_dir.glob("*.json")))
 
         if original_count == final_count:
-            logger.info("✓ 文件数量一致，转换链完整")
+            logger.info("✓ File counts match, conversion chain complete")
         else:
             logger.warning(
-                f"⚠ 文件数量不一致: 原始={original_count}, 最终={final_count}"
+                f"⚠ File counts differ: original={original_count}, final={final_count}"
             )
 
-        logger.info(f"\n临时工作目录: {temp_dir}")
-        logger.info("（程序结束后会自动清理）")
+        logger.info(f"\nTemporary working directory: {temp_dir}")
+        logger.info("(Will be automatically cleaned up after program ends)")
 
     finally:
-        # 清理临时目录（在实际使用中可能保留用于调试）
+        # Clean up temporary directory (may be kept for debugging in actual use)
         if temp_dir.exists():
             shutil.rmtree(temp_dir)
-            logger.info(f"已清理临时目录: {temp_dir}")
+            logger.info(f"Cleaned up temporary directory: {temp_dir}")
 
-    logger.info("\n示例完成！")
+    logger.info("\nExample completed!")
 
 
 if __name__ == "__main__":

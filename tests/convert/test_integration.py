@@ -1,7 +1,7 @@
 """
-集成测试：验证所有6种转换方向的功能。
+Integration test: Verify functionality of all 6 conversion directions.
 
-使用实际测试数据进行端到端测试，确保转换模块的完整性和正确性。
+Use actual test data for end-to-end testing to ensure completeness and correctness of conversion modules.
 """
 
 import json
@@ -16,81 +16,81 @@ from dataflow.convert import (CocoAndLabelMeConverter, LabelMeAndYoloConverter,
 
 
 class TestIntegrationConversions:
-    """集成测试类：验证所有6种转换方向"""
+    """Integration test class: Verify all 6 conversion directions"""
 
     @pytest.fixture
     def test_data_dir(self):
-        """返回测试数据目录路径"""
+        """Return test data directory path"""
         return Path(__file__).parent.parent.parent / "assets" / "test_data"
 
     @pytest.fixture
     def temp_output_dir(self):
-        """创建临时输出目录"""
+        """Create temporary output directory"""
         with tempfile.TemporaryDirectory() as tmpdir:
             yield Path(tmpdir)
 
     def test_labelme_to_yolo_detection(self, test_data_dir, temp_output_dir):
-        """测试LabelMe→YOLO目标检测转换"""
-        # 准备测试数据路径
+        """Test LabelMe→YOLO object detection conversion"""
+        # Prepare test data paths
         source_dir = test_data_dir / "det" / "labelme"
         class_file = source_dir / "classes.txt"
 
-        # 创建转换器
+        # Create converter
         converter = LabelMeAndYoloConverter(source_to_target=True)
 
-        # 执行转换
+        # Perform conversion
         result = converter.convert(
             source_path=str(source_dir),
             target_path=str(temp_output_dir),
             class_file=str(class_file),
         )
 
-        # 打印调试信息
-        print(f"转换结果: success={result.success}")
-        print(f"错误: {result.errors}")
-        print(f"警告: {result.warnings}")
-        print(f"转换图片数: {result.num_images_converted}")
+        # Print debug information
+        print(f"Conversion result: success={result.success}")
+        print(f"Errors: {result.errors}")
+        print(f"Warnings: {result.warnings}")
+        print(f"Converted image count: {result.num_images_converted}")
 
-        # 验证结果
-        assert result.success, f"转换失败: {result.errors}"
+        # Verify results
+        assert result.success, f"conversion failed: {result.errors}"
         assert result.source_format == "labelme"
         assert result.target_format == "yolo"
         assert result.num_images_converted > 0
 
-        # 验证输出文件存在
+        # Verify output files exist
         labels_dir = temp_output_dir / "labels"
         images_dir = temp_output_dir / "images"
         classes_file = temp_output_dir / "classes.txt"
 
-        # 注意：根据实际测试，YoloAnnotationHandler可能会将标签文件写在根目录
-        # 检查根目录下的.txt文件
+        # Note: According to actual testing, YoloAnnotationHandler may write label files in root directory
+        # Check .txt files in root directory
         root_label_files = list(temp_output_dir.glob("*.txt"))
 
-        # 打印目录结构进行调试
-        print(f"临时目录内容: {list(temp_output_dir.rglob('*'))}")
+        # Print directory structure for debugging
+        print(f"Temporary directory contents: {list(temp_output_dir.rglob('*'))}")
 
-        # 标签文件可能在根目录或labels目录
+        # Label files may be in root directory or labels directory
         if root_label_files:
-            print(f"在根目录找到标签文件: {root_label_files}")
+            print(f"Found label files in root directory: {root_label_files}")
             label_files = root_label_files
         else:
-            assert labels_dir.exists(), f"标签目录不存在: {labels_dir}"
+            assert labels_dir.exists(), f"Labels directory does not exist: {labels_dir}"
             label_files = list(labels_dir.glob("*.txt"))
-            print(f"在labels目录找到标签文件: {label_files}")
+            print(f"Found label files in labels directory: {label_files}")
 
-        assert len(label_files) > 0, "没有生成标签文件"
+        assert len(label_files) > 0, "No label files generated"
 
     def test_yolo_to_labelme_detection(self, test_data_dir, temp_output_dir):
-        """测试YOLO→LabelMe目标检测转换"""
-        # 准备测试数据路径
+        """Test YOLO→LabelMe object detection conversion"""
+        # Prepare test data paths
         source_dir = test_data_dir / "det" / "yolo"
         class_file = source_dir / "classes.txt"
         image_dir = source_dir / "images"
 
-        # 创建转换器
+        # Create converter
         converter = LabelMeAndYoloConverter(source_to_target=False)
 
-        # 执行转换
+        # Perform conversion
         result = converter.convert(
             source_path=str(source_dir / "labels"),
             target_path=str(temp_output_dir),
@@ -98,167 +98,167 @@ class TestIntegrationConversions:
             image_dir=str(image_dir),
         )
 
-        # 验证结果
-        assert result.success, f"转换失败: {result.errors}"
+        # Verify results
+        assert result.success, f"conversion failed: {result.errors}"
         assert result.source_format == "yolo"
         assert result.target_format == "labelme"
         assert result.num_images_converted > 0
 
-        # 验证输出文件存在
+        # Verify output files exist
         json_files = list(temp_output_dir.glob("*.json"))
-        assert len(json_files) > 0, "没有生成JSON文件"
+        assert len(json_files) > 0, "No JSON files generated"
 
     def test_yolo_to_coco_detection(self, test_data_dir, temp_output_dir):
-        """测试YOLO→COCO目标检测转换"""
-        # 准备测试数据路径
+        """Test YOLO→COCO object detection conversion"""
+        # Prepare test data paths
         source_dir = test_data_dir / "det" / "yolo"
         class_file = source_dir / "classes.txt"
         image_dir = source_dir / "images"
         output_file = temp_output_dir / "coco.json"
 
-        # 创建转换器
+        # Create converter
         converter = YoloAndCocoConverter(source_to_target=True)
 
-        # 执行转换
+        # Perform conversion
         result = converter.convert(
             source_path=str(source_dir / "labels"),
             target_path=str(output_file),
             class_file=str(class_file),
             image_dir=str(image_dir),
-            do_rle=False,  # 不使用RLE以确保测试简单
+            do_rle=False,  # Do not use RLE to keep test simple
         )
 
-        # 验证结果
-        assert result.success, f"转换失败: {result.errors}"
+        # Verify results
+        assert result.success, f"conversion failed: {result.errors}"
         assert result.source_format == "yolo"
         assert result.target_format == "coco"
         assert result.num_images_converted > 0
 
-        # 验证输出文件存在且为有效的JSON
-        assert output_file.exists(), f"输出文件不存在: {output_file}"
+        # Verify output file exists and is valid JSON
+        assert output_file.exists(), f"Output file does not exist: {output_file}"
 
         with open(output_file, "r", encoding="utf-8") as f:
             coco_data = json.load(f)
 
-        # 验证COCO数据结构
+        # Verify COCO data structure
         assert "images" in coco_data
         assert "annotations" in coco_data
         assert "categories" in coco_data
 
-        # 验证图像和标注数量
+        # Verify image and annotation counts
         assert len(coco_data["images"]) > 0
         assert len(coco_data["categories"]) > 0
 
     def test_coco_to_yolo_detection(self, test_data_dir, temp_output_dir):
-        """测试COCO→YOLO目标检测转换"""
-        # 准备测试数据路径
+        """Test COCO→YOLO object detection conversion"""
+        # Prepare test data paths
         source_file = test_data_dir / "det" / "coco" / "annotations.json"
 
-        # 创建转换器
+        # Create converter
         converter = YoloAndCocoConverter(source_to_target=False)
 
-        # 执行转换
+        # Perform conversion
         result = converter.convert(
             source_path=str(source_file), target_path=str(temp_output_dir)
         )
 
-        # 验证结果
-        assert result.success, f"转换失败: {result.errors}"
+        # Verify results
+        assert result.success, f"conversion failed: {result.errors}"
         assert result.source_format == "coco"
         assert result.target_format == "yolo"
         assert result.num_images_converted > 0
 
-        # 验证输出文件存在
+        # Verify output files exist
         labels_dir = temp_output_dir / "labels"
         classes_file = temp_output_dir / "classes.txt"
 
-        assert labels_dir.exists(), f"标签目录不存在: {labels_dir}"
-        assert classes_file.exists(), f"类别文件不存在: {classes_file}"
+        assert labels_dir.exists(), f"Labels directory does not exist: {labels_dir}"
+        assert classes_file.exists(), f"Class file does not exist: {classes_file}"
 
-        # 验证标签文件数量
+        # Verify label file count
         label_files = list(labels_dir.glob("*.txt"))
-        assert len(label_files) > 0, "没有生成标签文件"
+        assert len(label_files) > 0, "No label files generated"
 
-        # 验证类别文件内容
+        # Verify class file content
         with open(classes_file, "r", encoding="utf-8") as f:
             classes = [line.strip() for line in f if line.strip()]
-        assert len(classes) > 0, "类别文件为空"
+        assert len(classes) > 0, "Class file is empty"
 
     def test_coco_to_labelme_detection(self, test_data_dir, temp_output_dir):
-        """测试COCO→LabelMe目标检测转换"""
-        # 准备测试数据路径
+        """Test COCO→LabelMe object detection conversion"""
+        # Prepare test data paths
         source_file = test_data_dir / "det" / "coco" / "annotations.json"
 
-        # 创建转换器
+        # Create converter
         converter = CocoAndLabelMeConverter(source_to_target=True)
 
-        # 执行转换
+        # Perform conversion
         result = converter.convert(
             source_path=str(source_file), target_path=str(temp_output_dir)
         )
 
-        # 验证结果
-        assert result.success, f"转换失败: {result.errors}"
+        # Verify results
+        assert result.success, f"conversion failed: {result.errors}"
         assert result.source_format == "coco"
         assert result.target_format == "labelme"
         assert result.num_images_converted > 0
 
-        # 验证输出文件存在
+        # Verify output files exist
         json_files = list(temp_output_dir.glob("*.json"))
         classes_file = temp_output_dir / "classes.txt"
 
-        assert len(json_files) > 0, "没有生成JSON文件"
-        assert classes_file.exists(), f"类别文件不存在: {classes_file}"
+        assert len(json_files) > 0, "No JSON files generated"
+        assert classes_file.exists(), f"Class file does not exist: {classes_file}"
 
     def test_labelme_to_coco_detection(self, test_data_dir, temp_output_dir):
-        """测试LabelMe→COCO目标检测转换"""
-        # 准备测试数据路径
+        """Test LabelMe→COCO object detection conversion"""
+        # Prepare test data paths
         source_dir = test_data_dir / "det" / "labelme"
         class_file = source_dir / "classes.txt"
         output_file = temp_output_dir / "coco.json"
 
-        # 创建转换器
+        # Create converter
         converter = CocoAndLabelMeConverter(source_to_target=False)
 
-        # 执行转换
+        # Perform conversion
         result = converter.convert(
             source_path=str(source_dir),
             target_path=str(output_file),
             class_file=str(class_file),
-            do_rle=False,  # 不使用RLE以确保测试简单
+            do_rle=False,  # Do not use RLE to keep test simple
         )
 
-        # 验证结果
-        assert result.success, f"转换失败: {result.errors}"
+        # Verify results
+        assert result.success, f"conversion failed: {result.errors}"
         assert result.source_format == "labelme"
         assert result.target_format == "coco"
         assert result.num_images_converted > 0
 
-        # 验证输出文件存在且为有效的JSON
-        assert output_file.exists(), f"输出文件不存在: {output_file}"
+        # Verify output file exists and is valid JSON
+        assert output_file.exists(), f"Output file does not exist: {output_file}"
 
         with open(output_file, "r", encoding="utf-8") as f:
             coco_data = json.load(f)
 
-        # 验证COCO数据结构
+        # Verify COCO data structure
         assert "images" in coco_data
         assert "annotations" in coco_data
         assert "categories" in coco_data
 
-        # 验证类别数量
+        # Verify category count
         assert len(coco_data["categories"]) > 0
 
     def test_full_conversion_chain(self, test_data_dir, temp_output_dir):
-        """测试完整转换链：LabelMe→YOLO→COCO→LabelMe"""
-        # 准备原始LabelMe数据
+        """Test full conversion chain: LabelMe→YOLO→COCO→LabelMe"""
+        # Prepare original LabelMe data
         source_dir = test_data_dir / "det" / "labelme"
         class_file = source_dir / "classes.txt"
 
-        # 创建临时目录用于中间文件
+        # Create temporary directory for intermediate files
         temp_dir = Path(tempfile.mkdtemp())
 
         try:
-            # 第1步：LabelMe → YOLO
+            # Step 1: LabelMe → YOLO
             yolo_dir = temp_dir / "yolo"
             converter1 = LabelMeAndYoloConverter(source_to_target=True)
             result1 = converter1.convert(
@@ -266,95 +266,95 @@ class TestIntegrationConversions:
                 target_path=str(yolo_dir),
                 class_file=str(class_file),
             )
-            assert result1.success, f"LabelMe→YOLO转换失败: {result1.errors}"
+            assert result1.success, f"LabelMe→YOLO conversion failed: {result1.errors}"
 
-            # 第2步：YOLO → COCO
+            # Step 2: YOLO → COCO
             coco_file = temp_dir / "coco.json"
             converter2 = YoloAndCocoConverter(source_to_target=True)
             result2 = converter2.convert(
                 source_path=str(yolo_dir / "labels"),
                 target_path=str(coco_file),
                 class_file=str(yolo_dir / "classes.txt"),
-                image_dir=str(source_dir),  # 使用原始LabelMe目录中的图像文件
+                image_dir=str(source_dir),  # Use image files from original LabelMe directory
                 do_rle=False,
             )
-            assert result2.success, f"YOLO→COCO转换失败: {result2.errors}"
+            assert result2.success, f"YOLO→COCO conversion failed: {result2.errors}"
 
-            # 第3步：COCO → LabelMe
+            # Step 3: COCO → LabelMe
             labelme_dir = temp_output_dir / "labelme_final"
             converter3 = CocoAndLabelMeConverter(source_to_target=True)
             result3 = converter3.convert(
                 source_path=str(coco_file), target_path=str(labelme_dir)
             )
-            assert result3.success, f"COCO→LabelMe转换失败: {result3.errors}"
+            assert result3.success, f"COCO→LabelMe conversion failed: {result3.errors}"
 
-            # 验证最终输出
+            # Verify final output
             json_files = list(labelme_dir.glob("*.json"))
-            assert len(json_files) > 0, "最终LabelMe文件为空"
+            assert len(json_files) > 0, "Final LabelMe files are empty"
 
-            # 简单验证：文件数量一致
+            # Simple verification: file counts match
             original_json_count = len(list(source_dir.glob("*.json")))
             final_json_count = len(json_files)
 
-            # 注意：由于不同格式的差异，文件数量可能不完全相同
-            # 但至少应该有输出文件
-            assert final_json_count > 0, "没有生成最终的LabelMe文件"
+            # Note: Due to differences between formats, file counts may not exactly match
+            # But there should be at least some output files
+            assert final_json_count > 0, "No final LabelMe files generated"
 
         finally:
-            # 清理临时目录
+            # Clean up temporary directory
             if temp_dir.exists():
                 shutil.rmtree(temp_dir)
 
     def test_labelme_to_yolo_verbose(self, test_data_dir, temp_output_dir):
-        """测试LabelMe→YOLO转换的verbose模式"""
-        # 准备测试数据路径
+        """Test LabelMe→YOLO conversion verbose mode"""
+        # Prepare test data paths
         source_dir = test_data_dir / "det" / "labelme"
         class_file = source_dir / "classes.txt"
 
-        # 创建转换器（verbose=True）
+        # Create converter（verbose=True）
         converter = LabelMeAndYoloConverter(source_to_target=True, verbose=True)
 
-        # 执行转换
+        # Perform conversion
         result = converter.convert(
             source_path=str(source_dir),
             target_path=str(temp_output_dir),
             class_file=str(class_file),
         )
 
-        # 验证结果
-        assert result.success, f"转换失败: {result.errors}"
+        # Verify results
+        assert result.success, f"conversion failed: {result.errors}"
         assert result.source_format == "labelme"
         assert result.target_format == "yolo"
         assert result.num_images_converted > 0
 
-        # 验证verbose日志记录
-        assert hasattr(result, "verbose_log"), "ConversionResult缺少verbose_log属性"
-        # verbose_log可能为空，但属性应该存在
+        # Verify verbose logging
+        assert hasattr(result, "verbose_log"), "ConversionResult missing verbose_log attribute"
+        # verbose_log may be empty, but attribute should exist
 
-        # 验证转换器设置了verbose属性
+        # Verify converter has verbose attribute set
         assert converter.verbose is True
-        assert hasattr(converter, "progress_logger"), "转换器缺少progress_logger属性"
+        assert hasattr(converter, "progress_logger"), "converter missing progress_logger attribute"
 
-        # 验证输出文件存在
+        # Verify output files exist
         label_files = list(temp_output_dir.glob("*.txt"))
         if not label_files:
             labels_dir = temp_output_dir / "labels"
             if labels_dir.exists():
                 label_files = list(labels_dir.glob("*.txt"))
-        assert len(label_files) > 0, "没有生成标签文件"
+        assert len(label_files) > 0, "No label files generated"
 
     def test_yolo_to_coco_verbose(self, test_data_dir, temp_output_dir):
-        """测试YOLO→COCO转换的verbose模式"""
-        # 准备测试数据路径
+        """Test YOLO→COCO conversion verbose mode"""
+        # Prepare test data paths
         source_dir = test_data_dir / "det" / "yolo"
         class_file = source_dir / "classes.txt"
         image_dir = source_dir / "images"
         output_file = temp_output_dir / "coco.json"
 
-        # 创建转换器（verbose=True）
+        # Create converter（verbose=True）
         converter = YoloAndCocoConverter(source_to_target=True, verbose=True)
 
-        # 执行转换
+        # Perform conversion
         result = converter.convert(
             source_path=str(source_dir / "labels"),
             target_path=str(output_file),
@@ -363,17 +363,17 @@ class TestIntegrationConversions:
             do_rle=False,
         )
 
-        # 验证结果
-        assert result.success, f"转换失败: {result.errors}"
+        # Verify results
+        assert result.success, f"conversion failed: {result.errors}"
         assert result.source_format == "yolo"
         assert result.target_format == "coco"
         assert result.num_images_converted > 0
 
-        # 验证verbose相关功能
+        # Verify verbose-related functionality
         assert converter.verbose is True
         assert hasattr(converter, "progress_logger")
 
-        # 验证输出文件
+        # Verify output files
         assert output_file.exists()
         with open(output_file, "r", encoding="utf-8") as f:
             coco_data = json.load(f)
@@ -381,84 +381,84 @@ class TestIntegrationConversions:
         assert "annotations" in coco_data
 
     def test_coco_to_labelme_verbose(self, test_data_dir, temp_output_dir):
-        """测试COCO→LabelMe转换的verbose模式"""
-        # 准备测试数据路径
+        """Test COCO→LabelMe conversion verbose mode"""
+        # Prepare test data paths
         source_file = test_data_dir / "det" / "coco" / "annotations.json"
 
-        # 创建转换器（verbose=True）
+        # Create converter（verbose=True）
         converter = CocoAndLabelMeConverter(source_to_target=True, verbose=True)
 
-        # 执行转换
+        # Perform conversion
         result = converter.convert(
             source_path=str(source_file), target_path=str(temp_output_dir)
         )
 
-        # 验证结果
-        assert result.success, f"转换失败: {result.errors}"
+        # Verify results
+        assert result.success, f"conversion failed: {result.errors}"
         assert result.source_format == "coco"
         assert result.target_format == "labelme"
         assert result.num_images_converted > 0
 
-        # 验证verbose相关功能
+        # Verify verbose-related functionality
         assert converter.verbose is True
         assert hasattr(converter, "progress_logger")
 
-        # 验证输出文件
+        # Verify output files
         json_files = list(temp_output_dir.glob("*.json"))
         assert len(json_files) > 0
 
     def test_verbose_log_file_creation(self, test_data_dir, temp_output_dir):
-        """测试verbose模式下日志文件创建"""
+        """Test log file creation in verbose mode"""
         import logging
 
         from dataflow.util.logging_util import VerboseLoggingOperations
 
-        # 准备测试数据路径
+        # Prepare test data paths
         source_dir = test_data_dir / "det" / "labelme"
         class_file = source_dir / "classes.txt"
 
-        # 创建临时日志目录
+        # Create temporary log directory
         log_dir = temp_output_dir / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
 
-        # 创建转换器（verbose=True）
+        # Create converter（verbose=True）
         converter = LabelMeAndYoloConverter(source_to_target=True, verbose=True)
 
-        # 执行转换
+        # Perform conversion
         result = converter.convert(
             source_path=str(source_dir),
             target_path=str(temp_output_dir / "yolo_output"),
             class_file=str(class_file),
         )
 
-        # 验证转换成功
-        assert result.success, f"转换失败: {result.errors}"
+        # Verify conversion successful
+        assert result.success, f"conversion failed: {result.errors}"
 
-        # 注意：实际日志文件可能由logger创建，但我们需要验证verbose模式正常工作
-        # 我们可以检查converter的logger是否有文件handler
+        # Note: Actual log files may be created by logger, but we need to verify verbose mode works correctly
+        # We can check if converter's logger has file handler
         if hasattr(converter, "logger"):
             file_handlers = [
                 h
                 for h in converter.logger.handlers
                 if isinstance(h, logging.FileHandler)
             ]
-            # 在verbose=True时，可能创建了文件handler，但具体实现可能不同
-            # 我们至少验证verbose模式设置正确
+            # When verbose=True, file handler may be created, but implementation may vary
+            # We at least verify verbose mode is set correctly
             pass
 
         assert converter.verbose is True
 
     def test_verbose_mode_consistency(self, test_data_dir, temp_output_dir):
-        """测试verbose模式一致性：verbose=False和verbose=True结果应该相同"""
-        # 准备测试数据路径
+        """Test verbose mode consistency: results should be same for verbose=False and verbose=True"""
+        # Prepare test data paths
         source_dir = test_data_dir / "det" / "labelme"
         class_file = source_dir / "classes.txt"
 
-        # 创建临时目录用于两次转换
+        # Create temporary directory for two conversions
         output_dir_no_verbose = temp_output_dir / "output_no_verbose"
         output_dir_verbose = temp_output_dir / "output_verbose"
 
-        # 1. 无verbose模式转换
+        # 1. No verbose mode conversion
         converter_no_verbose = LabelMeAndYoloConverter(
             source_to_target=True, verbose=False
         )
@@ -468,7 +468,7 @@ class TestIntegrationConversions:
             class_file=str(class_file),
         )
 
-        # 2. 有verbose模式转换
+        # 2. With verbose mode conversion
         converter_verbose = LabelMeAndYoloConverter(source_to_target=True, verbose=True)
         result_verbose = converter_verbose.convert(
             source_path=str(source_dir),
@@ -476,22 +476,22 @@ class TestIntegrationConversions:
             class_file=str(class_file),
         )
 
-        # 验证两者都成功
+        # Verify both are successful
         assert result_no_verbose.success
         assert result_verbose.success
 
-        # 验证转换图片数量相同
+        # Verify same number of converted images
         assert (
             result_no_verbose.num_images_converted
             == result_verbose.num_images_converted
         )
 
-        # 验证两者生成的标签文件数量相同
+        # Verify both generate same number of label files
         label_files_no_verbose = list(output_dir_no_verbose.glob("**/*.txt"))
         label_files_verbose = list(output_dir_verbose.glob("**/*.txt"))
 
-        # 由于YOLO handler的行为，文件可能在不同目录，但总数应该相同
-        # 我们只验证两者都生成了文件
+        # Due to YOLO handler behavior, files may be in different directories, but total count should be same
+        # We only verify both generated files
         assert len(label_files_no_verbose) > 0
         assert len(label_files_verbose) > 0
 

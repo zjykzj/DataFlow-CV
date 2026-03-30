@@ -20,13 +20,13 @@ def test_validate_path_exists():
         existing_path = Path(tmpdir) / "test.txt"
         existing_path.touch()
 
-        result = validate_path_exists(existing_path, "测试路径")
+        result = validate_path_exists(existing_path, "test path")
         assert result == existing_path
 
         # Test non-existent path
         non_existent = Path(tmpdir) / "nonexistent.txt"
         with pytest.raises(InputError) as exc_info:
-            validate_path_exists(non_existent, "测试路径")
+            validate_path_exists(non_existent, "test path")
 
         assert "does not exist" in str(exc_info.value)
         assert str(non_existent) in str(exc_info.value)

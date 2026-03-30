@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
 """
-CLI可视化功能示例脚本
+CLI visualization function example script
 
-展示如何使用dataflow-cv visualize命令可视化三种标签格式：
-1. YOLO格式可视化
-2. COCO格式可视化
-3. LabelMe格式可视化
+Demonstrates how to use the dataflow-cv visualize command to visualize three label formats:
+1. YOLO format visualization
+2. COCO format visualization
+3. LabelMe format visualization
 
-使用方法：
-1. 在项目根目录运行：python samples/cli/visualize_demo.py
-2. 或者直接运行：./samples/cli/visualize_demo.py
+Usage:
+1. Run in project root directory: python samples/cli/visualize_demo.py
+2. Or run directly: ./samples/cli/visualize_demo.py
 """
 
 import subprocess
 import sys
 from pathlib import Path
 
-# 添加项目根目录到PATH，以便导入dataflow模块
+# Add project root directory to PATH to import dataflow module
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 def run_cli_command(cmd_args):
-    """运行CLI命令并返回结果"""
-    print(f"执行命令: dataflow-cv {' '.join(cmd_args)}")
+    """Run CLI command and return result"""
+    print(f"Executing command: dataflow-cv {' '.join(cmd_args)}")
     try:
         result = subprocess.run(
             ["dataflow-cv"] + cmd_args,
@@ -31,26 +31,26 @@ def run_cli_command(cmd_args):
             cwd=project_root,
             timeout=30,
         )
-        print(f"退出码: {result.returncode}")
+        print(f"Exit code: {result.returncode}")
         if result.stdout:
-            print(f"标准输出:\n{result.stdout}")
+            print(f"Standard output:\n{result.stdout}")
         if result.stderr:
-            print(f"标准错误:\n{result.stderr}")
+            print(f"Standard error:\n{result.stderr}")
         return result.returncode == 0
     except subprocess.TimeoutExpired:
-        print("错误: 命令执行超时")
+        print("Error: Command execution timeout")
         return False
     except FileNotFoundError:
-        print("错误: 未找到dataflow-cv命令，请先安装包: pip install -e .")
+        print("Error: dataflow-cv command not found, please install package first: pip install -e .")
         return False
     except Exception as e:
-        print(f"错误: 执行命令时发生异常: {e}")
+        print(f"Error: Exception occurred while executing command: {e}")
         return False
 
 def demo_yolo_visualization():
-    """演示YOLO格式可视化"""
+    """Demonstrate YOLO format visualization"""
     print("\n" + "="*60)
-    print("演示YOLO格式可视化")
+    print("Demonstrating YOLO format visualization")
     print("="*60)
 
     yolo_dir = project_root / "assets" / "test_data" / "seg" / "yolo"
@@ -59,7 +59,7 @@ def demo_yolo_visualization():
     class_file = yolo_dir / "classes.txt"
     output_dir = project_root / "temp_output" / "visualize" / "yolo"
 
-    # 清理旧输出目录
+    # Clean up old output directory
     if output_dir.exists():
         import shutil
         shutil.rmtree(output_dir)
@@ -73,25 +73,25 @@ def demo_yolo_visualization():
 
     success = run_cli_command(cmd)
     if success:
-        print(f"✓ YOLO可视化成功，结果保存在: {output_dir}")
-        # 统计生成的文件
+        print(f"✓ YOLO visualization successful, result saved at: {output_dir}")
+        # Count generated files
         image_files = list(output_dir.glob("*.jpg")) + list(output_dir.glob("*.png"))
-        print(f"  生成了 {len(image_files)} 张可视化图像")
+        print(f"  Generated {len(image_files)} visualization images")
     else:
-        print("✗ YOLO可视化失败")
+        print("✗ YOLO visualization failed")
     return success
 
 def demo_coco_visualization():
-    """演示COCO格式可视化"""
+    """Demonstrate COCO format visualization"""
     print("\n" + "="*60)
-    print("演示COCO格式可视化")
+    print("Demonstrating COCO format visualization")
     print("="*60)
 
     coco_file = project_root / "assets" / "test_data" / "seg" / "coco" / "annotations.json"
     image_dir = project_root / "assets" / "test_data" / "seg" / "coco" / "images"
     output_dir = project_root / "temp_output" / "visualize" / "coco"
 
-    # 清理旧输出目录
+    # Clean up old output directory
     if output_dir.exists():
         import shutil
         shutil.rmtree(output_dir)
@@ -105,28 +105,28 @@ def demo_coco_visualization():
 
     success = run_cli_command(cmd)
     if success:
-        print(f"✓ COCO可视化成功，结果保存在: {output_dir}")
+        print(f"✓ COCO visualization successful, result saved at: {output_dir}")
         image_files = list(output_dir.glob("*.jpg")) + list(output_dir.glob("*.png"))
-        print(f"  生成了 {len(image_files)} 张可视化图像")
+        print(f"  Generated {len(image_files)} visualization images")
     else:
-        print("✗ COCO可视化失败")
+        print("✗ COCO visualization failed")
     return success
 
 def demo_labelme_visualization():
-    """演示LabelMe格式可视化"""
+    """Demonstrate LabelMe format visualization"""
     print("\n" + "="*60)
-    print("演示LabelMe格式可视化")
+    print("Demonstrating LabelMe format visualization")
     print("="*60)
 
     labelme_dir = project_root / "assets" / "test_data" / "seg" / "labelme"
     output_dir = project_root / "temp_output" / "visualize" / "labelme"
 
-    # 清理旧输出目录
+    # Clean up old output directory
     if output_dir.exists():
         import shutil
         shutil.rmtree(output_dir)
 
-    # LabelMe格式：图片和JSON文件在同一目录
+    # LabelMe format: images and JSON files in the same directory
     cmd = [
         "visualize", "labelme",
         str(labelme_dir), str(labelme_dir),
@@ -136,55 +136,55 @@ def demo_labelme_visualization():
 
     success = run_cli_command(cmd)
     if success:
-        print(f"✓ LabelMe可视化成功，结果保存在: {output_dir}")
+        print(f"✓ LabelMe visualization successful, result saved at: {output_dir}")
         image_files = list(output_dir.glob("*.jpg")) + list(output_dir.glob("*.png"))
-        print(f"  生成了 {len(image_files)} 张可视化图像")
+        print(f"  Generated {len(image_files)} visualization images")
     else:
-        print("✗ LabelMe可视化失败")
+        print("✗ LabelMe visualization failed")
     return success
 
 def main():
-    """主函数"""
-    print("DataFlow-CV CLI可视化功能演示")
+    """Main function"""
+    print("DataFlow-CV CLI visualization function demonstration")
     print("="*60)
 
-    # 检查测试数据是否存在
+    # Check if test data exists
     test_data_root = project_root / "assets" / "test_data" / "seg"
     if not test_data_root.exists():
-        print(f"错误: 测试数据目录不存在: {test_data_root}")
-        print("请确保在项目根目录运行此脚本")
+        print(f"Error: Test data directory does not exist: {test_data_root}")
+        print("Please ensure running this script in the project root directory")
         return 1
 
-    # 创建临时输出目录
+    # Create temporary output directory
     temp_root = project_root / "temp_output" / "visualize"
     temp_root.mkdir(parents=True, exist_ok=True)
 
     successes = []
 
-    # 演示三种格式的可视化
+    # Demonstrate three format visualizations
     successes.append(demo_yolo_visualization())
     successes.append(demo_coco_visualization())
     successes.append(demo_labelme_visualization())
 
-    # 总结
+    # Summary
     print("\n" + "="*60)
-    print("演示总结")
+    print("Demonstration summary")
     print("="*60)
     total = len(successes)
     passed = sum(successes)
-    print(f"总共演示了 {total} 种格式的可视化")
-    print(f"成功: {passed}, 失败: {total - passed}")
+    print(f"Total demonstrated {total} format visualizations")
+    print(f"Successful: {passed}, Failed: {total - passed}")
 
     if all(successes):
-        print("✓ 所有演示都成功完成!")
-        print(f"可视化结果保存在: {project_root / 'temp_output' / 'visualize'}")
-        print("\n您可以使用以下命令手动测试:")
+        print("✓ All demonstrations completed successfully!")
+        print(f"Visualization results saved at: {project_root / 'temp_output' / 'visualize'}")
+        print("\nYou can manually test with the following commands:")
         print("  dataflow-cv visualize yolo assets/test_data/seg/yolo/images assets/test_data/seg/yolo/labels assets/test_data/seg/yolo/classes.txt --save ./output")
         print("  dataflow-cv visualize coco assets/test_data/seg/coco/images assets/test_data/seg/coco/annotations.json --save ./output")
         print("  dataflow-cv visualize labelme assets/test_data/seg/labelme assets/test_data/seg/labelme --save ./output")
         return 0
     else:
-        print("✗ 部分演示失败，请检查错误信息")
+        print("✗ Some demonstrations failed, please check error messages")
         return 1
 
 if __name__ == "__main__":

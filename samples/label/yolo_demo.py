@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-YOLO标注格式处理示例
+YOLO annotation format processing example
 
-展示如何使用YoloAnnotationHandler读取、处理和写入YOLO格式标注。
-支持自动检测目标检测和实例分割格式。
+Demonstrates how to use YoloAnnotationHandler to read, process, and write YOLO format annotations.
+Supports automatic detection of object detection and instance segmentation formats.
 """
 
 import sys
 from pathlib import Path
 
-# 添加项目根目录到Python路径
+# Add project root directory to Python path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
@@ -18,29 +18,29 @@ from dataflow.util import LoggingOperations
 
 
 def demo_detection():
-    """目标检测数据演示"""
+    """Object detection data demonstration"""
     log_ops = LoggingOperations()
     logger = log_ops.get_logger("yolo_demo_det", level="INFO")
 
-    logger.info("YOLO目标检测标注处理示例")
+    logger.info("YOLO object detection annotation processing example")
     logger.info("=" * 50)
 
-    # 示例数据路径
+    # Example data path
     data_dir = project_root / "assets" / "test_data" / "det" / "yolo"
     class_file = data_dir / "classes.txt"
     image_dir = data_dir / "images"
     label_dir = data_dir / "labels"
 
     if not data_dir.exists():
-        logger.error(f"数据目录不存在: {data_dir}")
-        logger.info("请确保已准备示例数据")
+        logger.error(f"Data directory does not exist: {data_dir}")
+        logger.info("Please ensure sample data is prepared")
         return
 
-    # 创建YOLO处理器
-    logger.info(f"创建YOLO处理器:")
-    logger.info(f"  标签目录: {label_dir}")
-    logger.info(f"  类别文件: {class_file}")
-    logger.info(f"  图片目录: {image_dir}")
+    # Create YOLO handler
+    logger.info(f"Creating YOLO handler:")
+    logger.info(f"  Label directory: {label_dir}")
+    logger.info(f"  Class file: {class_file}")
+    logger.info(f"  Image directory: {image_dir}")
 
     handler = YoloAnnotationHandler(
         label_dir=str(label_dir),
@@ -50,82 +50,82 @@ def demo_detection():
         logger=logger,
     )
 
-    # 读取标注数据
-    logger.info("\n正在读取YOLO标注...")
+    # Reading annotation data
+    logger.info("\nReading YOLO annotations...")
     result = handler.read()
 
     if not result.success:
-        logger.error(f"读取失败: {result.message}")
+        logger.error(f"Read failed: {result.message}")
         if result.errors:
             for error in result.errors:
                 logger.error(f"  - {error}")
         return
 
-    # 显示标注类型检测结果
-    logger.info(f"标注类型检测:")
-    logger.info(f"  目标检测: {handler.is_det}")
-    logger.info(f"  实例分割: {handler.is_seg}")
+    # Showing annotation type detection results
+    logger.info(f"Annotation type detection:")
+    logger.info(f"  Object detection: {handler.is_det}")
+    logger.info(f"  Instance segmentation: {handler.is_seg}")
 
-    logger.info(f"\n成功读取 {len(result.data.images)} 张图片的标注")
-    logger.info(f"类别数量: {len(result.data.categories)}")
+    logger.info(f"\nSuccessfully read annotations for {len(result.data.images)} images")
+    logger.info(f"Number of categories: {len(result.data.categories)}")
 
-    # 显示第一张图片的详细信息
+    # Display first image details
     if result.data.images:
         img = result.data.images[0]
-        logger.info(f"\n第一张图片信息:")
-        logger.info(f"  图片ID: {img.image_id}")
-        logger.info(f"  路径: {img.image_path}")
-        logger.info(f"  尺寸: {img.width}x{img.height}")
-        logger.info(f"  对象数量: {len(img.objects)}")
+        logger.info(f"\nFirst image information:")
+        logger.info(f"  Image ID: {img.image_id}")
+        logger.info(f"  Path: {img.image_path}")
+        logger.info(f"  Dimensions: {img.width}x{img.height}")
+        logger.info(f"  Number of objects: {len(img.objects)}")
 
-        for i, obj in enumerate(img.objects[:3]):  # 显示前3个对象
-            logger.info(f"  对象 {i+1}: {obj.class_name} (ID: {obj.class_id})")
+        for i, obj in enumerate(img.objects[:3]):  # Display first 3 objects
+            logger.info(f"  Object {i+1}: {obj.class_name} (ID: {obj.class_id})")
             if obj.bbox:
                 logger.info(
-                    f"    边界框: x={obj.bbox.x:.3f}, y={obj.bbox.y:.3f}, "
+                    f"    Bounding box: x={obj.bbox.x:.3f}, y={obj.bbox.y:.3f}, "
                     f"w={obj.bbox.width:.3f}, h={obj.bbox.height:.3f}"
                 )
 
-    # 格式转换示例：YOLO -> 统一格式 -> 新的YOLO
-    logger.info("\n进行格式转换测试...")
+    # Format conversion example: YOLO → unified format → new YOLO
+    logger.info("\nPerforming format conversion test...")
     output_dir = data_dir / "output"
     output_dir.mkdir(exist_ok=True)
 
     write_result = handler.write(result.data, str(output_dir))
 
     if write_result.success:
-        logger.info(f"成功写入到: {output_dir}")
-        logger.info(f"生成文件数量: {len(list(output_dir.glob('*.txt')))}")
+        logger.info(f"Successfully written to: {output_dir}")
+        logger.info(f"Generated file count: {len(list(output_dir.glob('*.txt')))}")
     else:
-        logger.error(f"写入失败: {write_result.message}")
+        logger.error(f"Write failed: {write_result.message}")
 
-    logger.info("\n目标检测示例完成！\n")
+    logger.info("\nObject detection example completed!\n")
 
 
 def demo_segmentation():
-    """实例分割数据演示"""
+    """Instance segmentation data demonstration"""
     log_ops = LoggingOperations()
     logger = log_ops.get_logger("yolo_demo_seg", level="INFO")
 
-    logger.info("YOLO实例分割标注处理示例")
+    logger.info("YOLO instance segmentation annotation processing example")
     logger.info("=" * 50)
 
-    # 示例数据路径
+    # Example data path
     data_dir = project_root / "assets" / "test_data" / "seg" / "yolo"
     class_file = data_dir / "classes.txt"
     image_dir = data_dir / "images"
     label_dir = data_dir / "labels"
 
     if not data_dir.exists():
-        logger.error(f"数据目录不存在: {data_dir}")
-        logger.info("请确保已准备示例数据")
+        logger.error(f"Data directory does not exist: {data_dir}")
+        logger.info("Please ensure sample data is prepared")
         return
 
-    # 创建YOLO处理器
-    logger.info(f"创建YOLO处理器:")
-    logger.info(f"  标签目录: {label_dir}")
-    logger.info(f"  类别文件: {class_file}")
-    logger.info(f"  图片目录: {image_dir}")
+    # Create YOLO handler
+    logger.info(f"Creating YOLO handler:")
+    logger.info(f"  Label directory: {label_dir}")
+    logger.info(f"  Class file: {class_file}")
+    logger.info(f"  Image directory: {image_dir}")
 
     handler = YoloAnnotationHandler(
         label_dir=str(label_dir),
@@ -135,74 +135,74 @@ def demo_segmentation():
         logger=logger,
     )
 
-    # 读取标注数据
-    logger.info("\n正在读取YOLO标注...")
+    # Reading annotation data
+    logger.info("\nReading YOLO annotations...")
     result = handler.read()
 
     if not result.success:
-        logger.error(f"读取失败: {result.message}")
+        logger.error(f"Read failed: {result.message}")
         if result.errors:
             for error in result.errors:
                 logger.error(f"  - {error}")
         return
 
-    # 显示标注类型检测结果
-    logger.info(f"标注类型检测:")
-    logger.info(f"  目标检测: {handler.is_det}")
-    logger.info(f"  实例分割: {handler.is_seg}")
+    # Showing annotation type detection results
+    logger.info(f"Annotation type detection:")
+    logger.info(f"  Object detection: {handler.is_det}")
+    logger.info(f"  Instance segmentation: {handler.is_seg}")
 
-    logger.info(f"\n成功读取 {len(result.data.images)} 张图片的标注")
-    logger.info(f"类别数量: {len(result.data.categories)}")
+    logger.info(f"\nSuccessfully read annotations for {len(result.data.images)} images")
+    logger.info(f"Number of categories: {len(result.data.categories)}")
 
-    # 显示第一张图片的详细信息
+    # Display first image details
     if result.data.images:
         img = result.data.images[0]
-        logger.info(f"\n第一张图片信息:")
-        logger.info(f"  图片ID: {img.image_id}")
-        logger.info(f"  路径: {img.image_path}")
-        logger.info(f"  尺寸: {img.width}x{img.height}")
-        logger.info(f"  对象数量: {len(img.objects)}")
+        logger.info(f"\nFirst image information:")
+        logger.info(f"  Image ID: {img.image_id}")
+        logger.info(f"  Path: {img.image_path}")
+        logger.info(f"  Dimensions: {img.width}x{img.height}")
+        logger.info(f"  Number of objects: {len(img.objects)}")
 
-        for i, obj in enumerate(img.objects[:3]):  # 显示前3个对象
-            logger.info(f"  对象 {i+1}: {obj.class_name} (ID: {obj.class_id})")
+        for i, obj in enumerate(img.objects[:3]):  # Display first 3 objects
+            logger.info(f"  Object {i+1}: {obj.class_name} (ID: {obj.class_id})")
             if obj.segmentation:
-                logger.info(f"    分割点数: {len(obj.segmentation.points)}")
-                # 显示前3个点
+                logger.info(f"    Segmentation points: {len(obj.segmentation.points)}")
+                # Display first 3 points
                 for j, (x, y) in enumerate(obj.segmentation.points[:3]):
-                    logger.info(f"      点 {j+1}: x={x:.3f}, y={y:.3f}")
+                    logger.info(f"      Point {j+1}: x={x:.3f}, y={y:.3f}")
 
-    # 格式转换示例：YOLO -> 统一格式 -> 新的YOLO
-    logger.info("\n进行格式转换测试...")
+    # Format conversion example: YOLO → unified format → new YOLO
+    logger.info("\nPerforming format conversion test...")
     output_dir = data_dir / "output"
     output_dir.mkdir(exist_ok=True)
 
     write_result = handler.write(result.data, str(output_dir))
 
     if write_result.success:
-        logger.info(f"成功写入到: {output_dir}")
-        logger.info(f"生成文件数量: {len(list(output_dir.glob('*.txt')))}")
+        logger.info(f"Successfully written to: {output_dir}")
+        logger.info(f"Generated file count: {len(list(output_dir.glob('*.txt')))}")
     else:
-        logger.error(f"写入失败: {write_result.message}")
+        logger.error(f"Write failed: {write_result.message}")
 
-    logger.info("\n实例分割示例完成！\n")
+    logger.info("\nInstance segmentation example completed!\n")
 
 
 def main():
-    """主函数"""
+    """Main function"""
     log_ops = LoggingOperations()
     logger = log_ops.get_logger("yolo_demo", level="INFO")
 
     logger.info("=" * 60)
-    logger.info("YOLO标注格式处理示例")
+    logger.info("YOLO annotation format processing example")
     logger.info("=" * 60)
 
-    # 运行目标检测演示
+    # Running object detection demonstration
     demo_detection()
 
-    # 运行实例分割演示
+    # Running instance segmentation demonstration
     demo_segmentation()
 
-    logger.info("所有示例完成！")
+    logger.info("All examples completed!")
 
 
 if __name__ == "__main__":

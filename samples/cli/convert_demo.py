@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-CLI格式转换功能示例脚本
+CLI format conversion function example script
 
-展示如何使用dataflow-cv convert命令进行六种标签格式转换：
+Demonstrates how to use the dataflow-cv convert command for six label format conversions:
 1. YOLO → COCO
 2. YOLO → LabelMe
 3. COCO → YOLO
@@ -10,9 +10,9 @@ CLI格式转换功能示例脚本
 5. LabelMe → YOLO
 6. LabelMe → COCO
 
-使用方法：
-1. 在项目根目录运行：python samples/cli/convert_demo.py
-2. 或者直接运行：./samples/cli/convert_demo.py
+Usage:
+1. Run in project root directory: python samples/cli/convert_demo.py
+2. Or run directly: ./samples/cli/convert_demo.py
 """
 
 import subprocess
@@ -20,15 +20,15 @@ import sys
 import json
 from pathlib import Path
 
-# 添加项目根目录到PATH，以便导入dataflow模块
+# Add project root directory to PATH to import dataflow module
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 def run_cli_command(cmd_args):
-    """运行CLI命令并返回结果"""
+    """Run CLI command and return result"""
     import sys
     cmd = [sys.executable, "-m", "dataflow.cli.main"] + cmd_args
-    print(f"执行命令: {' '.join(cmd)}")
+    print(f"Executing command: {' '.join(cmd)}")
     try:
         result = subprocess.run(
             cmd,
@@ -37,26 +37,26 @@ def run_cli_command(cmd_args):
             cwd=project_root,
             timeout=30,
         )
-        print(f"退出码: {result.returncode}")
+        print(f"Exit code: {result.returncode}")
         if result.stdout:
-            print(f"标准输出:\n{result.stdout}")
+            print(f"Standard output:\n{result.stdout}")
         if result.stderr:
-            print(f"标准错误:\n{result.stderr}")
+            print(f"Standard error:\n{result.stderr}")
         return result.returncode == 0
     except subprocess.TimeoutExpired:
-        print("错误: 命令执行超时")
+        print("Error: Command execution timeout")
         return False
     except FileNotFoundError:
-        print("错误: 未找到Python解释器")
+        print("Error: Python interpreter not found")
         return False
     except Exception as e:
-        print(f"错误: 执行命令时发生异常: {e}")
+        print(f"Error: Exception occurred while executing command: {e}")
         return False
 
 def demo_yolo_to_coco():
-    """演示YOLO转COCO格式"""
+    """Demonstrate YOLO to COCO format conversion"""
     print("\n" + "="*60)
-    print("演示YOLO转COCO格式")
+    print("Demonstrating YOLO to COCO format conversion")
     print("="*60)
 
     yolo_dir = project_root / "assets" / "test_data" / "seg" / "yolo"
@@ -65,7 +65,7 @@ def demo_yolo_to_coco():
     image_dir = yolo_dir / "images"
     output_file = project_root / "temp_output" / "convert" / "yolo_to_coco.json"
 
-    # 清理旧输出文件
+    # Clean up old output file
     if output_file.exists():
         output_file.unlink()
 
@@ -80,24 +80,24 @@ def demo_yolo_to_coco():
 
     success = run_cli_command(cmd)
     if success:
-        print(f"✓ YOLO→COCO转换成功，结果保存在: {output_file}")
-        # 验证输出文件
+        print(f"✓ YOLO→COCO conversion successful, result saved at: {output_file}")
+        # Verify output file
         if output_file.exists():
             with open(output_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 image_count = len(data.get("images", []))
                 annotation_count = len(data.get("annotations", []))
                 category_count = len(data.get("categories", []))
-                print(f"  包含 {image_count} 张图像, {annotation_count} 个标注, {category_count} 个类别")
+                print(f"  Contains {image_count} images, {annotation_count} annotations, {category_count} categories")
         return True
     else:
-        print("✗ YOLO→COCO转换失败")
+        print("✗ YOLO→COCO conversion failed")
         return False
 
 def demo_yolo_to_labelme():
-    """演示YOLO转LabelMe格式"""
+    """Demonstrate YOLO to LabelMe format conversion"""
     print("\n" + "="*60)
-    print("演示YOLO转LabelMe格式")
+    print("Demonstrating YOLO to LabelMe format conversion")
     print("="*60)
 
     yolo_dir = project_root / "assets" / "test_data" / "seg" / "yolo"
@@ -106,7 +106,7 @@ def demo_yolo_to_labelme():
     image_dir = yolo_dir / "images"
     output_dir = project_root / "temp_output" / "convert" / "yolo_to_labelme"
 
-    # 清理旧输出目录
+    # Clean up old output directory
     if output_dir.exists():
         import shutil
         shutil.rmtree(output_dir)
@@ -122,26 +122,26 @@ def demo_yolo_to_labelme():
 
     success = run_cli_command(cmd)
     if success:
-        print(f"✓ YOLO→LabelMe转换成功，结果保存在: {output_dir}")
-        # 统计生成的文件
+        print(f"✓ YOLO→LabelMe conversion successful, result saved at: {output_dir}")
+        # Count generated files
         json_files = list(output_dir.glob("*.json"))
-        print(f"  生成了 {len(json_files)} 个LabelMe标注文件")
+        print(f"  Generated {len(json_files)} LabelMe annotation files")
         return True
     else:
-        print("✗ YOLO→LabelMe转换失败")
+        print("✗ YOLO→LabelMe conversion failed")
         return False
 
 def demo_coco_to_yolo():
-    """演示COCO转YOLO格式"""
+    """Demonstrate COCO to YOLO format conversion"""
     print("\n" + "="*60)
-    print("演示COCO转YOLO格式")
+    print("Demonstrating COCO to YOLO format conversion")
     print("="*60)
 
     coco_file = project_root / "assets" / "test_data" / "seg" / "coco" / "annotations.json"
     image_dir = project_root / "assets" / "test_data" / "seg" / "coco" / "images"
     output_dir = project_root / "temp_output" / "convert" / "coco_to_yolo"
 
-    # 清理旧输出目录
+    # Clean up old output directory
     if output_dir.exists():
         import shutil
         shutil.rmtree(output_dir)
@@ -155,26 +155,26 @@ def demo_coco_to_yolo():
 
     success = run_cli_command(cmd)
     if success:
-        print(f"✓ COCO→YOLO转换成功，结果保存在: {output_dir}")
-        # 统计生成的文件
+        print(f"✓ COCO→YOLO conversion successful, result saved at: {output_dir}")
+        # Count generated files
         txt_files = list(output_dir.glob("*.txt"))
-        print(f"  生成了 {len(txt_files)} 个YOLO标注文件")
+        print(f"  Generated {len(txt_files)} YOLO annotation files")
         return True
     else:
-        print("✗ COCO→YOLO转换失败")
+        print("✗ COCO→YOLO conversion failed")
         return False
 
 def demo_coco_to_labelme():
-    """演示COCO转LabelMe格式"""
+    """Demonstrate COCO to LabelMe format conversion"""
     print("\n" + "="*60)
-    print("演示COCO转LabelMe格式")
+    print("Demonstrating COCO to LabelMe format conversion")
     print("="*60)
 
     coco_file = project_root / "assets" / "test_data" / "seg" / "coco" / "annotations.json"
     image_dir = project_root / "assets" / "test_data" / "seg" / "coco" / "images"
     output_dir = project_root / "temp_output" / "convert" / "coco_to_labelme"
 
-    # 清理旧输出目录
+    # Clean up old output directory
     if output_dir.exists():
         import shutil
         shutil.rmtree(output_dir)
@@ -188,26 +188,26 @@ def demo_coco_to_labelme():
 
     success = run_cli_command(cmd)
     if success:
-        print(f"✓ COCO→LabelMe转换成功，结果保存在: {output_dir}")
-        # 统计生成的文件
+        print(f"✓ COCO→LabelMe conversion successful, result saved at: {output_dir}")
+        # Count generated files
         json_files = list(output_dir.glob("*.json"))
-        print(f"  生成了 {len(json_files)} 个LabelMe标注文件")
+        print(f"  Generated {len(json_files)} LabelMe annotation files")
         return True
     else:
-        print("✗ COCO→LabelMe转换失败")
+        print("✗ COCO→LabelMe conversion failed")
         return False
 
 def demo_labelme_to_yolo():
-    """演示LabelMe转YOLO格式"""
+    """Demonstrate LabelMe to YOLO format conversion"""
     print("\n" + "="*60)
-    print("演示LabelMe转YOLO格式")
+    print("Demonstrating LabelMe to YOLO format conversion")
     print("="*60)
 
     labelme_dir = project_root / "assets" / "test_data" / "seg" / "labelme"
     class_file = labelme_dir / "classes.txt"
     output_dir = project_root / "temp_output" / "convert" / "labelme_to_yolo"
 
-    # 清理旧输出目录
+    # Clean up old output directory
     if output_dir.exists():
         import shutil
         shutil.rmtree(output_dir)
@@ -222,26 +222,26 @@ def demo_labelme_to_yolo():
 
     success = run_cli_command(cmd)
     if success:
-        print(f"✓ LabelMe→YOLO转换成功，结果保存在: {output_dir}")
-        # 统计生成的文件
+        print(f"✓ LabelMe→YOLO conversion successful, result saved at: {output_dir}")
+        # Count generated files
         txt_files = list(output_dir.glob("*.txt"))
-        print(f"  生成了 {len(txt_files)} 个YOLO标注文件")
+        print(f"  Generated {len(txt_files)} YOLO annotation files")
         return True
     else:
-        print("✗ LabelMe→YOLO转换失败")
+        print("✗ LabelMe→YOLO conversion failed")
         return False
 
 def demo_labelme_to_coco():
-    """演示LabelMe转COCO格式"""
+    """Demonstrate LabelMe to COCO format conversion"""
     print("\n" + "="*60)
-    print("演示LabelMe转COCO格式")
+    print("Demonstrating LabelMe to COCO format conversion")
     print("="*60)
 
     labelme_dir = project_root / "assets" / "test_data" / "seg" / "labelme"
     class_file = labelme_dir / "classes.txt"
     output_file = project_root / "temp_output" / "convert" / "labelme_to_coco.json"
 
-    # 清理旧输出文件
+    # Clean up old output file
     if output_file.exists():
         output_file.unlink()
 
@@ -255,39 +255,39 @@ def demo_labelme_to_coco():
 
     success = run_cli_command(cmd)
     if success:
-        print(f"✓ LabelMe→COCO转换成功，结果保存在: {output_file}")
-        # 验证输出文件
+        print(f"✓ LabelMe→COCO conversion successful, result saved at: {output_file}")
+        # Verify output file
         if output_file.exists():
             with open(output_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 image_count = len(data.get("images", []))
                 annotation_count = len(data.get("annotations", []))
                 category_count = len(data.get("categories", []))
-                print(f"  包含 {image_count} 张图像, {annotation_count} 个标注, {category_count} 个类别")
+                print(f"  Contains {image_count} images, {annotation_count} annotations, {category_count} categories")
         return True
     else:
-        print("✗ LabelMe→COCO转换失败")
+        print("✗ LabelMe→COCO conversion failed")
         return False
 
 def main():
-    """主函数"""
-    print("DataFlow-CV CLI格式转换功能演示")
+    """Main function"""
+    print("DataFlow-CV CLI format conversion function demonstration")
     print("="*60)
 
-    # 检查测试数据是否存在
+    # Check if test data exists
     test_data_root = project_root / "assets" / "test_data" / "seg"
     if not test_data_root.exists():
-        print(f"错误: 测试数据目录不存在: {test_data_root}")
-        print("请确保在项目根目录运行此脚本")
+        print(f"Error: Test data directory does not exist: {test_data_root}")
+        print("Please ensure running this script in the project root directory")
         return 1
 
-    # 创建临时输出目录
+    # Create temporary output directory
     temp_root = project_root / "temp_output" / "convert"
     temp_root.mkdir(parents=True, exist_ok=True)
 
     successes = []
 
-    # 演示六种格式转换
+    # Demonstrate six format conversions
     successes.append(demo_yolo_to_coco())
     successes.append(demo_yolo_to_labelme())
     successes.append(demo_coco_to_yolo())
@@ -295,19 +295,19 @@ def main():
     successes.append(demo_labelme_to_yolo())
     successes.append(demo_labelme_to_coco())
 
-    # 总结
+    # Summary
     print("\n" + "="*60)
-    print("演示总结")
+    print("Demonstration summary")
     print("="*60)
     total = len(successes)
     passed = sum(successes)
-    print(f"总共演示了 {total} 种格式转换")
-    print(f"成功: {passed}, 失败: {total - passed}")
+    print(f"Total demonstrated {total} format conversions")
+    print(f"Successful: {passed}, Failed: {total - passed}")
 
     if all(successes):
-        print("✓ 所有演示都成功完成!")
-        print(f"转换结果保存在: {project_root / 'temp_output' / 'convert'}")
-        print("\n您可以使用以下命令手动测试:")
+        print("✓ All demonstrations completed successfully!")
+        print(f"Conversion results saved at: {project_root / 'temp_output' / 'convert'}")
+        print("\nYou can manually test with the following commands:")
         print("  dataflow-cv convert yolo2coco assets/test_data/seg/yolo/images assets/test_data/seg/yolo/labels assets/test_data/seg/yolo/classes.txt ./output.json")
         print("  dataflow-cv convert yolo2labelme assets/test_data/seg/yolo/images assets/test_data/seg/yolo/labels assets/test_data/seg/yolo/classes.txt ./output")
         print("  dataflow-cv convert coco2yolo assets/test_data/seg/coco/annotations.json ./output")
@@ -316,7 +316,7 @@ def main():
         print("  dataflow-cv convert labelme2coco assets/test_data/seg/labelme assets/test_data/seg/labelme/classes.txt ./output.json")
         return 0
     else:
-        print("✗ 部分演示失败，请检查错误信息")
+        print("✗ Some demonstrations failed, please check error messages")
         return 1
 
 if __name__ == "__main__":
