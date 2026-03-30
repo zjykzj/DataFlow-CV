@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-03-30
+
+### ⚠️ Breaking Changes
+- **CLI parameter restructuring**: Changed required parameters from options to positional arguments for `convert` and `visualize` subcommands, improving usability and consistency.
+- **CLI option simplification**: Removed duplicate and redundant options, streamlined help output formatting.
+- **Global options migration**: Moved remaining global options to subcommand level for better modularity.
+
+### Added
+- **RLE mask visualization**: Added support for visualizing RLE masks with semi-transparent fills in COCO format visualizations.
+- **Visualization window display**: Enabled visualization window display by default with proper exception handling for headless environments.
+- **Category utilities**: Added category management utilities for label handlers to support class ID mapping.
+- **Logging enhancements**: Added missing `VerboseLoggingOperations` export and improved verbose logging configuration in demo scripts.
+- **Specification documentation**: Added comprehensive specification documents for CLI, conversion, visualization, and logging modules.
+
+### Changed
+- **Build system migration**: Migrated from `setup.py` to modern `pyproject.toml` configuration for better packaging compatibility.
+- **CLI architecture**: Further modularized CLI structure, moving global options to subcommands and simplifying parameter structures.
+- **Color management**: Improved color assignment for different class IDs to ensure unique colors in visualizations.
+- **Path handling**: Resolved path duplication issues in YOLO and LabelMe handlers for more reliable file operations.
+- **Test and sample updates**: Updated tests and samples to match latest CLI implementation and parameter structures.
+
+### Fixed
+- **Color cycling**: Fixed `ColorManager` color cycling to match specification, ensuring consistent color assignment across visualizations.
+- **Result key inconsistency**: Fixed result key inconsistency between YOLO and LabelMe handlers.
+- **Decorator chain**: Corrected decorator chain for common options in CLI commands.
+- **Verbose logging**: Fixed verbose logging configuration in visualization demo scripts to properly generate log files.
+- **Duplicate version**: Removed duplicate `__version__` definition in CLI module.
+
+### Documentation
+- **Format documentation**: Added detailed YOLO, COCO, and LabelMe format documentation in `docs/formats/` directory.
+- **Chinese to English translation**: Translated Chinese comments and docstrings to English in samples and tests for better accessibility.
+- **Specification reorganization**: Reorganized specification files with numbered ordering for better navigation.
+- **CLI examples**: Updated documentation with accurate CLI examples and git commit guidelines.
+- **Development guidance**: Updated CLAUDE.md and README.md with comprehensive developer guidance and actual LLM information.
+- **RLE documentation**: Enhanced RLE mask documentation with format comparison and pycocotools examples.
+
 ## [0.5.0] - 2026-03-15
 
 ### ⚠️ Breaking Changes
