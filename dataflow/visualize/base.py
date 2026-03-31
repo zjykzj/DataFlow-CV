@@ -249,6 +249,7 @@ class BaseVisualizer(ABC):
 
             # 3. Process all images for visualization
             processed_count = 0
+            user_interrupted = False
             for i, image_ann in enumerate(annotations.images):
                 # Progress feedback
                 if (
@@ -266,7 +267,11 @@ class BaseVisualizer(ABC):
                     self.logger.debug(f"Number of objects: {len(image_ann.objects)}")
 
                 success = self._visualize_single_image(image_ann)
-                if success:
+                if success is None:
+                    # User pressed 'q' or ESC to interrupt visualization
+                    user_interrupted = True
+                    break
+                elif success:
                     processed_count += 1
                     self.summary_data["processed_images"] = processed_count
                 else:
@@ -274,13 +279,21 @@ class BaseVisualizer(ABC):
                     # Continue processing even in strict mode
                     self.summary_data["failed_images"] += 1
 
-            result.success = True
-            failed_count = self.summary_data["failed_images"]
-            result.message = (
-                f"Visualization completed: {processed_count} successful, "
-                f"{failed_count} failed out of {len(annotations.images)} images"
-            )
-            result.data = {"processed_count": processed_count, "processed_images": processed_count}
+            if user_interrupted:
+                result.success = True
+                result.message = (
+                    f"Visualization interrupted by user after {processed_count} images. "
+                    f"{self.summary_data['failed_images']} failed out of {len(annotations.images)} images"
+                )
+                result.data = {"processed_count": processed_count, "processed_images": processed_count, "interrupted": True}
+            else:
+                result.success = True
+                failed_count = self.summary_data["failed_images"]
+                result.message = (
+                    f"Visualization completed: {processed_count} successful, "
+                    f"{failed_count} failed out of {len(annotations.images)} images"
+                )
+                result.data = {"processed_count": processed_count, "processed_images": processed_count}
 
             # Record summary
             self.summary_data["end_time"] = datetime.datetime.now()
@@ -296,7 +309,7 @@ class BaseVisualizer(ABC):
 
         return result
 
-    def _visualize_single_image(self, image_ann: ImageAnnotation) -> bool:
+    def _visualize_single_image(self, image_ann: ImageAnnotation) -> Optional[bool]:
         """Visualize a single image."""
         try:
             # 1. Load image
@@ -327,7 +340,7 @@ class BaseVisualizer(ABC):
 
                     # Handle keyboard input
                     if key == ord("q") or key == 27:  # 'q' key or ESC
-                        return False  # Stop visualization
+                        return None  # User interrupt - stop entire visualization
                     # Enter key or space key continue
                 except Exception as e:
                     self._log_warning(f"Failed to display visualization window: {e}")

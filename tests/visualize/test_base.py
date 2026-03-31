@@ -251,7 +251,7 @@ class TestBaseVisualizer:
         # Test 'q' key (quit)
         mock_wait_key.return_value = ord("q")
         success = visualizer._visualize_single_image(image_ann)
-        assert success is False  # Should return False to stop visualization
+        assert success is None  # Should return None to stop visualization
         mock_imshow.assert_called_once()
         mock_wait_key.assert_called_once_with(0)
         mock_destroy_window.assert_called_once()
@@ -265,7 +265,7 @@ class TestBaseVisualizer:
         # Test ESC key (quit)
         mock_wait_key.return_value = 27  # ESC key
         success = visualizer._visualize_single_image(image_ann)
-        assert success is False  # Should return False to stop visualization
+        assert success is None  # Should return None to stop visualization
         mock_imshow.assert_called_once()
         mock_wait_key.assert_called_once_with(0)
         mock_destroy_window.assert_called_once()
