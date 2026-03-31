@@ -77,6 +77,7 @@ Visualizers support both display and save modes, with automatic detection of ann
   - `yolo2coco`, `yolo2labelme`, `coco2yolo`, `coco2labelme`, `labelme2yolo`, `labelme2coco`
 - `commands/visualize.py`: `dataflow visualize` subcommands:
   - `yolo`, `labelme`, `coco`
+- **Positional arguments**: Required parameters (image directories, label directories, class files, output paths) are positional arguments for better usability. Use `--help` on any subcommand to see usage.
 
 ### Utilities (`dataflow/util/`)
 - `logging_util.py`: `LoggingOperations` and `VerboseLoggingOperations` for consistent logging
@@ -131,8 +132,11 @@ pytest --junitxml=test-results.xml
 ### Debugging Conversion Issues
 
 ```bash
-# Enable verbose logging for debugging
+# Enable verbose logging for debugging conversion
 dataflow-cv convert yolo2coco --verbose images/ yolo_labels/ classes.txt coco_annotations.json
+
+# Enable verbose logging for debugging visualization
+dataflow-cv visualize yolo --verbose images/ yolo_labels/ classes.txt --save visualized/
 
 # Check log files in logs/ directory
 ls -la logs/
@@ -252,6 +256,7 @@ See `samples/` directory for comprehensive examples:
 - In strict mode, validation errors raise exceptions
 - In non-strict mode, errors are logged but processing continues where possible
 - CLI always uses strict mode (errors raise exceptions); the Python API allows configuring `strict_mode` parameter.
+- **Missing image handling**: Image-related errors (missing images, failed to load) are always treated as warnings and processing continues, regardless of strict mode.
 
 ### Original Data Preservation
 - The `OriginalData` system preserves original annotation coordinates for lossless round-trip conversions
@@ -268,6 +273,13 @@ See `samples/` directory for comprehensive examples:
 - **Segmentation**: Lists of normalized (x, y) points
 - **Example**: Pixel coordinate (x=320, y=240) in 640×480 image → normalized (0.5, 0.5)
 - **Preservation**: Original coordinates stored in `OriginalData` for lossless round-trip conversion
+
+### Visualization Behavior
+
+- **Keyboard shortcuts**: During visualization display, press `q` or `ESC` to exit visualization early; press any other key (e.g., space or enter) to continue to next image.
+- **Missing image handling**: If an image file is missing, visualization skips that image with a warning and continues processing. In label handlers, missing images are skipped with warnings regardless of strict mode.
+- **RLE mask visualization**: COCO RLE masks are visualized with semi-transparent fills for better visibility of overlapping regions.
+- **Color management**: Each class ID is assigned a unique color from a palette of 1000 distinct colors, ensuring consistent coloring across visualizations.
 
 ### Error Handling
 - Operations return `AnnotationResult` or `ConversionResult` with success flag, messages, errors, warnings
@@ -309,6 +321,7 @@ See `samples/` directory for comprehensive examples:
 - Requires optional dependency `pycocotools`
 - Install with `pip install dataflow-cv[coco]` or `pip install pycocotools`
 - Without it, COCO segmentation conversions will fall back to polygon format
+- RLE masks are visualized with semi-transparent fills for better visibility of overlapping regions
 
 ## Dependency Management
 

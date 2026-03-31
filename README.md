@@ -75,6 +75,8 @@ pip install -e .
 
 ### Command-line Interface
 
+All required parameters (image directories, label directories, class files, output paths) are positional arguments for better usability. Use `--help` on any subcommand for detailed usage.
+
 #### Format Conversion
 ```bash
 # YOLO to COCO
@@ -115,6 +117,9 @@ dataflow-cv visualize coco images/ coco_annotations.json --save visualized/
 
 # Visualize LabelMe annotations
 dataflow-cv visualize labelme images/ labelme_json/ --save visualized/
+
+# Enable verbose logging for detailed debug output
+dataflow-cv visualize yolo --verbose images/ yolo_labels/ classes.txt --save visualized/
 ```
 
 ### Python API
@@ -166,6 +171,9 @@ See the `samples/` directory for complete examples:
 - **Original Data Preservation**: Lossless round-trip conversion through `OriginalData` system
 - **Strict Mode**: Validation errors raise exceptions (default: enabled in CLI, can be disabled via `strict_mode=False` parameter in Python API)
 - **Verbose Logging**: Detailed debug logs saved to files when `--verbose` is used
+- **Keyboard Shortcuts**: During visualization, press `q` or `ESC` to exit early; any other key continues
+- **Missing Image Handling**: Missing images are skipped with warnings, allowing processing to continue
+- **RLE Mask Visualization**: COCO RLE masks are displayed with semi-transparent fills for better visibility
 
 ## Development
 For detailed developer guidance including advanced test commands, debugging, and architecture overview, see [CLAUDE.md](CLAUDE.md).
