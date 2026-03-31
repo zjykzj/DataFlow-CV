@@ -269,18 +269,16 @@ class BaseVisualizer(ABC):
                 if success:
                     processed_count += 1
                     self.summary_data["processed_images"] = processed_count
-                elif self.strict_mode:
-                    error_msg = f"Failed to visualize image: {image_ann.image_id}"
-                    result.add_error(error_msg)
-                    result.message = error_msg
-                    return result
                 else:
+                    # Image visualization failed (file not found, failed to load, etc.)
+                    # Continue processing even in strict mode
                     self.summary_data["failed_images"] += 1
 
             result.success = True
+            failed_count = self.summary_data["failed_images"]
             result.message = (
-                f"Successfully visualized {processed_count}/"
-                f"{len(annotations.images)} images"
+                f"Visualization completed: {processed_count} successful, "
+                f"{failed_count} failed out of {len(annotations.images)} images"
             )
             result.data = {"processed_count": processed_count, "processed_images": processed_count}
 
@@ -307,12 +305,12 @@ class BaseVisualizer(ABC):
                 image_path = self.image_dir / image_ann.image_path
 
             if not image_path.exists():
-                self._log_error(f"Image file not found: {image_path}")
+                self._log_warning(f"Image file not found: {image_path}")
                 return False
 
             image = cv2.imread(str(image_path))
             if image is None:
-                self._log_error(f"Failed to load image: {image_path}")
+                self._log_warning(f"Failed to load image: {image_path}")
                 return False
 
             # 2. Draw all objects
@@ -333,9 +331,8 @@ class BaseVisualizer(ABC):
                     # Enter key or space key continue
                 except Exception as e:
                     self._log_warning(f"Failed to display visualization window: {e}")
-                    # Continue without display if in non-strict mode
-                    if self.strict_mode:
-                        raise
+                    # Continue without display even in strict mode
+                    # Visualization can continue without display
 
             if self.is_save:
                 output_file = self.output_dir / f"{image_ann.image_id}_visualized.jpg"
@@ -594,7 +591,19 @@ class BaseVisualizer(ABC):
         """Log error message and raise exception (strict mode)."""
         self.logger.error(message)
         if self.strict_mode:
-            raise ValueError(message)
+            # Check if error is image-related (file not found, failed to load, etc.)
+            # These errors should not raise exceptions even in strict mode
+            is_image_error = (
+                "image file not found" in message.lower() or
+                "failed to load image" in message.lower() or
+                "failed to read image" in message.lower() or
+                "invalid image dimensions" in message.lower() or
+                "error getting image size" in message.lower() or
+                "no corresponding image found" in message.lower() or
+                "no corresponding image" in message.lower()
+            )
+            if not is_image_error:
+                raise ValueError(message)
 
     def _log_warning(self, message: str) -> None:
         """Log warning message."""

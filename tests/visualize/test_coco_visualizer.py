@@ -125,7 +125,7 @@ class TestCOCOVisualizer:
         assert (
             result.data["processed_count"] == visualizer.load_annotations().num_images
         )
-        assert "Successfully visualized" in result.message
+        assert "Visualization completed:" in result.message
 
     def test_visualize_with_save(self, temp_dir):
         """Test visualization with save mode."""

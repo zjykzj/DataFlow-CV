@@ -431,8 +431,11 @@ class TestYoloAnnotationHandler:
         assert result.success is False
         assert "out of range" in result.message.lower()
 
-    def test_read_missing_image(self, temp_dir):
+    def test_read_missing_image(self, temp_dir, caplog):
         """Test reading when corresponding image is missing."""
+        # Clear any existing logs
+        caplog.clear()
+
         # Create test data
         class_file = temp_dir / "classes.txt"
         class_file.write_text("person\n")
@@ -454,8 +457,20 @@ class TestYoloAnnotationHandler:
         )
 
         result = handler.read()
-        assert result.success is False
-        assert "No corresponding image" in result.message
+        # With the new behavior, missing images are skipped with a warning
+        # The operation succeeds but reads 0 images
+        assert result.success is True
+        assert result.data.num_images == 0
+        assert "Successfully read 0 images" in result.message
+
+        # Verify that a warning was logged about the missing image
+        warning_logged = False
+        for record in caplog.records:
+            if ("Skipping" in record.message and "test.txt" in record.message) or \
+               ("No corresponding image found" in record.message):
+                warning_logged = True
+                break
+        assert warning_logged, f"Expected warning about missing image, but got logs: {caplog.records}"
 
     def test_write_detection_success(self, sample_detection_data):
         """Test successful writing of detection annotations."""

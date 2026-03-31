@@ -136,12 +136,26 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
             for txt_file in txt_files:
                 image_result = self._read_single_file(txt_file)
                 if not image_result.success:
-                    if self.strict_mode:
+                    # Check if this is an image-related error that should be skipped regardless of strict_mode
+                    # This includes missing images, invalid dimensions, etc.
+                    error_msg = image_result.message.lower() if image_result.message else ""
+                    is_image_error = (
+                        "no corresponding image found" in error_msg or
+                        "no corresponding image" in error_msg or
+                        "image file not found" in error_msg or
+                        "failed to read image" in error_msg or
+                        "invalid image dimensions" in error_msg or
+                        "error getting image size" in error_msg
+                    )
+
+                    if self.strict_mode and not is_image_error:
                         result.add_error(
                             f"Failed to read {txt_file}: {image_result.message}"
                         )
                         return result
                     else:
+                        # For image-related errors, always log warning and continue
+                        # For other errors in non-strict mode, also continue
                         self._log_warning(
                             f"Skipping {txt_file}: {image_result.message}"
                         )

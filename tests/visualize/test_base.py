@@ -164,7 +164,8 @@ class TestBaseVisualizer:
 
             assert result.success is True
             assert result.data["processed_count"] == 0
-            assert "0/0" in result.message
+            assert "Visualization completed:" in result.message
+            assert "0 successful, 0 failed out of 0 images" in result.message
 
     def test_log_methods(self):
         """Test logging methods."""

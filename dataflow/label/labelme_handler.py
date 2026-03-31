@@ -80,12 +80,25 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             for json_file in json_files:
                 image_result = self._read_single_file(json_file)
                 if not image_result.success:
-                    if self.strict_mode:
+                    # Check if this is an image-related error that should be skipped regardless of strict_mode
+                    error_msg = image_result.message.lower() if image_result.message else ""
+                    is_image_error = (
+                        "no corresponding image found" in error_msg or
+                        "no corresponding image" in error_msg or
+                        "image file not found" in error_msg or
+                        "failed to read image" in error_msg or
+                        "invalid image dimensions" in error_msg or
+                        "error getting image size" in error_msg
+                    )
+
+                    if self.strict_mode and not is_image_error:
                         result.add_error(
                             f"Failed to read {json_file}: {image_result.message}"
                         )
                         return result
                     else:
+                        # For image-related errors, always log warning and continue
+                        # For other errors in non-strict mode, also continue
                         self._log_warning(
                             f"Skipping {json_file}: {image_result.message}"
                         )
@@ -151,6 +164,11 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             image_path = Path(data["imagePath"])
             if not image_path.is_absolute():
                 image_path = json_file.parent / image_path
+
+            # Check if image file exists - log warning but continue
+            if not image_path.exists():
+                self._log_warning(f"Image file not found: {image_path}")
+                # Continue processing anyway, annotation can still be loaded
 
             # Try to get image dimensions
             image_height = data.get("imageHeight")
