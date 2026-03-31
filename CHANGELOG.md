@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-03-31
+
+### Fixed
+- **Missing image handling**: Gracefully handle missing images in visualization with warnings instead of crashes
+- **Error message completeness**: Ensure complete error messages are displayed in non-verbose mode for better debugging
+
+### Changed
+- **Visualization exit behavior**: Optimized q/ESC key exit behavior for smoother user experience
+
+### Documentation
+- **Format documentation**: Added YOLO, COCO, and LabelMe format documentation in `docs/formats/` directory
+- **Chinese to English translation**: Translated Chinese comments and docstrings to English in samples and tests for better accessibility
+- **Specification reorganization**: Reorganized specification files with numbered ordering for better navigation
+- **CLI examples**: Updated documentation with accurate CLI examples and git commit guidelines
+- **Recent feature updates**: Updated CLAUDE.md and README.md with recent features and improvements
+
 ## [0.6.0] - 2026-03-30
 
 ### ⚠️ Breaking Changes
