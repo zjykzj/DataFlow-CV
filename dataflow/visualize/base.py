@@ -241,7 +241,9 @@ class BaseVisualizer(ABC):
             # 2. Validate output directory (if save mode is enabled)
             if self.is_save:
                 if not self.output_dir:
-                    result.add_error("Save mode requires output_dir parameter")
+                    error_msg = "Save mode requires output_dir parameter"
+                    result.add_error(error_msg)
+                    result.message = error_msg
                     return result
                 self.file_ops.ensure_dir(self.output_dir)
 
@@ -268,7 +270,9 @@ class BaseVisualizer(ABC):
                     processed_count += 1
                     self.summary_data["processed_images"] = processed_count
                 elif self.strict_mode:
-                    result.add_error(f"Failed to visualize image: {image_ann.image_id}")
+                    error_msg = f"Failed to visualize image: {image_ann.image_id}"
+                    result.add_error(error_msg)
+                    result.message = error_msg
                     return result
                 else:
                     self.summary_data["failed_images"] += 1
@@ -286,7 +290,9 @@ class BaseVisualizer(ABC):
                 self._log_visualization_summary(result)
 
         except Exception as e:
-            result.add_error(f"Unexpected error during visualization: {e}")
+            error_msg = str(e)
+            result.add_error(error_msg)
+            result.message = error_msg
             if self.verbose:
                 self.logger.exception("Visualization failed")
 

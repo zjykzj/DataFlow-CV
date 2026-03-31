@@ -100,8 +100,12 @@ def yolo(
     if result.success:
         logger.info(f"Visualization completed: processed {result.data.get('processed_images', 0)} images")
     else:
-        logger.error(f"Visualization failed: {result.message}")
-        raise RuntimeCLIError(f"Visualization failed: {result.message}")
+        # Use result.message if available, otherwise fall back to errors list
+        error_msg = result.message
+        if not error_msg and result.errors:
+            error_msg = result.errors[0] if result.errors else "Unknown error"
+        logger.error(f"Visualization failed: {error_msg}")
+        raise RuntimeCLIError(f"Visualization failed: {error_msg}")
 
 
 @visualize_group.command()
@@ -148,8 +152,12 @@ def coco(
     if result.success:
         logger.info(f"Visualization completed: processed {result.data.get('processed_images', 0)} images")
     else:
-        logger.error(f"Visualization failed: {result.message}")
-        raise RuntimeCLIError(f"Visualization failed: {result.message}")
+        # Use result.message if available, otherwise fall back to errors list
+        error_msg = result.message
+        if not error_msg and result.errors:
+            error_msg = result.errors[0] if result.errors else "Unknown error"
+        logger.error(f"Visualization failed: {error_msg}")
+        raise RuntimeCLIError(f"Visualization failed: {error_msg}")
 
 
 @visualize_group.command()
@@ -196,5 +204,9 @@ def labelme(
     if result.success:
         logger.info(f"Visualization completed: processed {result.data.get('processed_images', 0)} images")
     else:
-        logger.error(f"Visualization failed: {result.message}")
-        raise RuntimeCLIError(f"Visualization failed: {result.message}")
+        # Use result.message if available, otherwise fall back to errors list
+        error_msg = result.message
+        if not error_msg and result.errors:
+            error_msg = result.errors[0] if result.errors else "Unknown error"
+        logger.error(f"Visualization failed: {error_msg}")
+        raise RuntimeCLIError(f"Visualization failed: {error_msg}")
