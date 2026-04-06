@@ -170,7 +170,7 @@ See the `samples/` directory for complete examples:
 - **Normalized Coordinates**: All internal coordinates are in 0-1 range
 - **Original Data Preservation**: Lossless round-trip conversion through `OriginalData` system
 - **Strict Mode**: Validation errors raise exceptions (default: enabled in CLI, can be disabled via `strict_mode=False` parameter in Python API)
-- **Verbose Logging**: Detailed debug logs saved to files when `--verbose` is used
+- **Verbose Logging**: Detailed debug logs saved to files when `--verbose` is used. The CLI prints "Verbose log saved to: <path>" after operations.
 - **Keyboard Shortcuts**: During visualization, press `q` or `ESC` to exit early; any other key continues
 - **Missing Image Handling**: Missing images are skipped with warnings, allowing processing to continue
 - **RLE Mask Visualization**: COCO RLE masks are displayed with semi-transparent fills for better visibility

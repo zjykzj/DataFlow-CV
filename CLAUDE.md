@@ -138,7 +138,7 @@ dataflow-cv convert yolo2coco --verbose images/ yolo_labels/ classes.txt coco_an
 # Enable verbose logging for debugging visualization
 dataflow-cv visualize yolo --verbose images/ yolo_labels/ classes.txt --save visualized/
 
-# Check log files in logs/ directory
+# Check log files in logs/ directory (the exact path is printed as "Verbose log saved to: <path>")
 ls -la logs/
 
 # Run conversion with strict mode disabled using Python API (CLI always uses strict mode)
@@ -194,6 +194,8 @@ The project uses setuptools for packaging. The GitHub workflow `.github/workflow
 
 ## CLI Usage Examples
 
+When using the `--verbose` flag, the CLI prints "Verbose log saved to: <path>" after operations, indicating where the detailed log file is saved.
+
 ### Format Conversion
 ```bash
 # YOLO to COCO
@@ -247,8 +249,8 @@ See `samples/` directory for comprehensive examples:
 
 ### Logging Configuration
 - Use `LoggingOperations.get_logger()` for standard logging
-- Use `VerboseLoggingOperations.get_verbose_logger()` for verbose mode (creates log files)
-- When `--verbose` flag is used, log files are created in `logs/` directory with DEBUG details including filename/line numbers
+- Use `VerboseLoggingOperations.get_verbose_logger()` for verbose mode (creates log files). This method returns a tuple of `(logger, log_file_path)` where `log_file_path` is the path to the generated log file (or `None` if `verbose=False`). Use `get_log_file_path()` to retrieve the path later.
+- When `--verbose` flag is used, log files are created in `logs/` directory with DEBUG details including filename/line numbers. The CLI prints a message "Verbose log saved to: <path>" after operations.
 - Console output includes timestamps in both modes
 
 ### Strict Mode
@@ -256,6 +258,7 @@ See `samples/` directory for comprehensive examples:
 - In strict mode, validation errors raise exceptions
 - In non-strict mode, errors are logged but processing continues where possible
 - CLI always uses strict mode (errors raise exceptions); the Python API allows configuring `strict_mode` parameter.
+- Error messages are complete even in non-verbose mode, providing sufficient information for debugging.
 - **Missing image handling**: Image-related errors (missing images, failed to load) are always treated as warnings and processing continues, regardless of strict mode.
 
 ### Original Data Preservation
@@ -297,6 +300,7 @@ See `samples/` directory for comprehensive examples:
 ### Result Objects Pattern
 
 - `AnnotationResult` and `ConversionResult` provide structured error handling
+- `VisualizationResult` includes a `log_file_path` field containing the path to the verbose log file (if verbose mode was enabled)
 - Contains success flag, messages, errors, warnings lists
 - Allows operations to continue in non-strict mode while collecting issues
 - Used throughout handlers, converters, and visualizers
@@ -314,6 +318,7 @@ See `samples/` directory for comprehensive examples:
 
 ### Log File Locations
 - With `--verbose` flag, log files are created in `logs/` directory (default)
+- The CLI prints "Verbose log saved to: <path>" after operations
 - Log files have timestamped names (e.g., `log_20260324_222035.log`)
 - Files contain DEBUG details including filename/line numbers
 
@@ -339,6 +344,7 @@ See `samples/` directory for comprehensive examples:
 - Defined in `pyproject.toml` project.optional-dependencies['dev']
 - Install with `pip install -e .[dev]`
 - Includes pytest, black, isort, flake8, mypy, pylint
+- Documentation dependencies are defined in project.optional-dependencies['docs'] (Sphinx, sphinx-rtd-theme)
 
 ## Notes for Contributors
 
