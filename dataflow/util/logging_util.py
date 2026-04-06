@@ -9,7 +9,7 @@ import logging
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class LoggingOperations:
@@ -143,12 +143,13 @@ class VerboseLoggingOperations(LoggingOperations):
     def __init__(self):
         super().__init__()
         self.verbose_loggers = {}
+        self.log_file_paths = {}  # Store log file paths by logger name
 
     def get_verbose_logger(
         self, name: str = "dataflow", verbose: bool = False, log_dir: str = "./logs"
-    ) -> logging.Logger:
+    ) -> Tuple[logging.Logger, Optional[str]]:
         """
-        Get a configured verbose mode logger.
+        Get a configured verbose mode logger and log file path.
 
         Args:
             name: logger name
@@ -156,10 +157,12 @@ class VerboseLoggingOperations(LoggingOperations):
             log_dir: log file directory
 
         Returns:
-            Configured logger instance
+            Tuple of (configured logger instance, log file path or None)
+            Log file path is None when verbose=False or logger already exists without path
         """
         if name in self.verbose_loggers:
-            return self.verbose_loggers[name]
+            # Return cached logger and its stored path (if any)
+            return self.verbose_loggers[name], self.log_file_paths.get(name)
 
         logger = logging.getLogger(f"{name}.verbose")
 
@@ -182,6 +185,9 @@ class VerboseLoggingOperations(LoggingOperations):
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             log_file = Path(log_dir) / f"log_{timestamp}.log"
 
+            # Store log file path
+            self.log_file_paths[name] = str(log_file)
+
             # Use RotatingFileHandler to prevent oversized files
             file_handler = RotatingFileHandler(
                 str(log_file),
@@ -196,7 +202,21 @@ class VerboseLoggingOperations(LoggingOperations):
 
         logger.setLevel(logging.DEBUG)
         self.verbose_loggers[name] = logger
-        return logger
+        # Return logger and log file path (None if verbose=False)
+        result_path = self.log_file_paths.get(name) if verbose else None
+        return logger, result_path
+
+    def get_log_file_path(self, name: str = "dataflow") -> Optional[str]:
+        """
+        Get log file path for a previously created verbose logger.
+
+        Args:
+            name: logger name
+
+        Returns:
+            Log file path string, or None if no log file was created for this logger
+        """
+        return self.log_file_paths.get(name)
 
     def create_progress_logger(self, name: str = "dataflow.progress") -> logging.Logger:
         """

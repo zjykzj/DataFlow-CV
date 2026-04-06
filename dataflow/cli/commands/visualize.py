@@ -20,8 +20,6 @@ def add_visualize_options(func):
     @click.pass_context
     @wraps(func)
     def wrapper(ctx, verbose, *args, **kwargs):
-        import sys
-        print(f"DEBUG wrapper called: ctx={ctx}, verbose={verbose}, args={args}, kwargs={kwargs}", file=sys.stderr)
         # Update options in context object
         ctx.obj["verbose"] = verbose
         # Use default log directory
@@ -32,13 +30,16 @@ def add_visualize_options(func):
 
         # Reconfigure logging (based on verbose flag)
         if verbose:
-            logger = VerboseLoggingOperations().get_verbose_logger(
+            # get_verbose_logger() now returns tuple (logger, log_file_path)
+            logger, log_file_path = VerboseLoggingOperations().get_verbose_logger(
                 name=ctx.command.name,
                 verbose=True,
                 log_dir=log_dir,
             )
+            ctx.obj["log_file_path"] = log_file_path
         else:
             logger = LoggingOperations().get_logger(ctx.command.name)
+            ctx.obj["log_file_path"] = None
         ctx.obj["logger"] = logger
 
         logger.debug(f"Subcommand context updated: verbose={verbose}, log_dir={log_dir}")
@@ -94,8 +95,13 @@ def yolo(
         strict_mode=strict,
         verbose=verbose,
         logger=logger,
+        log_file_path=ctx.obj["log_file_path"],
     )
     result = visualizer.visualize()
+
+    # Print log file path if verbose mode is enabled
+    if verbose and result.log_file_path:
+        logger.info(f"Verbose log saved to: {result.log_file_path}")
 
     if result.success:
         logger.info(f"Visualization completed: processed {result.data.get('processed_images', 0)} images")
@@ -146,8 +152,13 @@ def coco(
         strict_mode=strict,
         verbose=verbose,
         logger=logger,
+        log_file_path=ctx.obj["log_file_path"],
     )
     result = visualizer.visualize()
+
+    # Print log file path if verbose mode is enabled
+    if verbose and result.log_file_path:
+        logger.info(f"Verbose log saved to: {result.log_file_path}")
 
     if result.success:
         logger.info(f"Visualization completed: processed {result.data.get('processed_images', 0)} images")
@@ -198,8 +209,13 @@ def labelme(
         strict_mode=strict,
         verbose=verbose,
         logger=logger,
+        log_file_path=ctx.obj["log_file_path"],
     )
     result = visualizer.visualize()
+
+    # Print log file path if verbose mode is enabled
+    if verbose and result.log_file_path:
+        logger.info(f"Verbose log saved to: {result.log_file_path}")
 
     if result.success:
         logger.info(f"Visualization completed: processed {result.data.get('processed_images', 0)} images")

@@ -95,7 +95,7 @@
 **职责**：提供详细日志配置（继承自 `LoggingOperations`）
 
 **核心方法**：
-- `get_verbose_logger(name: str = "dataflow", verbose: bool = False, log_dir: Path = Path("./logs")) -> logging.Logger`：获取详细模式 logger
+- `get_verbose_logger(name: str = "dataflow", verbose: bool = False, log_dir: Path = Path("./logs")) -> Tuple[logging.Logger, Optional[str]]`：获取详细模式 logger，返回 (logger, log_file_path) 元组，log_file_path 为日志文件路径（verbose=False 时为 None）
 - `create_progress_logger(name: str = "dataflow.progress") -> logging.Logger`：创建进度报告专用 logger
 - `log_summary(logger: logging.Logger, title: str, data: Dict[str, Any]) -> None`：记录格式化的摘要信息
 
@@ -128,8 +128,10 @@ logger.info("Application started")
 from dataflow.util import VerboseLoggingOperations
 
 verbose_log_ops = VerboseLoggingOperations()
-verbose_logger = verbose_log_ops.get_verbose_logger("my_app", verbose=True)
+verbose_logger, log_file_path = verbose_log_ops.get_verbose_logger("my_app", verbose=True)
 verbose_logger.debug("Detailed debug information")
+if log_file_path:
+    print(f"Verbose log saved to: {log_file_path}")
 ```
 
 ### 常见场景
@@ -158,11 +160,13 @@ module_logger = LoggingOperations().get_logger("dataflow.convert")
 module_logger.info("Starting conversion...")
 
 # 详细调试时启用详细日志
-debug_logger = VerboseLoggingOperations().get_verbose_logger(
+debug_logger, log_file_path = VerboseLoggingOperations().get_verbose_logger(
     "dataflow.debug",
     verbose=True,
     log_dir=Path("logs/debug")
 )
+if log_file_path:
+    print(f"Debug log saved to: {log_file_path}")
 ```
 
 #### 场景3：进度报告
@@ -288,7 +292,7 @@ class CustomLoggingOperations(LoggingOperations):
 3. 配置适当的格式化器和过滤器
 
 ### 调试技巧
-1. **启用详细日志**：使用 `VerboseLoggingOperations().get_verbose_logger(verbose=True)`
+1. **启用详细日志**：使用 `VerboseLoggingOperations().get_verbose_logger(verbose=True)` 返回 `(logger, log_file_path)` 元组
 2. **检查文件权限**：文件操作失败时检查目录权限和路径有效性
 3. **日志级别调试**：动态调整日志级别查找问题
    ```python
@@ -358,11 +362,14 @@ def test_get_logger_creates_correct_logger():
 # 测试详细日志
 def test_verbose_logger_creates_file():
     verbose_log_ops = VerboseLoggingOperations()
-    logger = verbose_log_ops.get_verbose_logger(
+    logger, log_file_path = verbose_log_ops.get_verbose_logger(
         "test_verbose",
         verbose=True,
         log_dir=Path("test_logs")
     )
+    # log_file_path 应该是一个字符串
+    assert isinstance(log_file_path, str)
+    assert Path(log_file_path).parent == Path("test_logs")
 
     # 检查文件处理器是否存在
     has_file_handler = any(

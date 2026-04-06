@@ -31,6 +31,7 @@ class ConversionResult:
     errors: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     verbose_log: List[str] = field(default_factory=list)  # New: detailed log entries
+    log_file_path: Optional[str] = None  # Log file path when verbose=True
 
     def add_warning(self, warning: str):
         """Add a warning message."""
@@ -112,13 +113,14 @@ class BaseConverter(ABC):
             from ..util.logging_util import VerboseLoggingOperations
 
             logging_ops = VerboseLoggingOperations()
-            self.logger = logging_ops.get_verbose_logger(
+            self.logger, self.log_file_path = logging_ops.get_verbose_logger(
                 name=f"convert.{source_format}_to_{target_format}", verbose=verbose
             )
             self.progress_logger = logging_ops.create_progress_logger()
         else:
             self.logger = logger or logging.getLogger(__name__)
             self.progress_logger = None
+            self.log_file_path = None
 
         self.file_ops = FileOperations(logger=self.logger)
 
@@ -161,6 +163,7 @@ class BaseConverter(ABC):
                 source_path=source_path,
                 target_path=target_path,
                 errors=["Input parameter validation failed"],
+                log_file_path=self.log_file_path,
             )
 
         # 2. Use source handler to read data
@@ -179,6 +182,7 @@ class BaseConverter(ABC):
                 source_path=source_path,
                 target_path=target_path,
                 errors=read_result.errors,
+                log_file_path=self.log_file_path,
             )
 
         # Record read results
@@ -215,6 +219,7 @@ class BaseConverter(ABC):
             target_path=target_path,
             annotations=converted_annotations,
             write_result=write_result,
+            log_file_path=self.log_file_path,
         )
 
         # Add verbose log entries
@@ -327,6 +332,7 @@ class BaseConverter(ABC):
         annotations: Optional[DatasetAnnotations] = None,
         write_result: Optional[AnnotationResult] = None,
         errors: Optional[List[str]] = None,
+        log_file_path: Optional[str] = None,
     ) -> ConversionResult:
         """
         Create a ConversionResult instance with appropriate data.
@@ -338,6 +344,7 @@ class BaseConverter(ABC):
             annotations: Converted annotations (optional)
             write_result: Result from handler.write() (optional)
             errors: List of error messages (optional)
+            log_file_path: Log file path for verbose mode (optional)
 
         Returns:
             ConversionResult instance
@@ -348,6 +355,7 @@ class BaseConverter(ABC):
             target_format=self.target_format,
             source_path=source_path,
             target_path=target_path,
+            log_file_path=log_file_path,
         )
 
         if errors:

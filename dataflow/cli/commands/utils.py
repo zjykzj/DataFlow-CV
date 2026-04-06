@@ -26,13 +26,16 @@ def add_common_options(func):
         # Reconfigure logging (based on verbose flag)
         if verbose:
             # Use default log directory ./logs
-            logger = VerboseLoggingOperations().get_verbose_logger(
+            # get_verbose_logger() now returns tuple (logger, log_file_path)
+            logger, log_file_path = VerboseLoggingOperations().get_verbose_logger(
                 name=ctx.command.name,
                 verbose=True,
                 log_dir=Path("./logs"),
             )
+            ctx.obj["log_file_path"] = log_file_path
         else:
             logger = LoggingOperations().get_logger(ctx.command.name)
+            ctx.obj["log_file_path"] = None
         ctx.obj["logger"] = logger
 
         logger.debug(f"Subcommand context updated: verbose={verbose}")

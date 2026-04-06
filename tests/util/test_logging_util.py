@@ -179,24 +179,34 @@ class TestVerboseLoggingOperations:
 
     def test_verbose_logger_creation(self, verbose_log_ops):
         """Test verbose logger creation."""
-        logger = verbose_log_ops.get_verbose_logger("test", verbose=True)
+        logger, log_file_path = verbose_log_ops.get_verbose_logger("test", verbose=True)
         assert logger.name == "test.verbose"
         # Should have 2 handlers: console + file
         assert len(logger.handlers) == 2
+        # log_file_path should be a string when verbose=True
+        assert isinstance(log_file_path, str)
+        assert log_file_path.endswith(".log")
 
     def test_verbose_logger_without_verbose(self, verbose_log_ops):
         """Test verbose logger without verbose flag."""
-        logger = verbose_log_ops.get_verbose_logger("test", verbose=False)
+        logger, log_file_path = verbose_log_ops.get_verbose_logger("test", verbose=False)
         assert logger.name == "test.verbose"
         # Should have only console handler when verbose=False
         assert len(logger.handlers) == 1
         assert isinstance(logger.handlers[0], logging.StreamHandler)
+        # log_file_path should be None when verbose=False
+        assert log_file_path is None
 
     def test_log_file_creation(self, verbose_log_ops, temp_log_dir):
         """Test log file creation."""
-        logger = verbose_log_ops.get_verbose_logger(
+        logger, log_file_path = verbose_log_ops.get_verbose_logger(
             "test", verbose=True, log_dir=str(temp_log_dir)
         )
+
+        # log_file_path should be a string pointing to the created log file
+        assert isinstance(log_file_path, str)
+        assert Path(log_file_path).parent == temp_log_dir
+        assert log_file_path.endswith(".log")
 
         # Log a message to trigger file creation
         logger.info("Test message")
@@ -206,6 +216,8 @@ class TestVerboseLoggingOperations:
         # Check if log files were created
         log_files = list(temp_log_dir.glob("log_*.log"))
         assert len(log_files) > 0
+        # The returned log_file_path should match one of the created files
+        assert Path(log_file_path) in log_files
 
         # Check file content
         log_content = log_files[0].read_text()
@@ -251,7 +263,9 @@ class TestVerboseLoggingOperations:
 
     def test_verbose_logger_caching(self, verbose_log_ops):
         """Test verbose logger caching."""
-        logger1 = verbose_log_ops.get_verbose_logger("cached_test", verbose=True)
-        logger2 = verbose_log_ops.get_verbose_logger("cached_test", verbose=True)
+        logger1, log_file_path1 = verbose_log_ops.get_verbose_logger("cached_test", verbose=True)
+        logger2, log_file_path2 = verbose_log_ops.get_verbose_logger("cached_test", verbose=True)
 
         assert logger1 is logger2
+        # log_file_path should also be the same
+        assert log_file_path1 == log_file_path2

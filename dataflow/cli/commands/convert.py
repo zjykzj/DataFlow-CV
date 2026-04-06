@@ -57,6 +57,10 @@ def yolo2coco(
         category_mapping=None,
     )
 
+    # Print log file path if verbose mode is enabled
+    if verbose and result.log_file_path:
+        logger.info(f"Verbose log saved to: {result.log_file_path}")
+
     if result.success:
         logger.info(f"Conversion completed: {result.get_summary()}")
     else:
@@ -101,6 +105,10 @@ def yolo2labelme(
         category_mapping=None,
     )
 
+    # Print log file path if verbose mode is enabled
+    if verbose and result.log_file_path:
+        logger.info(f"Verbose log saved to: {result.log_file_path}")
+
     if result.success:
         logger.info(f"Conversion completed: {result.get_summary()}")
     else:
@@ -141,6 +149,10 @@ def coco2yolo(
         category_mapping=None,
     )
 
+    # Print log file path if verbose mode is enabled
+    if verbose and result.log_file_path:
+        logger.info(f"Verbose log saved to: {result.log_file_path}")
+
     if result.success:
         logger.info(f"Conversion completed: {result.get_summary()}")
     else:
@@ -180,6 +192,10 @@ def coco2labelme(
         image_dir=None,
         category_mapping=None,
     )
+
+    # Print log file path if verbose mode is enabled
+    if verbose and result.log_file_path:
+        logger.info(f"Verbose log saved to: {result.log_file_path}")
 
     if result.success:
         logger.info(f"Conversion completed: {result.get_summary()}")
@@ -222,6 +238,10 @@ def labelme2yolo(
         image_dir=None,
         category_mapping=None,
     )
+
+    # Print log file path if verbose mode is enabled
+    if verbose and result.log_file_path:
+        logger.info(f"Verbose log saved to: {result.log_file_path}")
 
     if result.success:
         logger.info(f"Conversion completed: {result.get_summary()}")
@@ -271,6 +291,10 @@ def labelme2coco(
         category_mapping=None,
         do_rle=do_rle,
     )
+
+    # Print log file path if verbose mode is enabled
+    if verbose and result.log_file_path:
+        logger.info(f"Verbose log saved to: {result.log_file_path}")
 
     if result.success:
         logger.info(f"Conversion completed: {result.get_summary()}")

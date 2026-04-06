@@ -30,6 +30,7 @@ class VisualizationResult:
     data: Optional[Any] = None
     message: str = ""
     errors: List[str] = field(default_factory=list)
+    log_file_path: Optional[str] = None  # Log file path when verbose=True
 
     def add_error(self, error: str) -> None:
         """Add an error message to the result."""
@@ -158,6 +159,7 @@ class BaseVisualizer(ABC):
         strict_mode: bool = True,
         verbose: bool = False,  # New: verbose parameter
         logger: Optional[logging.Logger] = None,
+        log_file_path: Optional[str] = None,
     ):
         self.label_dir = Path(label_dir)
         self.image_dir = Path(image_dir)
@@ -167,18 +169,26 @@ class BaseVisualizer(ABC):
         self.strict_mode = strict_mode
         self.verbose = verbose  # Store verbose setting
 
-        # Configure logger based on verbose
-        if verbose and logger is None:
+        # Configure logger based on verbose and provided parameters
+        if log_file_path is not None:
+            # Use provided log_file_path (typically from CLI)
+            self.log_file_path = log_file_path
+            self.logger = logger or logging.getLogger(__name__)
+            self.progress_logger = None
+        elif verbose and logger is None:
+            # Create new verbose logger with log file
             from dataflow.util.logging_util import VerboseLoggingOperations
 
             logging_ops = VerboseLoggingOperations()
-            self.logger = logging_ops.get_verbose_logger(
+            self.logger, self.log_file_path = logging_ops.get_verbose_logger(
                 name=f"visualize.{self.__class__.__name__.lower()}", verbose=verbose
             )
             self.progress_logger = logging_ops.create_progress_logger()
         else:
+            # Non-verbose mode or logger provided without log_file_path
             self.logger = logger or logging.getLogger(__name__)
             self.progress_logger = None
+            self.log_file_path = None
 
         self.file_ops = FileOperations(logger=self.logger)
 
@@ -222,7 +232,7 @@ class BaseVisualizer(ABC):
                 f"Configuration: show={self.is_show}, save={self.is_save}"
             )
 
-        result = VisualizationResult(success=False)
+        result = VisualizationResult(success=False, log_file_path=self.log_file_path)
 
         try:
             # 1. Load annotation data

@@ -69,6 +69,7 @@ class CocoAndLabelMeConverter(BaseConverter):
                 source_path=source_path,
                 target_path=target_path,
                 errors=["Input validation failed"],
+                log_file_path=self.log_file_path,
             )
 
         # 2. Read data using source handler
@@ -80,6 +81,7 @@ class CocoAndLabelMeConverter(BaseConverter):
                 source_path=source_path,
                 target_path=target_path,
                 errors=read_result.errors,
+                log_file_path=self.log_file_path,
             )
 
         # 3. Convert data (format-specific conversions like category mapping)
@@ -103,6 +105,7 @@ class CocoAndLabelMeConverter(BaseConverter):
             target_path=target_path,
             annotations=converted_annotations,
             write_result=write_result,
+            log_file_path=self.log_file_path,
         )
 
         # 6. Add RLE accuracy warning if do_rle is True (LabelMe → COCO only)

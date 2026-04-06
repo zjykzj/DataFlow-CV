@@ -34,12 +34,13 @@ def main():
     # Configure logging
     if args.verbose:
         log_ops = VerboseLoggingOperations()
-        logger = log_ops.get_verbose_logger(
+        logger, log_file_path = log_ops.get_verbose_logger(
             name="yolo_to_coco_demo",
             verbose=True,
             log_dir=str(project_root / "logs")
         )
         logger.info("Verbose logging mode enabled")
+        logger.info(f"Verbose log saved to: {log_file_path}")
     else:
         log_ops = LoggingOperations()
         logger = log_ops.get_logger("yolo_to_coco_demo", level="INFO")
@@ -92,6 +93,10 @@ def main():
         image_dir=str(image_dir),
         do_rle=False,  # No RLE, output polygon point list
     )
+
+    # Print log file path from result if verbose mode
+    if args.verbose and result.log_file_path:
+        logger.info(f"Verbose log file from result: {result.log_file_path}")
 
     # Display results
     logger.info("\nConversion results:")

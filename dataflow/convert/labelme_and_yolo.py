@@ -67,6 +67,7 @@ class LabelMeAndYoloConverter(BaseConverter):
                 source_path=source_path,
                 target_path=target_path,
                 errors=["Input validation failed"],
+                log_file_path=self.log_file_path,
             )
 
         # 2. Read data using source handler
@@ -78,6 +79,7 @@ class LabelMeAndYoloConverter(BaseConverter):
                 source_path=source_path,
                 target_path=target_path,
                 errors=read_result.errors,
+                log_file_path=self.log_file_path,
             )
 
         # 3. Convert data (format-specific conversions like category mapping)
@@ -113,6 +115,7 @@ class LabelMeAndYoloConverter(BaseConverter):
             target_path=target_path,
             annotations=converted_annotations,
             write_result=write_result,
+            log_file_path=self.log_file_path,
         )
 
     def validate_inputs(self, source_path: str, target_path: str, kwargs: Dict) -> bool:

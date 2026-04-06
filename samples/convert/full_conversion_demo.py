@@ -38,12 +38,13 @@ def main():
     # Configure logging
     if args.verbose:
         log_ops = VerboseLoggingOperations()
-        logger = log_ops.get_verbose_logger(
+        logger, log_file_path = log_ops.get_verbose_logger(
             name="full_conversion_demo",
             verbose=True,
             log_dir=str(project_root / "logs")
         )
         logger.info("Verbose logging mode enabled")
+        logger.info(f"Verbose log saved to: {log_file_path}")
     else:
         log_ops = LoggingOperations()
         logger = log_ops.get_logger("full_conversion_demo", level="INFO")
@@ -137,6 +138,15 @@ def main():
 
         logger.info(f"\nTemporary working directory: {temp_dir}")
         logger.info("(Will be automatically cleaned up after program ends)")
+
+        # Print log file paths from results if verbose mode
+        if args.verbose:
+            if result1.log_file_path:
+                logger.info(f"Verbose log file from LabelMe→YOLO conversion: {result1.log_file_path}")
+            if result2.log_file_path:
+                logger.info(f"Verbose log file from YOLO→COCO conversion: {result2.log_file_path}")
+            if result3.log_file_path:
+                logger.info(f"Verbose log file from COCO→LabelMe conversion: {result3.log_file_path}")
 
     finally:
         # Clean up temporary directory (may be kept for debugging in actual use)

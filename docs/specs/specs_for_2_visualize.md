@@ -447,7 +447,7 @@ if result.warnings:
 1. **集成日志系统**：
    ```python
    if self.verbose:
-       self._logger = VerboseLoggingOperations().get_verbose_logger(
+       self._logger, self.log_file_path = VerboseLoggingOperations().get_verbose_logger(
            "dataflow.visualize",
            verbose=True
        )

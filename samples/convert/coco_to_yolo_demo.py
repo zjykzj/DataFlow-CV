@@ -34,12 +34,13 @@ def main():
     # Configure logging
     if args.verbose:
         log_ops = VerboseLoggingOperations()
-        logger = log_ops.get_verbose_logger(
+        logger, log_file_path = log_ops.get_verbose_logger(
             name="coco_to_yolo_demo",
             verbose=True,
             log_dir=str(project_root / "logs")
         )
         logger.info("Verbose logging mode enabled")
+        logger.info(f"Verbose log saved to: {log_file_path}")
     else:
         log_ops = LoggingOperations()
         logger = log_ops.get_logger("coco_to_yolo_demo", level="INFO")
@@ -117,6 +118,10 @@ def main():
         logger.warning(f"  Warning count: {len(result.warnings)}")
         for warning in result.warnings:
             logger.warning(f"    - {warning}")
+
+    # Print log file path from result if verbose mode
+    if args.verbose and result.log_file_path:
+        logger.info(f"Verbose log file from result: {result.log_file_path}")
 
     logger.info("\nExample completed!")
 

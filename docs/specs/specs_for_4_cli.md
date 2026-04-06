@@ -371,9 +371,11 @@ done
            ctx.obj["verbose"] = verbose
            # 重新配置日志
            if verbose:
-               logger = VerboseLoggingOperations().get_verbose_logger(...)
+               logger, log_file_path = VerboseLoggingOperations().get_verbose_logger(...)
+               ctx.obj["log_file_path"] = log_file_path
            else:
                logger = LoggingOperations().get_logger(...)
+               ctx.obj["log_file_path"] = None
            ctx.obj["logger"] = logger
            return func(ctx, *args, **kwargs)
        return wrapper
@@ -469,13 +471,15 @@ done
            ctx.obj["verbose"] = verbose
            # 重新配置日志
            if verbose:
-               logger = VerboseLoggingOperations().get_verbose_logger(
+               logger, log_file_path = VerboseLoggingOperations().get_verbose_logger(
                    name=ctx.command.name,
                    verbose=True,
                    log_dir=Path("./logs"),
                )
+               ctx.obj["log_file_path"] = log_file_path
            else:
                logger = LoggingOperations().get_logger(ctx.command.name)
+               ctx.obj["log_file_path"] = None
            ctx.obj["logger"] = logger
            return func(ctx, *args, **kwargs)
        return wrapper
