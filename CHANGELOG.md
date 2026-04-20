@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-04-20
+
+### Fixed
+- **Verbose log file path handling**: Ensure consistent verbose log file path handling across visualization and conversion operations
+
+### Documentation
+- **Verbose log documentation**: Document verbose log file path handling in CLAUDE.md and README.md
+- **Missing documentation details**: Add missing documentation details to CLAUDE.md and README.md
+
 ## [0.6.1] - 2026-03-31
 
 ### Fixed
