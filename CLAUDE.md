@@ -265,6 +265,7 @@ See `samples/` directory for comprehensive examples:
 - The `OriginalData` system preserves original annotation coordinates for lossless round-trip conversions
 - When converting between formats, original data is retained when available
 - This enables converting A→B→A without precision loss
+- The `OriginalDataManager` class provides utilities for managing original data during conversions
 
 ### Coordinate System
 

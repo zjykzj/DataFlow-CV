@@ -174,6 +174,7 @@ See the `samples/` directory for complete examples:
 - **Keyboard Shortcuts**: During visualization, press `q` or `ESC` to exit early; any other key continues
 - **Missing Image Handling**: Missing images are skipped with warnings, allowing processing to continue
 - **RLE Mask Visualization**: COCO RLE masks are displayed with semi-transparent fills for better visibility
+- **Color Management**: Each class ID gets a unique color from a palette of 1000 distinct colors for consistent visualization
 
 ## Development
 For detailed developer guidance including advanced test commands, debugging, and architecture overview, see [CLAUDE.md](CLAUDE.md).
