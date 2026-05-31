@@ -32,13 +32,32 @@ specs/
 ### Architecture Constraint (from specs/modules/index.md)
 
 ```
-CLI ──calls──▶ Convert ──depends──▶ Label (Handlers + Models)
-  │
-  └──calls──▶ Visualize ──depends──▶ Label (Handlers + Models)
-
-Convert ↔ Visualize: ZERO cross-dependency
-CLI never imports label handlers directly
+┌──────────────────────────────────────────────┐
+│                    CLI                        │
+│  (calls Convert & Visualize public APIs)      │
+└──────┬─────────────────────┬─────────────────┘
+       │                     │
+       ▼                     ▼
+┌──────────────┐    ┌──────────────────┐
+│   Convert    │    │    Visualize     │
+│  (pipeline)  │    │  (rendering)     │
+└──────┬───────┘    └───────┬──────────┘
+       │                    │
+       │    ZERO CROSS-     │
+       │    DEPENDENCY      │
+       │                    │
+       ▼                    ▼
+┌──────────────────────────────────────────────┐
+│                   Label                       │
+│  Data Models + Handlers (read/write/validate) │
+└──────────────────────────────────────────────┘
 ```
+
+**Hard constraints:**
+1. **Convert ↔ Visualize**: Zero dependency. They do not import from each other.
+2. **Convert → Label**: Converters import handlers and models only through public interfaces.
+3. **Visualize → Label**: Visualizers import handlers and models only through public interfaces.
+4. **CLI → Convert/Visualize**: CLI commands only call converter/visualizer public APIs. CLI must NOT import label handlers directly.
 
 ### Specs vs CLAUDE.md
 
@@ -122,13 +141,17 @@ Handles polygon-to-RLE and RLE-to-polygon conversion using pycocotools. **Critic
 
 All extend `BaseVisualizer` which provides `ColorManager` (HSV-based palette, max 1000 colors), image loading/drawing, progress bars, and both display (`is_show`) and save (`is_save`) modes.
 
+**Display behavior**: Uses a single persistent OpenCV window (created once, reused across images) with fixed position. The window auto-sizes to match each image's dimensions. Keyboard controls: `Enter`/`Space` to advance to next image, `q`/`ESC` to exit early, any other key to continue.
+
 ### CLI Structure (`dataflow/cli/`)
 
 - `main.py`: Entry point `cli` group with global `--version`/`-v` flag
 - `commands/convert.py`: 6 subcommands — `yolo2coco`, `yolo2labelme`, `coco2yolo`, `coco2labelme`, `labelme2yolo`, `labelme2coco`
 - `commands/visualize.py`: 3 subcommands — `yolo`, `labelme`, `coco`
-- `commands/utils.py`: Shared decorators (`add_common_options`, `add_visualize_options`) and validators
-- `commands/exceptions.py`: `RuntimeCLIError` for user-facing CLI errors
+- `commands/utils.py`: Shared decorators (`add_common_options`, `add_visualize_options`), validators, and `FormattedCommand` (custom Click Command with aligned argument display in --help)
+- `commands/exceptions.py`: Exception hierarchy with distinct exit codes:
+  - `ParameterError` (exit 1), `InputError` (exit 2), `OutputError` (exit 3), `RuntimeCLIError` (exit 4), `SystemError` (exit 5)
+  - All extend `click.ClickException` for clean CLI error display
 
 Common CLI options: `--verbose` (enable file logging), `--no-strict` (disable strict mode for convert), `--display/--no-display` (control visualization window for visualize).
 
@@ -226,10 +249,12 @@ dataflow-cv visualize yolo --no-display --verbose images/ yolo_labels/ classes.t
 5. **Converter state**: `_source_annotations_for_target` must be cleared in a `finally` block to prevent stale state on exceptions.
 6. **COCO image_id fallback**: When `img.image_id` is not a digit string, use a dedicated image counter (not the annotation counter).
 7. **Progress bar at 100%**: Guard against `filled == width` causing `"." * -1`.
+8. **Visualization keyboard control**: The OpenCV window captures keyboard input. Press `Enter`/`Space` to advance, `q`/`ESC` to exit. The window manager close button (X) may not work reliably — always use keyboard to close.
+9. **Single persistent window**: The visualizer creates one window (named by format) and reuses it for all images. Window auto-sizes to each image's dimensions. Fixed window position prevents flickering across images.
 
 ## Bug Report
 
-A comprehensive code review identified 32 bugs across the codebase, documented in `.claude/plans/bug-p0-p1-p2-glowing-hellman.md`. 22 have been fixed; the remaining 8 are P2 (low priority). Refer to the plan file when working on related code areas.
+A comprehensive code review identified bugs across the codebase, documented in `~/.claude/plans/bug-p0-p1-p2-glowing-hellman.md`. Most have been fixed; remaining issues are tracked in the plan file. Refer to the plan file when working on related code areas.
 
 ## Test Structure
 

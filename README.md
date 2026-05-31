@@ -170,6 +170,9 @@ See the `samples/` directory for complete examples:
 
 - **[CLAUDE.md](CLAUDE.md)**: Detailed architecture, development guide, and known gotchas
 - **`CHANGELOG.md`**: Version history and breaking changes
+- **[`specs/`](specs/)**: Canonical specifications organized into two layers:
+  - **`formats/`** — External format contracts (YOLO, COCO, LabelMe) and conversion rules
+  - **`modules/`** — Internal module architecture, interface contracts, and dependency constraints
 
 ### Key Concepts
 
@@ -178,10 +181,11 @@ See the `samples/` directory for complete examples:
 - **Strict Mode**: Validation errors raise exceptions (default). Disable in CLI with `--no-strict`, or in Python API with `strict_mode=False`
 - **Verbose Logging**: Detailed debug logs saved to files when `--verbose` is used. The CLI prints "Verbose log saved to: <path>" after operations.
 - **Headless Support**: Use `--no-display` for servers/Docker; use `--save` to output visualization images without a window
-- **Keyboard Shortcuts**: During visualization, press `q` or `ESC` to exit early; any other key continues
+- **Keyboard Shortcuts**: During visualization, press `q` or `ESC` to exit early; `Enter`/`Space` to advance; any other key continues
 - **Missing Image Handling**: Missing images are skipped with warnings, allowing processing to continue
 - **RLE Mask Visualization**: COCO RLE masks are displayed with semi-transparent fills for better visibility
 - **Color Management**: Each class ID gets a unique color from an HSV-based palette for consistent visualization
+- **Specifications**: The `specs/` directory contains the canonical format and module specifications — the authoritative reference for expected behavior
 
 ## Development
 For detailed developer guidance including advanced test commands, debugging, and architecture overview, see [CLAUDE.md](CLAUDE.md).
@@ -227,6 +231,7 @@ dataflow/
 tests/               # Unit and integration tests (label, convert, visualize, cli, util)
 samples/             # Python API usage examples (visualize, convert, label, cli)
 assets/              # Test data organized by format (det/seg) and annotation type
+specs/               # Canonical specifications (formats/ + modules/ layers)
 ```
 
 ## Contributing
