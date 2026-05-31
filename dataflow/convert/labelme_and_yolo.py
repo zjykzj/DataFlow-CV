@@ -198,7 +198,10 @@ class LabelMeAndYoloConverter(BaseConverter):
         if self.source_to_target:  # LabelMe → YOLO
             # LabelMe handler only needs label_dir and class_file
             handler = LabelMeAnnotationHandler(
-                label_dir=source_path, class_file=class_file, logger=self.logger
+                label_dir=source_path,
+                class_file=class_file,
+                strict_mode=self.strict_mode,
+                logger=self.logger,
             )
         else:  # YOLO → LabelMe
             image_dir = kwargs.get("image_dir")
@@ -209,6 +212,7 @@ class LabelMeAndYoloConverter(BaseConverter):
                 label_dir=source_path,
                 class_file=class_file,
                 image_dir=image_dir,
+                strict_mode=self.strict_mode,
                 logger=self.logger,
             )
 
@@ -295,6 +299,7 @@ class LabelMeAndYoloConverter(BaseConverter):
                 label_dir=str(labels_dir),
                 class_file=class_file,
                 image_dir=image_dir,
+                strict_mode=self.strict_mode,
                 logger=self.logger,
             )
         else:  # YOLO → LabelMe
@@ -303,7 +308,10 @@ class LabelMeAndYoloConverter(BaseConverter):
             target_path_obj.mkdir(parents=True, exist_ok=True)
 
             handler = LabelMeAnnotationHandler(
-                label_dir=target_path, class_file=class_file, logger=self.logger
+                label_dir=target_path,
+                class_file=class_file,
+                strict_mode=self.strict_mode,
+                logger=self.logger,
             )
 
         return handler

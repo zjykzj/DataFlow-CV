@@ -552,8 +552,13 @@ class BaseVisualizer(ABC):
             self._log_warning("pycocotools not installed, cannot draw RLE mask")
             return
 
+        # Ensure 'counts' is bytes for coco_mask.decode (latin1 for lossless round-trip)
+        rle_dict = dict(rle)
+        if "counts" in rle_dict and isinstance(rle_dict["counts"], str):
+            rle_dict["counts"] = rle_dict["counts"].encode("latin1")
+
         # Decode RLE to binary mask
-        binary_mask = coco_mask.decode(rle)
+        binary_mask = coco_mask.decode(rle_dict)
 
         # Convert binary mask to color mask
         color_mask = np.zeros_like(image)

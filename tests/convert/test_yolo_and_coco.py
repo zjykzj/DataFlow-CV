@@ -147,6 +147,7 @@ class TestYoloAndCocoConverter:
             label_dir=source_path,
             class_file=kwargs["class_file"],
             image_dir=kwargs["image_dir"],
+            strict_mode=True,
             logger=converter.logger,
         )
         assert handler == mock_handler
@@ -166,7 +167,9 @@ class TestYoloAndCocoConverter:
 
         # Verify handler was created with correct parameters
         mock_handler_class.assert_called_once_with(
-            annotation_file=source_path, logger=converter.logger
+            annotation_file=source_path,
+            strict_mode=True,
+            logger=converter.logger,
         )
         assert handler == mock_handler
 
@@ -186,7 +189,10 @@ class TestYoloAndCocoConverter:
 
             # Verify handler was created
             mock_handler_class.assert_called_once_with(
-                annotation_file=target_path, logger=converter.logger, do_rle=False
+                annotation_file=target_path,
+                logger=converter.logger,
+                strict_mode=True,
+                do_rle=False,
             )
             assert handler == mock_handler
 

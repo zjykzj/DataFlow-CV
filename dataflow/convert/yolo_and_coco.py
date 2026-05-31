@@ -239,11 +239,14 @@ class YoloAndCocoConverter(BaseConverter):
                 label_dir=source_path,
                 class_file=class_file,
                 image_dir=image_dir,
+                strict_mode=self.strict_mode,
                 logger=self.logger,
             )
         else:  # COCO → YOLO
             handler = CocoAnnotationHandler(
-                annotation_file=source_path, logger=self.logger
+                annotation_file=source_path,
+                strict_mode=self.strict_mode,
+                logger=self.logger,
             )
 
         return handler
@@ -266,7 +269,10 @@ class YoloAndCocoConverter(BaseConverter):
 
             do_rle = kwargs.get("do_rle", False)
             handler = CocoAnnotationHandler(
-                annotation_file=target_path, logger=self.logger, do_rle=do_rle
+                annotation_file=target_path,
+                logger=self.logger,
+                strict_mode=self.strict_mode,
+                do_rle=do_rle,
             )
         else:  # COCO → YOLO
             # For YOLO target, we need to create appropriate directory structure
@@ -326,6 +332,7 @@ class YoloAndCocoConverter(BaseConverter):
                 label_dir=str(labels_dir),
                 class_file=class_file,
                 image_dir=image_dir,
+                strict_mode=self.strict_mode,
                 logger=self.logger,
             )
 

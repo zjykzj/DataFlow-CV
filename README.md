@@ -220,6 +220,27 @@ mypy dataflow
 flake8 dataflow tests samples
 ```
 
+### Pre-commit Hooks (Optional)
+
+Automatically check code quality before each commit:
+
+```bash
+# Install pre-commit
+pip install pre-commit
+
+# Install git hooks (run once)
+pre-commit install
+
+# After this, every `git commit` will auto-run:
+#   black (code formatting)
+#   isort (import sorting)
+#   flake8 (linting)
+#   trailing-whitespace / end-of-file-fixer / check-yaml / check-toml
+
+# Manually run against all files
+pre-commit run --all-files
+```
+
 ### Project Structure
 ```
 dataflow/

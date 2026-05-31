@@ -202,7 +202,9 @@ class CocoAndLabelMeConverter(BaseConverter):
         """
         if self.source_to_target:  # COCO → LabelMe
             handler = CocoAnnotationHandler(
-                annotation_file=source_path, logger=self.logger
+                annotation_file=source_path,
+                strict_mode=self.strict_mode,
+                logger=self.logger,
             )
         else:  # LabelMe → COCO
             class_file = kwargs.get("class_file")
@@ -210,7 +212,10 @@ class CocoAndLabelMeConverter(BaseConverter):
                 raise ValueError("class_file is required for LabelMe→COCO conversion")
 
             handler = LabelMeAnnotationHandler(
-                label_dir=source_path, class_file=class_file, logger=self.logger
+                label_dir=source_path,
+                class_file=class_file,
+                strict_mode=self.strict_mode,
+                logger=self.logger,
             )
 
         return handler
@@ -265,7 +270,10 @@ class CocoAndLabelMeConverter(BaseConverter):
                     )
 
             handler = LabelMeAnnotationHandler(
-                label_dir=target_path, class_file=class_file, logger=self.logger
+                label_dir=target_path,
+                class_file=class_file,
+                strict_mode=self.strict_mode,
+                logger=self.logger,
             )
         else:  # LabelMe → COCO
             # For COCO target, we need to create the JSON file
@@ -274,7 +282,10 @@ class CocoAndLabelMeConverter(BaseConverter):
 
             do_rle = kwargs.get("do_rle", False)
             handler = CocoAnnotationHandler(
-                annotation_file=target_path, logger=self.logger, do_rle=do_rle
+                annotation_file=target_path,
+                logger=self.logger,
+                strict_mode=self.strict_mode,
+                do_rle=do_rle,
             )
 
         return handler
