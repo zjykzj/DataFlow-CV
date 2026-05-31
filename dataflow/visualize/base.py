@@ -446,14 +446,14 @@ class BaseVisualizer(ABC):
             )
             cv2.rectangle(image, pt1, pt2, color, self.config["bbox_thickness"])
             self.logger.debug("cv2.rectangle completed without exception")
-        except BaseException as e:
+        except Exception as e:
             self.logger.error(f"cv2.rectangle raised exception: {e}")
             # Try with hardcoded values to see if OpenCV works at all
             try:
                 self.logger.debug("Testing with hardcoded values")
                 cv2.rectangle(image, (10, 10), (100, 100), (0, 255, 0), 2)
                 self.logger.debug("Hardcoded rectangle succeeded")
-            except BaseException as e2:
+            except Exception as e2:
                 self.logger.error(f"Hardcoded rectangle also failed: {e2}")
             raise
 
@@ -615,15 +615,23 @@ class BaseVisualizer(ABC):
         self.logger.error(message)
         if self.strict_mode:
             # Check if error is image-related (file not found, failed to load, etc.)
-            # These errors should not raise exceptions even in strict mode
+            # Image-related errors should not raise exceptions even in strict mode.
+            # Use common substrings that appear across handler error messages.
+            _msg = message.lower()
             is_image_error = (
-                "image file not found" in message.lower() or
-                "failed to load image" in message.lower() or
-                "failed to read image" in message.lower() or
-                "invalid image dimensions" in message.lower() or
-                "error getting image size" in message.lower() or
-                "no corresponding image found" in message.lower() or
-                "no corresponding image" in message.lower()
+                "image" in _msg
+                and any(
+                    kw in _msg
+                    for kw in (
+                        "not found",
+                        "failed to load",
+                        "failed to read",
+                        "invalid",
+                        "error getting",
+                        "no corresponding",
+                        "does not exist",
+                    )
+                )
             )
             if not is_image_error:
                 raise ValueError(message)
@@ -672,7 +680,10 @@ class BaseVisualizer(ABC):
             return "[>······································]"
 
         filled = int(width * current / total)
-        bar = "[" + "=" * filled + ">" + "." * (width - filled - 1) + "]"
+        if filled >= width:
+            bar = "[" + "=" * width + "]"
+        else:
+            bar = "[" + "=" * filled + ">" + "." * (width - filled - 1) + "]"
         return bar
 
     def _log_color_info(self, class_id: int, color: Tuple[int, int, int]):
