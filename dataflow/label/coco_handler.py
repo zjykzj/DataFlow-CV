@@ -790,8 +790,12 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             bbox = []
             area = 0.0
             if obj.bbox:
-                x_abs, y_abs, w_abs, h_abs = obj.bbox.xywh_abs(img.width, img.height)
-                bbox = [float(x_abs), float(y_abs), float(w_abs), float(h_abs)]
+                # Use xyxy() to get top-left and bottom-right, then convert to
+                # COCO format [top_left_x, top_left_y, width, height]
+                x1, y1, x2, y2 = obj.bbox.xyxy(img.width, img.height)
+                w_abs = x2 - x1
+                h_abs = y2 - y1
+                bbox = [float(x1), float(y1), float(w_abs), float(h_abs)]
                 area = float(w_abs * h_abs)
             elif (
                 obj.segmentation
