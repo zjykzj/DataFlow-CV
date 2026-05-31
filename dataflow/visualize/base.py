@@ -221,6 +221,9 @@ class BaseVisualizer(ABC):
             "end_time": None,
         }
 
+        # Persistent display window state
+        self._window_positioned = False
+
     @abstractmethod
     def load_annotations(self) -> DatasetAnnotations:
         """Load annotation data (abstract method)."""
@@ -321,6 +324,13 @@ class BaseVisualizer(ABC):
             result.message = error_msg
             if self.verbose:
                 self.logger.exception("Visualization failed")
+        finally:
+            # Clean up persistent display window
+            if self.is_show:
+                try:
+                    cv2.destroyWindow("DataFlow-CV Visualization")
+                except Exception:
+                    pass  # Window may not exist if display failed early
 
         return result
 
@@ -348,7 +358,7 @@ class BaseVisualizer(ABC):
             # 3. Display or save
             if self.is_show:
                 try:
-                    window_name = f"Visualization - {image_ann.image_id}"
+                    window_name = "DataFlow-CV Visualization"
 
                     # Create a resizable window that maintains aspect ratio
                     window_flags = cv2.WINDOW_NORMAL
@@ -357,6 +367,11 @@ class BaseVisualizer(ABC):
                     except AttributeError:
                         pass  # WINDOW_KEEPRATIO not available in older OpenCV
                     cv2.namedWindow(window_name, window_flags)
+
+                    # Set initial position only once so window stays in place
+                    if not self._window_positioned:
+                        cv2.moveWindow(window_name, 100, 100)
+                        self._window_positioned = True
 
                     # Size window to match image, capped at max display size
                     h, w = image.shape[:2]
@@ -369,7 +384,6 @@ class BaseVisualizer(ABC):
 
                     cv2.imshow(window_name, image)
                     key = cv2.waitKey(0)
-                    cv2.destroyWindow(window_name)
 
                     # Handle keyboard input
                     if key == ord("q") or key == 27:  # 'q' key or ESC
