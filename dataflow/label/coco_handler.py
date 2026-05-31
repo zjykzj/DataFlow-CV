@@ -554,6 +554,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         images = []
         coco_annotations = []
         ann_id = 1
+        img_id = 1  # Separate image counter for fallback IDs
 
         for img in annotations.images:
             # Priority: Use original data if available and format matches
@@ -565,7 +566,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 image_info = original_data.copy()
                 # Update fields that may have changed
                 image_info["id"] = (
-                    int(img.image_id) if img.image_id.isdigit() else ann_id
+                    int(img.image_id) if img.image_id.isdigit() else img_id
                 )
                 image_info["width"] = img.width
                 image_info["height"] = img.height
@@ -586,7 +587,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 # Add image info
                 images.append(
                     {
-                        "id": int(img.image_id) if img.image_id.isdigit() else ann_id,
+                        "id": int(img.image_id) if img.image_id.isdigit() else img_id,
                         "width": img.width,
                         "height": img.height,
                         "file_name": img.image_path,
@@ -599,10 +600,12 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
             # Add object annotations
             for obj in img.objects:
-                coco_ann = self._object_to_coco_annotation(obj, img, ann_id)
+                coco_ann = self._object_to_coco_annotation(obj, img, ann_id, img_id)
                 if coco_ann:
                     coco_annotations.append(coco_ann)
                     ann_id += 1
+
+            img_id += 1  # Increment per image for fallback IDs
 
         # Prepare dataset info - preserve original dataset info for lossless preservation
         dataset_info = (
@@ -640,7 +643,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         }
 
     def _object_to_coco_annotation(
-        self, obj: ObjectAnnotation, img: ImageAnnotation, ann_id: int
+        self, obj: ObjectAnnotation, img: ImageAnnotation, ann_id: int, img_id: int
     ) -> Optional[Dict]:
         """Convert ObjectAnnotation to COCO annotation dict."""
         try:
@@ -681,7 +684,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 original_data["id"] = ann_id
                 # Update image_id to match current image
                 original_data["image_id"] = (
-                    int(img.image_id) if img.image_id.isdigit() else ann_id
+                    int(img.image_id) if img.image_id.isdigit() else img_id
                 )
                 # Update category_id to current class_id (class mapping may have changed)
                 original_data["category_id"] = obj.class_id
@@ -818,7 +821,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
             return {
                 "id": ann_id,
-                "image_id": int(img.image_id) if img.image_id.isdigit() else ann_id,
+                "image_id": int(img.image_id) if img.image_id.isdigit() else img_id,
                 "category_id": obj.class_id,
                 "segmentation": segmentation,
                 "area": area,
