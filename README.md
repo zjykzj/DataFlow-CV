@@ -191,16 +191,29 @@ See the `samples/` directory for complete examples:
 For detailed developer guidance including advanced test commands, debugging, and architecture overview, see [CLAUDE.md](CLAUDE.md).
 
 ### Testing
+
+294 tests, **73%** code coverage.
+
 ```bash
 # Run all tests
 pytest
 
-# Run tests with coverage
-pytest --cov=dataflow
+# Run tests with coverage report
+pytest --cov=dataflow --cov-report=term
 
 # Run specific test module
 pytest tests/convert/test_yolo_and_coco.py
 ```
+
+**Coverage by module:**
+
+| Module | Coverage | Notes |
+|--------|----------|-------|
+| `dataflow/label/` | 78% | Core data models (66%), handlers (67-82%) |
+| `dataflow/convert/` | 83% | Converters (81-92%), base pipeline (62%) |
+| `dataflow/visualize/` | 69% | Visualizers (94-100%), base drawing (79%) |
+| `dataflow/cli/` | 76% | CLI commands (47-96%), utils (86%) |
+| `dataflow/util/` | 87% | File ops (84%), logging (99%) |
 
 ### Linting and Formatting
 ```bash
