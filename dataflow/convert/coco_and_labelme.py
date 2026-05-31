@@ -93,10 +93,11 @@ class CocoAndLabelMeConverter(BaseConverter):
 
         # 4. Write data using target handler
         target_handler = self.create_target_handler(target_path, kwargs)
-        write_result = target_handler.write(converted_annotations, target_path)
-
-        # Clear stored annotations
-        self._source_annotations_for_target = None
+        try:
+            write_result = target_handler.write(converted_annotations, target_path)
+        finally:
+            # Clear stored annotations even if write raises
+            self._source_annotations_for_target = None
 
         # 5. Create result
         result = self._create_conversion_result(

@@ -104,10 +104,11 @@ class LabelMeAndYoloConverter(BaseConverter):
         else:  # YOLO → LabelMe
             write_output_path = target_path
 
-        write_result = target_handler.write(converted_annotations, write_output_path)
-
-        # Clear stored annotations
-        self._source_annotations_for_target = None
+        try:
+            write_result = target_handler.write(converted_annotations, write_output_path)
+        finally:
+            # Clear stored annotations even if write raises
+            self._source_annotations_for_target = None
 
         # 5. Return result
         return self._create_conversion_result(
