@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional
 from functools import wraps
 
-from dataflow.cli.commands.utils import validate_visualize_params
+from dataflow.cli.commands.utils import FormattedCommand, validate_visualize_params
 from dataflow.cli.exceptions import RuntimeCLIError
 from dataflow.util.logging_util import LoggingOperations, VerboseLoggingOperations
 
@@ -60,7 +60,7 @@ def visualize_group():
     pass
 
 
-@visualize_group.command()
+@visualize_group.command(cls=FormattedCommand)
 @add_visualize_options
 @click.argument("image_dir", type=click.Path(exists=True, path_type=Path))
 @click.argument("label_dir", type=click.Path(exists=True, path_type=Path))
@@ -120,7 +120,7 @@ def yolo(
         raise RuntimeCLIError(f"Visualization failed: {error_msg}")
 
 
-@visualize_group.command()
+@visualize_group.command(cls=FormattedCommand)
 @add_visualize_options
 @click.argument("image_dir", type=click.Path(exists=True, path_type=Path))
 @click.argument("coco_file", type=click.Path(exists=True, path_type=Path))
@@ -177,7 +177,7 @@ def coco(
         raise RuntimeCLIError(f"Visualization failed: {error_msg}")
 
 
-@visualize_group.command()
+@visualize_group.command(cls=FormattedCommand)
 @add_visualize_options
 @click.argument("image_dir", type=click.Path(exists=True, path_type=Path))
 @click.argument("label_dir", type=click.Path(exists=True, path_type=Path))

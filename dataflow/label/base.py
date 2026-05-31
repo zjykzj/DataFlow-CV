@@ -13,6 +13,16 @@ from typing import Any, Dict, List, Optional, Tuple
 from .models import DatasetAnnotations
 
 
+class ImageError(Exception):
+    """Exception raised for image-related errors that should always be treated as warnings.
+
+    Image errors (missing files, unreadable images, invalid dimensions) should
+    always skip processing regardless of strict_mode, unlike validation errors.
+    """
+
+    pass
+
+
 @dataclass
 class AnnotationResult:
     """Result of an annotation processing operation."""

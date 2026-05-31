@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from dataflow.util.file_util import FileOperations
 
-from .base import AnnotationResult, BaseAnnotationHandler
+from .base import AnnotationResult, BaseAnnotationHandler, ImageError
 from .models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
                      ImageAnnotation, ObjectAnnotation, OriginalData,
                      Segmentation)
@@ -78,27 +78,20 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             categories_from_annotations = {}
 
             for json_file in json_files:
-                image_result = self._read_single_file(json_file)
-                if not image_result.success:
-                    # Check if this is an image-related error that should be skipped regardless of strict_mode
-                    error_msg = image_result.message.lower() if image_result.message else ""
-                    is_image_error = (
-                        "no corresponding image found" in error_msg or
-                        "no corresponding image" in error_msg or
-                        "image file not found" in error_msg or
-                        "failed to read image" in error_msg or
-                        "invalid image dimensions" in error_msg or
-                        "error getting image size" in error_msg
-                    )
+                try:
+                    image_result = self._read_single_file(json_file)
+                except ImageError as e:
+                    # Image errors always skip regardless of strict_mode
+                    self._log_warning(f"Skipping {json_file} (image error): {e}")
+                    continue
 
-                    if self.strict_mode and not is_image_error:
+                if not image_result.success:
+                    if self.strict_mode:
                         result.add_error(
                             f"Failed to read {json_file}: {image_result.message}"
                         )
                         return result
                     else:
-                        # For image-related errors, always log warning and continue
-                        # For other errors in non-strict mode, also continue
                         self._log_warning(
                             f"Skipping {json_file}: {image_result.message}"
                         )
@@ -173,21 +166,36 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             if not image_path.exists():
                 if image_height is None or image_width is None:
                     # Image missing and no dimensions in JSON — cannot process
-                    result.add_error(f"Image file not found and no dimensions in JSON: {image_path}")
-                    return result
+                    raise ImageError(f"Image file not found and no dimensions in JSON: {image_path}")
                 # Image missing but dimensions are in JSON — continue with warning
                 self._log_warning(f"Image file not found, using dimensions from JSON: {image_path}")
 
             if image_height is None or image_width is None:
-                self._log_warning(
-                    f"Image dimensions not in JSON {json_file}, using defaults"
-                )
-                image_height = 1
-                image_width = 1
+                # Try to read dimensions from the actual image file
+                dims_read = False
+                if image_path.exists():
+                    try:
+                        import cv2
+                        img = cv2.imread(str(image_path))
+                        if img is not None:
+                            image_height, image_width = img.shape[:2]
+                            dims_read = True
+                            self._log_debug(
+                                f"Read image dimensions from file: {image_width}x{image_height}"
+                            )
+                    except Exception as e:
+                        self._log_debug(
+                            f"Could not read image dimensions from file: {e}"
+                        )
+                if not dims_read:
+                    self._log_warning(
+                        f"Image dimensions not in JSON {json_file} and could not read from file, using defaults"
+                    )
+                    image_height = 1
+                    image_width = 1
 
             if not self._validate_image_dimensions(image_width, image_height):
-                result.add_error(f"Invalid image dimensions in {json_file}")
-                return result
+                raise ImageError(f"Invalid image dimensions in {json_file}")
 
             # Process shapes
             objects: List[ObjectAnnotation] = []
@@ -242,6 +250,9 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
 
         except json.JSONDecodeError as e:
             result.add_error(f"Invalid JSON in {json_file}: {e}")
+        except ImageError:
+            # Re-raise image errors to be handled by the caller (read loop)
+            raise
         except Exception as e:
             result.add_error(f"Error reading {json_file}: {e}")
 
@@ -529,6 +540,32 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 if "points" not in shape:
                     self.logger.error(f"Shape missing points in {annotation_file}")
                     return False
+
+                shape_type = shape["shape_type"]
+                points = shape["points"]
+
+                # Validate shape type is supported
+                if shape_type not in ("rectangle", "polygon", "circle", "line", "point"):
+                    self.logger.warning(
+                        f"Unsupported shape_type '{shape_type}' in {annotation_file}"
+                    )
+                    # Non-fatal: unsupported shape types are skipped, not rejected
+
+                # Rectangle must have exactly 2 points
+                if shape_type == "rectangle":
+                    if len(points) != 2:
+                        self.logger.error(
+                            f"Rectangle shape must have exactly 2 points, got {len(points)} in {annotation_file}"
+                        )
+                        return False
+
+                # Polygon must have at least 3 points
+                if shape_type == "polygon":
+                    if len(points) < 3:
+                        self.logger.error(
+                            f"Polygon shape must have at least 3 points, got {len(points)} in {annotation_file}"
+                        )
+                        return False
 
             return True
 

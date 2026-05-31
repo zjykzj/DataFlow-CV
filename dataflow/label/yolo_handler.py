@@ -15,7 +15,7 @@ import numpy as np
 
 from dataflow.util.file_util import FileOperations
 
-from .base import AnnotationResult, BaseAnnotationHandler
+from .base import AnnotationResult, BaseAnnotationHandler, ImageError
 from .models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
                      ImageAnnotation, ObjectAnnotation, OriginalData,
                      Segmentation)
@@ -134,28 +134,20 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
             dataset.categories = self.categories.copy()
 
             for txt_file in txt_files:
-                image_result = self._read_single_file(txt_file)
-                if not image_result.success:
-                    # Check if this is an image-related error that should be skipped regardless of strict_mode
-                    # This includes missing images, invalid dimensions, etc.
-                    error_msg = image_result.message.lower() if image_result.message else ""
-                    is_image_error = (
-                        "no corresponding image found" in error_msg or
-                        "no corresponding image" in error_msg or
-                        "image file not found" in error_msg or
-                        "failed to read image" in error_msg or
-                        "invalid image dimensions" in error_msg or
-                        "error getting image size" in error_msg
-                    )
+                try:
+                    image_result = self._read_single_file(txt_file)
+                except ImageError as e:
+                    # Image errors always skip regardless of strict_mode
+                    self._log_warning(f"Skipping {txt_file} (image error): {e}")
+                    continue
 
-                    if self.strict_mode and not is_image_error:
+                if not image_result.success:
+                    if self.strict_mode:
                         result.add_error(
                             f"Failed to read {txt_file}: {image_result.message}"
                         )
                         return result
                     else:
-                        # For image-related errors, always log warning and continue
-                        # For other errors in non-strict mode, also continue
                         self._log_warning(
                             f"Skipping {txt_file}: {image_result.message}"
                         )
@@ -209,16 +201,14 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                 if image_files:
                     image_path = image_files[0]
                 else:
-                    result.add_error(f"No corresponding image found for {txt_file}")
-                    return result
+                    raise ImageError(f"No corresponding image found for {txt_file}")
 
             # Get image dimensions
             img_width, img_height = self._get_image_size(image_path)
             if img_width <= 0 or img_height <= 0:
-                result.add_error(
+                raise ImageError(
                     f"Invalid image dimensions for {image_path}: {img_width}x{img_height}"
                 )
-                return result
 
             # Read label file
             lines = self.file_ops.read_lines(txt_file)
@@ -443,6 +433,9 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
             result.success = True
             result.data = image_ann
 
+        except ImageError:
+            # Re-raise image errors to be handled by the caller (read loop)
+            raise
         except Exception as e:
             result.add_error(f"Error reading {txt_file}: {e}")
 

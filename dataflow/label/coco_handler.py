@@ -283,6 +283,28 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 if "segmentation" in ann and ann["segmentation"]:
                     seg_data = ann["segmentation"]
                     if isinstance(seg_data, dict) and "counts" in seg_data:
+                        # Validate RLE structure: must have 'size' (2 positive integers) and 'counts' (non-empty string)
+                        if "size" not in seg_data:
+                            self._log_warning(
+                                f"RLE segmentation missing 'size' in annotation {ann.get('id')}, skipping"
+                            )
+                            continue
+                        size = seg_data["size"]
+                        if not isinstance(size, list) or len(size) != 2:
+                            self._log_warning(
+                                f"RLE 'size' must be [height, width], got {size} in annotation {ann.get('id')}, skipping"
+                            )
+                            continue
+                        if not all(isinstance(v, int) and v > 0 for v in size):
+                            self._log_warning(
+                                f"RLE 'size' values must be positive integers in annotation {ann.get('id')}, skipping"
+                            )
+                            continue
+                        if not isinstance(seg_data["counts"], str) or not seg_data["counts"]:
+                            self._log_warning(
+                                f"RLE 'counts' must be a non-empty string in annotation {ann.get('id')}, skipping"
+                            )
+                            continue
                         # RLE format - preserve original RLE data
                         rle_dict = seg_data  # Keep original RLE dict
                         points = []
@@ -373,6 +395,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             )
 
             if not contours:
+                self._log_warning("RLE decode produced no contours, returning empty polygon")
                 return []
 
             # Use the largest contour
@@ -457,6 +480,12 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             if len(polygon) % 2 != 0:
                 self._log_warning(
                     f"Odd number of coordinates in polygon: {len(polygon)}"
+                )
+                continue
+            # Validate minimum vertices: at least 3 points (6 coordinate values)
+            if len(polygon) < 6:
+                self._log_warning(
+                    f"Polygon has fewer than 3 vertices ({len(polygon)} values), skipping"
                 )
                 continue
 
@@ -687,9 +716,14 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                         use_original_data = self.output_rle
                 else:
                     # Non-RLE format (polygon or empty)
-                    # If output_rle=True, we may want to convert polygon to RLE
-                    # So skip original data to allow RLE encoding in priority 2
-                    use_original_data = not self.output_rle
+                    # Crowd annotations must always use RLE — skip original data
+                    # to allow RLE encoding in Priority 2
+                    if obj.is_crowd:
+                        use_original_data = False
+                    else:
+                        # If output_rle=True, convert polygon to RLE (skip original data)
+                        # If output_rle=False, use original data as-is
+                        use_original_data = not self.output_rle
 
             if use_original_data and original_data_copy:
                 original_data = original_data_copy
@@ -873,13 +907,31 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                     self.logger.error(f"Category missing required fields: {cat}")
                     return False
 
+            # Build sets of valid image_ids and category_ids for cross-reference validation
+            valid_image_ids = {img["id"] for img in data["images"]}
+            valid_category_ids = {cat["id"] for cat in data["categories"]}
+
             # Validate annotations
             for ann in data["annotations"]:
                 if "id" not in ann or "image_id" not in ann or "category_id" not in ann:
                     self.logger.error(f"Annotation missing required fields: {ann}")
                     return False
 
-                # Validate RLE segmentation if present
+                # Cross-reference validation: image_id must reference a valid image
+                if ann["image_id"] not in valid_image_ids:
+                    self.logger.error(
+                        f"Annotation {ann.get('id')} references non-existent image_id: {ann['image_id']}"
+                    )
+                    return False
+
+                # Cross-reference validation: category_id must reference a valid category
+                if ann["category_id"] not in valid_category_ids:
+                    self.logger.error(
+                        f"Annotation {ann.get('id')} references non-existent category_id: {ann['category_id']}"
+                    )
+                    return False
+
+                # Validate segmentation if present
                 if "segmentation" in ann:
                     seg = ann["segmentation"]
                     if isinstance(seg, dict):
@@ -905,6 +957,14 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                                 f"RLE 'counts' must be a non-empty string in annotation {ann.get('id')}"
                             )
                             return False
+                    elif isinstance(seg, list):
+                        # Polygon format: each polygon must have at least 3 vertices (6 values)
+                        for polygon in seg:
+                            if len(polygon) < 6:
+                                self.logger.error(
+                                    f"Polygon segmentation has fewer than 3 vertices ({len(polygon)} values) in annotation {ann.get('id')}"
+                                )
+                                return False
 
             return True
 

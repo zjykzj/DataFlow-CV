@@ -35,6 +35,7 @@ class VisualizationResult:
     def add_error(self, error: str) -> None:
         """Add an error message to the result."""
         self.errors.append(error)
+        self.success = False
 
 
 class ColorManager:

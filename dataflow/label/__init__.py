@@ -34,6 +34,7 @@ from .yolo_handler import YoloAnnotationHandler
 __all__ = [
     "BaseAnnotationHandler",
     "AnnotationResult",
+    "ImageError",
     "DatasetAnnotations",
     "ImageAnnotation",
     "ObjectAnnotation",
