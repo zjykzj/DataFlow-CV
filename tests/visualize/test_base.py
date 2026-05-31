@@ -190,14 +190,24 @@ class TestBaseVisualizer:
     @patch("cv2.imshow")
     @patch("cv2.waitKey")
     @patch("cv2.destroyWindow")
+    @patch("cv2.resizeWindow")
+    @patch("cv2.namedWindow")
     @patch("cv2.imread")
     @patch("pathlib.Path.exists")
     def test_visualize_single_image_is_show_mode(
-        self, mock_exists, mock_imread, mock_destroy_window, mock_wait_key, mock_imshow
+        self,
+        mock_exists,
+        mock_imread,
+        mock_named_window,
+        mock_resize_window,
+        mock_destroy_window,
+        mock_wait_key,
+        mock_imshow,
     ):
         """Test visualization in is_show mode with keyboard interaction."""
-        # Create a mock image
+        # Create a mock image (needs subscriptable .shape for image.shape[:2])
         mock_image = Mock()
+        mock_image.shape = [600, 800, 3]
         mock_imread.return_value = mock_image
         # Mock file exists check
         mock_exists.return_value = True
@@ -224,11 +234,15 @@ class TestBaseVisualizer:
         mock_wait_key.return_value = 13  # Enter key
         success = visualizer._visualize_single_image(image_ann)
         assert success is True
+        mock_named_window.assert_called_once()
+        mock_resize_window.assert_called_once()
         mock_imshow.assert_called_once()
         mock_wait_key.assert_called_once_with(0)
         mock_destroy_window.assert_called_once()
 
         # Reset mocks for next test (but keep exists mock)
+        mock_named_window.reset_mock()
+        mock_resize_window.reset_mock()
         mock_imshow.reset_mock()
         mock_wait_key.reset_mock()
         mock_destroy_window.reset_mock()
@@ -238,11 +252,15 @@ class TestBaseVisualizer:
         mock_wait_key.return_value = 32  # Space key
         success = visualizer._visualize_single_image(image_ann)
         assert success is True
+        mock_named_window.assert_called_once()
+        mock_resize_window.assert_called_once()
         mock_imshow.assert_called_once()
         mock_wait_key.assert_called_once_with(0)
         mock_destroy_window.assert_called_once()
 
         # Reset mocks for next test
+        mock_named_window.reset_mock()
+        mock_resize_window.reset_mock()
         mock_imshow.reset_mock()
         mock_wait_key.reset_mock()
         mock_destroy_window.reset_mock()
@@ -252,11 +270,15 @@ class TestBaseVisualizer:
         mock_wait_key.return_value = ord("q")
         success = visualizer._visualize_single_image(image_ann)
         assert success is None  # Should return None to stop visualization
+        mock_named_window.assert_called_once()
+        mock_resize_window.assert_called_once()
         mock_imshow.assert_called_once()
         mock_wait_key.assert_called_once_with(0)
         mock_destroy_window.assert_called_once()
 
         # Reset mocks for next test
+        mock_named_window.reset_mock()
+        mock_resize_window.reset_mock()
         mock_imshow.reset_mock()
         mock_wait_key.reset_mock()
         mock_destroy_window.reset_mock()
@@ -266,6 +288,8 @@ class TestBaseVisualizer:
         mock_wait_key.return_value = 27  # ESC key
         success = visualizer._visualize_single_image(image_ann)
         assert success is None  # Should return None to stop visualization
+        mock_named_window.assert_called_once()
+        mock_resize_window.assert_called_once()
         mock_imshow.assert_called_once()
         mock_wait_key.assert_called_once_with(0)
         mock_destroy_window.assert_called_once()

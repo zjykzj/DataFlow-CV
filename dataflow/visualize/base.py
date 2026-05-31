@@ -349,6 +349,24 @@ class BaseVisualizer(ABC):
             if self.is_show:
                 try:
                     window_name = f"Visualization - {image_ann.image_id}"
+
+                    # Create a resizable window that maintains aspect ratio
+                    window_flags = cv2.WINDOW_NORMAL
+                    try:
+                        window_flags |= cv2.WINDOW_KEEPRATIO
+                    except AttributeError:
+                        pass  # WINDOW_KEEPRATIO not available in older OpenCV
+                    cv2.namedWindow(window_name, window_flags)
+
+                    # Size window to match image, capped at max display size
+                    h, w = image.shape[:2]
+                    MAX_DISPLAY_W, MAX_DISPLAY_H = 1920, 1080
+                    if w <= MAX_DISPLAY_W and h <= MAX_DISPLAY_H:
+                        cv2.resizeWindow(window_name, w, h)
+                    else:
+                        scale = min(MAX_DISPLAY_W / w, MAX_DISPLAY_H / h)
+                        cv2.resizeWindow(window_name, int(w * scale), int(h * scale))
+
                     cv2.imshow(window_name, image)
                     key = cv2.waitKey(0)
                     cv2.destroyWindow(window_name)
