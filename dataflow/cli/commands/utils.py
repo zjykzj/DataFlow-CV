@@ -9,19 +9,24 @@ from dataflow.util.logging_util import LoggingOperations, VerboseLoggingOperatio
 
 
 def add_common_options(func):
-    """Decorator: add common options to subcommands (--verbose only)"""
+    """Decorator: add common options to subcommands"""
     @click.option(
         "--verbose",
         is_flag=True,
         help="Enable verbose log output",
     )
+    @click.option(
+        "--no-strict",
+        is_flag=True,
+        help="Disable strict mode (skip invalid annotations instead of aborting)",
+    )
     @click.pass_context
     @wraps(func)
-    def wrapper(ctx, verbose, *args, **kwargs):
+    def wrapper(ctx, verbose, no_strict, *args, **kwargs):
         # Update options in context object
         ctx.obj["verbose"] = verbose
-        # Set default strict value (True, strict mode)
-        ctx.obj["strict"] = True
+        # strict_mode default True; --no-strict sets it to False
+        ctx.obj["strict"] = not no_strict
 
         # Reconfigure logging (based on verbose flag)
         if verbose:

@@ -11,17 +11,23 @@ from dataflow.util.logging_util import LoggingOperations, VerboseLoggingOperatio
 
 
 def add_visualize_options(func):
-    """Decorator: add visualize-specific options (--verbose only)"""
+    """Decorator: add visualize-specific options"""
     @click.option(
         "--verbose",
         is_flag=True,
         help="Enable verbose log output and save to logs/ directory",
     )
+    @click.option(
+        "--display/--no-display",
+        default=True,
+        help="Show visualization window (--no-display for headless servers)",
+    )
     @click.pass_context
     @wraps(func)
-    def wrapper(ctx, verbose, *args, **kwargs):
+    def wrapper(ctx, verbose, display, *args, **kwargs):
         # Update options in context object
         ctx.obj["verbose"] = verbose
+        ctx.obj["is_show"] = display
         # Use default log directory
         log_dir = Path("./logs")
         ctx.obj["log_dir"] = log_dir
@@ -90,7 +96,7 @@ def yolo(
         image_dir=image_dir,
         class_file=class_file,
         output_dir=save,
-        is_show=True,  # Always display visualization window
+        is_show=ctx.obj["is_show"],
         is_save=save is not None,
         strict_mode=strict,
         verbose=verbose,
@@ -147,7 +153,7 @@ def coco(
         annotation_file=coco_file,
         image_dir=image_dir,
         output_dir=save,
-        is_show=True,  # Always display visualization window
+        is_show=ctx.obj["is_show"],
         is_save=save is not None,
         strict_mode=strict,
         verbose=verbose,
@@ -204,7 +210,7 @@ def labelme(
         label_dir=label_dir,
         image_dir=image_dir,
         output_dir=save,
-        is_show=True,  # Always display visualization window
+        is_show=ctx.obj["is_show"],
         is_save=save is not None,
         strict_mode=strict,
         verbose=verbose,
