@@ -10,7 +10,7 @@ The project follows a modular architecture with clear separation between format 
 
 ## Git Commits
 
-When creating git commits via Claude Code, avoid using the default "Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>" line. Instead, use the following format (optionally including a Co-Authored-By line for DeepSeek):
+When creating git commits, use the following format:
 
 ```bash
 git commit -m "$(cat <<'EOF'
@@ -18,12 +18,12 @@ git commit -m "$(cat <<'EOF'
 
 <body if needed>
 
-Co-Authored-By: DeepSeek-V3.2 <noreply@deepseek.com>
+Co-Authored-By: DeepSeek-V4.0 <noreply@deepseek.com>
 EOF
 )"
 ```
 
-The Co-Authored-By line is optional and can be omitted if desired.
+The Co-Authored-By line is optional and can be omitted.
 
 Follow conventional commit style:
 - `feat`: New feature
@@ -37,349 +37,171 @@ Follow conventional commit style:
 - `ci`: Changes to CI configuration files and scripts
 - `chore`: Other changes that don't modify src or test files
 
-The AI model used in this project is DeepSeek-V3.2 (128K context length), not Claude Opus.
+The AI model used in this project is DeepSeek-V4.0, not Claude Opus.
 
-## Architecture Overview
+## Architecture
+
+### Data Flow Pipeline
+```
+Source Format (YOLO/LabelMe/COCO) → Handler.read() → DatasetAnnotations → Converter → Target Handler.write() → Target Format
+```
 
 ### Core Data Model (`dataflow/label/models.py`)
-- `DatasetAnnotations`: Top-level container for all annotations in a dataset
-- `ImageAnnotation`: Annotations for a single image (width, height, objects)
-- `ObjectAnnotation`: Single object annotation with optional `BoundingBox` and `Segmentation`
-- `OriginalData`: Preserves original annotation data for lossless round-trip conversions
-- `AnnotationFormat` enum: `LABELME`, `YOLO`, `COCO`
+
+- `DatasetAnnotations`: Top-level container (images list, categories dict, dataset_info)
+- `ImageAnnotation`: Per-image data (width, height, objects list, image_path, image_id)
+- `ObjectAnnotation`: Single annotation (class_id, class_name, optional `BoundingBox` and `Segmentation`, is_crowd flag)
+- `BoundingBox`: **Center-based** normalized coordinates (x, y, width, height). Internally, x/y are the center of the box, not top-left.
+- `Segmentation`: List of normalized (x, y) polygon points
+- `OriginalData`: Stores raw annotation data keyed by `AnnotationFormat` enum for lossless A→B→A round-trips
 
 ### Annotation Handlers (`dataflow/label/`)
-- `BaseAnnotationHandler`: Abstract base class defining `read()`, `write()`, `validate()` interface
-- `YoloHandler`: Handles YOLO format (both detection and segmentation)
-- `LabelMeHandler`: Handles LabelMe JSON format
-- `CocoHandler`: Handles COCO JSON format (supports RLE for segmentation)
 
-Handlers are responsible for reading/writing annotation files and converting between external formats and the internal data model.
+- `BaseAnnotationHandler`: Abstract base with `read()`, `write()`, `validate()` methods. Takes `strict_mode` (default True) and `verbose` (default False) kwargs.
+- `YoloHandler(label_dir, class_file, image_dir, **kwargs)`: Reads/writes `.txt` files (one per image). Supports detection (`class_id x y w h`) and segmentation (`class_id x1 y1 x2 y2 ...`).
+- `LabelMeHandler(label_dir, class_file=None, **kwargs)`: Reads/writes per-image `.json` files.
+- `CocoHandler(annotation_file, do_rle=False, **kwargs)`: Reads/writes a single COCO JSON file. Supports polygon and RLE segmentation.
 
 ### Converters (`dataflow/convert/`)
-- `BaseConverter`: Abstract base class for format conversion with verbose logging support
-- `YoloAndCocoConverter`: Bidirectional conversion between YOLO and COCO
-- `LabelMeAndYoloConverter`: Bidirectional conversion between LabelMe and YOLO
-- `CocoAndLabelMeConverter`: Bidirectional conversion between COCO and LabelMe
 
-Converters orchestrate the conversion process: read with source handler → convert annotations → write with target handler.
+All converters follow the pattern: **validate → read source → convert annotations → write target**. They support `strict_mode` and `verbose` kwargs.
+
+- `YoloAndCocoConverter(source_to_target)`: YOLO ↔ COCO. Supports `do_rle` for RLE encoding in COCO output.
+- `LabelMeAndYoloConverter(source_to_target)`: LabelMe ↔ YOLO. Copies images between directories.
+- `CocoAndLabelMeConverter(source_to_target)`: COCO ↔ LabelMe.
+
+Converters set `self._source_annotations_for_target` before write, which is used by `create_target_handler` for image copying (LabelMe→YOLO). Must be cleaned up via try/finally to prevent state leakage if write raises.
+
+### RLE Conversion (`dataflow/convert/rle_converter.py`)
+
+Handles polygon-to-RLE and RLE-to-polygon conversion using pycocotools. **Critical**: RLE `counts` bytes must use `latin1` (not UTF-8) encoding for JSON serialization — latin1 provides lossless 1:1 byte-to-character mapping while UTF-8 crashes on arbitrary binary RLE data.
 
 ### Visualizers (`dataflow/visualize/`)
-- `YOLOVisualizer`: Visualizes YOLO annotations with OpenCV
-- `LabelMeVisualizer`: Visualizes LabelMe annotations
-- `CocoVisualizer`: Visualizes COCO annotations
 
-Visualizers support both display and save modes, with automatic detection of annotation type (detection vs segmentation).
+- `YOLOVisualizer`: YOLO annotation visualization
+- `LabelMeVisualizer`: LabelMe annotation visualization
+- `CocoVisualizer`: COCO annotation visualization
+
+All extend `BaseVisualizer` which provides `ColorManager` (HSV-based palette, max 1000 colors), image loading/drawing, progress bars, and both display (`is_show`) and save (`is_save`) modes.
 
 ### CLI Structure (`dataflow/cli/`)
-- `main.py`: Entry point with global `--version`/`-v` flag; subcommands have local `--verbose` option for detailed logging
-- `commands/convert.py`: `dataflow convert` subcommands:
-  - `yolo2coco`, `yolo2labelme`, `coco2yolo`, `coco2labelme`, `labelme2yolo`, `labelme2coco`
-- `commands/visualize.py`: `dataflow visualize` subcommands:
-  - `yolo`, `labelme`, `coco`
-- **Positional arguments**: Required parameters (image directories, label directories, class files, output paths) are positional arguments for better usability. Use `--help` on any subcommand to see usage.
+
+- `main.py`: Entry point `cli` group with global `--version`/`-v` flag
+- `commands/convert.py`: 6 subcommands — `yolo2coco`, `yolo2labelme`, `coco2yolo`, `coco2labelme`, `labelme2yolo`, `labelme2coco`
+- `commands/visualize.py`: 3 subcommands — `yolo`, `labelme`, `coco`
+- `commands/utils.py`: Shared decorators (`add_common_options`, `add_visualize_options`) and validators
+- `commands/exceptions.py`: `RuntimeCLIError` for user-facing CLI errors
+
+Common CLI options: `--verbose` (enable file logging), `--no-strict` (disable strict mode for convert), `--display/--no-display` (control visualization window for visualize).
 
 ### Utilities (`dataflow/util/`)
-- `logging_util.py`: `LoggingOperations` and `VerboseLoggingOperations` for consistent logging
-- `file_util.py`: `FileOperations` for file system operations
 
-## Common Development Tasks
+- `logging_util.py`: `LoggingOperations` (console logging) and `VerboseLoggingOperations` (console + file logging). `get_verbose_logger()` returns `(logger, log_file_path)` tuple.
+- `file_util.py`: `FileOperations` for file I/O (read/write lines, copy, glob). `read_lines()` uses `rstrip()` to preserve leading whitespace.
+
+## Critical Implementation Details
+
+### Coordinate Systems
+
+**Internal model:** All coordinates are **0-1 normalized**. `BoundingBox.x`/`BoundingBox.y` are **center** coordinates (YOLO convention), NOT top-left.
+
+**Key methods on BoundingBox:**
+- `xyxy(img_w, img_h)` → `(x1, y1, x2, y2)` — top-left to bottom-right in absolute pixels. **Use this for COCO bbox conversion.**
+- `xywh_abs(img_w, img_h)` → `(cx, cy, w, h)` — center-x, center-y in absolute pixels. Do NOT use for COCO output; COCO expects top-left.
+
+**Format expectations:**
+| Format | Bbox origin | Coordinate space |
+|--------|------------|-----------------|
+| YOLO | Center | Normalized (0-1) |
+| COCO | Top-left | Absolute pixels |
+| LabelMe | Varies (polygon/rectangle) | Absolute pixels |
+
+### RLE Serialization
+
+pycocotools `mask.encode()` returns binary `counts` bytes. For JSON serialization:
+- **Write path** (`coco_handler.py`, `rle_converter.py`): `counts_bytes.decode("latin1")` → string for JSON
+- **Read path** (`coco_handler.py`): `counts_str.encode("latin1")` → bytes for `mask.decode()`
+
+Never use UTF-8 for RLE counts — it cannot represent all 256 byte values and will cause `UnicodeDecodeError` crashes.
+
+### Original Data Preservation
+
+`OriginalData` stores the exact raw bytes/strings from the source format, enabling lossless A→B→A round-trips:
+
+- **YOLO**: Stores tokenized line items as `[class_id_str, x_float, y_float, ...]`. Items are stored with numeric types (float for coords) to prevent TypeError during coordinate extraction.
+- **LabelMe**: Stores raw JSON dicts. `imageData` is NOT a required field on read (it's optional base64 image data), though it may appear in some files.
+- **COCO**: Stores raw annotation dicts from the source JSON. When writing, the original data path preserves exact bbox/segmentation values (not recomputed from the internal model) to maintain lossless precision.
+
+The `OriginalDataManager.extract_original_coordinates()` extracts bbox and segmentation points from original data by format.
+
+### Validation Behavior
+
+- **Strict mode** (default): Validation errors immediately raise exceptions / return error results.
+- **Non-strict mode**: Errors are collected as warnings; processing continues where possible. CLI now supports `--no-strict`.
+- **Image errors**: Missing/unreadable images are always treated as warnings regardless of strict mode.
+- **Coordinate validation**: In non-strict mode, invalid coordinates cause the entire annotation line to be skipped (not just the failing coordinate check).
+
+## Development Commands
 
 ### Installation
 ```bash
-# Regular installation
-pip install .
-
-# Editable installation (development)
-pip install -e .
+pip install -e .                    # Editable install (recommended for dev)
+pip install -e .[dev]               # With test/lint deps
+pip install -e .[coco]              # With pycocotools for RLE support
 ```
 
-**Note**: With editable installation, use `python -m dataflow.cli` instead of the `dataflow-cv` command.
+With editable install, use `python -m dataflow.cli` instead of `dataflow-cv`.
 
 ### Testing
 ```bash
-# Run all tests
-pytest
-
-# Run tests with coverage
-pytest --cov=dataflow
-
-# Run specific test module
-pytest tests/convert/test_yolo_and_coco.py
-
-# Run tests with verbose output
-pytest -v
-
-# Run specific test class
-pytest tests/label/test_yolo.py::TestYoloAnnotationHandler
-
-# Run specific test method
-pytest tests/label/test_yolo.py::TestYoloAnnotationHandler::test_read_detection
-
-# Run tests with coverage report (HTML)
-pytest --cov=dataflow --cov-report=html
-
-# Run tests in parallel
-pytest -n auto
-
-# Run tests with markers (exclude slow tests)
-pytest -m "not slow"
-
-# Run tests and generate JUnit XML report (for CI)
-pytest --junitxml=test-results.xml
+pytest                              # All tests
+pytest -x -q                        # Stop on first failure, quiet
+pytest tests/label/test_yolo.py     # Single module
+pytest tests/label/test_yolo.py::TestYoloAnnotationHandler::test_read_detection  # Single test
+pytest --cov=dataflow --cov-report=html  # Coverage report
+pytest -n auto                      # Parallel (requires pytest-xdist)
 ```
 
-### Debugging Conversion Issues
-
+### Linting
 ```bash
-# Enable verbose logging for debugging conversion
-dataflow-cv convert yolo2coco --verbose images/ yolo_labels/ classes.txt coco_annotations.json
-
-# Enable verbose logging for debugging visualization
-dataflow-cv visualize yolo --verbose images/ yolo_labels/ classes.txt --save visualized/
-
-# Check log files in logs/ directory (the exact path is printed as "Verbose log saved to: <path>")
-ls -la logs/
-
-# Run conversion with strict mode disabled using Python API (CLI always uses strict mode)
-
-# Use Python API with verbose mode for detailed inspection
-python -c "from dataflow.convert import YoloAndCocoConverter; converter = YoloAndCocoConverter(verbose=True, strict_mode=False); result = converter.convert(...); print(result)"
+black dataflow tests samples        # Format
+isort dataflow tests samples        # Imports
+flake8 dataflow tests samples       # Lint
+mypy dataflow                       # Type check
 ```
 
-### Adding New Format Support
-
-To add support for a new annotation format:
-
-1. **Extend `BaseAnnotationHandler`** in `dataflow/label/`
-2. **Add to `AnnotationFormat` enum** in `models.py`
-3. **Create corresponding converter** in `dataflow/convert/`
-4. **Add visualizer** in `dataflow/visualize/`
-5. **Update CLI commands** in `dataflow/cli/commands/`
-
-Refer to existing implementations (YOLO, LabelMe, COCO) for patterns.
-
-### Linting and Formatting
-Development dependencies are defined in `pyproject.toml` project.optional-dependencies['dev']:
+### Manual CLI Verification
 ```bash
-# Install development dependencies
-pip install -e .[dev]
+# Test conversion
+dataflow-cv convert yolo2coco --verbose assets/test_data/ images/ yolo_labels/ classes.txt /tmp/out.json
 
-# Format code with black
-black dataflow tests samples
-
-# Sort imports with isort
-isort dataflow tests samples
-
-# Type checking with mypy
-mypy dataflow
-
-# Linting with flake8
-flake8 dataflow tests samples
-
-# Linting with pylint
-pylint dataflow
+# Test visualization (non-display)
+dataflow-cv visualize yolo --no-display --verbose images/ yolo_labels/ classes.txt --save /tmp/viz/
 ```
 
-### Test Structure
-Tests are organized by module:
-- `tests/label/`: Unit tests for annotation handlers
-- `tests/convert/`: Unit tests for converters
-- `tests/visualize/`: Unit tests for visualizers
-- `tests/util/`: Unit tests for utilities
-- `tests/cli/`: Integration tests for CLI commands
+## Known Gotchas
 
-### Building and Publishing
-The project uses setuptools for packaging. The GitHub workflow `.github/workflows/python-publish.yml` automates PyPI publishing.
+1. **COCO bbox**: Must convert from internal center-based coords to COCO top-left using `BoundingBox.xyxy()` → `[x1, y1, x2-x1, y2-y1]`. Using `xywh_abs()` directly produces offset bboxes.
+2. **RLE encoding**: Always `latin1`, never `utf-8`, for byte↔string round-trips.
+3. **YOLO OriginalData items**: First element is str (class_id), rest are float. Always `list()`-copy before mutating.
+4. **LabelMe imageData**: Not required on read; valid external files may omit it.
+5. **Converter state**: `_source_annotations_for_target` must be cleared in a `finally` block to prevent stale state on exceptions.
+6. **COCO image_id fallback**: When `img.image_id` is not a digit string, use a dedicated image counter (not the annotation counter).
+7. **Progress bar at 100%**: Guard against `filled == width` causing `"." * -1`.
 
-## CLI Usage Examples
+## Bug Report
 
-When using the `--verbose` flag, the CLI prints "Verbose log saved to: <path>" after operations, indicating where the detailed log file is saved.
+A comprehensive code review identified 32 bugs across the codebase, documented in `.claude/plans/bug-p0-p1-p2-glowing-hellman.md`. 22 have been fixed; the remaining 8 are P2 (low priority). Refer to the plan file when working on related code areas.
 
-### Format Conversion
-```bash
-# YOLO to COCO
-dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt coco_annotations.json
+## Test Structure
 
-# With RLE encoding
-dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt coco_annotations.json --do-rle
-
-# YOLO to LabelMe
-dataflow-cv convert yolo2labelme images/ yolo_labels/ classes.txt labelme_json/
-
-# COCO to YOLO
-dataflow-cv convert coco2yolo coco_annotations.json yolo_labels/
-
-# COCO to LabelMe
-dataflow-cv convert coco2labelme coco_annotations.json labelme_json/
-
-# LabelMe to YOLO
-dataflow-cv convert labelme2yolo labelme_json/ classes.txt yolo_labels/
-
-# LabelMe to COCO
-dataflow-cv convert labelme2coco labelme_json/ classes.txt coco_annotations.json
-
-# With RLE encoding
-dataflow-cv convert labelme2coco labelme_json/ classes.txt coco_annotations.json --do-rle
-
-# Enable verbose logging
-dataflow-cv convert yolo2coco --verbose images/ yolo_labels/ classes.txt coco_annotations.json
+```
+tests/
+├── label/          # Handler unit tests (includes lossless roundtrip tests)
+├── convert/        # Converter unit tests + integration tests
+├── visualize/      # Visualizer unit tests
+├── util/           # Utility unit tests
+└── cli/            # CLI integration tests
 ```
 
-### Visualization
-```bash
-# Visualize YOLO annotations
-dataflow-cv visualize yolo images/ yolo_labels/ classes.txt --save visualized/
-
-# Visualize COCO annotations
-dataflow-cv visualize coco images/ coco_annotations.json --save visualized/
-
-# Visualize LabelMe annotations
-dataflow-cv visualize labelme images/ labelme_json/ --save visualized/
-```
-
-### Python API Examples
-See `samples/` directory for comprehensive examples:
-- `samples/visualize/yolo_demo.py`
-- `samples/visualize/labelme_demo.py`
-- `samples/visualize/coco_demo.py`
-- `samples/convert/` contains conversion examples
-
-## Important Patterns and Conventions
-
-### Logging Configuration
-- Use `LoggingOperations.get_logger()` for standard logging
-- Use `VerboseLoggingOperations.get_verbose_logger()` for verbose mode (creates log files). This method returns a tuple of `(logger, log_file_path)` where `log_file_path` is the path to the generated log file (or `None` if `verbose=False`). Use `get_log_file_path()` to retrieve the path later.
-- When `--verbose` flag is used, log files are created in `logs/` directory with DEBUG details including filename/line numbers. The CLI prints a message "Verbose log saved to: <path>" after operations.
-- Console output includes timestamps in both modes
-
-### Strict Mode
-- Handlers and converters have `strict_mode` parameter (default: `True`)
-- In strict mode, validation errors raise exceptions
-- In non-strict mode, errors are logged but processing continues where possible
-- CLI always uses strict mode (errors raise exceptions); the Python API allows configuring `strict_mode` parameter.
-- Error messages are complete even in non-verbose mode, providing sufficient information for debugging.
-- **Missing image handling**: Image-related errors (missing images, failed to load) are always treated as warnings and processing continues, regardless of strict mode.
-
-### Original Data Preservation
-- The `OriginalData` system preserves original annotation coordinates for lossless round-trip conversions
-- When converting between formats, original data is retained when available
-- This enables converting A→B→A without precision loss
-- The `OriginalDataManager` class provides utilities for managing original data during conversions
-
-### Coordinate System
-
-- **Normalized Coordinates**: All internal coordinates are 0-1 normalized
-- **Conversion**: Handlers convert between normalized and absolute pixel coordinates
-- **COCO Format**: Uses absolute pixel coordinates for bounding boxes (x_min, y_min, width, height) and segmentation polygons; handlers convert between COCO's absolute coordinates and normalized internal representation
-- **LabelMe Format**: Uses absolute pixel coordinates for polygons and rectangles; handlers convert accordingly
-- **Bounding Boxes**: Center-x, center-y, width, height (YOLO format)
-- **Segmentation**: Lists of normalized (x, y) points
-- **Example**: Pixel coordinate (x=320, y=240) in 640×480 image → normalized (0.5, 0.5)
-- **Preservation**: Original coordinates stored in `OriginalData` for lossless round-trip conversion
-
-### Visualization Behavior
-
-- **Keyboard shortcuts**: During visualization display, press `q` or `ESC` to exit visualization early; press any other key (e.g., space or enter) to continue to next image.
-- **Missing image handling**: If an image file is missing, visualization skips that image with a warning and continues processing. In label handlers, missing images are skipped with warnings regardless of strict mode.
-- **RLE mask visualization**: COCO RLE masks are visualized with semi-transparent fills for better visibility of overlapping regions.
-- **Color management**: Each class ID is assigned a unique color from a palette of 1000 distinct colors, ensuring consistent coloring across visualizations.
-
-### Error Handling
-- Operations return `AnnotationResult` or `ConversionResult` with success flag, messages, errors, warnings
-- CLI commands raise `RuntimeCLIError` for user-facing errors
-- Use `validate_inputs()` pattern in converters
-
-### Data Flow Pattern
-
-1. **Handlers** (`dataflow/label/`) read/write specific formats to/from the internal `DatasetAnnotations` model
-2. **Converters** (`dataflow/convert/`) orchestrate: source handler → convert → target handler
-3. **Visualizers** (`dataflow/visualize/`) display or save annotated images
-4. **Utilities** (`dataflow/util/`) provide cross-cutting concerns (logging, file operations)
-
-
-### Result Objects Pattern
-
-- `AnnotationResult` and `ConversionResult` provide structured error handling
-- `VisualizationResult` includes a `log_file_path` field containing the path to the verbose log file (if verbose mode was enabled)
-- Contains success flag, messages, errors, warnings lists
-- Allows operations to continue in non-strict mode while collecting issues
-- Used throughout handlers, converters, and visualizers
-
-## Troubleshooting
-
-### Editable Installation Quirk
-- With editable installation (`pip install -e .`), use `python -m dataflow.cli` instead of `dataflow-cv` command
-- This is because entry point scripts may not be properly linked in development mode
-
-### Path Handling Issues
-- Use `pathlib.Path` for cross-platform compatibility
-- Ensure image directories exist before conversion
-- Relative paths are resolved relative to the current working directory
-
-### Log File Locations
-- With `--verbose` flag, log files are created in `logs/` directory (default)
-- The CLI prints "Verbose log saved to: <path>" after operations
-- Log files have timestamped names (e.g., `log_20260324_222035.log`)
-- Files contain DEBUG details including filename/line numbers
-
-### COCO RLE Support
-- Requires optional dependency `pycocotools`
-- Install with `pip install dataflow-cv[coco]` or `pip install pycocotools`
-- Without it, COCO segmentation conversions will fall back to polygon format
-- RLE masks are visualized with semi-transparent fills for better visibility of overlapping regions
-
-## Dependency Management
-
-### Core Dependencies
-- `numpy>=1.24.0`
-- `opencv-python>=4.6.0.66`
-- `click>=7.0.0`
-
-### Optional Dependencies
-- `pycocotools>=2.0.0`: Required for COCO RLE segmentation support
-  - Install with `pip install dataflow-cv[coco]` or `pip install pycocotools`
-- Without pycocotools, COCO segmentation conversions fall back to polygon format
-
-### Development Dependencies
-- Defined in `pyproject.toml` project.optional-dependencies['dev']
-- Install with `pip install -e .[dev]`
-- Includes pytest, black, isort, flake8, mypy, pylint
-- Documentation dependencies are defined in project.optional-dependencies['docs'] (Sphinx, sphinx-rtd-theme)
-
-## Notes for Contributors
-
-- The project supports both object detection and instance segmentation annotations
-- COCO RLE support requires `pycocotools` (optional dependency)
-- All file paths should use `pathlib.Path` for cross-platform compatibility
-- Chinese comments are present in some files; maintain bilingual clarity where appropriate
-- Follow existing patterns for adding new format handlers or converters
-- When modifying logging behavior, ensure both console and file logging work correctly in verbose mode
-
-## Related Documentation
-
-### Format Documentation
-- `docs/formats/`: Detailed documentation for each supported annotation format
-  - `yolo.md`: YOLO format specification and coordinate conversion
-  - `coco.md`: COCO format specification and RLE encoding
-  - `labelme.md`: LabelMe format specification and polygon representation
-
-### Specifications
-- `docs/specs/`: Detailed specifications for each module (in Chinese)
-  - `specs_for_label.md`: Label module specification
-  - `specs_for_convert.md`: Converter specification
-  - `specs_for_visualize.md`: Visualizer specification
-
-### Examples
-- `samples/`: Comprehensive usage examples
-  - `samples/visualize/`: Visualization demos
-  - `samples/convert/`: Conversion examples
-  - `samples/label/`: Handler usage examples
-  - `samples/cli/`: CLI usage patterns
-
-### Test Data
-- `assets/`: Sample data for testing and demonstrations
-  - `assets/test_data/`: Organized by format (det/seg) and annotation type
-
-### Project History
-- `CHANGELOG.md`: Version history and breaking changes
+Test data lives in `assets/test_data/`, organized by format (det/seg) and annotation type.
