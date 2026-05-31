@@ -233,6 +233,9 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     items = line.split()
                     if not items:
                         continue
+                    # Convert numeric tokens to float to ensure proper arithmetic
+                    # when later extracting coordinates from original data
+                    items = [items[0]] + [float(x) for x in items[1:]]
 
                     is_detection, is_segmentation = self._detect_annotation_type(items)
                     class_id = int(items[0])
@@ -551,11 +554,14 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                 raw_data = obj.original_data.raw_data
                 if "line" in raw_data and "items" in raw_data:
                     # Reconstruct line with updated class ID
-                    original_items = raw_data["items"]
+                    # Copy the list to avoid mutating the original data
+                    original_items = list(raw_data["items"])
                     if len(original_items) > 0:
                         # Replace class ID in first position
                         original_items[0] = str(class_id)
-                        # Join with single space (preserving original formatting may not be needed)
+                        # Convert all items to strings for joining
+                        original_items = [str(x) for x in original_items]
+                        # Join with single space
                         return " ".join(original_items)
                     else:
                         self._log_warning(
