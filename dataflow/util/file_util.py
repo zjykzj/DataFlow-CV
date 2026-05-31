@@ -110,7 +110,8 @@ class FileOperations:
         """Read all lines from a file."""
         path = Path(file_path)
         with open(path, "r", encoding=encoding) as f:
-            return [line.strip() for line in f.readlines()]
+            # Use rstrip to preserve leading whitespace (e.g. for class names)
+            return [line.rstrip() for line in f.readlines()]
 
     def write_lines(
         self, file_path: Union[str, Path], lines: List[str], encoding: str = "utf-8"

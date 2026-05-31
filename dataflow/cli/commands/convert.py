@@ -302,11 +302,3 @@ def labelme2coco(
         error_msg = result.errors[0] if result.errors else "Conversion failed"
         logger.error(f"Conversion failed: {error_msg}")
         raise RuntimeCLIError(f"Conversion failed: {error_msg}")
-
-
-def validate_path_exists(path: Path, name: str = "path") -> Path:
-    """Validate if path exists"""
-    if not path.exists():
-        from dataflow.cli.exceptions import InputError
-        raise InputError(f"{name} does not exist: {path}")
-    return path
