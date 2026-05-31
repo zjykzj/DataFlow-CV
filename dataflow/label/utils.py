@@ -14,7 +14,10 @@ from .models import AnnotationFormat, DatasetAnnotations
 
 
 def verify_lossless_roundtrip(
-    input_path: str, output_path: str, handler_class: Type[BaseAnnotationHandler]
+    input_path: str,
+    output_path: str,
+    handler_class: Type[BaseAnnotationHandler],
+    **handler_kwargs,
 ) -> bool:
     """
     Verify that reading and writing produces identical output.
@@ -23,6 +26,8 @@ def verify_lossless_roundtrip(
         input_path: Path to input annotation file or directory
         output_path: Path to output annotation file or directory
         handler_class: Handler class to use for reading/writing
+        **handler_kwargs: Additional kwargs for handler constructor
+            (e.g., class_file, image_dir for YoloHandler)
 
     Returns:
         bool: True if output is identical to input, False otherwise
@@ -40,7 +45,7 @@ def verify_lossless_roundtrip(
         temp_output = Path(temp_dir) / "output"
 
         # Read input annotations
-        handler = handler_class(input_path)
+        handler = handler_class(input_path, **handler_kwargs)
         read_result = handler.read()
         if not read_result.success:
             print(f"Failed to read input: {read_result.message}")
