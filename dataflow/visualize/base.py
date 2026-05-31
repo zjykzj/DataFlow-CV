@@ -53,9 +53,9 @@ class ColorManager:
 
         # Try to generate colors with different hue, saturation, value combinations
         # We'll iterate through hue primarily, then adjust saturation/value when needed
-        hue_step = max(1, 180 // (num_colors // 3))
-        sat_step = max(1, 100 // (num_colors // 3))
-        val_step = max(1, 100 // (num_colors // 3))
+        hue_step = max(1, 180 // max(1, num_colors // 3))
+        sat_step = max(1, 100 // max(1, num_colors // 3))
+        val_step = max(1, 100 // max(1, num_colors // 3))
 
         for i in range(num_colors):
             # Primary: vary hue (0-179)
