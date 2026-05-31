@@ -231,10 +231,14 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             try:
                 class_id = ann.get("category_id")
                 if class_id is None or class_id not in self.categories:
-                    self._log_warning(
-                        f"Skipping annotation with invalid category_id: {ann.get('category_id')}"
-                    )
-                    continue
+                    error_msg = f"Invalid category_id in annotation {ann.get('id')}: {ann.get('category_id')}"
+                    if self.strict_mode:
+                        self._log_error(error_msg)
+                        # Signal error to caller by returning empty list
+                        return []
+                    else:
+                        self._log_warning(f"Skipping annotation: {error_msg}")
+                        continue
 
                 class_name = self.categories[class_id]
                 is_crowd = ann.get("iscrowd", 0) == 1
@@ -268,10 +272,12 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                             original_data=original_data,
                         )
                         if not self._validate_bbox(bbox):
+                            # In strict mode, _validate_bbox raises ValueError (never returns)
+                            # In non-strict mode, skip the entire annotation
                             self._log_warning(
-                                f"Invalid bbox in annotation {ann.get('id')}"
+                                f"Skipping annotation {ann.get('id')}: invalid bbox"
                             )
-                            bbox = None
+                            continue
 
                 # Parse segmentation
                 if "segmentation" in ann and ann["segmentation"]:
@@ -604,6 +610,15 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 if coco_ann:
                     coco_annotations.append(coco_ann)
                     ann_id += 1
+                elif self.strict_mode:
+                    self._log_error(
+                        f"Failed to convert object {obj.class_name} "
+                        f"(class_id={obj.class_id}) to COCO format"
+                    )
+                else:
+                    self._log_warning(
+                        f"Skipping object {obj.class_name}: conversion to COCO format failed"
+                    )
 
             img_id += 1  # Increment per image for fallback IDs
 
@@ -863,6 +878,33 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 if "id" not in ann or "image_id" not in ann or "category_id" not in ann:
                     self.logger.error(f"Annotation missing required fields: {ann}")
                     return False
+
+                # Validate RLE segmentation if present
+                if "segmentation" in ann:
+                    seg = ann["segmentation"]
+                    if isinstance(seg, dict):
+                        # RLE format: must have 'size' and 'counts'
+                        if "size" not in seg or "counts" not in seg:
+                            self.logger.error(
+                                f"RLE segmentation missing 'size' or 'counts' in annotation {ann.get('id')}"
+                            )
+                            return False
+                        size = seg["size"]
+                        if not isinstance(size, list) or len(size) != 2:
+                            self.logger.error(
+                                f"RLE 'size' must be [height, width], got {size} in annotation {ann.get('id')}"
+                            )
+                            return False
+                        if not isinstance(size[0], int) or not isinstance(size[1], int) or size[0] <= 0 or size[1] <= 0:
+                            self.logger.error(
+                                f"RLE 'size' values must be positive integers in annotation {ann.get('id')}"
+                            )
+                            return False
+                        if not isinstance(seg["counts"], str) or not seg["counts"]:
+                            self.logger.error(
+                                f"RLE 'counts' must be a non-empty string in annotation {ann.get('id')}"
+                            )
+                            return False
 
             return True
 

@@ -5,6 +5,7 @@ Defines the interface for all annotation format handlers.
 """
 
 import logging
+import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
@@ -116,31 +117,67 @@ class BaseAnnotationHandler(ABC):
             self._log_warning("No valid annotations detected (no bbox or segmentation)")
 
     def _validate_image_dimensions(self, width: int, height: int) -> bool:
-        """Validate image dimensions are positive."""
+        """Validate image dimensions are positive integers."""
+        if not isinstance(width, int) or not isinstance(height, int):
+            self._log_error(
+                f"Image dimensions must be integers, got {type(width).__name__}x{type(height).__name__}"
+            )
+            return False
         if width <= 0 or height <= 0:
             self._log_error(f"Invalid image dimensions: {width}x{height}")
             return False
         return True
 
     def _validate_normalized_coordinate(self, value: float, name: str) -> bool:
-        """Validate normalized coordinate is in [0, 1] range."""
+        """Validate normalized coordinate is a finite number in [0, 1] range."""
+        if not math.isfinite(value):
+            self._log_error(f"Normalized {name} is not finite: {value}")
+            return False
         if value < 0 or value > 1:
             self._log_error(f"Normalized {name} out of range [0, 1]: {value}")
             return False
         return True
 
     def _validate_bbox(self, bbox) -> bool:
-        """Validate bounding box coordinates."""
+        """Validate bounding box coordinates, dimensions, and boundary containment."""
         if bbox is None:
             return True
 
+        # Validate each coordinate is a finite number in [0, 1]
         checks = [
             self._validate_normalized_coordinate(bbox.x, "bbox.x"),
             self._validate_normalized_coordinate(bbox.y, "bbox.y"),
             self._validate_normalized_coordinate(bbox.width, "bbox.width"),
             self._validate_normalized_coordinate(bbox.height, "bbox.height"),
         ]
-        return all(checks)
+        if not all(checks):
+            return False
+
+        # Validate width and height are strictly positive
+        if bbox.width <= 0:
+            self._log_error(f"bbox.width must be > 0, got {bbox.width}")
+            return False
+        if bbox.height <= 0:
+            self._log_error(f"bbox.height must be > 0, got {bbox.height}")
+            return False
+
+        # Validate bounding box is contained within image boundaries [0, 1]
+        half_w = bbox.width / 2
+        half_h = bbox.height / 2
+        if bbox.x - half_w < 0:
+            self._log_error(f"bbox overflows left boundary: x={bbox.x}, w={bbox.width}")
+            return False
+        if bbox.x + half_w > 1:
+            self._log_error(f"bbox overflows right boundary: x={bbox.x}, w={bbox.width}")
+            return False
+        if bbox.y - half_h < 0:
+            self._log_error(f"bbox overflows top boundary: y={bbox.y}, h={bbox.height}")
+            return False
+        if bbox.y + half_h > 1:
+            self._log_error(f"bbox overflows bottom boundary: y={bbox.y}, h={bbox.height}")
+            return False
+
+        return True
 
     def _validate_segmentation_points(self, points: List[Tuple[float, float]]) -> bool:
         """Validate segmentation polygon points."""

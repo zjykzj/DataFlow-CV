@@ -51,21 +51,26 @@ class ColorManager:
         """Generate N unique colors using HSV space."""
         colors_set = set()
 
-        # Try to generate colors with different hue, saturation, value combinations
-        # We'll iterate through hue primarily, then adjust saturation/value when needed
+        # Generate colors with different hue, saturation, value combinations.
+        # Iterate through hue primarily, then saturation, then value.
         hue_step = max(1, 180 // max(1, num_colors // 3))
         sat_step = max(1, 100 // max(1, num_colors // 3))
         val_step = max(1, 100 // max(1, num_colors // 3))
+
+        # Number of unique saturation values before wrapping (101 values: 100-200)
+        sat_range = 101
+        # Divisor for tertiary value variation activation
+        val_divisor = 180 * max(1, sat_range // sat_step)
 
         for i in range(num_colors):
             # Primary: vary hue (0-179)
             hue = (i * hue_step) % 180
 
             # Secondary: vary saturation (100-200)
-            saturation = 100 + ((i // 180) * sat_step) % 100
+            saturation = 100 + ((i // 180) * sat_step) % sat_range
 
             # Tertiary: vary value (155-255)
-            value = 155 + ((i // (180 * 100)) * val_step) % 100
+            value = 155 + ((i // val_divisor) * val_step) % sat_range
 
             # Convert to BGR
             hsv_color = np.uint8([[[hue, saturation, value]]])
@@ -512,7 +517,7 @@ class BaseVisualizer(ABC):
         try:
             from pycocotools import mask as coco_mask
         except ImportError:
-            self._log_error("pycocotools not installed, cannot draw RLE mask")
+            self._log_warning("pycocotools not installed, cannot draw RLE mask")
             return
 
         # Decode RLE to binary mask

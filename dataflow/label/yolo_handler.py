@@ -561,21 +561,25 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                 and obj.original_data.format == AnnotationFormat.YOLO.value
             ):
                 raw_data = obj.original_data.raw_data
-                if "line" in raw_data and "items" in raw_data:
-                    # Reconstruct line with updated class ID
-                    # Copy the list to avoid mutating the original data
+                if "line" in raw_data:
+                    # Use the original line string for byte-for-byte reproduction,
+                    # only replacing the class_id to handle category remapping
+                    original_line = raw_data["line"]
+                    # Split on first whitespace to separate class_id from rest
+                    parts = original_line.split(None, 1)
+                    if len(parts) >= 2:
+                        # Preserve exact original coordinate formatting
+                        return f"{class_id} {parts[1]}"
+                    elif len(parts) == 1:
+                        # Edge case: line had only class_id
+                        return str(class_id)
+                elif "items" in raw_data:
+                    # Fallback: reconstruct from parsed items
                     original_items = list(raw_data["items"])
                     if len(original_items) > 0:
-                        # Replace class ID in first position
                         original_items[0] = str(class_id)
-                        # Convert all items to strings for joining
                         original_items = [str(x) for x in original_items]
-                        # Join with single space
                         return " ".join(original_items)
-                    else:
-                        self._log_warning(
-                            "Original items empty, falling back to conversion"
-                        )
                 else:
                     self._log_warning(
                         "Original data missing line or items, falling back to conversion"

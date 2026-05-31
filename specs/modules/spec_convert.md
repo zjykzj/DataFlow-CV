@@ -228,8 +228,8 @@ When pycocotools is not installed:
 | `ensure_categories_in_annotations(dataset)` | Ensures category consistency |
 | `get_image_dimensions_from_handler(handler)` | Extracts image dimensions |
 | `normalize_path(path)` | Normalizes file paths |
-| `validate_conversion_chain(chain)` | Validates multi-hop conversion sequence |
-| `create_conversion_chain(formats)` | Creates multi-step conversion pipeline |
+| `validate_conversion_chain(source_format, target_format, allowed_chains)` | Validates a (source, target) pair against a list of allowed conversion chains |
+| `create_conversion_chain(chain)` | Creates a multi-step conversion pipeline from a list of format names |
 | `resolve_image_paths(dataset, base_dir)` | Resolves relative image paths |
 
 ## 6. Dependency Contract

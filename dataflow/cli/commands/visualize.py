@@ -110,7 +110,7 @@ def yolo(
         logger.info(f"Verbose log saved to: {result.log_file_path}")
 
     if result.success:
-        logger.info(f"Visualization completed: processed {result.data.get('processed_images', 0)} images")
+        logger.info(f"Visualization completed: processed {result.data.get('processed_count', 0)} images")
     else:
         # Use result.message if available, otherwise fall back to errors list
         error_msg = result.message
@@ -167,7 +167,7 @@ def coco(
         logger.info(f"Verbose log saved to: {result.log_file_path}")
 
     if result.success:
-        logger.info(f"Visualization completed: processed {result.data.get('processed_images', 0)} images")
+        logger.info(f"Visualization completed: processed {result.data.get('processed_count', 0)} images")
     else:
         # Use result.message if available, otherwise fall back to errors list
         error_msg = result.message
@@ -224,7 +224,7 @@ def labelme(
         logger.info(f"Verbose log saved to: {result.log_file_path}")
 
     if result.success:
-        logger.info(f"Visualization completed: processed {result.data.get('processed_images', 0)} images")
+        logger.info(f"Visualization completed: processed {result.data.get('processed_count', 0)} images")
     else:
         # Use result.message if available, otherwise fall back to errors list
         error_msg = result.message

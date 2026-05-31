@@ -87,31 +87,37 @@ class LabelMeAndYoloConverter(BaseConverter):
         annotations = read_result.data
         converted_annotations = self.convert_annotations(annotations, kwargs)
 
-        # Store for potential use in create_target_handler
-        self._source_annotations_for_target = converted_annotations
+        if self.verbose:
+            self.logger.debug(
+                f"Conversion completed, object count: {converted_annotations.num_objects}"
+            )
 
         # 4. Write data using target handler
-        target_handler = self.create_target_handler(target_path, kwargs)
-
-        # For YOLO target, write to labels directory instead of root directory
-        if self.source_to_target:  # LabelMe → YOLO
-            # YoloAnnotationHandler writes to output_dir, which should be the labels directory
-            # Get labels_dir from handler if available, or construct from target_path
-            if hasattr(target_handler, "label_dir"):
-                write_output_path = target_handler.label_dir
-            else:
-                write_output_path = str(Path(target_path) / "labels")
-        else:  # YOLO → LabelMe
-            write_output_path = target_path
-
+        # Wrap in try/finally to guarantee _source_annotations_for_target cleanup
+        self._source_annotations_for_target = converted_annotations
         try:
+            target_handler = self.create_target_handler(target_path, kwargs)
+
+            if self.verbose:
+                self.logger.debug(
+                    f"Created target handler: {target_handler.__class__.__name__}"
+                )
+
+            # For YOLO target, write to labels directory instead of root directory
+            if self.source_to_target:  # LabelMe → YOLO
+                if hasattr(target_handler, "label_dir"):
+                    write_output_path = target_handler.label_dir
+                else:
+                    write_output_path = str(Path(target_path) / "labels")
+            else:  # YOLO → LabelMe
+                write_output_path = target_path
+
             write_result = target_handler.write(converted_annotations, write_output_path)
         finally:
-            # Clear stored annotations even if write raises
             self._source_annotations_for_target = None
 
         # 5. Return result
-        return self._create_conversion_result(
+        result = self._create_conversion_result(
             success=write_result.success,
             source_path=source_path,
             target_path=target_path,
@@ -119,6 +125,16 @@ class LabelMeAndYoloConverter(BaseConverter):
             write_result=write_result,
             log_file_path=self.log_file_path,
         )
+
+        if self.verbose:
+            result.add_verbose_log(f"Source format: {self.source_format}")
+            result.add_verbose_log(f"Target format: {self.target_format}")
+            result.add_verbose_log(f"Images processed: {annotations.num_images}")
+            result.add_verbose_log(
+                f"Objects converted: {converted_annotations.num_objects}"
+            )
+
+        return result
 
     def validate_inputs(self, source_path: str, target_path: str, kwargs: Dict) -> bool:
         """

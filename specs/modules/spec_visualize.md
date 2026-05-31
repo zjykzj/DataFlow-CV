@@ -22,7 +22,8 @@ dataflow/visualize/
 ├── base.py                  # BaseVisualizer + ColorManager + VisualizationResult
 ├── yolo_visualizer.py       # YOLO visualization
 ├── coco_visualizer.py       # COCO visualization
-└── labelme_visualizer.py    # LabelMe visualization
+├── labelme_visualizer.py    # LabelMe visualization
+└── utils.py                 # Image scaling, color mapping, text positioning utilities
 ```
 
 ## 2. Core Components

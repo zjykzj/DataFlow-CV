@@ -152,7 +152,7 @@ class RLEConverter:
 
             # Ensure 'counts' is bytes for coco_mask.decode
             if "counts" in rle_dict and isinstance(rle_dict["counts"], str):
-                rle_dict["counts"] = rle_dict["counts"].encode("utf-8")
+                rle_dict["counts"] = rle_dict["counts"].encode("latin1")
 
             # Decode RLE to binary mask
             binary_mask = coco_mask.decode(rle_dict)

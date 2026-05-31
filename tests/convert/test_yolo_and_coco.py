@@ -353,18 +353,18 @@ class TestYoloAndCocoConverter:
             source_to_target=True, verbose=False
         )
         assert converter_no_verbose.verbose is False
-        assert converter_no_verbose.progress_logger is None
+        assert converter_no_verbose.log_file_path is None
 
         # Test verbose=True
         converter_verbose = YoloAndCocoConverter(source_to_target=True, verbose=True)
         assert converter_verbose.verbose is True
-        assert hasattr(converter_verbose, "progress_logger")
-        assert converter_verbose.progress_logger is not None
+        assert hasattr(converter_verbose, "log_file_path")
+        assert converter_verbose.log_file_path is not None
 
         # Test verbose parameter in COCO→YOLO direction
         converter_reverse = YoloAndCocoConverter(source_to_target=False, verbose=True)
         assert converter_reverse.verbose is True
-        assert converter_reverse.progress_logger is not None
+        assert converter_reverse.log_file_path is not None
 
 
 if __name__ == "__main__":

@@ -341,14 +341,17 @@ Original data is bypassed when:
 3. The original data path is intentionally bypassed (e.g., `output_rle != source_rle`)
 4. Class mapping has changed and class_id needs updating (partial update: original items with new class_id)
 
+**Note**: `OriginalDataManager.should_use_original()` only checks format match and data existence (conditions 1-2). Conditions 3-4 are implemented per-handler within each handler's write path.
+
 ## 7. Utility Functions (`utils.py`)
 
 | Function | Purpose |
 |----------|---------|
-| `verify_lossless_roundtrip(handler, annotations)` | Validates that read→write→read produces identical data |
+| `verify_lossless_roundtrip(input_path, output_path, handler_class, **handler_kwargs)` | Creates handler, reads from `input_path`, writes to temp dir, reads back, and compares files for lossless A→A round-trip |
 | `extract_categories_from_coco_data(coco_data)` | Extracts `Dict[id, name]` from COCO categories |
 | `generate_classes_file(categories, output_path)` | Generates `classes.txt` from category dict |
 | `load_classes_file(file_path)` | Loads `classes.txt` into `Dict[int, str]` |
+| `calculate_file_hash(file_path, algorithm="md5")` | Computes hash of a file for integrity comparison |
 
 ## 8. Validation Constraints (Complete Checklist)
 

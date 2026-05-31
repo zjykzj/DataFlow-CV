@@ -165,14 +165,18 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             if not image_path.is_absolute():
                 image_path = json_file.parent / image_path
 
-            # Check if image file exists - log warning but continue
-            if not image_path.exists():
-                self._log_warning(f"Image file not found: {image_path}")
-                # Continue processing anyway, annotation can still be loaded
-
             # Try to get image dimensions
             image_height = data.get("imageHeight")
             image_width = data.get("imageWidth")
+
+            # Check if image file exists
+            if not image_path.exists():
+                if image_height is None or image_width is None:
+                    # Image missing and no dimensions in JSON — cannot process
+                    result.add_error(f"Image file not found and no dimensions in JSON: {image_path}")
+                    return result
+                # Image missing but dimensions are in JSON — continue with warning
+                self._log_warning(f"Image file not found, using dimensions from JSON: {image_path}")
 
             if image_height is None or image_width is None:
                 self._log_warning(
@@ -509,7 +513,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             required_fields = ["version", "flags", "shapes", "imagePath"]
             for field in required_fields:
                 if field not in data:
-                    self._log_error(
+                    self.logger.error(
                         f"Missing required field '{field}' in {annotation_file}"
                     )
                     return False
@@ -517,20 +521,20 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             # Validate shapes
             for shape in data["shapes"]:
                 if "label" not in shape or not shape["label"].strip():
-                    self._log_error(f"Shape missing label in {annotation_file}")
+                    self.logger.error(f"Shape missing label in {annotation_file}")
                     return False
                 if "shape_type" not in shape:
-                    self._log_error(f"Shape missing shape_type in {annotation_file}")
+                    self.logger.error(f"Shape missing shape_type in {annotation_file}")
                     return False
                 if "points" not in shape:
-                    self._log_error(f"Shape missing points in {annotation_file}")
+                    self.logger.error(f"Shape missing points in {annotation_file}")
                     return False
 
             return True
 
         except json.JSONDecodeError as e:
-            self._log_error(f"Invalid JSON in {annotation_file}: {e}")
+            self.logger.error(f"Invalid JSON in {annotation_file}: {e}")
             return False
         except Exception as e:
-            self._log_error(f"Error validating {annotation_file}: {e}")
+            self.logger.error(f"Error validating {annotation_file}: {e}")
             return False

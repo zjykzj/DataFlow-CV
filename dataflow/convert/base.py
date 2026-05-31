@@ -116,23 +116,11 @@ class BaseConverter(ABC):
             self.logger, self.log_file_path = logging_ops.get_verbose_logger(
                 name=f"convert.{source_format}_to_{target_format}", verbose=verbose
             )
-            self.progress_logger = logging_ops.create_progress_logger()
         else:
             self.logger = logger or logging.getLogger(__name__)
-            self.progress_logger = None
             self.log_file_path = None
 
         self.file_ops = FileOperations(logger=self.logger)
-
-        # Conversion statistics
-        self.conversion_stats = {
-            "files_processed": 0,
-            "files_skipped": 0,
-            "objects_converted": 0,
-            "conversion_errors": 0,
-            "start_time": None,
-            "end_time": None,
-        }
 
     def convert(self, source_path: str, target_path: str, **kwargs) -> ConversionResult:
         """

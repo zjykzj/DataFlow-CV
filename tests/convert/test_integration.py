@@ -333,7 +333,7 @@ class TestIntegrationConversions:
 
         # Verify converter has verbose attribute set
         assert converter.verbose is True
-        assert hasattr(converter, "progress_logger"), "converter missing progress_logger attribute"
+        assert hasattr(converter, "log_file_path"), "converter missing log_file_path attribute"
 
         # Verify output files exist
         label_files = list(temp_output_dir.glob("*.txt"))
@@ -371,7 +371,7 @@ class TestIntegrationConversions:
 
         # Verify verbose-related functionality
         assert converter.verbose is True
-        assert hasattr(converter, "progress_logger")
+        assert hasattr(converter, "log_file_path")
 
         # Verify output files
         assert output_file.exists()
@@ -401,7 +401,7 @@ class TestIntegrationConversions:
 
         # Verify verbose-related functionality
         assert converter.verbose is True
-        assert hasattr(converter, "progress_logger")
+        assert hasattr(converter, "log_file_path")
 
         # Verify output files
         json_files = list(temp_output_dir.glob("*.json"))
