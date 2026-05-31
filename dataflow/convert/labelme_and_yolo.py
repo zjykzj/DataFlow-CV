@@ -57,7 +57,8 @@ class LabelMeAndYoloConverter(BaseConverter):
         Returns:
             ConversionResult with conversion status and details
         """
-        # Store source_annotations for use in create_target_handler if needed
+        # Store source information for use in create_target_handler if needed
+        self._source_path = source_path
         self._source_annotations_for_target = None
 
         # 1. Validate inputs
@@ -244,8 +245,12 @@ class LabelMeAndYoloConverter(BaseConverter):
                 hasattr(self, "_source_annotations_for_target")
                 and self._source_annotations_for_target
             ):
+                source_label_dir = Path(self._source_path)
                 for image_ann in self._source_annotations_for_target.images:
                     source_image_path = Path(image_ann.image_path)
+                    # Resolve relative paths against source label directory
+                    if not source_image_path.is_absolute():
+                        source_image_path = source_label_dir / source_image_path
                     if source_image_path.exists():
                         target_image_path = images_dir / source_image_path.name
                         if not target_image_path.exists():
