@@ -64,6 +64,7 @@ specs/
 - **Specs** define "what is correct" — the behavioral contract. Stable; change only when requirements change.
 - **CLAUDE.md** describes "how the code works" — architecture, patterns, known gotchas. Evolves with the codebase.
 - For SSD Agent development, specs are the **compliance benchmark**; CLAUDE.md is the **development context**.
+- The full SSD Agent development workflow is documented in [`specs/SSD_AGENT.md`](specs/SSD_AGENT.md).
 
 ## Git Commits
 

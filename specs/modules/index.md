@@ -68,7 +68,7 @@ The [Formats layer](../formats/index.md) defines the data contracts that the Mod
 
 ## Reading Order
 
-- **New to the codebase?** Start with `spec_label.md` (foundation), then `spec_convert.md`, then `spec_visualize.md`, then `spec_cli.md`.
+- **New to the codebase?** Start with [`SSD_AGENT.md`](../SSD_AGENT.md) for the development methodology, then `spec_label.md` (foundation), then `spec_convert.md`, then `spec_visualize.md`, then `spec_cli.md`.
 - **Adding a conversion direction?** Read `spec_convert.md` first, then reference `spec_label.md` for handler interfaces.
 - **Adding a visualization?** Read `spec_visualize.md` and `spec_label.md`.
 - **Adding a CLI command?** Read `spec_cli.md` and the relevant module spec (convert or visualize).

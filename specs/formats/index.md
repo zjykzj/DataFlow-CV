@@ -37,5 +37,6 @@ The Formats layer defines the data contract. The [Modules layer](../modules/inde
 ## Reading Order
 
 - **New to annotation formats?** Start with all four in order (YOLO → COCO → LabelMe → Conversion).
+- **New to the project?** Read [`SSD_AGENT.md`](../SSD_AGENT.md) first for the development workflow.
 - **Implementing a handler?** Read the relevant format spec + `spec_conversion.md` for coordinate transforms.
 - **Auditing compliance?** Use each format spec's Validation Rules section as your checklist.
