@@ -271,6 +271,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                             ("width", width),
                             ("height", height),
                         ]
+                        skip_line = False
                         for name, value in coords_to_check:
                             if not self._validate_normalized_coordinate(value, name):
                                 result.add_error(
@@ -282,7 +283,10 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                                     self._log_warning(
                                         f"Skipping line {line_num}: invalid coordinate"
                                     )
-                                    continue
+                                    skip_line = True
+                                    break
+                        if skip_line:
+                            continue
 
                         bbox = BoundingBox(
                             x=x_center, y=y_center, width=width, height=height
@@ -320,6 +324,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                         ]
 
                         # Validate points
+                        skip_line = False
                         for i, (x, y) in enumerate(points):
                             if not self._validate_normalized_coordinate(
                                 x, f"point[{i}].x"
@@ -333,7 +338,8 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                                     self._log_warning(
                                         f"Skipping line {line_num}: invalid x coordinate"
                                     )
-                                    continue
+                                    skip_line = True
+                                    break
                             if not self._validate_normalized_coordinate(
                                 y, f"point[{i}].y"
                             ):
@@ -346,7 +352,10 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                                     self._log_warning(
                                         f"Skipping line {line_num}: invalid y coordinate"
                                     )
-                                    continue
+                                    skip_line = True
+                                    break
+                        if skip_line:
+                            continue
 
                         # Check polygon has at least 3 points
                         if len(points) < 3:
