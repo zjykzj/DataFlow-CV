@@ -8,6 +8,44 @@ DataFlow-CV is a computer vision dataset processing library for format conversio
 
 The project follows a modular architecture with clear separation between format handlers, converters, visualizers, and utilities. All coordinates are normalized (0-1 range) in the internal data model.
 
+## Specifications
+
+The `specs/` directory contains the **canonical specifications** — the single source of truth for SSD Agent development. It is organized into two layers:
+
+```
+specs/
+├── formats/                   # WHAT — external data format contracts
+│   ├── index.md               # Formats layer overview
+│   ├── spec_yolo_format.md    # YOLO .txt format authority
+│   ├── spec_coco_format.md    # COCO .json format authority
+│   ├── spec_labelme_format.md # LabelMe .json format authority
+│   └── spec_conversion.md     # Conversion rules (coordinate transforms, category mapping)
+│
+└── modules/                   # HOW — internal module architecture & interface contracts
+    ├── index.md               # Modules layer overview + dependency diagram
+    ├── spec_label.md          # Label module (data models + handler interface)
+    ├── spec_convert.md        # Convert module (pipeline, converters, RLE)
+    ├── spec_visualize.md      # Visualize module (rendering pipeline, ColorManager, interaction)
+    └── spec_cli.md            # CLI module (command signatures, exit codes, decorators)
+```
+
+### Architecture Constraint (from specs/modules/index.md)
+
+```
+CLI ──calls──▶ Convert ──depends──▶ Label (Handlers + Models)
+  │
+  └──calls──▶ Visualize ──depends──▶ Label (Handlers + Models)
+
+Convert ↔ Visualize: ZERO cross-dependency
+CLI never imports label handlers directly
+```
+
+### Specs vs CLAUDE.md
+
+- **Specs** define "what is correct" — the behavioral contract. Stable; change only when requirements change.
+- **CLAUDE.md** describes "how the code works" — architecture, patterns, known gotchas. Evolves with the codebase.
+- For SSD Agent development, specs are the **compliance benchmark**; CLAUDE.md is the **development context**.
+
 ## Git Commits
 
 When creating git commits, use the following format:
