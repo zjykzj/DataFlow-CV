@@ -1,6 +1,5 @@
 """Conversion commands."""
 
-import json
 import click
 from pathlib import Path
 from typing import Optional
@@ -41,7 +40,7 @@ def yolo2coco(
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"]  # Use global strict mode (default True)
 
-    logger.info(f"Starting conversion ofYOLOtoCOCO: {label_dir} -> {output_file}")
+    logger.info(f"Starting conversion of YOLO to COCO: {label_dir} -> {output_file}")
 
     # Parameter validation
     validate_convert_params("yolo", "coco", label_dir, output_file, image_dir, class_file)
@@ -90,7 +89,7 @@ def yolo2labelme(
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"]
 
-    logger.info(f"Starting conversion ofYOLOtoLabelMe: {label_dir} -> {output_dir}")
+    logger.info(f"Starting conversion of YOLO to LabelMe: {label_dir} -> {output_dir}")
 
     # Parameter validation
     validate_convert_params("yolo", "labelme", label_dir, output_dir, image_dir, class_file)
@@ -134,7 +133,7 @@ def coco2yolo(
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"]
 
-    logger.info(f"Starting conversion ofCOCOtoYOLO: {input_path} -> {output_path}")
+    logger.info(f"Starting conversion of COCO to YOLO: {input_path} -> {output_path}")
 
     # Parameter validation
     validate_convert_params("coco", "yolo", input_path, output_path, None, None)
@@ -178,7 +177,7 @@ def coco2labelme(
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"]
 
-    logger.info(f"Starting conversion ofCOCOtoLabelMe: {input_path} -> {output_path}")
+    logger.info(f"Starting conversion of COCO to LabelMe: {input_path} -> {output_path}")
 
     # Parameter validation
     validate_convert_params("coco", "labelme", input_path, output_path, None, None)
@@ -224,7 +223,7 @@ def labelme2yolo(
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"]
 
-    logger.info(f"Starting conversion ofLabelMetoYOLO: {labelme_dir} -> {output_dir}")
+    logger.info(f"Starting conversion of LabelMe to YOLO: {labelme_dir} -> {output_dir}")
 
     # Parameter validation
     validate_convert_params("labelme", "yolo", labelme_dir, output_dir, None, class_file)
@@ -276,7 +275,7 @@ def labelme2coco(
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"]
 
-    logger.info(f"Starting conversion ofLabelMetoCOCO: {labelme_dir} -> {output_file}")
+    logger.info(f"Starting conversion of LabelMe to COCO: {labelme_dir} -> {output_file}")
 
     # Parameter validation
     validate_convert_params("labelme", "coco", labelme_dir, output_file, None, class_file)

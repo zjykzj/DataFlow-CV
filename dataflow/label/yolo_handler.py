@@ -194,7 +194,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
         try:
             # Get corresponding image file
             image_stem = txt_file.stem
-            image_extensions = [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif"]
+            image_extensions = [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"]
             image_path = None
 
             for ext in image_extensions:
