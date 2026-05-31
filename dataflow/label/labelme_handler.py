@@ -153,8 +153,8 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             with open(json_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            # Validate required fields
-            required_fields = ["version", "flags", "shapes", "imagePath", "imageData"]
+            # Validate required fields (imageData is optional base64 image data)
+            required_fields = ["version", "flags", "shapes", "imagePath"]
             for field in required_fields:
                 if field not in data:
                     result.add_error(f"Missing required field '{field}' in {json_file}")
