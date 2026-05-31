@@ -355,7 +355,8 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
             # Ensure 'counts' is bytes for coco_mask.decode
             if "counts" in rle_dict and isinstance(rle_dict["counts"], str):
-                rle_dict["counts"] = rle_dict["counts"].encode("utf-8")
+                # Use latin1 for lossless round-trip (matches encode path)
+                rle_dict["counts"] = rle_dict["counts"].encode("latin1")
 
             # Decode RLE to binary mask
             binary_mask = coco_mask.decode(rle_dict)
@@ -425,7 +426,9 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 rle_dict = dict(rle)
                 if "counts" in rle_dict and isinstance(rle_dict["counts"], bytes):
                     # Convert bytes to string (UTF-8 encoding should work for RLE)
-                    rle_dict["counts"] = rle_dict["counts"].decode("utf-8")
+                    # Use latin1 encoding for lossless bytes-to-string conversion
+                    # (UTF-8 cannot represent all possible RLE byte values)
+                    rle_dict["counts"] = rle_dict["counts"].decode("latin1")
                 return rle_dict
             else:
                 # If not a dict, return as-is (shouldn't happen with pycocotools)

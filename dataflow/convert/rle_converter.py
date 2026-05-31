@@ -97,7 +97,9 @@ class RLEConverter:
                 rle_dict = dict(rle)
                 if "counts" in rle_dict and isinstance(rle_dict["counts"], bytes):
                     # Convert bytes to string (UTF-8 encoding should work for RLE)
-                    rle_dict["counts"] = rle_dict["counts"].decode("utf-8")
+                    # Use latin1 encoding for lossless bytes-to-string conversion
+                    # (UTF-8 cannot represent all possible RLE byte values)
+                    rle_dict["counts"] = rle_dict["counts"].decode("latin1")
                 return rle_dict
             else:
                 # If not a dict, return as-is (shouldn't happen with pycocotools)
