@@ -263,31 +263,55 @@ When `do_rle=True`:
 
 ## 9. Precision and Round-Trip Fidelity
 
-### 9.1 Precision Levels
+### 9.1 OriginalData Mechanism
 
-| Path | Precision |
-|------|-----------|
-| Original data write path | Exact (byte-for-byte reproduction) |
-| Internal model conversion | Float precision (`.6f` for YOLO, `float` for JSON) |
+The `OriginalData` system stores the exact raw bytes/structures from the source format on each `ObjectAnnotation`. When writing, the handler checks whether the stored format matches the target format:
 
-### 9.2 Known Precision Issues
+```
+Write path priority:
+1. obj.original_data.format == target_format → Use original data (byte-for-byte exact)
+2. No match → Convert from internal model (float precision)
+```
 
-1. **YOLO ↔ COCO bbox**: Converting normalized center coordinates to absolute top-left and back may introduce ±1 pixel offset due to integer rounding.
-2. **RLE conversion**: Polygon→RLE→Polygon is NOT lossless — the RLE mask rasterization introduces accuracy loss.
-3. **Polygon coordinate order**: The internal model stores all polygon coordinates from a single flattened list. Multi-polygon COCO annotations are merged into one polygon during reading and separated again on write only if original data is preserved.
+**This means OriginalData only enables same-format round-trips (A→A). Cross-format round-trips (A→B→A) go through the internal model twice and are subject to float precision limits.**
 
-### 9.3 Round-Trip Fidelity Matrix
+### 9.2 Precision Levels
+
+| Path | Precision | When |
+|------|-----------|------|
+| Original data write path | **Exact** (byte-for-byte) | Same-format round-trip (A→A) |
+| Internal model conversion | **Float precision** (`.6f` for YOLO, `float` for JSON) | Cross-format conversions (A→B, A→B→A) |
+
+### 9.3 Known Precision Issues
+
+1. **YOLO ↔ COCO bbox**: Converting normalized center coordinates to absolute top-left and back may introduce ±1 pixel offset due to float rounding through integer coordinate space.
+2. **RLE conversion**: Polygon→RLE→Polygon is NOT lossless — the RLE mask rasterization introduces accuracy loss. Avoid RLE for round-trip scenarios.
+3. **Polygon coordinate order**: The internal model stores all polygon coordinates from a single flattened list. Multi-polygon COCO annotations are merged into one polygon during reading and separated again on write only if the same-format original data path is used.
+
+### 9.4 Round-Trip Fidelity Matrix
+
+**Same-format round-trips** (A→A) are fully lossless via OriginalData:
+
+| Round-Trip | Fidelity |
+|------------|----------|
+| YOLO → YOLO | **Lossless** — original line tokens preserved byte-for-byte |
+| COCO → COCO | **Lossless** — original annotation dicts preserved byte-for-byte |
+| LabelMe → LabelMe | **Lossless** — original JSON preserved byte-for-byte |
+
+**Cross-format round-trips** (A→B→A) are **near-lossless** — all annotation data (class, geometry type, structure) is preserved, but coordinates may shift by ±1 pixel due to two passes through the float-precision internal model:
 
 | Round-Trip | Detection | Segmentation (Polygon) | Segmentation (RLE) |
 |------------|-----------|----------------------|-------------------|
-| YOLO → YOLO | **Lossless** | **Lossless** | N/A |
-| COCO → COCO | **Lossless** | **Lossless** | **Lossless** |
-| LabelMe → LabelMe | **Lossless** | **Lossless** | N/A |
-| YOLO → COCO → YOLO | **Lossless** (original data preserved) | **Lossless** | N/A |
-| COCO → YOLO → COCO | **Lossless** (original data preserved) | **Lossless** | Float precision |
-| LabelMe → YOLO → LabelMe | **Lossless** (original data preserved) | **Lossless** | N/A |
+| YOLO → COCO → YOLO | Near-lossless (±1 px) | Near-lossless (±1 px) | N/A |
+| COCO → YOLO → COCO | Near-lossless (±1 px) | Near-lossless (±1 px) | Near-lossless (±1 px) |
+| YOLO → LabelMe → YOLO | Near-lossless (±1 px) | Near-lossless (±1 px) | N/A |
+| LabelMe → YOLO → LabelMe | Near-lossless (±1 px) | Near-lossless (±1 px) | N/A |
+| COCO → LabelMe → COCO | Near-lossless (±1 px) | Near-lossless (±1 px) | Near-lossless (±1 px) |
+| LabelMe → COCO → LabelMe | Near-lossless (±1 px) | Near-lossless (±1 px) | N/A |
 
-Lossless round-trips are achieved via `OriginalData` preservation. When original data is not available, conversion goes through the internal model with float precision.
+**Why cross-format round-trips aren't fully lossless**: When YOLO is converted to COCO, objects carry `original_data.format="yolo"`. When writing COCO, the handler checks for `format=="coco"` — no match, so it converts from the internal model. When the COCO file is read back, objects get `original_data.format="coco"`. Writing back to YOLO: `"coco" != "yolo"` — again falls through to internal model conversion. Two passes through `normalize → denormalize` introduce the ±1 pixel rounding.
+
+For fully lossless cross-format round-trips, the recommendation is to keep the source files and convert on-demand rather than chaining conversions.
 
 ## 10. Error Handling
 
