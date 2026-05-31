@@ -17,6 +17,8 @@ A computer vision dataset processing library for seamless format conversion and 
 - **Command-line Interface**: User-friendly CLI with `convert` and `visualize` subcommands
 - **Python API**: Programmatic access for integration into larger pipelines
 - **Verbose Logging**: Detailed logging with file output for debugging
+- **Headless Mode**: Run visualization in server/Docker environments with `--no-display`
+- **Flexible Error Handling**: Choose between strict (abort on error) or lenient (skip and continue) modes
 - **Cross-platform**: Full support for Windows, Linux, and macOS
 
 ## Table of Contents
@@ -105,6 +107,9 @@ dataflow-cv convert labelme2coco labelme_json/ classes.txt coco_annotations.json
 
 # Enable verbose logging
 dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt coco_annotations.json --verbose
+
+# Disable strict mode (skip invalid annotations instead of aborting)
+dataflow-cv convert yolo2coco --no-strict images/ yolo_labels/ classes.txt coco_annotations.json
 ```
 
 #### Visualization
@@ -120,6 +125,9 @@ dataflow-cv visualize labelme images/ labelme_json/ --save visualized/
 
 # Enable verbose logging for detailed debug output
 dataflow-cv visualize yolo --verbose images/ yolo_labels/ classes.txt --save visualized/
+
+# Run on headless server (no display window)
+dataflow-cv visualize yolo --no-display images/ yolo_labels/ classes.txt --save visualized/
 ```
 
 ### Python API
@@ -160,21 +168,20 @@ See the `samples/` directory for complete examples:
 
 ## Documentation
 
-- **[CLAUDE.md](CLAUDE.md)**: Detailed architecture and development guide
-- **`docs/formats/`**: Format specifications (YOLO, COCO, LabelMe)
-- **`docs/specs/`**: Module specifications and design documents
+- **[CLAUDE.md](CLAUDE.md)**: Detailed architecture, development guide, and known gotchas
 - **`CHANGELOG.md`**: Version history and breaking changes
 
 ### Key Concepts
 
-- **Normalized Coordinates**: All internal coordinates are in 0-1 range
-- **Original Data Preservation**: Lossless round-trip conversion through `OriginalData` system
-- **Strict Mode**: Validation errors raise exceptions (default: enabled in CLI, can be disabled via `strict_mode=False` parameter in Python API)
+- **Normalized Coordinates**: All internal coordinates are in 0-1 range with center-based bounding boxes (YOLO convention)
+- **Original Data Preservation**: Lossless round-trip conversion through `OriginalData` system, preserving exact source values
+- **Strict Mode**: Validation errors raise exceptions (default). Disable in CLI with `--no-strict`, or in Python API with `strict_mode=False`
 - **Verbose Logging**: Detailed debug logs saved to files when `--verbose` is used. The CLI prints "Verbose log saved to: <path>" after operations.
+- **Headless Support**: Use `--no-display` for servers/Docker; use `--save` to output visualization images without a window
 - **Keyboard Shortcuts**: During visualization, press `q` or `ESC` to exit early; any other key continues
 - **Missing Image Handling**: Missing images are skipped with warnings, allowing processing to continue
 - **RLE Mask Visualization**: COCO RLE masks are displayed with semi-transparent fills for better visibility
-- **Color Management**: Each class ID gets a unique color from a palette of 1000 distinct colors for consistent visualization
+- **Color Management**: Each class ID gets a unique color from an HSV-based palette for consistent visualization
 
 ## Development
 For detailed developer guidance including advanced test commands, debugging, and architecture overview, see [CLAUDE.md](CLAUDE.md).
@@ -212,14 +219,14 @@ flake8 dataflow tests samples
 ### Project Structure
 ```
 dataflow/
-├── label/           # Annotation handlers (YOLO, LabelMe, COCO)
-├── convert/         # Format converters
-├── visualize/       # Visualization modules
-├── util/           # Utilities (logging, file operations)
-└── cli/            # Command-line interface
-tests/              # Comprehensive test suite
-samples/            # Usage examples
-assets/             # Sample data for testing
+├── label/           # Annotation handlers + data models (YOLO, LabelMe, COCO)
+├── convert/         # Format converters + RLE conversion utility
+├── visualize/       # Visualization modules (OpenCV-based)
+├── util/            # Logging and file operation utilities
+└── cli/             # CLI entry point, commands, and validation
+tests/               # Unit and integration tests (label, convert, visualize, cli, util)
+samples/             # Python API usage examples (visualize, convert, label, cli)
+assets/              # Test data organized by format (det/seg) and annotation type
 ```
 
 ## Contributing
