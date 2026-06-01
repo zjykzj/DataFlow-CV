@@ -2,14 +2,14 @@
 Format conversion module for DataFlow-CV.
 
 This module provides annotation format conversion between LabelMe, YOLO, and COCO
-formats. It supports all six conversion directions with lossless conversion
-guarantees (except for RLE precision loss).
+formats. It supports all six conversion directions with explicit coordinate
+transforms.
 
 Key features:
 - Bidirectional conversion between all three formats (6 conversion directions)
 - Support for object detection and instance segmentation annotations
 - RLE mask format support for COCO (with optional pycocotools dependency)
-- Lossless conversion through OriginalData preservation
+- Explicit coordinate transforms (normalized ↔ absolute pixel)
 - Batch processing of entire directories
 - Strict and lenient error handling modes
 

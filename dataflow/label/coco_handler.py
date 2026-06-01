@@ -539,7 +539,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
         # Include any additional dataset_info fields (licenses, etc.)
         for k, v in annotations.dataset_info.items():
-            if k not in ["info", "images", "annotations", "categories", "__coco_original_data__"]:
+            if k not in ["info", "images", "annotations", "categories"]:
                 result[k] = v
 
         return result
