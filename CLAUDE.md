@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 DataFlow-CV is a computer vision dataset processing library for format conversion and visualization between LabelMe, COCO, and YOLO annotation formats. It provides both a Python API and a command-line interface (CLI) with `convert` and `visualize` subcommands.
 
-The project follows a modular architecture with clear separation between format handlers, converters, visualizers, and utilities. All coordinates are normalized (0-1 range) in the internal data model.
+The project follows a modular architecture with clear separation between format handlers, converters, visualizers, and utilities. Each handler stores coordinates in its format's native representation — see `DatasetAnnotations.format` to determine coordinate semantics.
 
 ## Specifications
 
@@ -106,12 +106,14 @@ Source Format (YOLO/LabelMe/COCO) → Handler.read() → DatasetAnnotations → 
 
 ### Core Data Model (`dataflow/label/models.py`)
 
-- `DatasetAnnotations`: Top-level container (images list, categories dict, dataset_info)
+- `DatasetAnnotations`: Top-level container (images list, categories dict, `format` field, dataset_info). `format` defines coordinate semantics.
 - `ImageAnnotation`: Per-image data (width, height, objects list, image_path, image_id)
 - `ObjectAnnotation`: Single annotation (class_id, class_name, optional `BoundingBox` and `Segmentation`, is_crowd flag)
-- `BoundingBox`: **Center-based** normalized coordinates (x, y, width, height). Internally, x/y are the center of the box, not top-left.
-- `Segmentation`: List of normalized (x, y) polygon points
-- `OriginalData`: Stores raw annotation data keyed by `AnnotationFormat` enum for lossless A→B→A round-trips
+- `BoundingBox`: Coordinates in **format-native** representation. See `DatasetAnnotations.format`:
+  - `YOLO`: `(x, y)` = center, `(width, height)` = normalized [0,1]
+  - `COCO`: `(x, y)` = top-left, `(width, height)` = absolute pixels
+  - `LABELME`: `(x, y)` = top-left, `(width, height)` = absolute pixels
+- `Segmentation`: Polygon points in native coordinates (normalized for YOLO, absolute pixels for COCO/LabelMe)
 
 ### Annotation Handlers (`dataflow/label/`)
 
@@ -165,18 +167,15 @@ Common CLI options: `--verbose` (enable file logging), `--no-strict` (disable st
 
 ### Coordinate Systems
 
-**Internal model:** All coordinates are **0-1 normalized**. `BoundingBox.x`/`BoundingBox.y` are **center** coordinates (YOLO convention), NOT top-left.
+**Native format storage:** Each handler stores coordinates in its format's native representation. There is no unified normalized internal model.
 
-**Key methods on BoundingBox:**
-- `xyxy(img_w, img_h)` → `(x1, y1, x2, y2)` — top-left to bottom-right in absolute pixels. **Use this for COCO bbox conversion.**
-- `xywh_abs(img_w, img_h)` → `(cx, cy, w, h)` — center-x, center-y in absolute pixels. Do NOT use for COCO output; COCO expects top-left.
+| Format | Bbox origin | Coordinate space | Validated by |
+|--------|------------|-----------------|-------------|
+| YOLO | Center | Normalized (0-1) | `_validate_normalized_coordinate()` |
+| COCO | Top-left | Absolute pixels | `_validate_absolute_coordinate()` |
+| LabelMe | Top-left | Absolute pixels | `_validate_absolute_coordinate()` |
 
-**Format expectations:**
-| Format | Bbox origin | Coordinate space |
-|--------|------------|-----------------|
-| YOLO | Center | Normalized (0-1) |
-| COCO | Top-left | Absolute pixels |
-| LabelMe | Varies (polygon/rectangle) | Absolute pixels |
+**Coordinate transforms** happen exclusively in converters (`dataflow/convert/`), not in handlers or visualizers. Transform logic is in each converter's `convert_annotations()` method.
 
 ### RLE Serialization
 
@@ -186,22 +185,16 @@ pycocotools `mask.encode()` returns binary `counts` bytes. For JSON serializatio
 
 Never use UTF-8 for RLE counts — it cannot represent all 256 byte values and will cause `UnicodeDecodeError` crashes.
 
-### Original Data Preservation
+### Visualizer Rendering Pipeline
 
-`OriginalData` stores the exact raw bytes/strings from the source format, enabling lossless A→B→A round-trips:
-
-- **YOLO**: Stores tokenized line items as `[class_id_str, x_float, y_float, ...]`. Items are stored with numeric types (float for coords) to prevent TypeError during coordinate extraction.
-- **LabelMe**: Stores raw JSON dicts. `imageData` is NOT a required field on read (it's optional base64 image data), though it may appear in some files.
-- **COCO**: Stores raw annotation dicts from the source JSON. When writing, the original data path preserves exact bbox/segmentation values (not recomputed from the internal model) to maintain lossless precision.
-
-The `OriginalDataManager.extract_original_coordinates()` extracts bbox and segmentation points from original data by format.
+Visualizers convert all annotations to `RenderAnnotation` (absolute pixel integers) during `load_annotations()`. Drawing methods receive pre-computed absolute pixel coordinates — no coordinate math happens in the draw path.
 
 ### Validation Behavior
 
 - **Strict mode** (default): Validation errors immediately raise exceptions / return error results.
 - **Non-strict mode**: Errors are collected as warnings; processing continues where possible. CLI now supports `--no-strict`.
 - **Image errors**: Missing/unreadable images are always treated as warnings regardless of strict mode.
-- **Coordinate validation**: In non-strict mode, invalid coordinates cause the entire annotation line to be skipped (not just the failing coordinate check).
+- **Coordinate validation**: Format-aware — YOLO coords checked in [0,1], COCO/LabelMe coords checked finite and non-negative.
 
 ## Development Commands
 
@@ -243,15 +236,15 @@ dataflow-cv visualize yolo --no-display --verbose images/ yolo_labels/ classes.t
 
 ## Known Gotchas
 
-1. **COCO bbox**: Must convert from internal center-based coords to COCO top-left using `BoundingBox.xyxy()` → `[x1, y1, x2-x1, y2-y1]`. Using `xywh_abs()` directly produces offset bboxes.
+1. **COCO↔YOLO precision loss**: Cross-format conversion between normalized (YOLO) and absolute pixel (COCO/LabelMe) is inherently lossy (±1 px). The converter's `convert_annotations()` performs the transform explicitly — see `spec_conversion.md` for details.
 2. **RLE encoding**: Always `latin1`, never `utf-8`, for byte↔string round-trips.
-3. **YOLO OriginalData items**: First element is str (class_id), rest are float. Always `list()`-copy before mutating.
-4. **LabelMe imageData**: Not required on read; valid external files may omit it.
-5. **Converter state**: `_source_annotations_for_target` must be cleared in a `finally` block to prevent stale state on exceptions.
-6. **COCO image_id fallback**: When `img.image_id` is not a digit string, use a dedicated image counter (not the annotation counter).
-7. **Progress bar at 100%**: Guard against `filled == width` causing `"." * -1`.
-8. **Visualization keyboard control**: The OpenCV window captures keyboard input. Press `Enter`/`Space` to advance, `q`/`ESC` to exit. The window manager close button (X) may not work reliably — always use keyboard to close.
-9. **Single persistent window**: The visualizer creates one window (named by format) and reuses it for all images. Window auto-sizes to each image's dimensions. Fixed window position prevents flickering across images.
+3. **LabelMe imageData**: Not required on read; valid external files may omit it.
+4. **Converter state**: `_source_annotations_for_target` must be cleared in a `finally` block to prevent stale state on exceptions.
+5. **COCO image_id fallback**: When `img.image_id` is not a digit string, use a dedicated image counter (not the annotation counter).
+6. **Progress bar at 100%**: Guard against `filled == width` causing `"." * -1`.
+7. **Visualization keyboard control**: The OpenCV window captures keyboard input. Press `Enter`/`Space` to advance, `q`/`ESC` to exit. The window manager close button (X) may not work reliably — always use keyboard to close.
+8. **Single persistent window**: The visualizer creates one window (named by format) and reuses it for all images. Window auto-sizes to each image's dimensions. Fixed window position prevents flickering across images.
+9. **BoundingBox semantics depend on format**: The same `BoundingBox` class is used for all formats. Always check `DatasetAnnotations.format` to interpret `(x, y, width, height)` correctly.
 
 ## Bug Report
 
@@ -261,7 +254,7 @@ A comprehensive code review identified bugs across the codebase, documented in `
 
 ```
 tests/
-├── label/          # Handler unit tests (includes lossless roundtrip tests)
+├── label/          # Handler unit tests (read/write/validate per format)
 ├── convert/        # Converter unit tests + integration tests
 ├── visualize/      # Visualizer unit tests
 ├── util/           # Utility unit tests
