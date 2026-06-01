@@ -28,7 +28,8 @@ Example usage:
 """
 
 from . import utils
-from .base import BaseVisualizer, ColorManager, VisualizationResult
+from .base import (BaseVisualizer, ColorManager, RenderAnnotation, RenderData,
+                   VisualizationResult)
 from .coco_visualizer import COCOVisualizer
 from .labelme_visualizer import LabelMeVisualizer
 from .yolo_visualizer import YOLOVisualizer

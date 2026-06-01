@@ -6,11 +6,11 @@ Supports both polygon and RLE segmentation formats.
 """
 
 from pathlib import Path
-from typing import Union
+from typing import Dict, List, Union
 
 from dataflow.label.coco_handler import CocoAnnotationHandler
 
-from .base import BaseVisualizer
+from .base import BaseVisualizer, RenderAnnotation, RenderData
 
 
 class COCOVisualizer(BaseVisualizer):
@@ -20,16 +20,16 @@ class COCOVisualizer(BaseVisualizer):
         self,
         annotation_file: Union[str, Path],
         image_dir: Union[str, Path],
-        verbose: bool = False,  # New: verbose parameter
+        verbose: bool = False,
         **kwargs,
     ):
         """
         Initialize COCO visualizer.
 
         Args:
-            annotation_file: COCO annotation file path (JSON)
+            annotation_file: COCO JSON annotation file path
             image_dir: Image directory
-            verbose: Whether to enable verbose logging (new)
+            verbose: Whether to enable verbose logging
             **kwargs: Additional arguments for BaseVisualizer
         """
         super().__init__(annotation_file, image_dir, verbose=verbose, **kwargs)
@@ -45,9 +45,52 @@ class COCOVisualizer(BaseVisualizer):
                 f"COCO visualizer initialization complete, annotation file: {annotation_file}"
             )
 
-    def load_annotations(self):
-        """Load COCO annotation data."""
+    def load_annotations(self) -> Dict[str, RenderData]:
+        """Load COCO annotation data and convert to RenderData.
+
+        COCO coordinates are in absolute pixels (top-left bbox).
+        Converts to [x1,y1,x2,y2] format for rendering.
+        """
         result = self.handler.read()
         if not result.success:
             raise ValueError(f"Failed to load COCO annotations: {result.message}")
-        return result.data
+
+        dataset = result.data
+        render_data_map: Dict[str, RenderData] = {}
+
+        for image_ann in dataset.images:
+            render_annotations: List[RenderAnnotation] = []
+
+            for obj in image_ann.objects:
+                render_ann = RenderAnnotation(
+                    class_name=obj.class_name,
+                    class_id=obj.class_id,
+                )
+
+                if obj.bbox:
+                    # COCO bbox: (x_tl, y_tl, w, h) in absolute pixels
+                    # Render: [x1, y1, x2, y2]
+                    x1 = int(obj.bbox.x)
+                    y1 = int(obj.bbox.y)
+                    x2 = int(obj.bbox.x + obj.bbox.width)
+                    y2 = int(obj.bbox.y + obj.bbox.height)
+                    render_ann.bbox = (x1, y1, x2, y2)
+
+                if obj.segmentation:
+                    if obj.segmentation.has_rle():
+                        render_ann.rle = obj.segmentation.rle
+                    else:
+                        # Polygon points are already in absolute pixels
+                        render_ann.polygon = [
+                            (int(x), int(y)) for x, y in obj.segmentation.points
+                        ]
+
+                render_annotations.append(render_ann)
+
+            render_data_map[image_ann.image_path] = RenderData(
+                annotations=render_annotations,
+                image_width=image_ann.width,
+                image_height=image_ann.height,
+            )
+
+        return render_data_map

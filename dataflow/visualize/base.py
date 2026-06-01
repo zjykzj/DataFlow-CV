@@ -16,10 +16,30 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import cv2
 import numpy as np
 
-from dataflow.label.models import (BoundingBox, DatasetAnnotations,
-                                   ImageAnnotation, ObjectAnnotation,
-                                   Segmentation)
 from dataflow.util import FileOperations
+
+
+@dataclass
+class RenderAnnotation:
+    """Annotation data prepared for rendering.
+
+    All coordinates are in absolute pixel integers, ready for OpenCV drawing.
+    """
+
+    class_name: str
+    class_id: int
+    bbox: Optional[Tuple[int, int, int, int]] = None  # [x1, y1, x2, y2] absolute px
+    polygon: Optional[List[Tuple[int, int]]] = None  # [(x, y), ...] absolute px
+    rle: Optional[Dict] = None  # RLE mask data (COCO specific)
+
+
+@dataclass
+class RenderData:
+    """Rendering data for a single image."""
+
+    annotations: List[RenderAnnotation]
+    image_width: int
+    image_height: int
 
 
 @dataclass
@@ -42,7 +62,6 @@ class ColorManager:
     """Color manager that ensures consistent and unique colors for the same class."""
 
     def __init__(self, debug: bool = False) -> None:
-        # Generate 1000 distinct colors using HSV space with ensured uniqueness
         self.predefined_colors = []
         self.debug = debug
         self._generate_unique_colors(1000)
@@ -52,28 +71,18 @@ class ColorManager:
         """Generate N unique colors using HSV space."""
         colors_set = set()
 
-        # Generate colors with different hue, saturation, value combinations.
-        # Iterate through hue primarily, then saturation, then value.
         hue_step = max(1, 180 // max(1, num_colors // 3))
         sat_step = max(1, 100 // max(1, num_colors // 3))
         val_step = max(1, 100 // max(1, num_colors // 3))
 
-        # Number of unique saturation values before wrapping (101 values: 100-200)
         sat_range = 101
-        # Divisor for tertiary value variation activation
         val_divisor = 180 * max(1, sat_range // sat_step)
 
         for i in range(num_colors):
-            # Primary: vary hue (0-179)
             hue = (i * hue_step) % 180
-
-            # Secondary: vary saturation (100-200)
             saturation = 100 + ((i // 180) * sat_step) % sat_range
-
-            # Tertiary: vary value (155-255)
             value = 155 + ((i // val_divisor) * val_step) % sat_range
 
-            # Convert to BGR
             hsv_color = np.uint8([[[hue, saturation, value]]])
             bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)
             color = (
@@ -82,11 +91,8 @@ class ColorManager:
                 int(bgr_color[0, 0, 2]),
             )
 
-            # If color already exists (unlikely but possible due to rounding),
-            # adjust saturation and value
             attempt = 0
             while color in colors_set and attempt < 10:
-                # Try different adjustments
                 saturation = (saturation + 23) % 100 + 100
                 value = (value + 37) % 100 + 155
                 hsv_color = np.uint8([[[hue, saturation, value]]])
@@ -99,7 +105,6 @@ class ColorManager:
                 attempt += 1
 
             if color in colors_set:
-                # Last resort: skip this hue and try next
                 hue = (hue + 1) % 180
                 saturation = 100 + (i % 100)
                 value = 155 + ((i + 13) % 100)
@@ -119,7 +124,6 @@ class ColorManager:
         if class_id in self.color_cache:
             return self.color_cache[class_id]
 
-        # Use predefined colors for first N classes
         if class_id < len(self.predefined_colors):
             color = self.predefined_colors[class_id]
             if self.debug:
@@ -128,13 +132,10 @@ class ColorManager:
                     file=sys.stderr,
                 )
         else:
-            # For classes beyond predefined, use deterministic algorithm
-            # with larger steps to avoid conflicts
             hue = (class_id * 127) % 180
-            saturation = 100 + (class_id * 67) % 100  # 100-199
-            value = 155 + (class_id * 37) % 100  # 155-254
+            saturation = 100 + (class_id * 67) % 100
+            value = 155 + (class_id * 37) % 100
 
-            # Convert HSV to BGR
             hsv_color = np.uint8([[[hue, saturation, value]]])
             bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)
             color = (
@@ -163,7 +164,7 @@ class BaseVisualizer(ABC):
         is_show: bool = True,
         is_save: bool = False,
         strict_mode: bool = True,
-        verbose: bool = False,  # New: verbose parameter
+        verbose: bool = False,
         logger: Optional[logging.Logger] = None,
         log_file_path: Optional[str] = None,
     ):
@@ -173,16 +174,13 @@ class BaseVisualizer(ABC):
         self.is_show = is_show
         self.is_save = is_save
         self.strict_mode = strict_mode
-        self.verbose = verbose  # Store verbose setting
+        self.verbose = verbose
 
-        # Configure logger based on verbose and provided parameters
         if log_file_path is not None:
-            # Use provided log_file_path (typically from CLI)
             self.log_file_path = log_file_path
             self.logger = logger or logging.getLogger(__name__)
             self.progress_logger = None
         elif verbose and logger is None:
-            # Create new verbose logger with log file
             from dataflow.util.logging_util import VerboseLoggingOperations
 
             logging_ops = VerboseLoggingOperations()
@@ -191,28 +189,24 @@ class BaseVisualizer(ABC):
             )
             self.progress_logger = logging_ops.create_progress_logger()
         else:
-            # Non-verbose mode or logger provided without log_file_path
             self.logger = logger or logging.getLogger(__name__)
             self.progress_logger = None
             self.log_file_path = None
 
         self.file_ops = FileOperations(logger=self.logger)
 
-        # Configuration parameters
         self.config = {
-            "bbox_thickness": 2,  # Bounding box line width
-            "seg_thickness": 1,  # Segmentation line width
-            "seg_alpha": 0.3,  # Segmentation mask transparency
-            "text_thickness": 1,  # Text line width
-            "text_scale": 0.5,  # Text scale
-            "text_padding": 5,  # Text padding
-            "font": cv2.FONT_HERSHEY_SIMPLEX,  # Font
+            "bbox_thickness": 2,
+            "seg_thickness": 1,
+            "seg_alpha": 0.3,
+            "text_thickness": 1,
+            "text_scale": 0.5,
+            "text_padding": 5,
+            "font": cv2.FONT_HERSHEY_SIMPLEX,
         }
 
-        # Color manager's debug mode
         self.color_manager = ColorManager(debug=verbose)
 
-        # Summary data collection
         self.summary_data = {
             "total_images": 0,
             "processed_images": 0,
@@ -222,42 +216,41 @@ class BaseVisualizer(ABC):
             "end_time": None,
         }
 
-        # Persistent display window state
         self._window_positioned = False
 
     @abstractmethod
-    def load_annotations(self) -> DatasetAnnotations:
-        """Load annotation data (abstract method)."""
+    def load_annotations(self) -> Dict[str, RenderData]:
+        """Load annotation data and convert to RenderData (abstract method).
+
+        Returns:
+            Dict mapping image_path → RenderData for that image
+        """
         pass
 
     def visualize(self) -> VisualizationResult:
-        """Execute visualization pipeline (enhanced version)."""
+        """Execute visualization pipeline."""
         start_time = datetime.datetime.now()
         self.summary_data["start_time"] = start_time
 
         if self.verbose:
             self.logger.debug(f"Starting visualization pipeline: {self.label_dir}")
-            self.logger.debug(
-                f"Configuration: show={self.is_show}, save={self.is_save}"
-            )
 
         result = VisualizationResult(success=False, log_file_path=self.log_file_path)
 
         try:
-            # 1. Load annotation data
-            annotations = self.load_annotations()
-            self.summary_data["total_images"] = len(annotations.images)
+            # 1. Load and convert all annotations to render data
+            render_data_map = self.load_annotations()
+            self.summary_data["total_images"] = len(render_data_map)
             self.summary_data["total_objects"] = sum(
-                len(img.objects) for img in annotations.images
+                len(rd.annotations) for rd in render_data_map.values()
             )
 
             if self.verbose:
                 self.logger.info(
-                    f"Loaded annotations for {len(annotations.images)} images"
+                    f"Loaded annotations for {len(render_data_map)} images"
                 )
-                self.logger.debug(f"Category mapping: {annotations.categories}")
 
-            # 2. Validate output directory (if save mode is enabled)
+            # 2. Validate output directory
             if self.is_save:
                 if not self.output_dir:
                     error_msg = "Save mode requires output_dir parameter"
@@ -266,55 +259,48 @@ class BaseVisualizer(ABC):
                     return result
                 self.file_ops.ensure_dir(self.output_dir)
 
-            # 3. Process all images for visualization
+            # 3. Process all images
             processed_count = 0
             user_interrupted = False
-            for i, image_ann in enumerate(annotations.images):
-                # Progress feedback
-                if (
-                    self.progress_logger and i % 10 == 0
-                ):  # Update progress every 10 images
+            image_paths = list(render_data_map.keys())
+
+            for i, image_path_str in enumerate(image_paths):
+                render_data = render_data_map[image_path_str]
+
+                if self.progress_logger and i % 10 == 0:
                     self._log_progress(
-                        i, len(annotations.images), f"Processing {image_ann.image_id}"
+                        i, len(image_paths), f"Processing {image_path_str}"
                     )
 
                 if self.verbose:
-                    self.logger.debug(f"Processing image: {image_ann.image_id}")
-                    self.logger.debug(
-                        f"Image dimensions: {image_ann.width}x{image_ann.height}"
-                    )
-                    self.logger.debug(f"Number of objects: {len(image_ann.objects)}")
+                    self.logger.debug(f"Processing image: {image_path_str}")
 
-                success = self._visualize_single_image(image_ann)
+                success = self._visualize_single_image(image_path_str, render_data)
                 if success is None:
-                    # User pressed 'q' or ESC to interrupt visualization
                     user_interrupted = True
                     break
                 elif success:
                     processed_count += 1
                     self.summary_data["processed_images"] = processed_count
                 else:
-                    # Image visualization failed (file not found, failed to load, etc.)
-                    # Continue processing even in strict mode
                     self.summary_data["failed_images"] += 1
 
             if user_interrupted:
                 result.success = True
                 result.message = (
                     f"Visualization interrupted by user after {processed_count} images. "
-                    f"{self.summary_data['failed_images']} failed out of {len(annotations.images)} images"
+                    f"{self.summary_data['failed_images']} failed out of {len(render_data_map)} images"
                 )
-                result.data = {"processed_count": processed_count, "processed_images": processed_count, "interrupted": True}
+                result.data = {"processed_count": processed_count, "interrupted": True}
             else:
                 result.success = True
                 failed_count = self.summary_data["failed_images"]
                 result.message = (
                     f"Visualization completed: {processed_count} successful, "
-                    f"{failed_count} failed out of {len(annotations.images)} images"
+                    f"{failed_count} failed out of {len(render_data_map)} images"
                 )
-                result.data = {"processed_count": processed_count, "processed_images": processed_count}
+                result.data = {"processed_count": processed_count}
 
-            # Record summary
             self.summary_data["end_time"] = datetime.datetime.now()
             if self.verbose:
                 self._log_visualization_summary(result)
@@ -326,22 +312,23 @@ class BaseVisualizer(ABC):
             if self.verbose:
                 self.logger.exception("Visualization failed")
         finally:
-            # Clean up persistent display window
             if self.is_show:
                 try:
                     cv2.destroyWindow("DataFlow-CV Visualization")
                 except Exception:
-                    pass  # Window may not exist if display failed early
+                    pass
 
         return result
 
-    def _visualize_single_image(self, image_ann: ImageAnnotation) -> Optional[bool]:
-        """Visualize a single image."""
+    def _visualize_single_image(
+        self, image_path_str: str, render_data: RenderData
+    ) -> Optional[bool]:
+        """Visualize a single image using pre-computed RenderData."""
         try:
-            # 1. Load image
-            image_path = Path(image_ann.image_path)
+            # 1. Resolve and load image
+            image_path = Path(image_path_str)
             if not image_path.is_absolute():
-                image_path = self.image_dir / image_ann.image_path
+                image_path = self.image_dir / image_path_str
 
             if not image_path.exists():
                 self._log_warning(f"Image file not found: {image_path}")
@@ -352,29 +339,25 @@ class BaseVisualizer(ABC):
                 self._log_warning(f"Failed to load image: {image_path}")
                 return False
 
-            # 2. Draw all objects
-            for obj in image_ann.objects:
-                self._draw_object(image, obj, image_ann.width, image_ann.height)
+            # 2. Draw all render annotations
+            for render_ann in render_data.annotations:
+                self._draw_render_annotation(image, render_ann)
 
             # 3. Display or save
             if self.is_show:
                 try:
                     window_name = "DataFlow-CV Visualization"
-
-                    # Create a resizable window that maintains aspect ratio
                     window_flags = cv2.WINDOW_NORMAL
                     try:
                         window_flags |= cv2.WINDOW_KEEPRATIO
                     except AttributeError:
-                        pass  # WINDOW_KEEPRATIO not available in older OpenCV
+                        pass
                     cv2.namedWindow(window_name, window_flags)
 
-                    # Set initial position only once so window stays in place
                     if not self._window_positioned:
                         cv2.moveWindow(window_name, 100, 100)
                         self._window_positioned = True
 
-                    # Size window to match image, capped at max display size
                     h, w = image.shape[:2]
                     MAX_DISPLAY_W, MAX_DISPLAY_H = 1920, 1080
                     if w <= MAX_DISPLAY_W and h <= MAX_DISPLAY_H:
@@ -386,137 +369,74 @@ class BaseVisualizer(ABC):
                     cv2.imshow(window_name, image)
                     key = cv2.waitKey(0)
 
-                    # Handle keyboard input
-                    if key == ord("q") or key == 27:  # 'q' key or ESC
-                        return None  # User interrupt - stop entire visualization
-                    # Enter key or space key continue
+                    if key == ord("q") or key == 27:
+                        return None
                 except Exception as e:
                     self._log_warning(f"Failed to display visualization window: {e}")
-                    # Continue without display even in strict mode
-                    # Visualization can continue without display
 
             if self.is_save:
-                output_file = self.output_dir / f"{image_ann.image_id}_visualized.jpg"
-                cv2.imwrite(str(output_file), image, [cv2.IMWRITE_JPEG_QUALITY, 95])
+                output_file = (
+                    self.output_dir
+                    / f"{Path(image_path_str).stem}_visualized.jpg"
+                )
+                cv2.imwrite(
+                    str(output_file), image, [cv2.IMWRITE_JPEG_QUALITY, 95]
+                )
                 self._log_info(f"Saved visualization to: {output_file}")
 
             return True
 
         except Exception as e:
-            self._log_error(f"Error visualizing image {image_ann.image_id}: {e}")
+            self._log_error(f"Error visualizing image {image_path_str}: {e}")
             return False
 
-    def _draw_object(
-        self,
-        image: np.ndarray,
-        obj: ObjectAnnotation,
-        img_width: int,
-        img_height: int,
+    def _draw_render_annotation(
+        self, image: np.ndarray, render_ann: RenderAnnotation
     ) -> None:
-        """Draw a single object annotation."""
-        # Debug logging for color assignment
+        """Draw a single RenderAnnotation onto the image."""
+        color = self.color_manager.get_color(render_ann.class_id)
+
         self.logger.debug(
-            f"Drawing object: class_id={obj.class_id}, class_name={obj.class_name}, "
-            f"color={self.color_manager.get_color(obj.class_id)}"
+            f"Drawing object: class_id={render_ann.class_id}, "
+            f"class_name={render_ann.class_name}, color={color}"
         )
-        # Get class color
-        color = self.color_manager.get_color(obj.class_id)
 
-        # Draw bounding box
-        if obj.bbox is not None:
-            self._draw_bbox(
-                image, obj.bbox, color, obj.class_name, img_width, img_height
-            )
+        if render_ann.bbox is not None:
+            self._draw_bbox(image, render_ann.bbox, color, render_ann.class_name)
 
-        # Draw segmentation
-        if obj.segmentation is not None:
-            if obj.segmentation.has_rle():
-                # RLE format (requires pycocotools)
-                self._draw_rle_mask(
-                    image, obj.segmentation.rle, color, img_width, img_height
-                )
-            else:
-                # Polygon format
-                self._draw_polygon(
-                    image,
-                    obj.segmentation,
-                    color,
-                    obj.class_name,
-                    img_width,
-                    img_height,
-                )
+        if render_ann.polygon is not None:
+            self._draw_polygon(image, render_ann.polygon, color, render_ann.class_name)
+
+        if render_ann.rle is not None:
+            self._draw_rle_mask(image, render_ann.rle, color)
 
     def _draw_bbox(
         self,
         image: np.ndarray,
-        bbox: BoundingBox,
+        bbox: Tuple[int, int, int, int],
         color: Tuple[int, int, int],
         class_name: str,
-        img_width: int,
-        img_height: int,
     ) -> None:
-        """Draw bounding box."""
-        x1, y1, x2, y2 = bbox.xyxy(img_width, img_height)
+        """Draw bounding box from absolute pixel coordinates [x1, y1, x2, y2]."""
+        x1, y1, x2, y2 = bbox
 
-        # Ensure coordinates are integers
-        x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
-
-        # Debug logging with types and image properties
-        self.logger.debug(
-            f"Drawing bbox: ({x1}, {y1}), ({x2}, {y2}), color: {color}, "
-            f"image shape: {image.shape if image is not None else 'None'}"
-        )
-        if image is not None:
-            self.logger.debug(f"Image dtype: {image.dtype}, flags: {image.flags}")
-            self.logger.debug(f"Image is writable: {image.flags['WRITEABLE']}")
-        self.logger.debug(
-            f"Coordinate types: x1={type(x1)}, y1={type(y1)}, "
-            f"x2={type(x2)}, y2={type(y2)}"
-        )
-        self.logger.debug(f"Color type: {type(color)}, color value: {color}")
-
-        # Draw rectangle
-        try:
-            pt1 = (x1, y1)
-            pt2 = (x2, y2)
-            self.logger.debug(
-                f"Attempting cv2.rectangle with pt1={pt1}, " f"pt2={pt2}, color={color}"
-            )
-            cv2.rectangle(image, pt1, pt2, color, self.config["bbox_thickness"])
-            self.logger.debug("cv2.rectangle completed without exception")
-        except Exception as e:
-            self.logger.error(f"cv2.rectangle raised exception: {e}")
-            # Try with hardcoded values to see if OpenCV works at all
-            try:
-                self.logger.debug("Testing with hardcoded values")
-                cv2.rectangle(image, (10, 10), (100, 100), (0, 255, 0), 2)
-                self.logger.debug("Hardcoded rectangle succeeded")
-            except Exception as e2:
-                self.logger.error(f"Hardcoded rectangle also failed: {e2}")
-            raise
+        cv2.rectangle(image, (x1, y1), (x2, y2), color, self.config["bbox_thickness"])
 
         # Draw class label
-        self._draw_text(
-            image, class_name, (x1, y1 - self.config["text_padding"]), color
-        )
+        self._draw_text(image, class_name, (x1, y1 - self.config["text_padding"]), color)
 
     def _draw_polygon(
         self,
         image: np.ndarray,
-        segmentation: Segmentation,
+        polygon: List[Tuple[int, int]],
         color: Tuple[int, int, int],
         class_name: str,
-        img_width: int,
-        img_height: int,
     ) -> None:
-        """Draw polygon segmentation."""
-        points = segmentation.points_abs(img_width, img_height)
-
-        if len(points) < 2:
+        """Draw polygon from absolute pixel points."""
+        if len(polygon) < 2:
             return
 
-        # Convert to numpy array
-        points_np = np.array(points, dtype=np.int32)
+        points_np = np.array(polygon, dtype=np.int32)
 
         # Draw polygon fill (semi-transparent)
         overlay = image.copy()
@@ -533,40 +453,33 @@ class BaseVisualizer(ABC):
         # Draw polygon outline
         cv2.polylines(image, [points_np], True, color, self.config["seg_thickness"])
 
-        # Draw class label (use first point)
-        if points:
-            self._draw_text(image, class_name, points[0], color)
+        # Draw class label
+        if polygon:
+            self._draw_text(image, class_name, polygon[0], color)
 
     def _draw_rle_mask(
         self,
         image: np.ndarray,
         rle: Dict,
         color: Tuple[int, int, int],
-        img_width: int,
-        img_height: int,
     ) -> None:
         """Draw RLE mask."""
-        # Requires pycocotools support
         try:
             from pycocotools import mask as coco_mask
         except ImportError:
             self._log_warning("pycocotools not installed, cannot draw RLE mask")
             return
 
-        # Ensure 'counts' is bytes for coco_mask.decode (latin1 for lossless round-trip)
         rle_dict = dict(rle)
         if "counts" in rle_dict and isinstance(rle_dict["counts"], str):
             rle_dict["counts"] = rle_dict["counts"].encode("latin1")
 
-        # Decode RLE to binary mask
         binary_mask = coco_mask.decode(rle_dict)
 
-        # Convert binary mask to color mask
         color_mask = np.zeros_like(image)
         for c in range(3):
             color_mask[:, :, c] = binary_mask * color[c]
 
-        # Semi-transparent overlay
         overlay = image.copy()
         overlay = cv2.addWeighted(
             overlay,
@@ -576,7 +489,6 @@ class BaseVisualizer(ABC):
             0,
         )
 
-        # Copy overlay back to original image where mask is True
         np.copyto(image, overlay, where=binary_mask[:, :, None].astype(bool))
 
     def _draw_text(
@@ -587,10 +499,8 @@ class BaseVisualizer(ABC):
         color: Tuple[int, int, int],
     ) -> None:
         """Draw text label."""
-        # Ensure position coordinates are integers
         x, y = int(position[0]), int(position[1])
 
-        # Calculate text size
         (text_width, text_height), baseline = cv2.getTextSize(
             text,
             self.config["font"],
@@ -598,43 +508,29 @@ class BaseVisualizer(ABC):
             self.config["text_thickness"],
         )
 
-        # Ensure text dimensions are integers
         text_width = int(text_width)
         text_height = int(text_height)
         baseline = int(baseline)
 
-        # Calculate background rectangle coordinates with clamping
         img_height, img_width = image.shape[:2]
 
-        # Top-left corner
         x1 = x
         y1 = y - text_height - baseline
-        # Bottom-right corner
         x2 = x + text_width
         y2 = y + baseline
 
-        # Clamp coordinates to image boundaries
         x1 = max(0, min(x1, img_width - 1))
         y1 = max(0, min(y1, img_height - 1))
         x2 = max(0, min(x2, img_width - 1))
         y2 = max(0, min(y2, img_height - 1))
 
-        # Ensure coordinates are integers after clamping
-        x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
-
-        # Draw background rectangle if valid
         if x1 < x2 and y1 < y2:
             try:
-                cv2.rectangle(
-                    image, (x1, y1), (x2, y2), (0, 0, 0), -1
-                )  # Black background
+                cv2.rectangle(image, (x1, y1), (x2, y2), (0, 0, 0), -1)
             except Exception as e:
                 self.logger.warning(f"Failed to draw text background: {e}")
-                # Continue without background
 
-        # Draw text (adjust position if needed)
         text_y = y - baseline
-        # Clamp text position
         text_y = max(baseline, min(text_y, img_height - 1))
         text_x = max(0, min(x, img_width - 1))
 
@@ -644,7 +540,7 @@ class BaseVisualizer(ABC):
             (text_x, text_y),
             self.config["font"],
             self.config["text_scale"],
-            (255, 255, 255),  # White text
+            (255, 255, 255),
             self.config["text_thickness"],
             cv2.LINE_AA,
         )
@@ -657,9 +553,6 @@ class BaseVisualizer(ABC):
         """Log error message and raise exception (strict mode)."""
         self.logger.error(message)
         if self.strict_mode:
-            # Check if error is image-related (file not found, failed to load, etc.)
-            # Image-related errors should not raise exceptions even in strict mode.
-            # Use common substrings that appear across handler error messages.
             _msg = message.lower()
             is_image_error = (
                 "image" in _msg
@@ -728,17 +621,3 @@ class BaseVisualizer(ABC):
         else:
             bar = "[" + "=" * filled + ">" + "." * (width - filled - 1) + "]"
         return bar
-
-    def _log_color_info(self, class_id: int, color: Tuple[int, int, int]):
-        """Log color assignment information (verbose mode only)."""
-        if self.verbose:
-            class_name = self._get_class_name(class_id)
-            self.logger.debug(
-                f"Color assignment - Class ID: {class_id}, Name: {class_name}, "
-                f"Color (BGR): {color}"
-            )
-
-    def _get_class_name(self, class_id: int) -> str:
-        """Get class name from class ID (to be implemented by subclasses)."""
-        # Default implementation, subclasses should override
-        return f"class_{class_id}"
