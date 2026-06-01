@@ -2,6 +2,9 @@
 LabelMe annotation format handler.
 
 Handles reading and writing of LabelMe JSON annotation files.
+Coordinates are stored in native LabelMe representation:
+- Rectangle bbox: (x, y, w, h) with (x,y) = top-left, all absolute pixels
+- Polygon points: (x, y) in absolute pixels
 """
 
 import json
@@ -14,8 +17,7 @@ from dataflow.util.file_util import FileOperations
 
 from .base import AnnotationResult, BaseAnnotationHandler, ImageError
 from .models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
-                     ImageAnnotation, ObjectAnnotation, OriginalData,
-                     Segmentation)
+                     ImageAnnotation, ObjectAnnotation, Segmentation)
 
 
 class LabelMeAnnotationHandler(BaseAnnotationHandler):
@@ -74,14 +76,13 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 result.add_error(f"No JSON files found in {self.label_dir}")
                 return result
 
-            dataset = DatasetAnnotations()
+            dataset = DatasetAnnotations(format=AnnotationFormat.LABELME)
             categories_from_annotations = {}
 
             for json_file in json_files:
                 try:
                     image_result = self._read_single_file(json_file)
                 except ImageError as e:
-                    # Image errors always skip regardless of strict_mode
                     self._log_warning(f"Skipping {json_file} (image error): {e}")
                     continue
 
@@ -99,12 +100,10 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
 
                 image_ann = image_result.data
                 if image_ann is None:
-                    # This should not happen if image_result.success is True
                     result.add_error(
                         f"Internal error: image annotation data is None for {json_file}"
                     )
                     return result
-                # Type check for mypy
                 if not isinstance(image_ann, ImageAnnotation):
                     result.add_error(
                         f"Internal error: invalid image annotation type for {json_file}"
@@ -146,7 +145,6 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             with open(json_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            # Validate required fields (imageData is optional base64 image data)
             required_fields = ["version", "flags", "shapes", "imagePath"]
             for field in required_fields:
                 if field not in data:
@@ -162,16 +160,12 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             image_height = data.get("imageHeight")
             image_width = data.get("imageWidth")
 
-            # Check if image file exists
             if not image_path.exists():
                 if image_height is None or image_width is None:
-                    # Image missing and no dimensions in JSON — cannot process
                     raise ImageError(f"Image file not found and no dimensions in JSON: {image_path}")
-                # Image missing but dimensions are in JSON — continue with warning
                 self._log_warning(f"Image file not found, using dimensions from JSON: {image_path}")
 
             if image_height is None or image_width is None:
-                # Try to read dimensions from the actual image file
                 dims_read = False
                 if image_path.exists():
                     try:
@@ -180,9 +174,6 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                         if img is not None:
                             image_height, image_width = img.shape[:2]
                             dims_read = True
-                            self._log_debug(
-                                f"Read image dimensions from file: {image_width}x{image_height}"
-                            )
                     except Exception as e:
                         self._log_debug(
                             f"Could not read image dimensions from file: {e}"
@@ -204,7 +195,6 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 if obj_result.success:
                     obj_data = obj_result.data
                     if obj_data is None or not isinstance(obj_data, ObjectAnnotation):
-                        # This should not happen if obj_result.success is True
                         result.add_error(
                             f"Internal error: invalid object data for shape in {json_file}"
                         )
@@ -220,19 +210,11 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                         f"Skipping invalid shape in {json_file}: {obj_result.message}"
                     )
 
-            # Create original data for the entire image annotation
-            image_original_data = OriginalData(
-                format=AnnotationFormat.LABELME.value, raw_data=data.copy()
-            )
-
             # Create image annotation
-            # Store relative path to label_dir for consistent path handling
             try:
                 relative_image_path = image_path.relative_to(self.label_dir)
                 image_path_str = str(relative_image_path)
             except ValueError:
-                # If image_path is not relative to label_dir, store the full path
-                # This might happen if paths are in different directories
                 image_path_str = str(image_path)
                 self._log_warning(f"Image path {image_path} is not relative to label directory {self.label_dir}")
 
@@ -242,7 +224,6 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 width=image_width,
                 height=image_height,
                 objects=objects,
-                original_data=image_original_data,
             )
 
             result.success = True
@@ -251,7 +232,6 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
         except json.JSONDecodeError as e:
             result.add_error(f"Invalid JSON in {json_file}: {e}")
         except ImageError:
-            # Re-raise image errors to be handled by the caller (read loop)
             raise
         except Exception as e:
             result.add_error(f"Error reading {json_file}: {e}")
@@ -276,19 +256,16 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             # Determine category ID
             cat_id: int
             if label in self.categories.values():
-                # Find ID for this label
                 found_id = next(
                     (k for k, v in self.categories.items() if v == label), None
                 )
                 if found_id is None:
-                    # This should not happen if label is in values
                     result.add_error(
                         f"Internal error: label '{label}' not found in categories"
                     )
                     return result
                 cat_id = found_id
             else:
-                # Assign new ID
                 cat_id = len(self.categories)
                 self.categories[cat_id] = label
 
@@ -296,34 +273,27 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             segmentation = None
 
             if shape_type == "rectangle" and len(points) == 2:
-                # Convert rectangle to bounding box
+                # Convert rectangle to bounding box (absolute pixels, top-left)
                 x1, y1 = points[0]
                 x2, y2 = points[1]
 
-                # Normalize coordinates
-                x1_norm = x1 / img_width
-                y1_norm = y1 / img_height
-                x2_norm = x2 / img_width
-                y2_norm = y2 / img_height
+                x_min = min(x1, x2)
+                y_min = min(y1, y2)
+                w = abs(x2 - x1)
+                h = abs(y2 - y1)
 
-                # Calculate center, width, height
-                x_center = (x1_norm + x2_norm) / 2
-                y_center = (y1_norm + y2_norm) / 2
-                width = abs(x2_norm - x1_norm)
-                height = abs(y2_norm - y1_norm)
-
-                bbox = BoundingBox(x=x_center, y=y_center, width=width, height=height)
-                if not self._validate_bbox(bbox):
+                bbox = BoundingBox(x=x_min, y=y_min, width=w, height=h)
+                if not self._validate_bbox(bbox, format=AnnotationFormat.LABELME):
                     result.add_error(f"Invalid bbox for rectangle: {points}")
                     return result
 
             elif shape_type == "polygon" and len(points) >= 3:
-                # Normalize polygon points
-                normalized_points = [(x / img_width, y / img_height) for x, y in points]
-                if not self._validate_segmentation_points(normalized_points):
+                # Store polygon points in absolute pixels (native LabelMe format)
+                abs_points = [(x, y) for x, y in points]
+                if not self._validate_segmentation_points(abs_points, format=AnnotationFormat.LABELME):
                     result.add_error(f"Invalid polygon points: {points}")
                     return result
-                segmentation = Segmentation(points=normalized_points)
+                segmentation = Segmentation(points=abs_points)
 
             else:
                 result.add_error(
@@ -331,26 +301,12 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 )
                 return result
 
-            # Create original data for lossless round-trip
-            original_data = OriginalData(
-                format=AnnotationFormat.LABELME.value,
-                raw_data=shape.copy(),
-                metadata={"image_width": img_width, "image_height": img_height},
-            )
-
-            # Attach original data to components
-            if bbox is not None:
-                bbox.original_data = original_data
-            if segmentation is not None:
-                segmentation.original_data = original_data
-
             obj = ObjectAnnotation(
                 class_id=cat_id,
                 class_name=label,
                 bbox=bbox,
                 segmentation=segmentation,
                 confidence=1.0,
-                original_data=original_data,
             )
 
             result.success = True
@@ -410,7 +366,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             # Prepare shapes
             shapes = []
             for obj in image_ann.objects:
-                shape = self._object_to_shape(obj, image_ann.width, image_ann.height)
+                shape = self._object_to_shape(obj)
                 if shape:
                     shapes.append(shape)
                 elif self.strict_mode:
@@ -421,35 +377,16 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 else:
                     self._log_warning(f"Skipping object {obj.class_name}")
 
-            # Create LabelMe JSON structure
-            # Priority 1: Use original data if available and format matches
-            if (
-                image_ann.has_original_data()
-                and image_ann.original_data.format == AnnotationFormat.LABELME.value
-            ):
-                # Start with original data to preserve all fields (mask, lineColor, etc.)
-                labelme_data = image_ann.original_data.raw_data.copy()
-                # Update shapes with current objects
-                labelme_data["shapes"] = shapes
-                # Update image path (use original if available, otherwise current)
-                if "imagePath" not in labelme_data:
-                    labelme_data["imagePath"] = Path(image_ann.image_path).name
-                # Update dimensions to match current image annotation
-                labelme_data["imageHeight"] = image_ann.height
-                labelme_data["imageWidth"] = image_ann.width
-                # Ensure imageData is None (LabelMe doesn't store image data)
-                labelme_data["imageData"] = None
-            else:
-                # Fallback to default structure
-                labelme_data: Dict[str, Any] = {
-                    "version": "5.0.1",
-                    "flags": {},
-                    "shapes": shapes,
-                    "imagePath": Path(image_ann.image_path).name,
-                    "imageData": None,  # LabelMe doesn't store image data
-                    "imageHeight": image_ann.height,
-                    "imageWidth": image_ann.width,
-                }
+            # Build LabelMe JSON structure
+            labelme_data: Dict[str, Any] = {
+                "version": "5.0.1",
+                "flags": {},
+                "shapes": shapes,
+                "imagePath": Path(image_ann.image_path).name,
+                "imageData": None,
+                "imageHeight": image_ann.height,
+                "imageWidth": image_ann.width,
+            }
 
             # Write JSON file
             output_file = output_dir / f"{image_ann.image_id}.json"
@@ -464,40 +401,25 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
 
         return result
 
-    def _object_to_shape(
-        self, obj: ObjectAnnotation, img_width: int, img_height: int
-    ) -> Optional[Dict]:
-        """Convert ObjectAnnotation to LabelMe shape dict."""
-        try:
-            # Priority 1: Use original data if available and format matches
-            if (
-                obj.has_original_data()
-                and obj.original_data.format == AnnotationFormat.LABELME.value
-            ):
-                shape_data = obj.original_data.raw_data.copy()
-                # Update label to current class name (class mapping may have changed)
-                shape_data["label"] = obj.class_name
-                # Ensure points are present (they should be)
-                if "points" not in shape_data or not shape_data["points"]:
-                    self._log_warning(
-                        f"Original shape data missing points, falling back to conversion"
-                    )
-                else:
-                    return shape_data
+    def _object_to_shape(self, obj: ObjectAnnotation) -> Optional[Dict]:
+        """Convert ObjectAnnotation to LabelMe shape dict.
 
+        Coordinates are already in native LabelMe format (absolute pixels).
+        """
+        try:
             label = obj.class_name
 
             if obj.bbox:
-                # Convert bbox to rectangle points
-                x1, y1, x2, y2 = obj.bbox.xyxy(img_width, img_height)
+                # Bbox is already in absolute pixel, top-left format
+                x1 = obj.bbox.x
+                y1 = obj.bbox.y
+                x2 = obj.bbox.x + obj.bbox.width
+                y2 = obj.bbox.y + obj.bbox.height
                 points = [[float(x1), float(y1)], [float(x2), float(y2)]]
                 shape_type = "rectangle"
             elif obj.segmentation:
-                # Convert segmentation to polygon points
-                points = [
-                    [float(x), float(y)]
-                    for x, y in obj.segmentation.points_abs(img_width, img_height)
-                ]
+                # Points are already in absolute pixels
+                points = [[float(x), float(y)] for x, y in obj.segmentation.points]
                 shape_type = "polygon"
             else:
                 self._log_warning(f"Object {label} has neither bbox nor segmentation")
@@ -529,7 +451,6 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                     )
                     return False
 
-            # Validate shapes
             for shape in data["shapes"]:
                 if "label" not in shape or not shape["label"].strip():
                     self.logger.error(f"Shape missing label in {annotation_file}")
@@ -544,14 +465,11 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 shape_type = shape["shape_type"]
                 points = shape["points"]
 
-                # Validate shape type is supported
                 if shape_type not in ("rectangle", "polygon", "circle", "line", "point"):
                     self.logger.warning(
                         f"Unsupported shape_type '{shape_type}' in {annotation_file}"
                     )
-                    # Non-fatal: unsupported shape types are skipped, not rejected
 
-                # Rectangle must have exactly 2 points
                 if shape_type == "rectangle":
                     if len(points) != 2:
                         self.logger.error(
@@ -559,7 +477,6 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                         )
                         return False
 
-                # Polygon must have at least 3 points
                 if shape_type == "polygon":
                     if len(points) < 3:
                         self.logger.error(
