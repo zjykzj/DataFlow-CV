@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-06-01
+
+### ⚠️ Breaking Changes
+
+- **Native-coordinate architecture**: Complete redesign of the internal data model. Handlers now store coordinates in each format's native representation instead of a unified normalized [0,1] model.
+  - `DatasetAnnotations` now has a required `format` field to interpret coordinate semantics
+  - `BoundingBox` and `Segmentation` no longer have `xyxy()`, `xywh_abs()`, `points_abs()` methods — converters own all coordinate transforms
+  - `OriginalData` and `OriginalDataManager` removed entirely
+  - `_validate_bbox()` and `_validate_segmentation_points()` are now format-aware
+
+### Added
+
+- **Explicit coordinate transforms in converters**: `YoloAndCocoConverter`, `LabelMeAndYoloConverter`, and `CocoAndLabelMeConverter` now implement actual coordinate transformation logic in `convert_annotations()` instead of identity pass-through
+- **RenderData unified rendering pipeline**: Visualizers convert all annotations to absolute-pixel `RenderAnnotation` during `load_annotations()`, removing coordinate math from draw methods
+- **Format-aware validation**: `_validate_absolute_coordinate()` for COCO/LabelMe, format dispatch in `_validate_bbox()` and `_validate_segmentation_points()`
+
+### Changed
+
+- **RLE converter**: `polygon_to_rle()` now accepts absolute pixel points; `rle_to_polygon()` returns absolute pixel points (no more implicit normalization)
+- **COCO handler**: Stores coordinates in native COCO format (absolute pixels, top-left) — no longer normalizes to [0,1] center-based
+- **LabelMe handler**: Stores coordinates in native LabelMe format (absolute pixels) — no longer normalizes
+- **YOLO handler**: Simplified — removed OriginalData storage and write-path branching (YOLO coordinates were already native normalized)
+
+### Removed
+
+- `OriginalData` dataclass and `OriginalDataManager` static class
+- `verify_lossless_roundtrip()` and all associated comparison functions
+- `BoundingBox.xyxy()`, `xywh_abs()`, `has_original_data()`
+- `Segmentation.points_abs()`, `has_original_data()`
+- Lossless round-trip demo (`samples/label/lossless_demo.py`) and tests (`tests/label/test_lossless.py`)
+
+### Documentation
+
+- Complete rewrite of `specs/modules/spec_label.md`, `specs/formats/spec_conversion.md`
+- Update of `specs/modules/spec_convert.md`, `specs/modules/spec_visualize.md`
+- Update of format specs (`spec_yolo_format.md`, `spec_coco_format.md`, `spec_labelme_format.md`)
+- Update `CLAUDE.md` and `README.md` for new architecture
+
 ## [0.6.2] - 2026-04-20
 
 ### Fixed
