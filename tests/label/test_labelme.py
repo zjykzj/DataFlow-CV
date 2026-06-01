@@ -10,7 +10,8 @@ from pathlib import Path
 import pytest
 
 from dataflow.label.labelme_handler import LabelMeAnnotationHandler
-from dataflow.label.models import (BoundingBox, DatasetAnnotations,
+from dataflow.label.models import (AnnotationFormat, BoundingBox,
+                                   DatasetAnnotations, ImageAnnotation,
                                    ObjectAnnotation, Segmentation)
 
 
@@ -55,16 +56,13 @@ class TestLabelMeAnnotationHandler:
     @pytest.fixture
     def labelme_dir_with_data(self, temp_dir, sample_labelme_data):
         """Create a directory with LabelMe JSON files for testing."""
-        # Create image file (empty)
         image_file = temp_dir / "test.jpg"
         image_file.touch()
 
-        # Create JSON file
         json_file = temp_dir / "test.json"
         with open(json_file, "w", encoding="utf-8") as f:
             json.dump(sample_labelme_data, f, indent=2)
 
-        # Create class file
         class_file = temp_dir / "classes.txt"
         class_file.write_text("cat\ndog\nbird\n")
 
@@ -96,6 +94,7 @@ class TestLabelMeAnnotationHandler:
         result = handler.read()
         assert result.success is True
         assert isinstance(result.data, DatasetAnnotations)
+        assert result.data.format == AnnotationFormat.LABELME
         assert len(result.data.images) == 1
 
         image_ann = result.data.images[0]
@@ -104,22 +103,27 @@ class TestLabelMeAnnotationHandler:
         assert image_ann.height == 100
         assert len(image_ann.objects) == 2
 
-        # Check first object (rectangle -> bbox)
+        # Check first object (rectangle -> bbox, absolute pixels, top-left)
         obj1 = image_ann.objects[0]
         assert obj1.class_name == "cat"
         assert obj1.bbox is not None
         assert obj1.segmentation is None
-        assert obj1.bbox.x == pytest.approx(0.1)  # (10+30)/2 / 200 = 20/200 = 0.1
-        assert obj1.bbox.y == pytest.approx(0.3)  # (20+40)/2 / 100 = 30/100 = 0.3
-        assert obj1.bbox.width == pytest.approx(0.1)  # (30-10)/200 = 20/200 = 0.1
-        assert obj1.bbox.height == pytest.approx(0.2)  # (40-20)/100 = 20/100 = 0.2
+        # points: [[10,20],[30,40]] -> x=10, y=20, w=20, h=20
+        assert obj1.bbox.x == 10
+        assert obj1.bbox.y == 20
+        assert obj1.bbox.width == 20
+        assert obj1.bbox.height == 20
 
-        # Check second object (polygon -> segmentation)
+        # Check second object (polygon -> segmentation, absolute pixels)
         obj2 = image_ann.objects[1]
         assert obj2.class_name == "dog"
         assert obj2.bbox is None
         assert obj2.segmentation is not None
         assert len(obj2.segmentation.points) == 3
+        # Points stored as absolute pixels
+        assert obj2.segmentation.points[0] == (50, 60)
+        assert obj2.segmentation.points[1] == (70, 80)
+        assert obj2.segmentation.points[2] == (80, 90)
 
     def test_read_no_json_files(self, temp_dir):
         """Test reading from directory with no JSON files."""
@@ -140,7 +144,6 @@ class TestLabelMeAnnotationHandler:
 
     def test_read_missing_required_field(self, temp_dir, sample_labelme_data):
         """Test reading JSON with missing required field."""
-        # Remove required field
         del sample_labelme_data["imagePath"]
 
         json_file = temp_dir / "test.json"
@@ -154,18 +157,15 @@ class TestLabelMeAnnotationHandler:
 
     def test_read_non_strict_mode(self, temp_dir, sample_labelme_data):
         """Test reading with strict_mode=False skips invalid files."""
-        # Create one valid file
         valid_file = temp_dir / "valid.json"
         with open(valid_file, "w", encoding="utf-8") as f:
             json.dump(sample_labelme_data, f)
 
-        # Create one invalid file
         invalid_file = temp_dir / "invalid.json"
         invalid_file.write_text("{invalid json}")
 
         handler = LabelMeAnnotationHandler(label_dir=str(temp_dir), strict_mode=False)
         result = handler.read()
-        # Should succeed with warning about invalid file
         assert result.success is True
         assert len(result.data.images) == 1
 
@@ -178,7 +178,6 @@ class TestLabelMeAnnotationHandler:
             "shape_type": "rectangle",
         }
 
-        # Mock categories
         handler.categories = {0: "car"}
 
         result = handler._parse_shape(shape, img_width=100, img_height=100)
@@ -188,11 +187,11 @@ class TestLabelMeAnnotationHandler:
         assert obj.bbox is not None
         assert obj.segmentation is None
 
-        # Check normalized coordinates
-        assert obj.bbox.x == pytest.approx(0.2)  # (10+30)/2 / 100
-        assert obj.bbox.y == pytest.approx(0.3)  # (20+40)/2 / 100
-        assert obj.bbox.width == pytest.approx(0.2)  # (30-10)/100
-        assert obj.bbox.height == pytest.approx(0.2)  # (40-20)/100
+        # Check absolute pixel coordinates (LabelMe native format)
+        assert obj.bbox.x == 10  # min(10, 30)
+        assert obj.bbox.y == 20  # min(20, 40)
+        assert obj.bbox.width == 20  # |30-10|
+        assert obj.bbox.height == 20  # |40-20|
 
     def test_parse_shape_polygon(self):
         """Test parsing polygon shape."""
@@ -213,11 +212,11 @@ class TestLabelMeAnnotationHandler:
         assert obj.segmentation is not None
         assert len(obj.segmentation.points) == 3
 
-        # Check normalized coordinates
+        # Check absolute pixel coordinates (LabelMe native format)
         points = obj.segmentation.points
-        assert points[0] == (0.1, 0.2)
-        assert points[1] == (0.3, 0.4)
-        assert points[2] == (0.5, 0.6)
+        assert points[0] == (10, 20)
+        assert points[1] == (30, 40)
+        assert points[2] == (50, 60)
 
     def test_parse_shape_invalid_type(self):
         """Test parsing unsupported shape type."""
@@ -225,7 +224,7 @@ class TestLabelMeAnnotationHandler:
         shape = {
             "label": "test",
             "points": [[10, 20]],
-            "shape_type": "circle",  # Unsupported
+            "shape_type": "circle",
         }
 
         result = handler._parse_shape(shape, img_width=100, img_height=100)
@@ -243,7 +242,6 @@ class TestLabelMeAnnotationHandler:
 
     def test_write_success(self, temp_dir, sample_labelme_data):
         """Test successful writing of LabelMe annotations."""
-        # First read sample data
         json_file = temp_dir / "test.json"
         with open(json_file, "w", encoding="utf-8") as f:
             json.dump(sample_labelme_data, f)
@@ -252,17 +250,14 @@ class TestLabelMeAnnotationHandler:
         read_result = handler.read()
         assert read_result.success is True
 
-        # Write to output directory
         output_dir = temp_dir / "output"
         write_result = handler.write(read_result.data, str(output_dir))
         assert write_result.success is True
         assert write_result.data["written_count"] == 1
 
-        # Check output file exists
         output_file = output_dir / "test.json"
         assert output_file.exists()
 
-        # Verify output JSON structure
         with open(output_file, "r", encoding="utf-8") as f:
             output_data = json.load(f)
 
@@ -283,11 +278,6 @@ class TestLabelMeAnnotationHandler:
 
     def test_write_with_bbox_and_segmentation(self, temp_dir):
         """Test writing annotations with both bbox and segmentation."""
-        from dataflow.label.models import (BoundingBox, DatasetAnnotations,
-                                           ImageAnnotation, ObjectAnnotation,
-                                           Segmentation)
-
-        # Create dataset with mixed annotations
         dataset = DatasetAnnotations()
         dataset.add_category(0, "cat")
         dataset.add_category(1, "dog")
@@ -301,13 +291,13 @@ class TestLabelMeAnnotationHandler:
                 ObjectAnnotation(
                     class_id=0,
                     class_name="cat",
-                    bbox=BoundingBox(x=0.5, y=0.5, width=0.2, height=0.2),
+                    bbox=BoundingBox(x=50, y=25, width=20, height=20),
                 ),
                 ObjectAnnotation(
                     class_id=1,
                     class_name="dog",
                     segmentation=Segmentation(
-                        points=[(0.1, 0.1), (0.2, 0.1), (0.2, 0.2)]
+                        points=[(10, 10), (20, 10), (20, 20)]
                     ),
                 ),
             ],
@@ -319,7 +309,6 @@ class TestLabelMeAnnotationHandler:
         result = handler.write(dataset, str(output_dir))
         assert result.success is True
 
-        # Check output file
         output_file = output_dir / "mixed.json"
         assert output_file.exists()
 
@@ -359,35 +348,40 @@ class TestLabelMeAnnotationHandler:
         assert handler.validate(str(json_file)) is False
 
     def test_object_to_shape_bbox(self):
-        """Test converting object with bbox to LabelMe shape."""
+        """Test converting object with bbox to LabelMe shape.
+
+        Bbox is now stored in absolute pixel coordinates (LabelMe native),
+        so no img_width/img_height needed.
+        """
         handler = LabelMeAnnotationHandler(label_dir=".")
+        # Bbox in absolute pixels: x=40, y=40, w=20, h=20
         obj = ObjectAnnotation(
             class_id=0,
             class_name="car",
-            bbox=BoundingBox(x=0.5, y=0.5, width=0.2, height=0.2),
+            bbox=BoundingBox(x=40, y=40, width=20, height=20),
         )
 
-        shape = handler._object_to_shape(obj, img_width=100, img_height=100)
+        shape = handler._object_to_shape(obj)
         assert shape is not None
         assert shape["label"] == "car"
         assert shape["shape_type"] == "rectangle"
         assert len(shape["points"]) == 2
-        # Points should be absolute coordinates
         assert shape["points"][0] == [40, 40]  # x1, y1
         assert shape["points"][1] == [60, 60]  # x2, y2
 
     def test_object_to_shape_segmentation(self):
-        """Test converting object with segmentation to LabelMe shape."""
-        from dataflow.label.models import Segmentation
+        """Test converting object with segmentation to LabelMe shape.
 
+        Points are already in absolute pixels (LabelMe native).
+        """
         handler = LabelMeAnnotationHandler(label_dir=".")
         obj = ObjectAnnotation(
             class_id=0,
             class_name="person",
-            segmentation=Segmentation(points=[(0.1, 0.2), (0.3, 0.4), (0.5, 0.6)]),
+            segmentation=Segmentation(points=[(10, 20), (30, 40), (50, 60)]),
         )
 
-        shape = handler._object_to_shape(obj, img_width=100, img_height=100)
+        shape = handler._object_to_shape(obj)
         assert shape is not None
         assert shape["label"] == "person"
         assert shape["shape_type"] == "polygon"
@@ -399,15 +393,12 @@ class TestLabelMeAnnotationHandler:
     def test_object_to_shape_no_annotation(self):
         """Test converting object with neither bbox nor segmentation."""
         handler = LabelMeAnnotationHandler(label_dir=".")
-        # Create a valid object with bbox, then remove it to test edge case
         obj = ObjectAnnotation(
             class_id=0,
             class_name="ghost",
-            bbox=BoundingBox(x=0.5, y=0.5, width=0.2, height=0.2),
         )
-        # Remove bbox to simulate object with no annotations
         obj.bbox = None
         obj.segmentation = None
 
-        shape = handler._object_to_shape(obj, img_width=100, img_height=100)
+        shape = handler._object_to_shape(obj)
         assert shape is None

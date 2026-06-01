@@ -10,7 +10,6 @@ import pytest
 
 from dataflow.visualize import LabelMeVisualizer
 
-# Test data paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 TEST_DATA_DET = PROJECT_ROOT / "assets" / "test_data" / "det" / "labelme"
 TEST_DATA_SEG = PROJECT_ROOT / "assets" / "test_data" / "seg" / "labelme"
@@ -21,13 +20,11 @@ class TestLabelMeVisualizer:
 
     @pytest.fixture
     def temp_dir(self):
-        """Create temporary directory for test output."""
         temp_dir = tempfile.mkdtemp(prefix="test_labelme_visualizer_")
         yield Path(temp_dir)
         shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_initialization(self):
-        """Test visualizer initialization."""
         visualizer = LabelMeVisualizer(
             label_dir=TEST_DATA_DET,
             image_dir=TEST_DATA_DET,
@@ -36,7 +33,6 @@ class TestLabelMeVisualizer:
             is_save=False,
             strict_mode=True,
         )
-
         assert visualizer.label_dir == TEST_DATA_DET
         assert visualizer.image_dir == TEST_DATA_DET
         assert visualizer.class_file == TEST_DATA_DET / "classes.txt"
@@ -46,7 +42,6 @@ class TestLabelMeVisualizer:
         assert visualizer.handler is not None
 
     def test_load_annotations_detection(self):
-        """Test loading detection annotations."""
         visualizer = LabelMeVisualizer(
             label_dir=TEST_DATA_DET,
             image_dir=TEST_DATA_DET,
@@ -55,21 +50,20 @@ class TestLabelMeVisualizer:
             is_save=False,
         )
 
-        annotations = visualizer.load_annotations()
-        assert annotations is not None
-        assert len(annotations.images) > 0
-        assert annotations.num_images > 0
-        assert annotations.num_objects > 0
+        render_data_map = visualizer.load_annotations()
+        assert render_data_map is not None
+        assert isinstance(render_data_map, dict)
+        assert len(render_data_map) > 0
 
-        # Check that objects have bounding boxes
-        for image_ann in annotations.images:
-            for obj in image_ann.objects:
-                assert obj.bbox is not None
-                assert obj.class_id >= 0
-                assert obj.class_name != ""
+        for image_path, render_data in render_data_map.items():
+            assert render_data.image_width > 0
+            assert render_data.image_height > 0
+            for render_ann in render_data.annotations:
+                assert render_ann.bbox is not None or render_ann.polygon is not None
+                assert render_ann.class_id >= 0
+                assert render_ann.class_name != ""
 
     def test_load_annotations_segmentation(self):
-        """Test loading segmentation annotations."""
         if not TEST_DATA_SEG.exists():
             pytest.skip(f"Segmentation test data not found: {TEST_DATA_SEG}")
 
@@ -81,21 +75,19 @@ class TestLabelMeVisualizer:
             is_save=False,
         )
 
-        annotations = visualizer.load_annotations()
-        assert annotations is not None
-        assert len(annotations.images) > 0
+        render_data_map = visualizer.load_annotations()
+        assert render_data_map is not None
+        assert len(render_data_map) > 0
 
-        # Check that objects have segmentation polygons
         has_segmentation = False
-        for image_ann in annotations.images:
-            for obj in image_ann.objects:
-                if obj.segmentation is not None:
+        for render_data in render_data_map.values():
+            for render_ann in render_data.annotations:
+                if render_ann.polygon is not None:
                     has_segmentation = True
-                    assert len(obj.segmentation.points) > 0
+                    assert len(render_ann.polygon) > 0
         assert has_segmentation, "No segmentation annotations found"
 
     def test_visualize_detection(self, temp_dir):
-        """Test visualization of detection data (no display, no save)."""
         visualizer = LabelMeVisualizer(
             label_dir=TEST_DATA_DET,
             image_dir=TEST_DATA_DET,
@@ -107,13 +99,11 @@ class TestLabelMeVisualizer:
 
         result = visualizer.visualize()
         assert result.success is True
-        assert (
-            result.data["processed_count"] == visualizer.load_annotations().num_images
-        )
+        render_data_map = visualizer.load_annotations()
+        assert result.data["processed_count"] == len(render_data_map)
         assert "Visualization completed:" in result.message
 
     def test_visualize_with_save(self, temp_dir):
-        """Test visualization with save mode."""
         visualizer = LabelMeVisualizer(
             label_dir=TEST_DATA_DET,
             image_dir=TEST_DATA_DET,
@@ -127,12 +117,11 @@ class TestLabelMeVisualizer:
         result = visualizer.visualize()
         assert result.success is True
 
-        # Check that output files were created
+        render_data_map = visualizer.load_annotations()
         output_files = list(temp_dir.glob("*_visualized.jpg"))
-        assert len(output_files) == visualizer.load_annotations().num_images
+        assert len(output_files) == len(render_data_map)
 
     def test_visualize_with_invalid_paths(self):
-        """Test visualization with invalid paths."""
         with pytest.raises(ValueError):
             visualizer = LabelMeVisualizer(
                 label_dir="/invalid/path",
@@ -144,24 +133,20 @@ class TestLabelMeVisualizer:
             visualizer.load_annotations()
 
     def test_visualize_without_class_file(self):
-        """Test visualization without class file."""
         visualizer = LabelMeVisualizer(
             label_dir=TEST_DATA_DET,
             image_dir=TEST_DATA_DET,
-            class_file=None,  # No class file
+            class_file=None,
             is_show=False,
             is_save=False,
-            strict_mode=False,  # Non-strict to avoid errors
+            strict_mode=False,
         )
 
-        # Should still work (categories extracted from annotations)
-        annotations = visualizer.load_annotations()
-        assert annotations is not None
-        assert len(annotations.categories) > 0
+        render_data_map = visualizer.load_annotations()
+        assert render_data_map is not None
+        assert len(render_data_map) > 0
 
     def test_verbose_parameter(self):
-        """Test verbose parameter functionality."""
-        # Test verbose=False (default)
         visualizer_no_verbose = LabelMeVisualizer(
             label_dir=TEST_DATA_DET,
             image_dir=TEST_DATA_DET,
@@ -173,7 +158,6 @@ class TestLabelMeVisualizer:
         assert visualizer_no_verbose.verbose is False
         assert visualizer_no_verbose.progress_logger is None
 
-        # Test verbose=True
         visualizer_verbose = LabelMeVisualizer(
             label_dir=TEST_DATA_DET,
             image_dir=TEST_DATA_DET,
@@ -183,11 +167,9 @@ class TestLabelMeVisualizer:
             verbose=True,
         )
         assert visualizer_verbose.verbose is True
-        assert hasattr(visualizer_verbose, "progress_logger")
         assert visualizer_verbose.progress_logger is not None
 
     def test_visualize_with_verbose(self, temp_dir):
-        """Test visualization with verbose mode."""
         visualizer = LabelMeVisualizer(
             label_dir=TEST_DATA_DET,
             image_dir=TEST_DATA_DET,
@@ -201,6 +183,6 @@ class TestLabelMeVisualizer:
         result = visualizer.visualize()
         assert result.success is True
 
-        # Check that output files were created
+        render_data_map = visualizer.load_annotations()
         output_files = list(temp_dir.glob("*_visualized.jpg"))
-        assert len(output_files) == visualizer.load_annotations().num_images
+        assert len(output_files) == len(render_data_map)

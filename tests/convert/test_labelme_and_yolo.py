@@ -13,8 +13,9 @@ import pytest
 from dataflow.convert.base import ConversionResult
 from dataflow.convert.labelme_and_yolo import LabelMeAndYoloConverter
 from dataflow.label.base import AnnotationResult
-from dataflow.label.models import (BoundingBox, DatasetAnnotations,
-                                   ImageAnnotation, ObjectAnnotation)
+from dataflow.label.models import (AnnotationFormat, BoundingBox,
+                                   DatasetAnnotations, ImageAnnotation,
+                                   ObjectAnnotation)
 
 
 class TestLabelMeAndYoloConverter:
@@ -215,25 +216,64 @@ class TestLabelMeAndYoloConverter:
             assert handler == mock_handler
 
     def test_convert_annotations_default(self):
-        """Test default convert_annotations implementation."""
+        """Test convert_annotations with LabelMe→YOLO conversion."""
         converter = LabelMeAndYoloConverter(source_to_target=True)
 
-        # Create dummy annotations
+        # Create dummy annotations in LabelMe format (absolute pixels)
         annotations = DatasetAnnotations(
+            format=AnnotationFormat.LABELME,
             images=[
                 ImageAnnotation(
                     image_id="test1",
                     image_path="/path/to/image.jpg",
-                    width=100,
+                    width=200,
                     height=100,
-                    objects=[],
+                    objects=[
+                        ObjectAnnotation(
+                            class_id=0,
+                            class_name="cat",
+                            bbox=BoundingBox(x=40, y=30, width=20, height=20),
+                        )
+                    ],
                 )
             ],
             categories={0: "cat", 1: "dog"},
         )
 
+        # LabelMe→YOLO: convert absolute pixels to normalized
         result = converter.convert_annotations(annotations, {})
-        assert result == annotations  # Should return as-is
+        assert result.format == AnnotationFormat.YOLO
+        assert len(result.images) == 1
+        obj = result.images[0].objects[0]
+        assert obj.bbox.x == pytest.approx(0.25)  # (40+10)/200
+        assert obj.bbox.y == pytest.approx(0.4)  # (30+10)/100
+
+        # YOLO→LabelMe: convert normalized to absolute pixels
+        converter_reverse = LabelMeAndYoloConverter(source_to_target=False)
+        yolo_anns = DatasetAnnotations(
+            format=AnnotationFormat.YOLO,
+            images=[
+                ImageAnnotation(
+                    image_id="test1",
+                    image_path="/path/to/image.jpg",
+                    width=200,
+                    height=100,
+                    objects=[
+                        ObjectAnnotation(
+                            class_id=0,
+                            class_name="cat",
+                            bbox=BoundingBox(x=0.25, y=0.4, width=0.1, height=0.2),
+                        )
+                    ],
+                )
+            ],
+            categories={0: "cat"},
+        )
+        result_rev = converter_reverse.convert_annotations(yolo_anns, {})
+        assert result_rev.format == AnnotationFormat.LABELME
+        obj_rev = result_rev.images[0].objects[0]
+        assert obj_rev.bbox.x == 40
+        assert obj_rev.bbox.y == 30
 
     @patch("dataflow.convert.labelme_and_yolo.LabelMeAnnotationHandler")
     @patch("dataflow.convert.labelme_and_yolo.YoloAnnotationHandler")
@@ -288,9 +328,11 @@ class TestLabelMeAndYoloConverter:
 
         # Verify handlers were called
         mock_source_handler.read.assert_called_once()
-        mock_target_handler.write.assert_called_once_with(
-            mock_annotations, mock_target_handler.label_dir
-        )
+        # convert_annotations creates a new DatasetAnnotations object,
+        # so we check that write was called once with any args
+        assert mock_target_handler.write.call_count == 1
+        args, _ = mock_target_handler.write.call_args
+        assert args[1] == mock_target_handler.label_dir
 
     @patch("dataflow.convert.labelme_and_yolo.YoloAnnotationHandler")
     @patch("dataflow.convert.labelme_and_yolo.LabelMeAnnotationHandler")

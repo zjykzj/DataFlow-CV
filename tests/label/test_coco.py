@@ -196,11 +196,11 @@ class TestCocoAnnotationHandler:
         assert obj1.segmentation is not None
         assert len(obj1.segmentation.points) == 4  # Polygon with 4 points
 
-        # Check normalized coordinates
-        assert 0 <= obj1.bbox.x <= 1
-        assert 0 <= obj1.bbox.y <= 1
-        assert 0 <= obj1.bbox.width <= 1
-        assert 0 <= obj1.bbox.height <= 1
+        # Check absolute pixel coordinates (COCO native format)
+        assert obj1.bbox.x == 100  # x_tl
+        assert obj1.bbox.y == 100  # y_tl
+        assert obj1.bbox.width == 100  # w_abs
+        assert obj1.bbox.height == 100  # h_abs
 
     def test_read_success_rle(self, sample_coco_rle_data):
         """Test reading COCO RLE format (requires pycocotools)."""
@@ -575,25 +575,26 @@ class TestCocoAnnotationHandler:
         """Test polygon segmentation parsing."""
         handler = CocoAnnotationHandler(annotation_file="/dummy.json", strict_mode=True)
 
-        # Valid polygon
+        # Valid polygon (absolute pixel coordinates)
         seg_data = [[100, 100, 200, 100, 200, 200, 100, 200]]
-        points = handler._parse_polygon_segmentation(seg_data, 640, 480)
+        points = handler._parse_polygon_segmentation(seg_data)
         assert len(points) == 4
-        for x, y in points:
-            assert 0 <= x <= 1
-            assert 0 <= y <= 1
+        assert points[0] == (100, 100)
+        assert points[1] == (200, 100)
+        assert points[2] == (200, 200)
+        assert points[3] == (100, 200)
 
         # Multiple polygons
         seg_data_multi = [
             [100, 100, 200, 100, 200, 200],
             [300, 300, 350, 300, 350, 350],
         ]
-        points_multi = handler._parse_polygon_segmentation(seg_data_multi, 640, 480)
+        points_multi = handler._parse_polygon_segmentation(seg_data_multi)
         assert len(points_multi) == 6
 
         # Odd number of coordinates (should be skipped with warning)
         seg_data_odd = [[100, 100, 200, 100, 200]]
-        points_odd = handler._parse_polygon_segmentation(seg_data_odd, 640, 480)
+        points_odd = handler._parse_polygon_segmentation(seg_data_odd)
         assert len(points_odd) == 0
 
     def test_output_rle_flag(self, sample_coco_data, temp_dir):

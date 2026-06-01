@@ -13,8 +13,9 @@ import pytest
 from dataflow.convert.base import ConversionResult
 from dataflow.convert.yolo_and_coco import YoloAndCocoConverter
 from dataflow.label.base import AnnotationResult
-from dataflow.label.models import (BoundingBox, DatasetAnnotations,
-                                   ImageAnnotation, ObjectAnnotation)
+from dataflow.label.models import (AnnotationFormat, BoundingBox,
+                                   DatasetAnnotations, ImageAnnotation,
+                                   ObjectAnnotation)
 
 
 class TestYoloAndCocoConverter:
@@ -220,25 +221,68 @@ class TestYoloAndCocoConverter:
             assert mock_mkdir.call_count >= 3  # base, labels, images directories
 
     def test_convert_annotations_default(self):
-        """Test default convert_annotations implementation."""
+        """Test convert_annotations returns correctly transformed data."""
         converter = YoloAndCocoConverter(source_to_target=True)
 
-        # Create dummy annotations
+        # Create dummy annotations in YOLO format
         annotations = DatasetAnnotations(
+            format=AnnotationFormat.YOLO,
             images=[
                 ImageAnnotation(
                     image_id="test1",
                     image_path="/path/to/image.jpg",
-                    width=100,
+                    width=200,
                     height=100,
-                    objects=[],
+                    objects=[
+                        ObjectAnnotation(
+                            class_id=0,
+                            class_name="cat",
+                            bbox=BoundingBox(x=0.5, y=0.5, width=0.2, height=0.2),
+                        )
+                    ],
                 )
             ],
             categories={0: "cat", 1: "dog"},
         )
 
+        # YOLO→COCO: convert normalized to absolute pixels
         result = converter.convert_annotations(annotations, {})
-        assert result == annotations  # Should return as-is
+        assert result.format == AnnotationFormat.COCO
+        assert len(result.images) == 1
+        assert len(result.images[0].objects) == 1
+        obj = result.images[0].objects[0]
+        # Check converted bbox: cx=100, cy=50, w=40, h=20 → x_tl=80, y_tl=40
+        assert obj.bbox.x == 80
+        assert obj.bbox.y == 40
+        assert obj.bbox.width == 40
+        assert obj.bbox.height == 20
+
+        # COCO→YOLO: convert absolute pixels to normalized
+        converter_reverse = YoloAndCocoConverter(source_to_target=False)
+        coco_anns = DatasetAnnotations(
+            format=AnnotationFormat.COCO,
+            images=[
+                ImageAnnotation(
+                    image_id="test1",
+                    image_path="/path/to/image.jpg",
+                    width=200,
+                    height=100,
+                    objects=[
+                        ObjectAnnotation(
+                            class_id=0,
+                            class_name="cat",
+                            bbox=BoundingBox(x=80, y=40, width=40, height=20),
+                        )
+                    ],
+                )
+            ],
+            categories={0: "cat"},
+        )
+        result_rev = converter_reverse.convert_annotations(coco_anns, {})
+        assert result_rev.format == AnnotationFormat.YOLO
+        obj_rev = result_rev.images[0].objects[0]
+        assert obj_rev.bbox.x == pytest.approx(0.5)
+        assert obj_rev.bbox.y == pytest.approx(0.5)
 
     @patch("dataflow.convert.yolo_and_coco.YoloAnnotationHandler")
     @patch("dataflow.convert.yolo_and_coco.CocoAnnotationHandler")
@@ -296,9 +340,11 @@ class TestYoloAndCocoConverter:
 
         # Verify handlers were called
         mock_source_handler.read.assert_called_once()
-        mock_target_handler.write.assert_called_once_with(
-            mock_annotations, str(target_path)
-        )
+        # convert_annotations creates a new DatasetAnnotations object,
+        # so we check that write was called once with any args
+        assert mock_target_handler.write.call_count == 1
+        args, _ = mock_target_handler.write.call_args
+        assert args[1] == str(target_path)  # target path
 
     @patch("dataflow.convert.yolo_and_coco.CocoAnnotationHandler")
     @patch("dataflow.convert.yolo_and_coco.YoloAnnotationHandler")
@@ -348,9 +394,11 @@ class TestYoloAndCocoConverter:
 
         # Verify handlers were called
         mock_source_handler.read.assert_called_once()
-        mock_target_handler.write.assert_called_once_with(
-            mock_annotations, mock_target_handler.label_dir
-        )
+        # convert_annotations creates a new DatasetAnnotations object,
+        # so we check that write was called once with any args
+        assert mock_target_handler.write.call_count == 1
+        args, _ = mock_target_handler.write.call_args
+        assert args[1] == mock_target_handler.label_dir
 
     def test_converter_verbose_param(self):
         """Test converter verbose parameter."""

@@ -13,8 +13,9 @@ import pytest
 from dataflow.convert.base import ConversionResult
 from dataflow.convert.coco_and_labelme import CocoAndLabelMeConverter
 from dataflow.label.base import AnnotationResult
-from dataflow.label.models import (BoundingBox, DatasetAnnotations,
-                                   ImageAnnotation, ObjectAnnotation)
+from dataflow.label.models import (AnnotationFormat, BoundingBox,
+                                   DatasetAnnotations, ImageAnnotation,
+                                   ObjectAnnotation)
 
 
 class TestCocoAndLabelMeConverter:
@@ -181,25 +182,42 @@ class TestCocoAndLabelMeConverter:
             mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
 
     def test_convert_annotations_default(self):
-        """Test default convert_annotations implementation."""
+        """Test convert_annotations for COCO→LabelMe."""
         converter = CocoAndLabelMeConverter(source_to_target=True)
 
-        # Create dummy annotations
+        # Create dummy annotations in COCO format (absolute pixels)
         annotations = DatasetAnnotations(
+            format=AnnotationFormat.COCO,
             images=[
                 ImageAnnotation(
                     image_id="test1",
                     image_path="/path/to/image.jpg",
-                    width=100,
+                    width=200,
                     height=100,
-                    objects=[],
+                    objects=[
+                        ObjectAnnotation(
+                            class_id=0,
+                            class_name="cat",
+                            bbox=BoundingBox(x=40, y=30, width=20, height=20),
+                        )
+                    ],
                 )
             ],
             categories={0: "cat", 1: "dog"},
         )
 
+        # COCO→LabelMe: same coordinate semantics (absolute pixels)
         result = converter.convert_annotations(annotations, {})
-        assert result == annotations  # Should return as-is
+        assert result.format == AnnotationFormat.LABELME
+        assert len(result.images) == 1
+        obj = result.images[0].objects[0]
+        assert obj.bbox.x == 40
+        assert obj.bbox.y == 30
+
+        # LabelMe→COCO: also same semantics
+        converter_reverse = CocoAndLabelMeConverter(source_to_target=False)
+        result_rev = converter_reverse.convert_annotations(annotations, {})
+        assert result_rev.format == AnnotationFormat.COCO
 
     @patch("dataflow.convert.coco_and_labelme.CocoAnnotationHandler")
     @patch("dataflow.convert.coco_and_labelme.LabelMeAnnotationHandler")
@@ -247,9 +265,11 @@ class TestCocoAndLabelMeConverter:
 
         # Verify handlers were called
         mock_source_handler.read.assert_called_once()
-        mock_target_handler.write.assert_called_once_with(
-            mock_annotations, str(target_path)
-        )
+        # convert_annotations creates a new DatasetAnnotations object,
+        # so we check that write was called once with any args
+        assert mock_target_handler.write.call_count == 1
+        args, _ = mock_target_handler.write.call_args
+        assert args[1] == str(target_path)
 
     @patch("dataflow.convert.coco_and_labelme.LabelMeAnnotationHandler")
     @patch("dataflow.convert.coco_and_labelme.CocoAnnotationHandler")
@@ -300,9 +320,11 @@ class TestCocoAndLabelMeConverter:
 
         # Verify handlers were called
         mock_source_handler.read.assert_called_once()
-        mock_target_handler.write.assert_called_once_with(
-            mock_annotations, str(target_path)
-        )
+        # convert_annotations creates a new DatasetAnnotations object,
+        # so we check that write was called once with any args
+        assert mock_target_handler.write.call_count == 1
+        args, _ = mock_target_handler.write.call_args
+        assert args[1] == str(target_path)
 
     def test_converter_verbose_param(self):
         """Test converter verbose parameter."""

@@ -235,12 +235,12 @@ def resolve_image_paths(
             width=image_ann.width,
             height=image_ann.height,
             objects=image_ann.objects,
-            original_data=image_ann.original_data,
         )
         updated_images.append(updated_ann)
 
     return DatasetAnnotations(
         images=updated_images,
         categories=annotations.categories,
+        format=annotations.format,
         dataset_info=annotations.dataset_info,
     )
