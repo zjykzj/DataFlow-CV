@@ -393,12 +393,15 @@ class TestLabelMeAnnotationHandler:
     def test_object_to_shape_no_annotation(self):
         """Test converting object with neither bbox nor segmentation."""
         handler = LabelMeAnnotationHandler(label_dir=".")
+        # Create an ObjectAnnotation with bbox then remove it to bypass
+        # __post_init__ validation (which requires at least one)
         obj = ObjectAnnotation(
             class_id=0,
             class_name="ghost",
+            bbox=BoundingBox(x=40, y=40, width=20, height=20),
         )
+        # Remove bbox and segmentation to test edge case
         obj.bbox = None
-        obj.segmentation = None
 
         shape = handler._object_to_shape(obj)
         assert shape is None

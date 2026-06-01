@@ -236,6 +236,8 @@ class TestCocoAndLabelMeConverter:
 
         # Mock read result
         mock_annotations = Mock(spec=DatasetAnnotations)
+        mock_annotations.images = []
+        mock_annotations.categories = {}
         mock_annotations.categories = {}
         mock_read_result = Mock(spec=AnnotationResult)
         mock_read_result.success = True
@@ -288,6 +290,8 @@ class TestCocoAndLabelMeConverter:
 
         # Mock read result
         mock_annotations = Mock(spec=DatasetAnnotations)
+        mock_annotations.images = []
+        mock_annotations.categories = {}
         mock_read_result = Mock(spec=AnnotationResult)
         mock_read_result.success = True
         mock_read_result.data = mock_annotations
