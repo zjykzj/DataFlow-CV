@@ -169,7 +169,7 @@ See the `samples/` directory for complete examples:
 ## Documentation
 
 - **[CLAUDE.md](CLAUDE.md)**: Detailed architecture, development guide, and known gotchas
-- **`CHANGELOG.md`**: Version history and breaking changes
+- **[`CHANGELOG.md`](CHANGELOG.md)**: Version history and breaking changes
 - **[`specs/`](specs/)**: Canonical specifications organized into two layers:
   - **`formats/`** — External format contracts (YOLO, COCO, LabelMe) and conversion rules
   - **`modules/`** — Internal module architecture, interface contracts, and dependency constraints
