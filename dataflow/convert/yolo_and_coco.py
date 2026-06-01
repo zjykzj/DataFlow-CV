@@ -11,7 +11,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..label.base import AnnotationResult
 from ..label.coco_handler import CocoAnnotationHandler
-from ..label.models import DatasetAnnotations
+from ..label.models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
+                            ImageAnnotation, ObjectAnnotation, Segmentation)
 from ..label.yolo_handler import YoloAnnotationHandler
 from . import utils
 from .base import BaseConverter, ConversionResult
@@ -344,18 +345,119 @@ class YoloAndCocoConverter(BaseConverter):
         """
         Convert annotation data between YOLO and COCO formats.
 
-        Args:
-            source_annotations: Annotations read from source format
-            kwargs: Additional conversion parameters
-
-        Returns:
-            Converted DatasetAnnotations ready for writing to target format
+        Performs explicit coordinate transformation:
+        - YOLO→COCO: normalized center → absolute pixel top-left
+        - COCO→YOLO: absolute pixel top-left → normalized center
         """
-        # For YOLO ↔ COCO conversion, the main differences are:
-        # 1. Category management (already handled by handlers)
-        # 2. COCO-specific fields (is_crowd, area, etc.)
-        # 3. Image information handling
+        if self.source_format == "yolo":
+            return self._yolo_to_coco(source_annotations)
+        else:
+            return self._coco_to_yolo(source_annotations)
 
-        # Default implementation: return as-is
-        # Subclasses can override for format-specific conversions
-        return source_annotations
+    def _yolo_to_coco(
+        self, source: DatasetAnnotations
+    ) -> DatasetAnnotations:
+        """Convert YOLO-native (normalized center) to COCO-native (absolute px top-left)."""
+        target = DatasetAnnotations(format=AnnotationFormat.COCO)
+        target.categories = source.categories.copy()
+
+        for img in source.images:
+            new_objects = []
+            for obj in img.objects:
+                new_bbox = None
+                new_seg = None
+
+                if obj.bbox:
+                    # YOLO: cx_norm, cy_norm, w_norm, h_norm
+                    # COCO: x_tl, y_tl, w_abs, h_abs
+                    cx_abs = obj.bbox.x * img.width
+                    cy_abs = obj.bbox.y * img.height
+                    w_abs = obj.bbox.width * img.width
+                    h_abs = obj.bbox.height * img.height
+                    x_tl = cx_abs - w_abs / 2
+                    y_tl = cy_abs - h_abs / 2
+                    new_bbox = BoundingBox(x=x_tl, y=y_tl, width=w_abs, height=h_abs)
+
+                if obj.segmentation:
+                    # YOLO: normalized points → COCO: absolute pixel points
+                    new_points = [
+                        (x * img.width, y * img.height)
+                        for x, y in obj.segmentation.points
+                    ]
+                    new_seg = Segmentation(points=new_points)
+
+                new_obj = ObjectAnnotation(
+                    class_id=obj.class_id,
+                    class_name=obj.class_name,
+                    bbox=new_bbox,
+                    segmentation=new_seg,
+                    confidence=obj.confidence,
+                    is_crowd=obj.is_crowd,
+                )
+                new_objects.append(new_obj)
+
+            new_img = ImageAnnotation(
+                image_id=img.image_id,
+                image_path=img.image_path,
+                width=img.width,
+                height=img.height,
+                objects=new_objects,
+            )
+            target.add_image(new_img)
+
+        return target
+
+    def _coco_to_yolo(
+        self, source: DatasetAnnotations
+    ) -> DatasetAnnotations:
+        """Convert COCO-native (absolute px top-left) to YOLO-native (normalized center)."""
+        target = DatasetAnnotations(format=AnnotationFormat.YOLO)
+        target.categories = source.categories.copy()
+
+        for img in source.images:
+            new_objects = []
+            for obj in img.objects:
+                new_bbox = None
+                new_seg = None
+
+                if obj.bbox:
+                    # COCO: x_tl, y_tl, w_abs, h_abs
+                    # YOLO: cx_norm, cy_norm, w_norm, h_norm
+                    cx_abs = obj.bbox.x + obj.bbox.width / 2
+                    cy_abs = obj.bbox.y + obj.bbox.height / 2
+                    cx_norm = cx_abs / img.width
+                    cy_norm = cy_abs / img.height
+                    w_norm = obj.bbox.width / img.width
+                    h_norm = obj.bbox.height / img.height
+                    new_bbox = BoundingBox(
+                        x=cx_norm, y=cy_norm, width=w_norm, height=h_norm
+                    )
+
+                if obj.segmentation:
+                    # COCO: absolute pixel points → YOLO: normalized points
+                    new_points = [
+                        (x / img.width, y / img.height)
+                        for x, y in obj.segmentation.points
+                    ]
+                    new_seg = Segmentation(points=new_points)
+
+                new_obj = ObjectAnnotation(
+                    class_id=obj.class_id,
+                    class_name=obj.class_name,
+                    bbox=new_bbox,
+                    segmentation=new_seg,
+                    confidence=obj.confidence,
+                    is_crowd=obj.is_crowd,
+                )
+                new_objects.append(new_obj)
+
+            new_img = ImageAnnotation(
+                image_id=img.image_id,
+                image_path=img.image_path,
+                width=img.width,
+                height=img.height,
+                objects=new_objects,
+            )
+            target.add_image(new_img)
+
+        return target

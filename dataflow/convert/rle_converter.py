@@ -48,7 +48,7 @@ class RLEConverter:
         Convert polygon points to RLE format.
 
         Args:
-            points: List of normalized (x, y) polygon points in range [0, 1]
+            points: List of absolute pixel (x, y) polygon points
             img_width: Image width in pixels
             img_height: Image height in pixels
             require_coco_mask: If True, raise ImportError when pycocotools not available.
@@ -76,8 +76,8 @@ class RLEConverter:
                 return None
 
         try:
-            # Convert normalized coordinates to absolute coordinates
-            abs_points = [(int(x * img_width), int(y * img_height)) for x, y in points]
+            # Convert absolute pixel coordinates to integer for mask creation
+            abs_points = [(int(x), int(y)) for x, y in points]
 
             # Create binary mask
             import cv2
@@ -90,19 +90,12 @@ class RLEConverter:
             rle = coco_mask.encode(np.asfortranarray(mask))
 
             # Convert RLE to JSON-serializable format
-            # coco_mask.encode returns dict with 'size' and 'counts'
-            # 'counts' is bytes, need to convert to string for JSON serialization
             if isinstance(rle, dict):
-                # Make a copy to avoid modifying original
                 rle_dict = dict(rle)
                 if "counts" in rle_dict and isinstance(rle_dict["counts"], bytes):
-                    # Convert bytes to string (UTF-8 encoding should work for RLE)
-                    # Use latin1 encoding for lossless bytes-to-string conversion
-                    # (UTF-8 cannot represent all possible RLE byte values)
                     rle_dict["counts"] = rle_dict["counts"].decode("latin1")
                 return rle_dict
             else:
-                # If not a dict, return as-is (shouldn't happen with pycocotools)
                 self.logger.warning(f"Unexpected RLE type: {type(rle)}")
                 return rle
 
@@ -127,7 +120,7 @@ class RLEConverter:
                                If False, return None when pycocotools not available.
 
         Returns:
-            List of normalized (x, y) polygon points in range [0, 1], or None if failed.
+            List of absolute pixel (x, y) polygon points, or None if failed.
 
         Raises:
             ImportError: If pycocotools not available and require_coco_mask=True
@@ -147,7 +140,6 @@ class RLEConverter:
                 return None
 
         try:
-            # Make a copy of RLE dict to avoid modifying original
             rle_dict = dict(rle)
 
             # Ensure 'counts' is bytes for coco_mask.decode
@@ -171,13 +163,11 @@ class RLEConverter:
             # Use the largest contour
             largest_contour = max(contours, key=cv2.contourArea)
 
-            # Convert contour points to normalized coordinates
+            # Return contour points as absolute pixel coordinates
             points = []
             for point in largest_contour:
                 x, y = point[0]
-                x_norm = x / img_width
-                y_norm = y / img_height
-                points.append((x_norm, y_norm))
+                points.append((float(x), float(y)))
 
             return points
 

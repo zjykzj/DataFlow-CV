@@ -12,7 +12,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..label.base import AnnotationResult
 from ..label.coco_handler import CocoAnnotationHandler
 from ..label.labelme_handler import LabelMeAnnotationHandler
-from ..label.models import DatasetAnnotations
+from ..label.models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
+                            ImageAnnotation, ObjectAnnotation, Segmentation)
 from . import utils
 from .base import BaseConverter, ConversionResult
 from .rle_converter import RLEConverter
@@ -296,18 +297,61 @@ class CocoAndLabelMeConverter(BaseConverter):
         """
         Convert annotation data between COCO and LabelMe formats.
 
-        Args:
-            source_annotations: Annotations read from source format
-            kwargs: Additional conversion parameters
+        Both formats use absolute pixel coordinates with identical semantics
+        for bbox (top-left origin) and polygon points. No coordinate
+        transformation needed — only the format field changes.
 
-        Returns:
-            Converted DatasetAnnotations ready for writing to target format
+        Note: RLE segmentation data (COCO-specific) is preserved as-is but
+        will be skipped by LabelMe reader if encountered.
         """
-        # For COCO ↔ LabelMe conversion, the main differences are:
-        # 1. Category management (already handled by handlers)
-        # 2. COCO-specific fields (is_crowd, area, etc.)
-        # 3. Dataset-level information
+        # Determine target format
+        if self.target_format == "labelme":
+            target_format = AnnotationFormat.LABELME
+        else:
+            target_format = AnnotationFormat.COCO
 
-        # Default implementation: return as-is
-        # Subclasses can override for format-specific conversions
-        return source_annotations
+        # COCO and LabelMe share the same coordinate semantics (absolute pixels),
+        # so annotation data can be passed through directly
+        target = DatasetAnnotations(format=target_format)
+        target.categories = source_annotations.categories.copy()
+
+        for img in source_annotations.images:
+            new_objects = []
+            for obj in img.objects:
+                new_bbox = None
+                new_seg = None
+
+                if obj.bbox:
+                    # Same semantics: (x, y, w, h) = top-left, absolute pixels
+                    new_bbox = BoundingBox(
+                        x=obj.bbox.x, y=obj.bbox.y,
+                        width=obj.bbox.width, height=obj.bbox.height,
+                    )
+
+                if obj.segmentation:
+                    # Same semantics: absolute pixel points
+                    new_seg = Segmentation(
+                        points=obj.segmentation.points.copy(),
+                        rle=obj.segmentation.rle,
+                    )
+
+                new_obj = ObjectAnnotation(
+                    class_id=obj.class_id,
+                    class_name=obj.class_name,
+                    bbox=new_bbox,
+                    segmentation=new_seg,
+                    confidence=obj.confidence,
+                    is_crowd=obj.is_crowd,
+                )
+                new_objects.append(new_obj)
+
+            new_img = ImageAnnotation(
+                image_id=img.image_id,
+                image_path=img.image_path,
+                width=img.width,
+                height=img.height,
+                objects=new_objects,
+            )
+            target.add_image(new_img)
+
+        return target
