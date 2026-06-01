@@ -55,7 +55,7 @@ Specs（什么是对的）→ CLAUDE.md（代码怎么写）→ 代码实现
 
 读 CLAUDE.md 的相关章节，重点关注：
 - **Known Gotchas**（9 条常见陷阱）
-- **Critical Implementation Details**（坐标系统、RLE 编码、OriginalData）
+- **Critical Implementation Details**（坐标系统、RLE 编码、原生坐标存储）
 
 ### 2.2 动手写代码时
 

@@ -17,7 +17,7 @@ The Formats layer defines **what** constitutes valid annotation data in each ext
 | 1 | [`spec_yolo_format.md`](spec_yolo_format.md) | YOLO `.txt` format authority — file structure, detection/segmentation line formats, center-based normalized coordinate system, validation constraints |
 | 2 | [`spec_coco_format.md`](spec_coco_format.md) | COCO `.json` format authority — JSON schema, top-left absolute-pixel bbox, polygon/RLE segmentation, latin1 RLE encoding, crowd annotations |
 | 3 | [`spec_labelme_format.md`](spec_labelme_format.md) | LabelMe `.json` format authority — JSON structure, rectangle/polygon shape types, corner-order agnosticism, optional fields |
-| 4 | [`spec_conversion.md`](spec_conversion.md) | Conversion rules authority — coordinate transform formulas for all 6 directions, category mapping, lossless round-trip priority, precision fidelity matrix |
+| 4 | [`spec_conversion.md`](spec_conversion.md) | Conversion rules authority — coordinate transform formulas for all 6 directions, category mapping, explicit precision documentation, round-trip fidelity matrix |
 
 ## Relationship to Modules Layer
 

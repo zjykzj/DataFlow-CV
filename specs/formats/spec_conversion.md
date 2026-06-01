@@ -1,38 +1,44 @@
 # Annotation Format Conversion Specification
 
-> **Version:** 1.0
-> **Status:** Canonical — this document defines the authoritative conversion rules between YOLO, COCO, and LabelMe formats for DataFlow-CV.
+> **Version:** 2.0
+> **Status:** Draft — updated to reflect native-coordinate architecture
+>
+> **Key change from v1:** The Label module no longer normalizes all coordinates to a unified
+> [0,1] internal model. Each handler stores coordinates in its format's native representation.
+> Coordinate transforms now happen **explicitly in converters**, not implicitly in handlers.
+> This eliminates unnecessary round-trip precision loss and removes the need for `OriginalData`.
 
 ## 1. Conversion Architecture
 
-### 1.1 Universal Pipeline
+### 1.1 Pipeline
 
-All conversions follow the same pipeline:
+All conversions follow this pipeline:
 
 ```
-Source Format → Handler.read() → DatasetAnnotations → Converter.convert_annotations() → Target Handler.write() → Target Format
+Source Format → Handler.read() → DatasetAnnotations (native coords)
+                                      ↓
+                              Converter.convert()
+                              (explicit coordinate transform)
+                                      ↓
+                              DatasetAnnotations (target native coords)
+                                      ↓
+                              Target Handler.write() → Target Format
 ```
 
-### 1.2 Internal Data Model as Canonical Representation
+### 1.2 Coordinate Semantics by Format
 
-The `DatasetAnnotations` data model is the **universal intermediate representation**. All source formats are normalized into this model on read, and all target formats are denormalized from it on write.
+`DatasetAnnotations.format` field defines how to interpret all coordinates:
 
-**Key properties of the internal model**:
-- All coordinates are **normalized [0, 1]**
-- `BoundingBox.(x, y)` is the **center** of the box (YOLO convention)
-- `Segmentation.points` are normalized polygon vertices
-- Categories are stored as `Dict[int, str]` (ID → name)
+| Format | Bounding Box | Segmentation | Type |
+|--------|-------------|-------------|------|
+| YOLO | `(cx, cy, w, h)` normalized [0,1], center-based | `(x, y)` normalized [0,1] | Normalized |
+| COCO | `(x_tl, y_tl, w_abs, h_abs)` absolute pixels | `(x, y)` absolute pixels | Absolute |
+| LabelMe | `(x_tl, y_tl, w_abs, h_abs)` absolute pixels | `(x, y)` absolute pixels | Absolute |
 
-### 1.3 Lossless Round-Trip Priority
+### 1.3 Converter State Management
 
-When writing to a target format, the handler checks for original data in this order:
-
-1. **Original data match** (highest priority): If the object has `OriginalData` matching the target format, use it directly (with updated IDs/labels as needed). This preserves exact coordinate precision and format-specific fields.
-2. **Convert from internal model**: If no original data exists, convert from the normalized internal model to the target format. This may introduce minor floating-point precision changes.
-
-### 1.4 Converter State Management
-
-Converters store `self._source_annotations_for_target` during the conversion pipeline. This state is used by `create_target_handler()` for:
+Converters store `self._source_annotations_for_target` during the conversion pipeline.
+This state is used by `create_target_handler()` for:
 - Generating `classes.txt` from source categories (COCO→YOLO, COCO→LabelMe)
 - Copying image files (LabelMe→YOLO)
 
@@ -51,126 +57,128 @@ Converters store `self._source_annotations_for_target` during the conversion pip
 
 ## 3. Coordinate Transformation Rules
 
-### 3.1 YOLO ↔ COCO
+All coordinate transforms happen in converter code, not in handlers.
 
-#### YOLO → COCO (bbox)
+### 3.1 YOLO ↔ COCO (bbox)
 
-```
-Input (YOLO):  x_center_norm, y_center_norm, width_norm, height_norm  [0..1, center-based]
-Output (COCO): [x_tl, y_tl, w_abs, h_abs]                            [absolute px, top-left]
+#### YOLO → COCO
 
-Step 1: Denormalize to absolute pixels (center-based)
-  cx = x_center_norm * img_width
-  cy = y_center_norm * img_height
-  w  = width_norm * img_width
-  h  = height_norm * img_height
-
-Step 2: Convert center → top-left
-  x_tl = cx - w / 2
-  y_tl = cy - h / 2
-
-Step 3: Output COCO bbox
-  bbox = [x_tl, y_tl, w, h]
-```
-
-**Implementation**: Use `BoundingBox.xyxy(img_w, img_h)` → `(x1, y1, x2, y2)`, then COCO bbox = `[x1, y1, x2-x1, y2-y1]`.
-
-**Do NOT use** `BoundingBox.xywh_abs()` for COCO output — it returns center-based coordinates, causing systematically offset bboxes.
-
-#### COCO → YOLO (bbox)
+YOLO bbox `(cx_norm, cy_norm, w_norm, h_norm)` → COCO bbox `[x_tl, y_tl, w_abs, h_abs]`:
 
 ```
-Input (COCO):  [x_tl, y_tl, w_abs, h_abs]                                  [absolute px, top-left]
-Output (YOLO): x_center_norm, y_center_norm, width_norm, height_norm        [0..1, center-based]
+cx = cx_norm * img_width
+cy = cy_norm * img_height
+w  = w_norm * img_width
+h  = h_norm * img_height
 
-Step 1: Compute center in absolute pixels
-  cx = x_tl + w_abs / 2
-  cy = y_tl + h_abs / 2
+x_tl = cx - w / 2
+y_tl = cy - h / 2
 
-Step 2: Normalize
-  x_center_norm = cx / img_width
-  y_center_norm = cy / img_height
-  width_norm     = w_abs / img_width
-  height_norm    = h_abs / img_height
+COCO bbox = [x_tl, y_tl, w, h]
 ```
 
-#### YOLO ↔ COCO (segmentation/polygon)
+**This conversion is lossy.** See §9 for details.
+
+#### COCO → YOLO
+
+COCO bbox `[x_tl, y_tl, w_abs, h_abs]` → YOLO bbox `(cx_norm, cy_norm, w_norm, h_norm)`:
 
 ```
-YOLO → COCO:   abs_x = x_norm * img_width;  abs_y = y_norm * img_height
-               Output as [[abs_x1, abs_y1, abs_x2, abs_y2, ...], ...]
+cx_abs = x_tl + w_abs / 2
+cy_abs = y_tl + h_abs / 2
 
-COCO → YOLO:   norm_x = x_abs / img_width;  norm_y = y_abs / img_height
-               Output as class_id norm_x1 norm_y1 norm_x2 norm_y2 ...
+cx_norm = cx_abs / img_width
+cy_norm = cy_abs / img_height
+w_norm  = w_abs / img_width
+h_norm  = h_abs / img_height
 ```
 
-### 3.2 YOLO ↔ LabelMe
+**This conversion is lossy.** See §9 for details.
+
+### 3.2 YOLO ↔ COCO (segmentation)
+
+```
+YOLO → COCO:  abs_x = x_norm * img_width;   abs_y = y_norm * img_height
+
+COCO → YOLO:  norm_x = x_abs / img_width;    norm_y = y_abs / img_height
+```
+
+All conversions involving YOLO are lossy (normalized ↔ absolute pixel round-trip).
+
+### 3.3 YOLO ↔ LabelMe (bbox)
 
 #### YOLO → LabelMe (bbox → rectangle)
 
 ```
-Input (YOLO):  x_center_norm, y_center_norm, width_norm, height_norm
-Output (LabelMe): [[x1, y1], [x2, y2]]  (2 corner points, absolute px)
+cx = cx_norm * img_width
+cy = cy_norm * img_height
+w  = w_norm * img_width
+h  = h_norm * img_height
 
-Use BoundingBox.xyxy(img_w, img_h) → (x1, y1, x2, y2)
-points = [[float(x1), float(y1)], [float(x2), float(y2)]]
-shape_type = "rectangle"
+x1 = cx - w / 2
+y1 = cy - h / 2
+x2 = cx + w / 2
+y2 = cy + h / 2
+
+LabelMe rectangle points = [[x1, y1], [x2, y2]]
 ```
+
+**Lossy** (normalized → absolute pixel rounding).
 
 #### LabelMe → YOLO (rectangle → bbox)
 
 ```
-Input (LabelMe): [[x1, y1], [x2, y2]]  (absolute px, 2 corners)
+x_min = min(x1, x2);  x_max = max(x1, x2)
+y_min = min(y1, y2);  y_max = max(y1, y2)
 
-Step 1: Handle corner-order agnosticism
-  x_min = min(x1, x2);  x_max = max(x1, x2)
-  y_min = min(y1, y2);  y_max = max(y1, y2)
-
-Step 2: Compute center
-  x_center = ((x_min + x_max) / 2) / img_width
-  y_center = ((y_min + y_max) / 2) / img_height
-
-Step 3: Compute normalized size
-  width  = (x_max - x_min) / img_width
-  height = (y_max - y_min) / img_height
+cx_norm = ((x_min + x_max) / 2) / img_width
+cy_norm = ((y_min + y_max) / 2) / img_height
+w_norm  = (x_max - x_min) / img_width
+h_norm  = (y_max - y_min) / img_height
 ```
 
-#### YOLO ↔ LabelMe (segmentation/polygon)
+**Lossy** (absolute pixel → normalized rounding).
+
+### 3.4 YOLO ↔ LabelMe (segmentation)
 
 ```
-YOLO → LabelMe:  abs_pts = [(x*W, y*H) for (x,y) in points]
-                 shape_type = "polygon"
-
-LabelMe → YOLO:  norm_pts = [(x/W, y/H) for (x,y) in points]
+YOLO → LabelMe:  abs_pts = [(x * W, y * H) for (x, y) in points]
+LabelMe → YOLO:  norm_pts = [(x / W, y / H) for (x, y) in points]
 ```
 
-### 3.3 COCO ↔ LabelMe
+**Lossy** (normalized ↔ absolute pixel round-trip).
 
-Both use absolute pixels, but with different representations:
+### 3.5 COCO ↔ LabelMe
+
+Both formats use absolute pixels, so no normalization is involved:
 
 #### COCO → LabelMe (bbox → rectangle)
 
 ```
-Input (COCO): [x_tl, y_tl, w, h]
-Output (LabelMe): [[x_tl, y_tl], [x_tl+w, y_tl+h]]
-
-Convert internally: COCO bbox → normalized center → denormalize to LabelMe rectangle corners
+COCO bbox [x_tl, y_tl, w, h] → rectangle points [[x_tl, y_tl], [x_tl+w, y_tl+h]]
 ```
 
 #### LabelMe → COCO (rectangle → bbox)
 
 ```
-Input (LabelMe): [[x1, y1], [x2, y2]]
-Output (COCO): [min(x1,x2), min(y1,y2), abs(x2-x1), abs(y2-y1)]
+LabelMe [[x1, y1], [x2, y2]] → COCO [min(x1,x2), min(y1,y2), abs(x2-x1), abs(y2-y1)]
 ```
 
-#### COCO ↔ LabelMe (segmentation/polygon)
+#### COCO ↔ LabelMe (segmentation)
 
 ```
 COCO polygon [[x1,y1,x2,y2,...], ...] ↔ LabelMe [[x1,y1], [x2,y2], ...]
-
-Flatten/unflatten coordinate lists between the two formats.
+Flatten/unflatten coordinate lists.
 ```
+
+**COCO ↔ LabelMe conversions involve no normalization step.**
+Fidelity is limited by integer pixel rounding in the internal representation; see §9.
+
+### 3.6 Post-Conversion `format` Assignment
+
+After conversion, the converter **must** set `DatasetAnnotations.format` to the target format
+before passing data to `TargetHandler.write()`. This ensures the target handler interprets
+coordinates correctly.
 
 ## 4. Category Mapping Rules
 
@@ -178,13 +186,11 @@ Flatten/unflatten coordinate lists between the two formats.
 
 - Categories are defined by `classes.txt` (one name per line)
 - `class_id` = line number (0-indexed, contiguous)
-- Example: `classes.txt` line 0 → class_id=0, line 1 → class_id=1
 
 ### 4.2 COCO Category Model
 
 - Categories are defined in the `categories` array
 - `category_id` is an **arbitrary integer** (not necessarily 0-based or contiguous)
-- Example: COCO uses IDs like 1, 2, 3, ...
 
 ### 4.3 LabelMe Category Model
 
@@ -221,7 +227,7 @@ Flatten/unflatten coordinate lists between the two formats.
 
 ## 6. RLE Handling
 
-### 6.1 RLE Conversion (YOLO → COCO / LabelMe → COCO)
+### 6.1 RLE Encoding (non-COCO → COCO)
 
 When `do_rle=True`:
 - Polygon points are encoded to RLE format using pycocotools
@@ -229,7 +235,7 @@ When `do_rle=True`:
 - For lossless conversion, use `do_rle=False` (default) to preserve polygon format
 - Crowd annotations (`iscrowd=1`) always use RLE format regardless of `do_rle` setting
 
-### 6.2 RLE Decoding (COCO → YOLO / COCO → LabelMe)
+### 6.2 RLE Decoding (COCO → non-COCO)
 
 - If pycocotools is available: RLE is decoded to polygon contours
 - If pycocotools is not available: RLE data is preserved as-is but no polygon is generated
@@ -263,55 +269,91 @@ When `do_rle=True`:
 
 ## 9. Precision and Round-Trip Fidelity
 
-### 9.1 OriginalData Mechanism
+### 9.1 Precision Classification
 
-The `OriginalData` system stores the exact raw bytes/structures from the source format on each `ObjectAnnotation`. When writing, the handler checks whether the stored format matches the target format:
+Each conversion falls into one of three precision categories:
+
+| Category | Coordinate Space | Conversions |
+|----------|----------------|-------------|
+| **Lossless** | No coordinate transform | COCO ↔ LabelMe (same space, no normalization) |
+| **Near-lossless** — within integer rounding | Absolute → absolute with arithmetic | COCO → LabelMe → COCO (same absolute space) |
+| **Lossy** — ±1 pixel or more | Normalized ↔ Absolute or RLE involved | Any conversion involving YOLO; any conversion involving RLE |
+
+**Important**: Even COCO ↔ LabelMe is not strictly byte-for-byte identical after a round-trip,
+because intermediate floating-point arithmetic may shift a coordinate by < 1 pixel.
+The difference is bounded by the precision of the internal data type (Python float, ~15 decimal digits).
+
+### 9.2 Why Cross-Format Conversions Are Lossy
+
+**Normalized → Absolute → Normalized (e.g., YOLO ↔ anything):**
 
 ```
-Write path priority:
-1. obj.original_data.format == target_format → Use original data (byte-for-byte exact)
-2. No match → Convert from internal model (float precision)
+YOLO:  cx = 0.523456 (normalized)
+  ↓ denormalize
+       cx_abs = 0.523456 × 1920 = 1005.03552
+  ↓ store as pixel (int or float)
+       cx_abs → approximately 1005.03552 (stored as float)
+  ↓ re-normalize
+       cx_norm = 1005.03552 / 1920 ≈ 0.523456  (may differ due to float rounding)
 ```
 
-**This means OriginalData only enables same-format round-trips (A→A). Cross-format round-trips (A→B→A) go through the internal model twice and are subject to float precision limits.**
+The round-trip `normalize → denormalize → normalize` introduces ±~1e-6 relative error,
+which translates to ±1 pixel for typical image sizes. Two passes through the conversion
+doubles the error.
 
-### 9.2 Precision Levels
+**RLE → Polygon → RLE:**
 
-| Path | Precision | When |
-|------|-----------|------|
-| Original data write path | **Exact** (byte-for-byte) | Same-format round-trip (A→A) |
-| Internal model conversion | **Float precision** (`.6f` for YOLO, `float` for JSON) | Cross-format conversions (A→B, A→B→A) |
+```
+Polygon → fillPoly (rasterize) → mask (binary) → encode → RLE
+RLE → decode → mask → findContours → Polygon (approximated)
+```
 
-### 9.3 Known Precision Issues
+Rasterization loses polygon vertex precision. The decoded polygon is an approximation
+of the binary mask, which is already an approximation of the original polygon.
 
-1. **YOLO ↔ COCO bbox**: Converting normalized center coordinates to absolute top-left and back may introduce ±1 pixel offset due to float rounding through integer coordinate space.
-2. **RLE conversion**: Polygon→RLE→Polygon is NOT lossless — the RLE mask rasterization introduces accuracy loss. Avoid RLE for round-trip scenarios.
-3. **Polygon coordinate order**: The internal model stores all polygon coordinates from a single flattened list. Multi-polygon COCO annotations are merged into one polygon during reading and separated again on write only if the same-format original data path is used.
+### 9.3 Round-Trip Fidelity Matrix
 
-### 9.4 Round-Trip Fidelity Matrix
+**Same-format round-trips** (A→A) are fully lossless:
 
-**Same-format round-trips** (A→A) are fully lossless via OriginalData:
+| Round-Trip | Fidelity | Reason |
+|------------|----------|--------|
+| YOLO → YOLO | **Lossless** | Coordinates stay native; no transform |
+| COCO → COCO | **Lossless** | Coordinates stay native; no transform |
+| LabelMe → LabelMe | **Lossless** | Coordinates stay native; no transform |
 
-| Round-Trip | Fidelity |
-|------------|----------|
-| YOLO → YOLO | **Lossless** — original line tokens preserved byte-for-byte |
-| COCO → COCO | **Lossless** — original annotation dicts preserved byte-for-byte |
-| LabelMe → LabelMe | **Lossless** — original JSON preserved byte-for-byte |
-
-**Cross-format round-trips** (A→B→A) are **near-lossless** — all annotation data (class, geometry type, structure) is preserved, but coordinates may shift by ±1 pixel due to two passes through the float-precision internal model:
+**Cross-format round-trips** (A→B→A) are lossy — the matrix shows expected fidelity:
 
 | Round-Trip | Detection | Segmentation (Polygon) | Segmentation (RLE) |
 |------------|-----------|----------------------|-------------------|
-| YOLO → COCO → YOLO | Near-lossless (±1 px) | Near-lossless (±1 px) | N/A |
-| COCO → YOLO → COCO | Near-lossless (±1 px) | Near-lossless (±1 px) | Near-lossless (±1 px) |
-| YOLO → LabelMe → YOLO | Near-lossless (±1 px) | Near-lossless (±1 px) | N/A |
-| LabelMe → YOLO → LabelMe | Near-lossless (±1 px) | Near-lossless (±1 px) | N/A |
-| COCO → LabelMe → COCO | Near-lossless (±1 px) | Near-lossless (±1 px) | Near-lossless (±1 px) |
-| LabelMe → COCO → LabelMe | Near-lossless (±1 px) | Near-lossless (±1 px) | N/A |
+| YOLO → COCO → YOLO | **Lossy** (±1 px) | **Lossy** (±1 px per vertex) | N/A |
+| COCO → YOLO → COCO | **Lossy** (±1 px) | **Lossy** (±1 px per vertex) | **Lossy** (rasterization loss) |
+| YOLO → LabelMe → YOLO | **Lossy** (±1 px) | **Lossy** (±1 px per vertex) | N/A |
+| LabelMe → YOLO → LabelMe | **Lossy** (±1 px) | **Lossy** (±1 px per vertex) | N/A |
+| COCO → LabelMe → COCO | **Near-lossless** (< 1 px) | **Near-lossless** (< 1 px) | **Lossy** (rasterization loss) |
+| LabelMe → COCO → LabelMe | **Near-lossless** (< 1 px) | **Near-lossless** (< 1 px) | N/A |
 
-**Why cross-format round-trips aren't fully lossless**: When YOLO is converted to COCO, objects carry `original_data.format="yolo"`. When writing COCO, the handler checks for `format=="coco"` — no match, so it converts from the internal model. When the COCO file is read back, objects get `original_data.format="coco"`. Writing back to YOLO: `"coco" != "yolo"` — again falls through to internal model conversion. Two passes through `normalize → denormalize` introduce the ±1 pixel rounding.
+**Notes:**
+- "±1 px" means individual coordinate values may differ by up to 1 pixel from the original
+- "Near-lossless" means differences are bounded by floating-point precision of Python float
+  (~1e-15 relative), which for typical image sizes is well under 1 pixel
+- RLE-based round-trips always have additional rasterization loss (polygon → mask → polygon)
 
-For fully lossless cross-format round-trips, the recommendation is to keep the source files and convert on-demand rather than chaining conversions.
+### 9.4 Fidelity vs v1 Architecture
+
+The v1 architecture used `OriginalData` to achieve "lossless" A→A round-trips by storing
+raw bytes and bypassing coordinate transforms entirely. This added significant complexity
+and only benefited same-format round-trips (which are trivially lossless in v2 since
+coordinates never leave their native format).
+
+The v2 architecture is **more honest** about cross-format loss and **simpler** overall:
+
+| Aspect | v1 (Old) | v2 (New) |
+|--------|----------|----------|
+| Same-format round-trip | Lossless (via OriginalData) | Lossless (native coords) |
+| Cross-format round-trip | ±1px (via double normalize/denormalize) | ±1px (single explicit transform) |
+| Number of transforms per A→B | 2 (normalize + denormalize) | 1 (direct target coords) |
+| OriginalData complexity | High | None |
+| Honesty about precision | Implicit / obscured | Explicit / documented |
 
 ## 10. Error Handling
 

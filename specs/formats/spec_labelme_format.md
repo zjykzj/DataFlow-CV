@@ -103,44 +103,7 @@ All LabelMe coordinates are in **absolute pixels** with the origin at the **top-
 - Y-axis: increases downward
 - Origin: `(0, 0)` = top-left pixel
 
-### 4.2 Normalization (for Internal Model)
-
-When reading LabelMe into the internal data model:
-
-**Rectangle → BoundingBox**:
-```
-x1_norm = x1 / image_width
-y1_norm = y1 / image_height
-x2_norm = x2 / image_width
-y2_norm = y2 / image_height
-
-x_center = (min(x1_norm, x2_norm) + max(x1_norm, x2_norm)) / 2
-y_center = (min(y1_norm, y2_norm) + max(y1_norm, y2_norm)) / 2
-width = abs(x2_norm - x1_norm)
-height = abs(y2_norm - y1_norm)
-```
-
-**Polygon → Segmentation**:
-```
-normalized_points = [(x / image_width, y / image_height) for (x, y) in points]
-```
-
-### 4.3 Denormalization (for Writing)
-
-**BoundingBox → Rectangle**:
-```
-x1, y1, x2, y2 = bbox.xyxy(image_width, image_height)
-points = [[float(x1), float(y1)], [float(x2), float(y2)]]
-shape_type = "rectangle"
-```
-
-**Segmentation → Polygon**:
-```
-points = [[float(x * image_width), float(y * image_height)] for (x, y) in segmentation.points_abs(image_width, image_height)]
-shape_type = "polygon"
-```
-
-### 4.4 Coordinate System Comparison
+### 4.2 Coordinate System Comparison
 
 | Property | LabelMe | YOLO | COCO |
 |----------|---------|------|------|
@@ -164,32 +127,7 @@ During reading:
 - If `shape.label` matches a known category name → use its `class_id`
 - If `shape.label` is new → assign `class_id = len(categories)` and add to categories
 
-## 6. Original Data Preservation
-
-For lossless A→B→A round-trip conversion:
-
-### 6.1 Per-Shape Original Data
-
-```python
-OriginalData(
-    format="labelme",
-    raw_data=<copy of original shape dict>,
-    metadata={"image_width": <int>, "image_height": <int>}
-)
-```
-
-### 6.2 Per-Image Original Data
-
-```python
-OriginalData(
-    format="labelme",
-    raw_data=<copy of entire LabelMe JSON dict>
-)
-```
-
-This preserves user-defined fields like `flags`, `group_id`, and any custom shape properties during round-trip conversion.
-
-## 7. Validation Rules
+## 6. Validation Rules
 
 A valid LabelMe JSON file must satisfy:
 

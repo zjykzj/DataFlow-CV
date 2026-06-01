@@ -136,26 +136,6 @@ A valid YOLO annotation line must satisfy ALL of the following:
 
 - Coordinate values are written with **6 decimal places** (`.6f` format).
 - Internal storage uses Python `float` (IEEE 754 double precision).
-- Original line text is preserved in `OriginalData` for lossless round-trip conversion.
-
-## 5. Original Data Preservation
-
-For lossless A→B→A round-trip conversion, each parsed YOLO annotation stores:
-
-```python
-OriginalData(
-    format="yolo",
-    raw_data={
-        "line": "<original line text>",
-        "line_number": <int>,
-        "items": [class_id_str, x_float, y_float, w_float, h_float],
-        "is_detection": <bool>,
-        "is_segmentation": <bool>,
-    }
-)
-```
-
-**Critical detail**: The first element of `items` is a **string** (class_id), while the remaining elements are **floats**. When reconstructing a line from original data, `items` must be copied with `list()` before mutation.
 
 ## 6. Reference Example
 

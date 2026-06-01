@@ -202,30 +202,7 @@ RLE (Run-Length Encoding) is used for crowd annotations and optionally for insta
 - Without pycocotools: RLE data is preserved as-is but cannot be converted to/from polygon format
 - Polygon format (non-RLE) does not require pycocotools
 
-## 8. Original Data Preservation
-
-For lossless A→B→A round-trip conversion, each COCO annotation stores:
-
-```python
-OriginalData(
-    format="coco",
-    raw_data=<copy of original COCO annotation dict>,
-    metadata={"image_width": <int>, "image_height": <int>}
-)
-```
-
-Additionally, the dataset stores full original COCO data under:
-```python
-dataset_info["__coco_original_data__"] = {
-    "images": [...],       # Full original image data
-    "annotations": [...],  # Full original annotations
-    "categories": [...],   # Full original category data (includes supercategory, etc.)
-}
-```
-
-This enables the write path to reconstruct the COCO JSON using the exact original field values, preserving fields like `supercategory`, `license`, `coco_url`, `flickr_url`, and `date_captured` that may not be represented in the internal data model.
-
-## 9. Validation Rules
+## 8. Validation Rules
 
 A valid COCO JSON file must satisfy:
 

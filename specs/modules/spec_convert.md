@@ -1,28 +1,41 @@
 # Convert Module Specification
 
-> **Version:** 1.0
+> **Version:** 2.0
+> **Status:** Draft — updated for explicit coordinate transforms in converters
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models)
 
 ## 1. Module Overview
 
-The Convert module (`dataflow/convert/`) transforms annotation data between YOLO, COCO, and LabelMe formats through a standardized pipeline. It depends **only** on the Label module — it does not import from Visualize or CLI.
+The Convert module (`dataflow/convert/`) transforms annotation data between YOLO, COCO, and
+LabelMe formats through a standardized pipeline. It depends **only** on the Label module —
+it does not import from Visualize or CLI.
 
-### 1.1 Module Contract
+### 1.1 Key Design: Explicit Coordinate Transforms
 
-- **Input**: Source format annotations (via Label handlers)
-- **Processing**: Internal model transformation (coordinates are already normalized by handlers)
-- **Output**: Target format annotations (via Label handlers)
+**Converters own all coordinate transformations.** The Label module stores coordinates in
+format-native representation. When converting between formats, the converter:
+
+1. Reads source data in its native format (via Label handler)
+2. Applies explicit coordinate transformation (this module)
+3. Sets `DatasetAnnotations.format` to the target format
+4. Writes target data in its native format (via Label handler)
+
+### 1.2 Module Contract
+
+- **Input**: Source format annotations (via Label handlers — coordinates in source-native form)
+- **Processing**: Explicit coordinate transformation from source to target native representation
+- **Output**: Target format annotations (via Label handlers — coordinates in target-native form)
 - **State**: `_source_annotations_for_target` — MUST be cleaned up in `try/finally`
 
-### 1.2 File Map
+### 1.3 File Map
 
 ```
 dataflow/convert/
 ├── base.py                # BaseConverter + ConversionResult
-├── yolo_and_coco.py       # YOLO ↔ COCO converter
-├── labelme_and_yolo.py    # LabelMe ↔ YOLO converter
-├── coco_and_labelme.py    # COCO ↔ LabelMe converter
+├── yolo_and_coco.py       # YOLO ↔ COCO converter (with normalize/denormalize)
+├── labelme_and_yolo.py    # LabelMe ↔ YOLO converter (with normalize/denormalize)
+├── coco_and_labelme.py    # COSO ↔ LabelMe converter (absolute ↔ absolute, no normalize)
 ├── rle_converter.py       # Polygon ↔ RLE utility
 └── utils.py               # Category extraction, path resolution
 ```
@@ -34,14 +47,22 @@ dataflow/convert/
 Every converter must follow this exact sequence:
 
 ```
-validate_inputs() → create_source_handler() → handler.read() → convert_annotations() → create_target_handler() → handler.write()
+validate_inputs()
+    → create_source_handler()
+    → handler.read()              → DatasetAnnotations (source-native coords)
+    → convert_annotations()       → DatasetAnnotations (target-native coords)
+    → create_target_handler()
+    → handler.write()             → Target format files
 ```
+
+**The critical step is `convert_annotations()`, which performs coordinate transformation.**
 
 ### 2.2 `BaseConverter` Abstract Class
 
 ```python
 class BaseConverter(ABC):
-    def __init__(self, source_format: str, target_format: str, strict_mode=True, verbose=False, logger=None): ...
+    def __init__(self, source_format: str, target_format: str,
+                 strict_mode=True, verbose=False, logger=None): ...
 
     # Template method — orchestrates the pipeline
     def convert(self, source_path, target_path, **kwargs) -> ConversionResult: ...
@@ -53,7 +74,8 @@ class BaseConverter(ABC):
     @abstractmethod
     def create_source_handler(self, source_path, kwargs) -> BaseAnnotationHandler: ...
 
-    # Hook 3: Transform annotations (default: passthrough; override for category mapping)
+    # Hook 3: Transform annotations (abstract — subclass implements coordinate transform)
+    @abstractmethod
     def convert_annotations(self, source_annotations, kwargs) -> DatasetAnnotations: ...
 
     # Hook 4: Create target handler (abstract — subclass must implement)
@@ -61,7 +83,17 @@ class BaseConverter(ABC):
     def create_target_handler(self, target_path, kwargs) -> BaseAnnotationHandler: ...
 ```
 
-### 2.3 `ConversionResult`
+### 2.3 `convert_annotations()` Contract
+
+Every implementation of `convert_annotations()` MUST:
+
+1. Receive a `DatasetAnnotations` with coordinates in the **source format's native space**
+2. Transform ALL coordinates to the **target format's native space**
+3. Set `result.format = target_format` on the returned DatasetAnnotations
+4. Preserve all non-coordinate data (categories, image metadata, is_crowd flags)
+5. Document the precision characteristics of the transform (lossless or lossy, see §9)
+
+### 2.4 `ConversionResult`
 
 Return type for all converter operations:
 
@@ -76,13 +108,14 @@ Return type for all converter operations:
 | `num_objects_converted` | int | Objects converted |
 | `warnings` | List[str] | Non-fatal warnings |
 | `errors` | List[str] | Error messages |
-| `metadata` | Dict[str, Any] | Additional conversion metadata |
+| `metadata` | Dict[str, Any] | Additional conversion metadata (includes precision note) |
 | `verbose_log` | List[str] | Detailed processing log (verbose mode only) |
 | `log_file_path` | Optional[str] | Log file path (verbose mode only) |
 
-### 2.4 State Management Contract
+### 2.5 State Management Contract
 
-Converters store `self._source_annotations_for_target` between pipeline stages. This is used by `create_target_handler()` for:
+Converters store `self._source_annotations_for_target` between pipeline stages. This is used
+by `create_target_handler()` for:
 
 - **COCO → YOLO / COCO → LabelMe**: Generating `classes.txt` from COCO categories
 - **LabelMe → YOLO**: Copying image files to the target images directory
@@ -96,9 +129,21 @@ finally:
     self._source_annotations_for_target = None
 ```
 
-Failure to do this causes **stale state leakage** — the next conversion would see the previous conversion's data.
+Failure to do this causes **stale state leakage** — the next conversion would see the previous
+conversion's data.
 
-### 2.5 Verbose Logging Contract
+### 2.6 Coordinate Transform Responsibility
+
+| Direction | Transform Type | Precision | Implementation Location |
+|-----------|---------------|-----------|------------------------|
+| YOLO → COCO | Normalized → Absolute pixels | **Lossy** (±1 px) | `convert_annotations()` in `YoloAndCocoConverter` |
+| COCO → YOLO | Absolute pixels → Normalized | **Lossy** (±1 px) | `convert_annotations()` in `YoloAndCocoConverter` |
+| LabelMe → YOLO | Absolute pixels → Normalized | **Lossy** (±1 px) | `convert_annotations()` in `LabelMeAndYoloConverter` |
+| YOLO → LabelMe | Normalized → Absolute pixels | **Lossy** (±1 px) | `convert_annotations()` in `LabelMeAndYoloConverter` |
+| COCO → LabelMe | Absolute → Absolute (no normalize) | **Near-lossless** | `convert_annotations()` in `CocoAndLabelMeConverter` |
+| LabelMe → COCO | Absolute → Absolute (no normalize) | **Near-lossless** | `convert_annotations()` in `CocoAndLabelMeConverter` |
+
+### 2.7 Verbose Logging Contract
 
 When `verbose=True`:
 - Logger is configured with file output via `VerboseLoggingOperations`
@@ -127,17 +172,24 @@ When `verbose=False`:
 | COCO → YOLO | Optional (auto-generated) | Optional (auto-created) | N/A |
 
 **YOLO → COCO behavior:**
-- 1. Validates `class_file` and `image_dir` exist
-- 2. Creates `YoloAnnotationHandler` as source, reads labels
-- 3. `convert_annotations()` passes through (internal model already normalized)
-- 4. Creates `CocoAnnotationHandler` as target with `do_rle` setting
-- 5. If `do_rle=True`, adds RLE accuracy warning to result
+1. Validates `class_file` and `image_dir` exist
+2. Creates `YoloAnnotationHandler` as source, reads labels → `DatasetAnnotations(format=YOLO)`
+3. `convert_annotations()`:
+   - Reads YOLO-native coordinates (normalized, center-based)
+   - Transforms to COCO-native coordinates (absolute pixels, top-left)
+   - Sets `result.format = AnnotationFormat.COCO`
+4. Creates `CocoAnnotationHandler` as target with `do_rle` setting
+5. If `do_rle=True`, adds RLE accuracy warning to result
 
 **COCO → YOLO behavior:**
-- 1. Creates directory structure: `target_path/labels/` and `target_path/images/`
-- 2. Generates `classes.txt` from COCO categories if not provided
-- 3. Creates `CocoAnnotationHandler` as source, reads JSON
-- 4. Creates `YoloAnnotationHandler` as target, writes `.txt` files
+1. Creates directory structure: `target_path/labels/` and `target_path/images/`
+2. Generates `classes.txt` from COCO categories if not provided
+3. Creates `CocoAnnotationHandler` as source, reads JSON → `DatasetAnnotations(format=COCO)`
+4. `convert_annotations()`:
+   - Reads COCO-native coordinates (absolute pixels, top-left)
+   - Transforms to YOLO-native coordinates (normalized, center-based)
+   - Sets `result.format = AnnotationFormat.YOLO`
+5. Creates `YoloAnnotationHandler` as target, writes `.txt` files
 
 ### 3.2 `LabelMeAndYoloConverter`
 
@@ -154,14 +206,24 @@ When `verbose=False`:
 | YOLO → LabelMe | **Required** | **Required** |
 
 **LabelMe → YOLO behavior:**
-- 1. Creates directory structure: `target_path/labels/`, `target_path/images/`
-- 2. Copies `classes.txt` to target directory
-- 3. Copies image files from source to `target_path/images/`
-- 4. Creates `LabelMeAnnotationHandler` → reads → `YoloAnnotationHandler` → writes
+1. Creates directory structure: `target_path/labels/`, `target_path/images/`
+2. Copies `classes.txt` to target directory
+3. Copies image files from source to `target_path/images/`
+4. Creates `LabelMeAnnotationHandler` → reads → `DatasetAnnotations(format=LABELME)`
+5. `convert_annotations()`:
+   - Reads LabelMe-native coordinates (absolute pixels)
+   - Transforms to YOLO-native coordinates (normalized)
+   - Sets `result.format = AnnotationFormat.YOLO`
+6. Creates `YoloAnnotationHandler` → writes
 
 **YOLO → LabelMe behavior:**
-- 1. Creates output directory
-- 2. Creates `YoloAnnotationHandler` → reads → `LabelMeAnnotationHandler` → writes
+1. Creates output directory
+2. Creates `YoloAnnotationHandler` → reads → `DatasetAnnotations(format=YOLO)`
+3. `convert_annotations()`:
+   - Reads YOLO-native coordinates (normalized)
+   - Transforms to LabelMe-native coordinates (absolute pixels)
+   - Sets `result.format = AnnotationFormat.LABELME`
+4. Creates `LabelMeAnnotationHandler` → writes
 
 ### 3.3 `CocoAndLabelMeConverter`
 
@@ -177,11 +239,21 @@ When `verbose=False`:
 | COCO → LabelMe | Optional (auto-generated) | N/A |
 | LabelMe → COCO | **Required** | Optional (default False) |
 
+**Conversion characteristics:**
+- Both formats use absolute pixels — **no normalization step**
+- Transform is limited to reformatting between COCO bbox `[x,y,w,h]` and LabelMe rectangle `[[x1,y1],[x2,y2]]`
+- Polygon points are reformatted (flatten/unflatten) but values are preserved
+- Precision: **near-lossless** (bound by floating-point arithmetic, << 1 pixel)
+
 **LabelMe → COCO behavior:**
-- 1. Validates `class_file` exists
-- 2. Creates `LabelMeAnnotationHandler` as source
-- 3. Creates `CocoAnnotationHandler` as target with `do_rle` setting
-- 4. If `do_rle=True`, adds RLE accuracy warning
+1. Validates `class_file` exists
+2. Creates `LabelMeAnnotationHandler` as source → reads → `DatasetAnnotations(format=LABELME)`
+3. `convert_annotations()`:
+   - Reformat LabelMe-native coordinates to COCO-native coordinates
+   - Both are absolute pixels; only structural reformatting needed
+   - Sets `result.format = AnnotationFormat.COCO`
+4. Creates `CocoAnnotationHandler` as target with `do_rle` setting
+5. If `do_rle=True`, adds RLE accuracy warning
 
 ## 4. RLE Converter (`RLEConverter`)
 
@@ -197,8 +269,8 @@ RLEConverter(logger: Optional[logging.Logger] = None)
 
 | Method | Input → Output | Requires pycocotools |
 |--------|---------------|---------------------|
-| `polygon_to_rle(points, img_w, img_h)` | Normalized polygon → RLE dict | Yes |
-| `rle_to_polygon(rle, img_w, img_h)` | RLE dict → Normalized polygon | Yes |
+| `polygon_to_rle(points, img_w, img_h)` | Absolute pixel polygon → RLE dict | Yes |
+| `rle_to_polygon(rle, img_w, img_h)` | RLE dict → Absolute pixel polygon | Yes |
 | `get_rle_accuracy_warning()` | — → Warning string | No |
 | `check_coco_mask_available()` | — → bool | No |
 | `validate_rle_dict(rle)` | RLE dict → bool | No |
@@ -216,6 +288,13 @@ When pycocotools is not installed:
 - `polygon_to_rle()` raises `ImportError` if `require_coco_mask=True`
 - `rle_to_polygon()` raises `ImportError` if `require_coco_mask=True`
 - RLE data in COCO files is preserved as-is but cannot be decoded
+
+### 4.5 Coordinate Contract
+
+The RLE converter works in **absolute pixel coordinates** only. It is the caller's
+responsibility to:
+- Convert YOLO normalized coordinates → absolute pixels before calling `polygon_to_rle()`
+- Convert absolute pixel coordinates → normalized after calling `rle_to_polygon()` (if needed)
 
 ## 5. Converter Utilities (`utils.py`)
 
@@ -260,8 +339,11 @@ handler.write() fails    → ConversionResult(success=False, errors=write_result
 
 ### 7.2 Strict vs Non-Strict
 
-Converters pass `strict_mode` to handlers. The handler controls whether errors abort or skip — the converter does not add its own strict/non-strict logic beyond what handlers already enforce.
+Converters pass `strict_mode` to handlers. The handler controls whether errors abort or
+skip — the converter does not add its own strict/non-strict logic beyond what handlers
+already enforce.
 
 ### 7.3 State Cleanup Guarantee
 
-`_source_annotations_for_target` is always cleared — even if `handler.write()` raises an exception — because it's wrapped in `try/finally`.
+`_source_annotations_for_target` is always cleared — even if `handler.write()` raises an
+exception — because it's wrapped in `try/finally`.

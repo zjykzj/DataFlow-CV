@@ -45,7 +45,7 @@ The Modules layer defines **how** the software components work — their archite
 
 | # | Document | Purpose |
 |---|----------|---------|
-| 1 | [`spec_label.md`](spec_label.md) | **Label module** — data models (`DatasetAnnotations`, `BoundingBox`, `Segmentation`, `OriginalData`), handler interface (`BaseAnnotationHandler`), and concrete handlers (`YoloHandler`, `CocoHandler`, `LabelMeHandler`) |
+| 1 | [`spec_label.md`](spec_label.md) | **Label module** — format-aware data models (`DatasetAnnotations` with `format` field, `BoundingBox`, `Segmentation` in native coordinates), handler interface (`BaseAnnotationHandler`), and concrete handlers (`YoloHandler`, `CocoHandler`, `LabelMeHandler`) |
 | 2 | [`spec_convert.md`](spec_convert.md) | **Convert module** — `BaseConverter` pipeline, `ConversionResult`, three converter classes, RLE converter, state management contract |
 | 3 | [`spec_visualize.md`](spec_visualize.md) | **Visualize module** — `BaseVisualizer` rendering pipeline, `ColorManager`, three visualizers, display/save modes, keyboard interaction |
 | 4 | [`spec_cli.md`](spec_cli.md) | **CLI module** — Click-based command structure, 9 subcommands (6 convert + 3 visualize), option decorators, exception hierarchy, exit code system |

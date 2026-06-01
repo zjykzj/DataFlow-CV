@@ -1,6 +1,7 @@
 # Label Module Specification
 
-> **Version:** 1.0
+> **Version:** 2.0
+> **Status:** Draft — major redesign removing unified normalized coordinate model
 > **Layer:** Modules
 > **Dependencies:** None (foundation module)
 
@@ -8,60 +9,68 @@
 
 The Label module (`dataflow/label/`) is the **foundation layer** of DataFlow-CV. It provides:
 
-- **Data models** — the universal internal representation for all annotation formats
+- **Data models** — format-aware containers that store coordinates in their **native representation**
 - **Handlers** — format-specific read/write/validate implementations
-- **Utilities** — lossless round-trip verification and category management
+- **Utilities** — category management and format comparison
 
-### 1.1 Module Contract
+### 1.1 Design Principle: Native Coordinate Storage
 
-The Label module is the **only module** that Convert and Visualize are allowed to depend on. It exposes a stable public API through:
+**Each format handler stores coordinates in its format's native coordinate system.
+There is no universal normalized internal model.**
 
-- `DatasetAnnotations` and its component data classes
-- `BaseAnnotationHandler` abstract interface
+This eliminates unnecessary coordinate round-trips (normalize → denormalize) and the
+associated ±1 pixel precision loss that plagued the v1 architecture. Coordinate
+transformation is the exclusive responsibility of the **Convert module**, not handlers.
+
+| Format  | Bounding Box Semantics                              | Coordinate Space       |
+|---------|-----------------------------------------------------|------------------------|
+| YOLO    | `(cx, cy, w, h)` center-based                       | Normalized [0, 1]      |
+| COCO    | `(x, y, w, h)` top-left origin                      | Absolute pixels        |
+| LabelMe | `(x1, y1, x2, y2)` two opposite corners             | Absolute pixels        |
+
+### 1.2 Module Contract
+
+The Label module is the **only module** that Convert and Visualize are allowed to depend on.
+It exposes a stable public API through:
+
+- `DatasetAnnotations` with `format` field identifying coordinate semantics
+- `BaseAnnotationHandler` abstract interface (read/write/validate)
 - `AnnotationResult` return type
 
-### 1.2 File Map
+### 1.3 File Map
 
 ```
 dataflow/label/
-├── models.py              # Core data structures
-├── base.py                # Abstract handler + AnnotationResult
-├── yolo_handler.py        # YOLO ↔ internal model
-├── coco_handler.py        # COCO ↔ internal model
-├── labelme_handler.py     # LabelMe ↔ internal model
-└── utils.py               # Round-trip verification, category utilities
+├── models.py              # Format-aware data structures (no unified normalization)
+├── base.py                # Abstract handler + AnnotationResult + format-specific validation
+├── yolo_handler.py        # YOLO ↔ native representation
+├── coco_handler.py        # COCO ↔ native representation
+├── labelme_handler.py     # LabelMe ↔ native representation
+└── utils.py               # Category utilities, format comparison
 ```
 
 ## 2. Data Model (`models.py`)
 
-### 2.1 Universal Coordinate Convention
+### 2.1 Core Container: `DatasetAnnotations`
 
-**All coordinates in the internal model are normalized to [0, 1].**
-
-- `BoundingBox.(x, y)` is the **center** of the box (YOLO convention)
-- `BoundingBox.(width, height)` are normalized dimensions
-- `Segmentation.points` are normalized (x, y) vertex pairs
-
-This is the **single most important design decision** in the entire codebase. Every handler normalizes on read and denormalizes on write.
-
-### 2.2 `DatasetAnnotations`
-
-The top-level container returned by all handler `read()` calls and consumed by all handler `write()` calls.
+The top-level container returned by all handler `read()` calls. **The `format` field
+defines how all coordinate fields should be interpreted.**
 
 ```
 DatasetAnnotations
-├── images: List[ImageAnnotation]     # All images in the dataset
-├── categories: Dict[int, str]        # category_id → category_name
-└── dataset_info: Dict[str, Any]      # Format-specific metadata
+├── format: AnnotationFormat       # SOURCE format — defines coordinate semantics
+├── images: List[ImageAnnotation]  # All images in the dataset
+├── categories: Dict[int, str]     # category_id → category_name
+└── dataset_info: Dict[str, Any]   # Format-specific metadata (raw JSON preserved)
 ```
 
 **Invariants:**
 - `categories` keys are always `int`, values are always `str`
-- Attempting to add a duplicate `category_id` with a different name raises `ValueError`
 - `num_images` = `len(images)`
 - `num_objects` = `sum(len(img.objects) for img in images)`
+- `format` must be set to the actual source format (never `UNKNOWN` after a successful read)
 
-### 2.3 `ImageAnnotation`
+### 2.2 `ImageAnnotation`
 
 Per-image container:
 
@@ -72,13 +81,12 @@ Per-image container:
 | `width` | int | **Yes** | Image width in pixels (> 0) |
 | `height` | int | **Yes** | Image height in pixels (> 0) |
 | `objects` | List[ObjectAnnotation] | No | List of annotated objects |
-| `original_data` | Optional[OriginalData] | No | Raw source data for lossless round-trip |
 
 **Invariants:**
 - `width > 0` and `height > 0` (validated in `__post_init__`)
 - `image_path` is stored as a relative path when the image is under the source directory
 
-### 2.4 `ObjectAnnotation`
+### 2.3 `ObjectAnnotation`
 
 Single annotation instance:
 
@@ -86,87 +94,69 @@ Single annotation instance:
 |-------|------|----------|-------------|
 | `class_id` | int | **Yes** | Category ID |
 | `class_name` | str | **Yes** | Category name |
-| `bbox` | Optional[BoundingBox] | No | Detection bounding box |
-| `segmentation` | Optional[Segmentation] | No | Instance segmentation polygon |
+| `bbox` | Optional[BoundingBox] | No | Detection bounding box (native coords) |
+| `segmentation` | Optional[Segmentation] | No | Instance segmentation polygon (native coords) |
 | `confidence` | float | No | Detection confidence (default 1.0) |
 | `is_crowd` | bool | No | COCO crowd flag (default False) |
-| `original_data` | Optional[OriginalData] | No | Raw source data for lossless round-trip |
 
 **Invariants:**
 - At least one of `bbox` or `segmentation` must be non-None (validated in `__post_init__`)
 
-### 2.5 `BoundingBox`
+### 2.4 `BoundingBox`
 
-Center-based normalized bounding box:
+A 4-value bounding box **in native format coordinates**. Interpretation depends on
+`DatasetAnnotations.format`:
 
-| Field | Type | Range | Description |
-|-------|------|-------|-------------|
-| `x` | float | [0, 1] | Center x (normalized) |
-| `y` | float | [0, 1] | Center y (normalized) |
-| `width` | float | [0, 1] | Width (normalized) |
-| `height` | float | [0, 1] | Height (normalized) |
-| `original_data` | Optional[OriginalData] | — | Raw source data |
-
-**Key methods:**
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `xyxy(img_w, img_h)` | `(x1, y1, x2, y2)` | Top-left to bottom-right in absolute pixels. **Use this for COCO bbox output.** |
-| `xywh_abs(img_w, img_h)` | `(cx, cy, w, h)` | Center-x, center-y in absolute pixels. **Do NOT use for COCO output.** |
-
-**Critical rule**: For COCO bbox output, always use `xyxy()` then convert to `[x1, y1, x2-x1, y2-y1]`. Using `xywh_abs()` directly produces center-based coordinates, which will cause systematically offset bboxes in COCO output.
-
-### 2.6 `Segmentation`
-
-Normalized polygon segmentation:
+```
+format=YOLO:    (x, y, w, h) = center (normalized [0,1]), dimensions (normalized [0,1])
+format=COCO:    (x, y, w, h) = top-left (absolute pixels), width/height (absolute pixels)
+format=LABELME: (x, y, w, h) = top-left (absolute pixels), width/height (absolute pixels)
+                (derived from two corner points x1,y1,x2,y2 → x=min(x1,x2), y=min(y1,y2),
+                 w=|x2-x1|, h=|y2-y1|)
+```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `points` | List[Tuple[float, float]] | Normalized polygon vertices |
+| `x` | float | X value in native coordinate space |
+| `y` | float | Y value in native coordinate space |
+| `width` | float | Width in native coordinate space |
+| `height` | float | Height in native coordinate space |
+
+**No conversion methods.** Use converters from the Convert module for coordinate
+transformations.
+
+**Validation:**
+- YOLO format: `x`, `y`, `width`, `height` ∈ [0, 1]; `width > 0`, `height > 0`
+- COCO/LabelMe format: `x`, `y` > 0; `width` > 0, `height` > 0; values are absolute pixels
+
+### 2.5 `Segmentation`
+
+Polygon segmentation points **in native format coordinates**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `points` | List[Tuple[float, float]] | Polygon vertices in native coords |
 | `rle` | Optional[Dict] | Preserved RLE data (COCO only) |
-| `original_data` | Optional[OriginalData] | Raw source data |
+
+```
+format=YOLO:       points are (x, y) normalized [0,1]
+format=COCO:       points are (x, y) absolute pixels (from [[x1,y1,x2,y2,...], ...] flattened)
+format=LABELME:    points are (x, y) absolute pixels
+```
 
 **Key methods:**
+- `has_rle()` — whether RLE data is present (COCO specific)
 
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `points_abs(img_w, img_h)` | List[Tuple[int, int]] | Absolute pixel coordinates |
-| `has_rle()` | bool | Whether RLE data is present |
+**No conversion methods.** Use converters from the Convert module for coordinate
+transformations.
 
-### 2.7 `OriginalData`
-
-Lossless round-trip preservation container:
-
-```
-OriginalData
-├── format: str                  # "yolo" | "coco" | "labelme"
-├── raw_data: Dict[str, Any]     # Exact raw bytes/strings/objects from source
-└── metadata: Dict[str, Any]     # Additional context (line numbers, dimensions, etc.)
-```
-
-**Contract:**
-- `format` determines how `raw_data` is interpreted during write-back
-- Write handlers check `OriginalData.format == target_format` before using original data
-- When original data is used, the write path reproduces the source exactly (lossless)
-- When original data is unavailable, the write path converts from the internal model (float precision)
-
-### 2.8 `OriginalDataManager`
-
-Static utility for coordinating original data across conversion chains:
-
-| Method | Purpose |
-|--------|---------|
-| `should_use_original(obj, target_format)` | Determines if original data path should be used for writing |
-| `merge_original_data(existing, new)` | Merges original data from different sources (keeps first match) |
-| `extract_original_coordinates(obj, w, h)` | Extracts bbox/segmentation coords from original data for comparison |
-
-### 2.9 `AnnotationFormat` Enum
+### 2.6 `AnnotationFormat` Enum
 
 ```python
 class AnnotationFormat(Enum):
-    LABELME = "labelme"
-    YOLO = "yolo"
-    COCO = "coco"
+    YOLO = "yolo"       # Normalized [0,1] center-based coordinates
+    COCO = "coco"       # Absolute pixel top-left coordinates
+    LABELME = "labelme" # Absolute pixel corner coordinates
     UNKNOWN = "unknown"
 ```
 
@@ -179,13 +169,9 @@ Standardized return type for all handler operations:
 | Field | Type | Description |
 |-------|------|-------------|
 | `success` | bool | Whether the operation succeeded |
-| `data` | Optional[Any] | Operation result (DatasetAnnotations for read) |
+| `data` | Optional[Any] | Operation result (`DatasetAnnotations` for read) |
 | `message` | str | Human-readable status message |
 | `errors` | List[str] | Accumulated error messages |
-
-**Behavior:**
-- `add_error(msg)` sets `success = False` and appends to both `message` and `errors`
-- Multiple errors are concatenated with `; ` in `message`
 
 ### 3.2 `BaseAnnotationHandler`
 
@@ -210,15 +196,21 @@ class BaseAnnotationHandler(ABC):
 - `logger`: Optional `logging.Logger` instance
 
 **Provided validation utilities:**
-- `_validate_normalized_coordinate(value, name)` — checks value ∈ [0, 1]
-- `_validate_bbox(bbox)` — validates all 4 bbox coordinates
-- `_validate_segmentation_points(points)` — validates polygon has ≥ 3 normalized points
-- `_validate_image_dimensions(w, h)` — checks > 0
-- `_set_annotation_flags(dataset)` — sets `is_det`/`is_seg` flags based on data
 
-**Logging utilities:**
-- `_log_info(msg)` / `_log_error(msg)` / `_log_warning(msg)` / `_log_debug(msg)`
-- `_log_error()` raises `ValueError` in strict mode
+| Method | Description |
+|--------|-------------|
+| `_validate_image_dimensions(w, h)` | Checks > 0 (format-independent) |
+| `_validate_bbox(bbox, format)` | Format-aware bbox validation |
+| `_validate_segmentation_points(points, format)` | Format-aware polygon validation |
+| `_set_annotation_flags(dataset)` | Sets `is_det`/`is_seg` flags based on data |
+
+**Format-specific validation in `_validate_bbox`:**
+- `YOLO`: All values ∈ [0, 1]; width > 0, height > 0; center (x,y) within [0,1]
+- `COCO/LabelMe`: All values > 0; width > 0, height > 0; finite real numbers
+
+**Format-specific validation in `_validate_segmentation_points`:**
+- `YOLO`: ≥ 3 points; all coordinates ∈ [0, 1]
+- `COCO/LabelMe`: ≥ 3 points; all coordinates > 0; finite real numbers
 
 ### 3.3 Handler State Flags
 
@@ -244,11 +236,15 @@ Both `is_det` and `is_seg` can be `True` simultaneously (mixed dataset).
 | `class_file` | Yes | Path to `classes.txt` |
 | `image_dir` | Yes | Directory containing image files |
 
-**`read()`**: Scans `label_dir` for `.txt` files, matches to images by stem, normalizes all coordinates to [0, 1] center-based internal model.
+**`read()`**: Returns `DatasetAnnotations(format=YOLO)` with:
+- `BoundingBox`: `(cx, cy, w, h)` all normalized [0,1], center-based (native YOLO format)
+- `Segmentation.points`: `(x, y)` normalized [0,1]
+- No coordinate transformation — coordinates are stored as-is from YOLO text files
 
-**`write(annotations, output_dir)`**: Writes one `.txt` per image to `output_dir`.
-- Priority 1: Use `OriginalData` if format matches YOLO (lossless)
-- Priority 2: Convert from internal model (6 decimal places)
+**`write(annotations, output_dir)`**: Writes one `.txt` per image.
+- Expects `DatasetAnnotations.format == YOLO`
+- Output: `class_id cx cy w h` (5 tokens for detection) or `class_id x1 y1 x2 y2 ...` (segmentation)
+- Coordinates written with 6 decimal places (`.6f`)
 - Empty images produce empty `.txt` files
 
 **`validate(annotation_file)`**: Validates a single `.txt` file structure.
@@ -264,11 +260,14 @@ Both `is_det` and `is_seg` can be `True` simultaneously (mixed dataset).
 | `annotation_file` | Yes | Path to COCO `.json` file |
 | `do_rle` | No | Whether to output RLE format (default False) |
 
-**`read()`**: Reads the single JSON file, normalizes bbox to center-based [0,1], preserves RLE data.
+**`read()`**: Returns `DatasetAnnotations(format=COCO)` with:
+- `BoundingBox`: `(x_tl, y_tl, w_abs, h_abs)` in absolute pixels (native COCO format)
+- `Segmentation.points`: `(x, y)` in absolute pixels (from COCO segmentation polygons)
+- `Segmentation.rle`: Preserved RLE data when segmentation is RLE-encoded
+- No coordinate normalization — COCO native coordinates are absolute pixels
 
-**`write(annotations, output_file, output_rle=None)`**: Writes COCO JSON with:
-- Priority 1: Use `OriginalData` if format matches COCO (lossless, preserves all optional fields)
-- Priority 2: Convert from internal model
+**`write(annotations, output_file, output_rle=None)`**: Writes COCO JSON.
+- Expects `DatasetAnnotations.format == COCO`
 - Crowd annotations (`iscrowd=1`) always use RLE format
 - Non-crowd annotations follow `output_rle` flag
 
@@ -286,19 +285,22 @@ Both `is_det` and `is_seg` can be `True` simultaneously (mixed dataset).
 | `label_dir` | Yes | Directory containing `.json` label files |
 | `class_file` | No | Optional path to `classes.txt` |
 
-**`read()`**: Scans `label_dir` for `.json` files, parses shapes:
-- `rectangle` (2 points) → `BoundingBox` (center, normalized)
-- `polygon` (≥ 3 points) → `Segmentation` (normalized)
-- Other shape types (circle, line, point) → **parse error**
+**`read()`**: Returns `DatasetAnnotations(format=LABELME)` with:
+- `BoundingBox`: `(x_tl, y_tl, w_abs, h_abs)` derived from rectangle corner points
+  (`x = min(x1,x2)`, `y = min(y1,y2)`, `w = |x2-x1|`, `h = |y2-y1|`), in absolute pixels
+- `Segmentation.points`: `(x, y)` in absolute pixels from polygon shapes
+- Shape types: `rectangle` → BoundingBox; `polygon` (≥ 3 points) → Segmentation
+- Other shape types (circle, line, point) → parse error
 
 **`write(annotations, output_dir)`**: Writes one `.json` per image.
-- Priority 1: Use `OriginalData` if format matches LabelMe (preserves `flags`, `group_id`, etc.)
-- Priority 2: Convert from internal model (default structure)
+- Expects `DatasetAnnotations.format == LABELME`
 - `imageData` is always set to `None`
+- For rectangle annotations: writes as `shape_type="rectangle"` with two corner points `[[x1,y1],[x2,y2]]`
 
 **`validate(annotation_file)`**: Validates a single `.json` file structure.
 
-**Category discovery**: If `class_file` is not provided, categories are auto-extracted from `shape.label` values during reading.
+**Category discovery**: If `class_file` is not provided, categories are auto-extracted
+from `shape.label` values during reading.
 
 ## 5. Strict Mode vs Non-Strict Mode Contract
 
@@ -306,54 +308,21 @@ Both `is_det` and `is_seg` can be `True` simultaneously (mixed dataset).
 |------------|-------------|-----------------|
 | Invalid annotation format (wrong token count, bad JSON) | Abort immediately | Skip annotation, log warning, continue |
 | Invalid class_id (not in categories) | Abort immediately | Skip annotation, log warning, continue |
-| Invalid coordinate (out of [0,1]) | Abort immediately | Skip annotation, log warning, continue |
+| Invalid coordinate (out of valid range for format) | Abort immediately | Skip annotation, log warning, continue |
 | Invalid bbox (zero area, overflow) | Abort immediately | Skip annotation, log warning, continue |
 | Image file not found | **Always skip with warning** | **Always skip with warning** |
 | Image unreadable / corrupt | **Always skip with warning** | **Always skip with warning** |
 | Invalid image dimensions | **Always skip with warning** | **Always skip with warning** |
 
-**Key rule**: Image-related errors never cause an abort — they are always downgraded to warnings regardless of `strict_mode`. This is because image availability is orthogonal to annotation validity.
+**Key rule**: Image-related errors never cause an abort — they are always downgraded to
+warnings regardless of `strict_mode`.
 
-## 6. Lossless Round-Trip Contract
+**Coordinate validity depends on format:**
+- **YOLO**: coordinates must be finite floats in [0, 1]
+- **COCO**: coordinates must be finite positive numbers (absolute pixels)
+- **LabelMe**: coordinates must be finite positive numbers (absolute pixels)
 
-### 6.1 Priority Chain
-
-During `write()`, each handler follows this priority for every annotation:
-
-```
-1. OriginalData (format matches target) → Byte-for-byte reproduction
-2. Internal model conversion           → Float precision (.6f or JSON float)
-```
-
-### 6.2 What Is Preserved Per Format
-
-| Format | Preserved in OriginalData |
-|--------|--------------------------|
-| YOLO | Exact line text, tokenized items with numeric types, line number |
-| COCO | Full annotation dict (all fields including custom ones), full image dict, full category dict |
-| LabelMe | Full shape dict (including `flags`, `group_id`), full per-image JSON dict |
-
-### 6.3 When OriginalData Is NOT Used
-
-Original data is bypassed when:
-1. `OriginalData.format != target_format` (not a round-trip to the same format)
-2. `obj.has_original_data()` returns `False` (data was created from internal model)
-3. The original data path is intentionally bypassed (e.g., `output_rle != source_rle`)
-4. Class mapping has changed and class_id needs updating (partial update: original items with new class_id)
-
-**Note**: `OriginalDataManager.should_use_original()` only checks format match and data existence (conditions 1-2). Conditions 3-4 are implemented per-handler within each handler's write path.
-
-## 7. Utility Functions (`utils.py`)
-
-| Function | Purpose |
-|----------|---------|
-| `verify_lossless_roundtrip(input_path, output_path, handler_class, **handler_kwargs)` | Creates handler, reads from `input_path`, writes to temp dir, reads back, and compares files for lossless A→A round-trip |
-| `extract_categories_from_coco_data(coco_data)` | Extracts `Dict[id, name]` from COCO categories |
-| `generate_classes_file(categories, output_path)` | Generates `classes.txt` from category dict |
-| `load_classes_file(file_path)` | Loads `classes.txt` into `Dict[int, str]` |
-| `calculate_file_hash(file_path, algorithm="md5")` | Computes hash of a file for integrity comparison |
-
-## 8. Validation Constraints (Complete Checklist)
+## 6. Format-Aware Validation Constraints
 
 A valid read operation must satisfy ALL of:
 
@@ -362,8 +331,33 @@ A valid read operation must satisfy ALL of:
 3. At least one annotation file is found
 4. Categories are loaded (from class_file or auto-extracted)
 5. Each annotation line/shape has a valid class_id
-6. All coordinates are finite floats in [0, 1] (after normalization for absolute-pixel formats)
+6. All coordinates are finite floats in the **format-native range**:
+   - YOLO: [0, 1]
+   - COCO: positive absolute pixels
+   - LabelMe: positive absolute pixels
 7. Detection annotations have valid bbox (w > 0, h > 0, no boundary overflow)
 8. Segmentation annotations have at least 3 polygon vertices
 9. COCO RLE annotations have valid `size` and `counts` fields
 10. Image dimensions are positive integers
+
+## 7. Utility Functions (`utils.py`)
+
+| Function | Purpose |
+|----------|---------|
+| `extract_categories_from_coco_data(coco_data)` | Extracts `Dict[id, name]` from COCO categories |
+| `generate_classes_file(categories, output_path)` | Generates `classes.txt` from category dict |
+| `load_classes_file(file_path)` | Loads `classes.txt` into `Dict[int, str]` |
+| `calculate_file_hash(file_path, algorithm="md5")` | Computes hash of a file for integrity comparison |
+| `compare_annotation_dirs(dir_a, dir_b, format)` | Format-aware comparison (text diff for YOLO, JSON diff for LabelMe) |
+
+## 8. Changes from v1 Architecture
+
+| v1 (Deprecated) | v2 (Current) |
+|-----------------|--------------|
+| Unified normalized internal model (all coords → [0,1] center) | Format-native coordinate storage |
+| `OriginalData` + `OriginalDataManager` for lossless A→A round-trip | **Removed entirely** — not needed since coordinates stay native |
+| `BoundingBox.xyxy()` / `.xywh_abs()` conversion methods | **Removed** — converters handle coordinate math |
+| `Segmentation.points_abs()` conversion method | **Removed** — converters handle coordinate math |
+| Validation assumed [0,1] for all formats | Format-aware validation per coordinate system |
+| `DatasetAnnotations` had no `format` field | `DatasetAnnotations.format` is required and governs semantics |
+| Lossless round-trip contract (Section 6) | **Removed** — see `spec_conversion.md` for cross-format precision docs |

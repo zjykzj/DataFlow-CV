@@ -1,34 +1,104 @@
 # Visualize Module Specification
 
-> **Version:** 1.0
+> **Version:** 2.0
+> **Status:** Draft — updated for unified rendering format
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models)
 
 ## 1. Module Overview
 
-The Visualize module (`dataflow/visualize/`) renders annotation data onto images for visual inspection. It depends **only** on the Label module — it does not import from Convert or CLI.
+The Visualize module (`dataflow/visualize/`) renders annotation data onto images for visual
+inspection. It depends **only** on the Label module — it does not import from Convert or CLI.
 
-### 1.1 Module Contract
+### 1.1 Key Design: Unified Rendering Format
 
-- **Input**: Annotation data (via Label handlers) + image files
-- **Processing**: Load → draw bounding boxes, polygons, RLE masks → display or save
+Visualizers accept `DatasetAnnotations` in **any format** and convert all coordinates to a
+**unified intermediate rendering format** before drawing. This means:
+
+- One rendering pipeline handles all source formats
+- Coordinate conversion to absolute pixels happens once, in one place
+- Visualizers don't need to know the source format
+
+### 1.2 Module Contract
+
+- **Input**: `DatasetAnnotations` (any format) + image files
+- **Processing**: Convert all annotations to absolute-pixel render data → draw → display/save
 - **Output**: Rendered images (display window and/or saved files)
 - **Dependency**: Label module only (for handlers and data models)
 
-### 1.2 File Map
+### 1.3 File Map
 
 ```
 dataflow/visualize/
-├── base.py                  # BaseVisualizer + ColorManager + VisualizationResult
-├── yolo_visualizer.py       # YOLO visualization
-├── coco_visualizer.py       # COCO visualization
-├── labelme_visualizer.py    # LabelMe visualization
-└── utils.py                 # Image scaling, color mapping, text positioning utilities
+├── base.py                  # BaseVisualizer + ColorManager + VisualizationResult + RenderData
+├── yolo_visualizer.py       # YOLO visualization (wraps YOLO handler + converts to RenderData)
+├── coco_visualizer.py       # COCO visualization (wraps COCO handler + converts to RenderData)
+├── labelme_visualizer.py    # LabelMe visualization (wraps LabelMe handler + converts to RenderData)
+└── utils.py                 # Image scaling, text positioning utilities
 ```
 
-## 2. Core Components
+## 2. Unified Rendering Format
 
-### 2.1 `ColorManager`
+### 2.1 `RenderAnnotation`
+
+All annotations are converted to this unified format before drawing:
+
+```python
+@dataclass
+class RenderAnnotation:
+    class_name: str
+    class_id: int
+    
+    # Bounding box in absolute pixel coordinates [x1, y1, x2, y2]
+    # x1, y1 = top-left corner; x2, y2 = bottom-right corner
+    bbox: Optional[Tuple[int, int, int, int]]
+    
+    # Polygon points in absolute pixel coordinates [(x1, y1), (x2, y2), ...]
+    polygon: Optional[List[Tuple[int, int]]]
+    
+    # RLE mask data (COCO only, preserved as-is)
+    rle: Optional[Dict[str, Any]]
+```
+
+### 2.2 `RenderData`
+
+```python
+@dataclass
+class RenderData:
+    annotations: List[RenderAnnotation]
+    image_width: int
+    image_height: int
+```
+
+### 2.3 Coordinate Conversion to RenderData
+
+The conversion from `DatasetAnnotations` (any format) → `RenderData`:
+
+| Source Format | Bounding Box Conversion | Polygon Conversion |
+|---------------|------------------------|-------------------|
+| YOLO | `cx_norm→cx_abs, cy_norm→cy_abs` → `int(cx-w/2), int(cy-h/2), int(cx+w/2), int(cy+h/2)` | `int(x*W), int(y*H)` per point |
+| COCO | `x_tl, y_tl, w, h` → `x_tl, y_tl, x_tl+w, y_tl+h` | Use absolute pixel points as-is |
+| LabelMe | `x_tl, y_tl, w, h` → `x_tl, y_tl, x_tl+w, y_tl+h` | Use absolute pixel points as-is |
+
+**All coordinates are truncated to integers via `int()` for OpenCV drawing compatibility.**
+
+This conversion is lossy (integer truncation), but since it's used only for display (not for
+saving annotations), precision loss in the rendering pipeline is acceptable.
+
+### 2.4 Conversion Logic Location
+
+Coordinate conversion to `RenderData` is done in each concrete visualizer's
+`load_annotations()` method. This method:
+1. Calls the Label handler's `read()` to get `DatasetAnnotations` in native format
+2. Converts all annotations to `List[RenderAnnotation]` using the conversion rules above
+3. Stores the `RenderData` for the rendering pipeline
+
+**No dependency on the Convert module** — each visualizer implements its own lightweight
+coordinate conversion to absolute pixels.
+
+## 3. Core Components
+
+### 3.1 `ColorManager`
 
 HSV-based color palette generator that ensures consistent, unique colors per class ID.
 
@@ -51,7 +121,7 @@ HSV-based color palette generator that ensures consistent, unique colors per cla
 
 **Debug mode:** When `debug=True`, log color assignments to stderr.
 
-### 2.2 `VisualizationResult`
+### 3.2 `VisualizationResult`
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -61,7 +131,7 @@ HSV-based color palette generator that ensures consistent, unique colors per cla
 | `errors` | List[str] | Error messages |
 | `log_file_path` | Optional[str] | Log file path (verbose mode) |
 
-### 2.3 `BaseVisualizer`
+### 3.3 `BaseVisualizer`
 
 Abstract base class implementing the template method pattern.
 
@@ -91,57 +161,59 @@ Abstract base class implementing the template method pattern.
 | `text_padding` | 5 | Text offset from bbox top |
 | `font` | `FONT_HERSHEY_SIMPLEX` | OpenCV font |
 
-## 3. Visualization Pipeline
+## 4. Visualization Pipeline
 
-### 3.1 Template Method: `visualize()`
+### 4.1 Template Method: `visualize()`
 
 ```
 visualize()
-├── 1. load_annotations()          # Abstract — subclass uses its handler
+├── 1. load_annotations()          # Abstract — subclass returns List[RenderAnnotation]
 ├── 2. Validate output_dir         # Required if is_save=True
-├── 3. For each ImageAnnotation:
+├── 3. For each RenderAnnotation + image:
 │   ├── _visualize_single_image()
 │   │   ├── Load image (resolve path, cv2.imread)
-│   │   ├── For each ObjectAnnotation:
+│   │   ├── For each RenderAnnotation:
 │   │   │   ├── _draw_bbox()       # If bbox exists
-│   │   │   ├── _draw_polygon()    # If polygon segmentation
-│   │   │   └── _draw_rle_mask()   # If RLE segmentation
+│   │   │   ├── _draw_polygon()    # If polygon exists
+│   │   │   └── _draw_rle_mask()   # If RLE exists
 │   │   ├── Display (cv2.imshow)   # If is_show=True
 │   │   └── Save (cv2.imwrite)     # If is_save=True
 │   └── Handle keyboard input
 └── 4. Return VisualizationResult
 ```
 
-### 3.2 Abstract Method: `load_annotations()`
+### 4.2 Abstract Method: `load_annotations()`
 
 Each concrete visualizer must implement:
 
 ```python
 @abstractmethod
-def load_annotations(self) -> DatasetAnnotations: ...
+def load_annotations(self) -> Dict[str, RenderAnnotations]: ...
 ```
 
 The implementation:
-1. Creates a Label handler
-2. Calls `handler.read()`
-3. Returns `DatasetAnnotations` or raises `ValueError` on failure
+1. Creates the appropriate Label handler
+2. Calls `handler.read()` → `DatasetAnnotations` (format-native coordinates)
+3. Converts all annotations to absolute-pixel `RenderAnnotation` objects
+4. Returns mapping of `{image_path: [RenderAnnotation, ...]}`
+5. Raises `ValueError` on failure
 
-### 3.3 Drawing Methods
+### 4.3 Drawing Methods
 
-#### `_draw_bbox(image, bbox, color, class_name, img_w, img_h)`
+#### `_draw_bbox(image, bbox, color, class_name)`
 
-1. Convert normalized center bbox to absolute top-left/bottom-right via `BoundingBox.xyxy()`
-2. Draw rectangle with `cv2.rectangle()`
-3. Draw class label above the rectangle with `_draw_text()`
+- `bbox`: `(x1, y1, x2, y2)` in absolute pixels (from `RenderAnnotation` — already in absolute coords)
+- Draw rectangle with `cv2.rectangle()`
+- Draw class label above the rectangle with `_draw_text()`
 
-#### `_draw_polygon(image, segmentation, color, class_name, img_w, img_h)`
+#### `_draw_polygon(image, polygon, color, class_name)`
 
-1. Convert normalized points to absolute via `Segmentation.points_abs()`
-2. Draw semi-transparent fill with `cv2.fillPoly()` + `cv2.addWeighted()` (alpha from config)
-3. Draw polygon outline with `cv2.polylines()`
-4. Draw class label near first point
+- `polygon`: `[(x1, y1), (x2, y2), ...]` in absolute pixels (from `RenderAnnotation`)
+- Draw semi-transparent fill with `cv2.fillPoly()` + `cv2.addWeighted()` (alpha from config)
+- Draw polygon outline with `cv2.polylines()`
+- Draw class label near first point
 
-#### `_draw_rle_mask(image, rle, color, img_w, img_h)`
+#### `_draw_rle_mask(image, rle, color)`
 
 1. Decode RLE to binary mask via pycocotools (`coco_mask.decode()`)
 2. Create color mask × BGR color values
@@ -155,7 +227,7 @@ Requires pycocotools — logs error and returns without drawing if unavailable.
 2. Draw black background rectangle (clamped to image boundaries)
 3. Draw white text with `cv2.putText()` (anti-aliased)
 
-### 3.4 Keyboard Interaction (Display Mode)
+### 4.4 Keyboard Interaction (Display Mode)
 
 When `is_show=True`, each image is shown in a window:
 
@@ -166,52 +238,62 @@ When `is_show=True`, each image is shown in a window:
 
 When the user interrupts, `VisualizationResult.data` includes `{"interrupted": True}`.
 
-### 3.5 Save Mode
+### 4.5 Save Mode
 
 When `is_save=True`:
 - Rendered images are saved to `output_dir/{image_id}_visualized.jpg`
 - JPEG quality: 95
 - `output_dir` is created if it doesn't exist
 
-### 3.6 Progress Feedback
+### 4.6 Progress Feedback
 
-When a progress logger is available (verbose mode), progress is reported every 10 images with a text progress bar:
+When a progress logger is available (verbose mode), progress is reported every 10 images
+with a text progress bar:
 
 ```
 [==========>...............................] 25.0% Processing image_025
 ```
 
-## 4. Concrete Visualizers
+## 5. Concrete Visualizers
 
-### 4.1 `YOLOVisualizer`
+### 5.1 `YOLOVisualizer`
 
 **Constructor:** `YOLOVisualizer(label_dir, image_dir, class_file, verbose=False, **kwargs)`
 
 - Creates `YoloAnnotationHandler` internally
 - `class_file` is required (passed to handler)
-- `load_annotations()` calls `YoloAnnotationHandler.read()`
+- `load_annotations()`:
+  1. Calls `YoloAnnotationHandler.read()` → `DatasetAnnotations(format=YOLO)`
+  2. For each `ObjectAnnotation`: converts YOLO-native (normalized center) coords
+     to `RenderAnnotation` (absolute pixel `[x1,y1,x2,y2]`)
 
-### 4.2 `COCOVisualizer`
+### 5.2 `COCOVisualizer`
 
 **Constructor:** `COCOVisualizer(annotation_file, image_dir, verbose=False, **kwargs)`
 
 - Creates `CocoAnnotationHandler` internally
 - `annotation_file` is the COCO JSON file path
-- `load_annotations()` calls `CocoAnnotationHandler.read()`
+- `load_annotations()`:
+  1. Calls `CocoAnnotationHandler.read()` → `DatasetAnnotations(format=COCO)`
+  2. For each `ObjectAnnotation`: converts COCO-native (absolute pixel `[x,y,w,h]`)
+     to `RenderAnnotation` (absolute pixel `[x1,y1,x2,y2]`)
 
-### 4.3 `LabelMeVisualizer`
+### 5.3 `LabelMeVisualizer`
 
 **Constructor:** `LabelMeVisualizer(label_dir, image_dir, class_file=None, verbose=False, **kwargs)`
 
 - Creates `LabelMeAnnotationHandler` internally
 - `class_file` is optional
-- `load_annotations()` calls `LabelMeAnnotationHandler.read()`
+- `load_annotations()`:
+  1. Calls `LabelMeAnnotationHandler.read()` → `DatasetAnnotations(format=LABELME)`
+  2. For each `ObjectAnnotation`: LabelMe coordinates are already in the right form;
+     directly converts to `RenderAnnotation`
 
-## 5. Dependency Contract
+## 6. Dependency Contract
 
 ```
 Visualize module imports FROM:
-├── dataflow.label.models         (BoundingBox, DatasetAnnotations, Segmentation, ...)
+├── dataflow.label.models         (DatasetAnnotations, AnnotationFormat, ...)
 ├── dataflow.label.yolo_handler   (YoloAnnotationHandler)
 ├── dataflow.label.coco_handler   (CocoAnnotationHandler)
 ├── dataflow.label.labelme_handler (LabelMeAnnotationHandler)
@@ -224,7 +306,7 @@ Visualize module does NOT import FROM:
 └── dataflow.cli.*                (FORBIDDEN — CLI depends on Visualize, not vice versa)
 ```
 
-## 6. Error Handling Contract
+## 7. Error Handling Contract
 
 | Error Type | Strict Mode | Non-Strict Mode |
 |------------|-------------|-----------------|
@@ -234,9 +316,10 @@ Visualize module does NOT import FROM:
 | RLE decode failed (no pycocotools) | Log error, skip RLE mask drawing | Log error, skip RLE mask drawing |
 | Annotation load failed | `ValueError` raised (caught by `visualize()`) | `ValueError` raised |
 
-**Key rule**: Image loading errors never abort the entire visualization — individual image failures are counted in `summary_data["failed_images"]` but processing continues.
+**Key rule**: Image loading errors never abort the entire visualization — individual image
+failures are counted in `summary_data["failed_images"]` but processing continues.
 
-## 7. Verbose Logging Contract
+## 8. Verbose Logging Contract
 
 When `verbose=True`:
 - Each image processing step is logged at DEBUG level
