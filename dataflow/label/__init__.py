@@ -2,16 +2,15 @@
 Label processing module for DataFlow-CV.
 
 This module provides annotation handling for computer vision datasets, supporting
-three major formats: LabelMe, YOLO, and COCO. The module features completely
-lossless read/write functionality, preserving original annotation data to ensure
-bitwise identical output when reading and re-writing annotation files.
+three major formats: LabelMe, YOLO, and COCO. Each handler stores coordinates in
+its format's native representation — see DatasetAnnotations.format to determine
+the coordinate semantics.
 
 Key features:
-- Lossless round-trip annotation processing
-- Original data preservation for all supported formats
-- Priority-based writing (original data > preserved RLE > converted data)
-- Support for mixed-origin datasets
-- Comprehensive format conversion with data integrity
+- Format-native coordinate storage (no unified normalization)
+- Read/write/validate for YOLO, COCO, and LabelMe formats
+- Format-aware validation
+- Category management utilities
 
 Example usage:
     >>> from dataflow.label import LabelMeAnnotationHandler
@@ -26,9 +25,7 @@ from .base import AnnotationResult, BaseAnnotationHandler
 from .coco_handler import CocoAnnotationHandler
 from .labelme_handler import LabelMeAnnotationHandler
 from .models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
-                     ImageAnnotation, ObjectAnnotation, OriginalData,
-                     OriginalDataManager, Segmentation)
-from .utils import verify_lossless_roundtrip
+                     ImageAnnotation, ObjectAnnotation, Segmentation)
 from .yolo_handler import YoloAnnotationHandler
 
 __all__ = [
@@ -41,11 +38,8 @@ __all__ = [
     "BoundingBox",
     "Segmentation",
     "AnnotationFormat",
-    "OriginalData",
-    "OriginalDataManager",
     "LabelMeAnnotationHandler",
     "YoloAnnotationHandler",
     "CocoAnnotationHandler",
     "utils",
-    "verify_lossless_roundtrip",
 ]

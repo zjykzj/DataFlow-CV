@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-from .models import DatasetAnnotations
+from .models import AnnotationFormat, DatasetAnnotations
 
 
 class ImageError(Exception):
@@ -148,12 +148,30 @@ class BaseAnnotationHandler(ABC):
             return False
         return True
 
-    def _validate_bbox(self, bbox) -> bool:
-        """Validate bounding box coordinates, dimensions, and boundary containment."""
+    def _validate_absolute_coordinate(self, value: float, name: str) -> bool:
+        """Validate absolute coordinate is a finite non-negative number."""
+        if not math.isfinite(value):
+            self._log_error(f"Absolute {name} is not finite: {value}")
+            return False
+        if value < 0:
+            self._log_error(f"Absolute {name} is negative: {value}")
+            return False
+        return True
+
+    def _validate_bbox(
+        self, bbox, format: AnnotationFormat = AnnotationFormat.YOLO
+    ) -> bool:
+        """Validate bounding box based on format-specific coordinate semantics."""
         if bbox is None:
             return True
 
-        # Validate each coordinate is a finite number in [0, 1]
+        if format == AnnotationFormat.YOLO:
+            return self._validate_bbox_normalized(bbox)
+        else:
+            return self._validate_bbox_absolute(bbox)
+
+    def _validate_bbox_normalized(self, bbox) -> bool:
+        """Validate YOLO-style normalized bounding box."""
         checks = [
             self._validate_normalized_coordinate(bbox.x, "bbox.x"),
             self._validate_normalized_coordinate(bbox.y, "bbox.y"),
@@ -178,27 +196,59 @@ class BaseAnnotationHandler(ABC):
             self._log_error(f"bbox overflows left boundary: x={bbox.x}, w={bbox.width}")
             return False
         if bbox.x + half_w > 1:
-            self._log_error(f"bbox overflows right boundary: x={bbox.x}, w={bbox.width}")
+            self._log_error(
+                f"bbox overflows right boundary: x={bbox.x}, w={bbox.width}"
+            )
             return False
         if bbox.y - half_h < 0:
             self._log_error(f"bbox overflows top boundary: y={bbox.y}, h={bbox.height}")
             return False
         if bbox.y + half_h > 1:
-            self._log_error(f"bbox overflows bottom boundary: y={bbox.y}, h={bbox.height}")
+            self._log_error(
+                f"bbox overflows bottom boundary: y={bbox.y}, h={bbox.height}"
+            )
             return False
 
         return True
 
-    def _validate_segmentation_points(self, points: List[Tuple[float, float]]) -> bool:
-        """Validate segmentation polygon points."""
+    def _validate_bbox_absolute(self, bbox) -> bool:
+        """Validate absolute-pixel bounding box (COCO/LabelMe)."""
+        checks = [
+            self._validate_absolute_coordinate(bbox.x, "bbox.x"),
+            self._validate_absolute_coordinate(bbox.y, "bbox.y"),
+        ]
+        if not all(checks):
+            return False
+
+        # Width and height must be strictly positive
+        if bbox.width <= 0:
+            self._log_error(f"bbox.width must be > 0, got {bbox.width}")
+            return False
+        if bbox.height <= 0:
+            self._log_error(f"bbox.height must be > 0, got {bbox.height}")
+            return False
+
+        return True
+
+    def _validate_segmentation_points(
+        self,
+        points: List[Tuple[float, float]],
+        format: AnnotationFormat = AnnotationFormat.YOLO,
+    ) -> bool:
+        """Validate segmentation polygon points based on format."""
         if not points:
             self._log_error("Segmentation polygon has no points")
             return False
 
+        if format == AnnotationFormat.YOLO:
+            validator = self._validate_normalized_coordinate
+        else:
+            validator = self._validate_absolute_coordinate
+
         for i, (x, y) in enumerate(points):
-            if not self._validate_normalized_coordinate(x, f"point[{i}].x"):
+            if not validator(x, f"point[{i}].x"):
                 return False
-            if not self._validate_normalized_coordinate(y, f"point[{i}].y"):
+            if not validator(y, f"point[{i}].y"):
                 return False
 
         # Check polygon has at least 3 points

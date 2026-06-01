@@ -17,8 +17,7 @@ from dataflow.util.file_util import FileOperations
 
 from .base import AnnotationResult, BaseAnnotationHandler, ImageError
 from .models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
-                     ImageAnnotation, ObjectAnnotation, OriginalData,
-                     Segmentation)
+                     ImageAnnotation, ObjectAnnotation, Segmentation)
 
 
 class YoloAnnotationHandler(BaseAnnotationHandler):
@@ -130,7 +129,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                 result.add_error(f"No TXT files found in {self.label_dir}")
                 return result
 
-            dataset = DatasetAnnotations()
+            dataset = DatasetAnnotations(format=AnnotationFormat.YOLO)
             dataset.categories = self.categories.copy()
 
             for txt_file in txt_files:
@@ -223,8 +222,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     items = line.split()
                     if not items:
                         continue
-                    # Convert numeric tokens to float to ensure proper arithmetic
-                    # when later extracting coordinates from original data
+                    # Convert numeric tokens to float
                     items = [items[0]] + [float(x) for x in items[1:]]
 
                     is_detection, is_segmentation = self._detect_annotation_type(items)
@@ -373,24 +371,6 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                                 )
                                 continue
 
-                    # Create original data for lossless round-trip
-                    original_data = OriginalData(
-                        format=AnnotationFormat.YOLO.value,
-                        raw_data={
-                            "line": line,
-                            "line_number": line_num,
-                            "items": items.copy(),
-                            "is_detection": is_detection,
-                            "is_segmentation": is_segmentation,
-                        },
-                    )
-
-                    # Attach original data to components
-                    if bbox is not None:
-                        bbox.original_data = original_data
-                    if segmentation is not None:
-                        segmentation.original_data = original_data
-
                     # Create object annotation
                     obj = ObjectAnnotation(
                         class_id=class_id,
@@ -398,7 +378,6 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                         bbox=bbox,
                         segmentation=segmentation,
                         confidence=1.0,
-                        original_data=original_data,
                     )
                     objects.append(obj)
 
@@ -547,36 +526,6 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     )
                     return None
                 class_id = found_id
-
-            # Priority 1: Use original data if available and format matches
-            if (
-                obj.has_original_data()
-                and obj.original_data.format == AnnotationFormat.YOLO.value
-            ):
-                raw_data = obj.original_data.raw_data
-                if "line" in raw_data:
-                    # Use the original line string for byte-for-byte reproduction,
-                    # only replacing the class_id to handle category remapping
-                    original_line = raw_data["line"]
-                    # Split on first whitespace to separate class_id from rest
-                    parts = original_line.split(None, 1)
-                    if len(parts) >= 2:
-                        # Preserve exact original coordinate formatting
-                        return f"{class_id} {parts[1]}"
-                    elif len(parts) == 1:
-                        # Edge case: line had only class_id
-                        return str(class_id)
-                elif "items" in raw_data:
-                    # Fallback: reconstruct from parsed items
-                    original_items = list(raw_data["items"])
-                    if len(original_items) > 0:
-                        original_items[0] = str(class_id)
-                        original_items = [str(x) for x in original_items]
-                        return " ".join(original_items)
-                else:
-                    self._log_warning(
-                        "Original data missing line or items, falling back to conversion"
-                    )
 
             if obj.bbox:
                 # Object detection format: class_id x_center y_center width height
