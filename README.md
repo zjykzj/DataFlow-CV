@@ -12,7 +12,7 @@ A computer vision dataset processing library for seamless format conversion and 
 
 - **Bidirectional Conversion**: Convert between LabelMe, COCO, and YOLO formats in any direction
 - **Multi-format Support**: Handle object detection bounding boxes and instance segmentation polygons
-- **Lossless Round-trip**: Preserve original coordinates through conversion chains
+- **Native Coordinate Storage**: Coordinates stored in format-native representation (YOLO normalized, COCO/LabelMe absolute pixels)
 - **Visualization**: Visualize annotations with OpenCV, supporting both display and save modes
 - **Command-line Interface**: User-friendly CLI with `convert` and `visualize` subcommands
 - **Python API**: Programmatic access for integration into larger pipelines
@@ -176,8 +176,8 @@ See the `samples/` directory for complete examples:
 
 ### Key Concepts
 
-- **Normalized Coordinates**: All internal coordinates are in 0-1 range with center-based bounding boxes (YOLO convention)
-- **Original Data Preservation**: Lossless round-trip conversion through `OriginalData` system, preserving exact source values
+- **Format-Native Coordinates**: Coordinates stored in each format's native representation — YOLO normalized [0,1] center-based, COCO/LabelMe absolute pixels top-left. See `DatasetAnnotations.format` to determine semantics
+- **Explicit Coordinate Transforms**: Converters handle all coordinate transformations between formats. No hidden normalization — lossy vs lossless behavior is explicitly documented
 - **Strict Mode**: Validation errors raise exceptions (default). Disable in CLI with `--no-strict`, or in Python API with `strict_mode=False`
 - **Verbose Logging**: Detailed debug logs saved to files when `--verbose` is used. The CLI prints "Verbose log saved to: <path>" after operations.
 - **Headless Support**: Use `--no-display` for servers/Docker; use `--save` to output visualization images without a window
@@ -192,7 +192,7 @@ For detailed developer guidance including advanced test commands, debugging, and
 
 ### Testing
 
-294 tests, **73%** code coverage.
+289 tests, **73%** code coverage.
 
 ```bash
 # Run all tests
