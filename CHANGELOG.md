@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-06-04
+
+### Fixed
+
+- **Text label positioning**: Fixed text baseline offset and background rectangle miscalculation in `_draw_text()`. Text was shifted up by `baseline` pixels and background was `2*baseline` pixels too tall.
+- **Duplicate class labels for COCO**: Fixed class name being drawn twice for COCO annotations that have both bbox and segmentation. Label is now drawn once in `_draw_render_annotation()`.
+- **YOLO bbox precision**: Deferred `int()` truncation to final coordinates in `YOLOVisualizer`, eliminating ±2 px unnecessary precision loss from intermediate truncation.
+- **Polygon vertex guard**: Raised minimum vertex check from 2 to 3 in `_draw_polygon()` to match OpenCV requirements.
+- **ColorManager algorithm**: Replaced degenerate HSV step algorithm with golden ratio conjugate hue spacing. Saturation increased from 39-41% to 78-100%, eliminating washed-out colors. All 1000 predefined colors are now unique (was 754).
+
+### Changed
+
+- **Format ordering convention**: All cross-format listings (docs, enums, imports, CLI help, tables, `__all__`) now follow `YOLO → LabelMe → COCO` order — simple to complex progression.
+- **CLAUDE.md**: Added Format Ordering Convention section documenting the ordering rule, rationale, and scope.
+
 ## [1.0.0] - 2026-06-01
 
 ### ⚠️ Breaking Changes
