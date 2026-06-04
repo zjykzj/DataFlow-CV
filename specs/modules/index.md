@@ -56,8 +56,8 @@ The Modules layer defines **how** the software components work — their archite
 Modules Layer (HOW)               Formats Layer (WHAT)
 ─────────────────────           ─────────────────────
 spec_label.md                   spec_yolo_format.md
-spec_convert.md       ──▶       spec_coco_format.md
-spec_visualize.md               spec_labelme_format.md
+spec_convert.md       ──▶       spec_labelme_format.md
+spec_visualize.md               spec_coco_format.md
 spec_cli.md                     spec_conversion.md
 
   "How does the code              "What is correct behavior?"

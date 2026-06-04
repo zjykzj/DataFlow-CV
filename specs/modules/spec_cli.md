@@ -61,15 +61,15 @@ dataflow-cv
 ├── convert
 │   ├── yolo2coco     IMAGE_DIR LABEL_DIR CLASS_FILE OUTPUT_FILE [--do-rle] [--verbose] [--no-strict]
 │   ├── yolo2labelme  IMAGE_DIR LABEL_DIR CLASS_FILE OUTPUT_DIR [--verbose] [--no-strict]
-│   ├── coco2yolo     COCO_FILE OUTPUT_DIR [--verbose] [--no-strict]
-│   ├── coco2labelme  COCO_FILE OUTPUT_DIR [--verbose] [--no-strict]
 │   ├── labelme2yolo  LABELME_DIR CLASS_FILE OUTPUT_DIR [--verbose] [--no-strict]
-│   └── labelme2coco  LABELME_DIR CLASS_FILE OUTPUT_FILE [--do-rle] [--verbose] [--no-strict]
+│   ├── labelme2coco  LABELME_DIR CLASS_FILE OUTPUT_FILE [--do-rle] [--verbose] [--no-strict]
+│   ├── coco2yolo     COCO_FILE OUTPUT_DIR [--verbose] [--no-strict]
+│   └── coco2labelme  COCO_FILE OUTPUT_DIR [--verbose] [--no-strict]
 │
 └── visualize
     ├── yolo     IMAGE_DIR LABEL_DIR CLASS_FILE [--save DIR] [--verbose] [--display/--no-display]
-    ├── coco     IMAGE_DIR COCO_FILE [--save DIR] [--verbose] [--display/--no-display]
-    └── labelme  IMAGE_DIR LABEL_DIR [--save DIR] [--verbose] [--display/--no-display]
+    ├── labelme  IMAGE_DIR LABEL_DIR [--save DIR] [--verbose] [--display/--no-display]
+    └── coco     IMAGE_DIR COCO_FILE [--save DIR] [--verbose] [--display/--no-display]
 ```
 
 ## 4. Convert Subcommands

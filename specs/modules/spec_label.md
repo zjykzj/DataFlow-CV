@@ -25,8 +25,8 @@ transformation is the exclusive responsibility of the **Convert module**, not ha
 | Format  | Bounding Box Semantics                              | Coordinate Space       |
 |---------|-----------------------------------------------------|------------------------|
 | YOLO    | `(cx, cy, w, h)` center-based                       | Normalized [0, 1]      |
-| COCO    | `(x, y, w, h)` top-left origin                      | Absolute pixels        |
 | LabelMe | `(x1, y1, x2, y2)` two opposite corners             | Absolute pixels        |
+| COCO    | `(x, y, w, h)` top-left origin                      | Absolute pixels        |
 
 ### 1.2 Module Contract
 

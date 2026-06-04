@@ -32,8 +32,8 @@ Visualizers accept `DatasetAnnotations` in **any format** and convert all coordi
 dataflow/visualize/
 ├── base.py                  # BaseVisualizer + ColorManager + VisualizationResult + RenderData
 ├── yolo_visualizer.py       # YOLO visualization (wraps YOLO handler + converts to RenderData)
-├── coco_visualizer.py       # COCO visualization (wraps COCO handler + converts to RenderData)
 ├── labelme_visualizer.py    # LabelMe visualization (wraps LabelMe handler + converts to RenderData)
+├── coco_visualizer.py       # COCO visualization (wraps COCO handler + converts to RenderData)
 └── utils.py                 # Image scaling, text positioning utilities
 ```
 
