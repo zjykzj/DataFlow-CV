@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-DataFlow-CV is a computer vision dataset processing library for format conversion and visualization between LabelMe, COCO, and YOLO annotation formats. It provides both a Python API and a command-line interface (CLI) with `convert` and `visualize` subcommands.
+DataFlow-CV is a computer vision dataset processing library for format conversion and visualization between YOLO, LabelMe, and COCO annotation formats. It provides both a Python API and a command-line interface (CLI) with `convert` and `visualize` subcommands.
 
 The project follows a modular architecture with clear separation between format handlers, converters, visualizers, and utilities. Each handler stores coordinates in its format's native representation — see `DatasetAnnotations.format` to determine coordinate semantics.
 
@@ -17,8 +17,8 @@ specs/
 ├── formats/                   # WHAT — external data format contracts
 │   ├── index.md               # Formats layer overview
 │   ├── spec_yolo_format.md    # YOLO .txt format authority
-│   ├── spec_coco_format.md    # COCO .json format authority
 │   ├── spec_labelme_format.md # LabelMe .json format authority
+│   ├── spec_coco_format.md    # COCO .json format authority
 │   └── spec_conversion.md     # Conversion rules (coordinate transforms, category mapping)
 │
 └── modules/                   # HOW — internal module architecture & interface contracts
@@ -99,6 +99,28 @@ The AI model used in this project is DeepSeek-V4.0, not Claude Opus.
 
 ## Architecture
 
+### Format Ordering Convention
+
+When YOLO, LabelMe, and COCO appear together in any listing (docs, enums, imports, CLI help, tables, `__all__`, etc.), they **must** follow this order:
+
+```
+YOLO → LabelMe → COCO
+```
+
+**Rationale**: Progression from simplest (YOLO: plain `.txt`, per-image) to medium (LabelMe: `.json` per-image) to most complex (COCO: single `.json` for entire dataset). This reduces cognitive load for newcomers and provides a consistent reading experience across the entire codebase.
+
+**Where this applies:**
+- `AnnotationFormat` enum member order in `models.py`
+- Docstrings and comments listing all three formats
+- Import order and `__all__` ordering in `__init__.py` files
+- CLI subcommand registration order (controls `--help` output)
+- Spec documents (both Formats and Modules layers)
+- README and other user-facing documentation
+
+**Where this does NOT apply:**
+- Format-specific files where self-reference is natural (e.g., `spec_coco_format.md` comparison tables start with COCO)
+- Conversion direction descriptions that follow an actual pipeline sequence
+
 ### Data Flow Pipeline
 ```
 Source Format (YOLO/LabelMe/COCO) → Handler.read() → DatasetAnnotations → Converter → Target Handler.write() → Target Format
@@ -111,9 +133,9 @@ Source Format (YOLO/LabelMe/COCO) → Handler.read() → DatasetAnnotations → 
 - `ObjectAnnotation`: Single annotation (class_id, class_name, optional `BoundingBox` and `Segmentation`, is_crowd flag)
 - `BoundingBox`: Coordinates in **format-native** representation. See `DatasetAnnotations.format`:
   - `YOLO`: `(x, y)` = center, `(width, height)` = normalized [0,1]
-  - `COCO`: `(x, y)` = top-left, `(width, height)` = absolute pixels
   - `LABELME`: `(x, y)` = top-left, `(width, height)` = absolute pixels
-- `Segmentation`: Polygon points in native coordinates (normalized for YOLO, absolute pixels for COCO/LabelMe)
+  - `COCO`: `(x, y)` = top-left, `(width, height)` = absolute pixels
+- `Segmentation`: Polygon points in native coordinates (normalized for YOLO, absolute pixels for LabelMe/COCO)
 
 ### Annotation Handlers (`dataflow/label/`)
 
@@ -149,7 +171,7 @@ All extend `BaseVisualizer` which provides `ColorManager` (HSV-based palette, ma
 ### CLI Structure (`dataflow/cli/`)
 
 - `main.py`: Entry point `cli` group with global `--version`/`-v` flag
-- `commands/convert.py`: 6 subcommands — `yolo2coco`, `yolo2labelme`, `coco2yolo`, `coco2labelme`, `labelme2yolo`, `labelme2coco`
+- `commands/convert.py`: 6 subcommands — `yolo2coco`, `yolo2labelme`, `labelme2yolo`, `labelme2coco`, `coco2yolo`, `coco2labelme`
 - `commands/visualize.py`: 3 subcommands — `yolo`, `labelme`, `coco`
 - `commands/utils.py`: Shared decorators (`add_common_options`, `add_visualize_options`), validators, and `FormattedCommand` (custom Click Command with aligned argument display in --help)
 - `commands/exceptions.py`: Exception hierarchy with distinct exit codes:
@@ -172,8 +194,8 @@ Common CLI options: `--verbose` (enable file logging), `--no-strict` (disable st
 | Format | Bbox origin | Coordinate space | Validated by |
 |--------|------------|-----------------|-------------|
 | YOLO | Center | Normalized (0-1) | `_validate_normalized_coordinate()` |
-| COCO | Top-left | Absolute pixels | `_validate_absolute_coordinate()` |
 | LabelMe | Top-left | Absolute pixels | `_validate_absolute_coordinate()` |
+| COCO | Top-left | Absolute pixels | `_validate_absolute_coordinate()` |
 
 **Coordinate transforms** happen exclusively in converters (`dataflow/convert/`), not in handlers or visualizers. Transform logic is in each converter's `convert_annotations()` method.
 
@@ -194,7 +216,7 @@ Visualizers convert all annotations to `RenderAnnotation` (absolute pixel intege
 - **Strict mode** (default): Validation errors immediately raise exceptions / return error results.
 - **Non-strict mode**: Errors are collected as warnings; processing continues where possible. CLI now supports `--no-strict`.
 - **Image errors**: Missing/unreadable images are always treated as warnings regardless of strict mode.
-- **Coordinate validation**: Format-aware — YOLO coords checked in [0,1], COCO/LabelMe coords checked finite and non-negative.
+- **Coordinate validation**: Format-aware — YOLO coords checked in [0,1], LabelMe/COCO coords checked finite and non-negative.
 
 ## Development Commands
 
@@ -236,7 +258,7 @@ dataflow-cv visualize yolo --no-display --verbose images/ yolo_labels/ classes.t
 
 ## Known Gotchas
 
-1. **COCO↔YOLO precision loss**: Cross-format conversion between normalized (YOLO) and absolute pixel (COCO/LabelMe) is inherently lossy (±1 px). The converter's `convert_annotations()` performs the transform explicitly — see `spec_conversion.md` for details.
+1. **COCO↔YOLO precision loss**: Cross-format conversion between normalized (YOLO) and absolute pixel (LabelMe/COCO) is inherently lossy (±1 px). The converter's `convert_annotations()` performs the transform explicitly — see `spec_conversion.md` for details.
 2. **RLE encoding**: Always `latin1`, never `utf-8`, for byte↔string round-trips.
 3. **LabelMe imageData**: Not required on read; valid external files may omit it.
 4. **Converter state**: `_source_annotations_for_target` must be cleared in a `finally` block to prevent stale state on exceptions.
