@@ -59,7 +59,15 @@ class VisualizationResult:
 
 
 class ColorManager:
-    """Color manager that ensures consistent and unique colors for the same class."""
+    """Color manager that ensures consistent and unique colors for the same class.
+
+    Uses golden ratio hue spacing with high saturation for maximum visual
+    distinctiveness. Adjacent class IDs are spaced ~69° apart in hue, and
+    saturation/value are varied to create clearly distinguishable colors.
+    """
+
+    # Golden ratio conjugate: 1 - φ ≈ 0.382, provides optimal hue spacing
+    _GOLDEN_RATIO = 0.3819660112501051
 
     def __init__(self, debug: bool = False) -> None:
         self.predefined_colors = []
@@ -68,20 +76,21 @@ class ColorManager:
         self.color_cache: Dict[int, Tuple[int, int, int]] = {}
 
     def _generate_unique_colors(self, num_colors: int) -> None:
-        """Generate N unique colors using HSV space."""
+        """Generate N visually distinct colors using golden ratio hue spacing.
+
+        Saturation is kept high (200-255, ≥78%) for vivid, easily distinguishable
+        colors. Value varies between 180-240 to provide brightness contrast without
+        becoming too dark for text readability.
+        """
         colors_set = set()
 
-        hue_step = max(1, 180 // max(1, num_colors // 3))
-        sat_step = max(1, 100 // max(1, num_colors // 3))
-        val_step = max(1, 100 // max(1, num_colors // 3))
-
-        sat_range = 101
-        val_divisor = 180 * max(1, sat_range // sat_step)
-
         for i in range(num_colors):
-            hue = (i * hue_step) % 180
-            saturation = 100 + ((i // 180) * sat_step) % sat_range
-            value = 155 + ((i // val_divisor) * val_step) % sat_range
+            # Golden ratio spacing maximizes minimum hue distance
+            hue = int((i * self._GOLDEN_RATIO * 180) % 180)
+            # High saturation range [200, 255] for vivid colors
+            saturation = 200 + (i * 43) % 56
+            # Varied value range [180, 240] for brightness contrast
+            value = 180 + (i * 67) % 61
 
             hsv_color = np.uint8([[[hue, saturation, value]]])
             bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)
@@ -91,10 +100,14 @@ class ColorManager:
                 int(bgr_color[0, 0, 2]),
             )
 
+            # Resolve collisions (rare with golden ratio spacing)
             attempt = 0
-            while color in colors_set and attempt < 10:
-                saturation = (saturation + 23) % 100 + 100
-                value = (value + 37) % 100 + 155
+            while color in colors_set and attempt < 20:
+                hue = (hue + 17) % 180
+                saturation = min(255, saturation + 20)
+                if saturation >= 255:
+                    saturation = 200
+                    value = (value + 30) % 61 + 180
                 hsv_color = np.uint8([[[hue, saturation, value]]])
                 bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)
                 color = (
@@ -103,18 +116,6 @@ class ColorManager:
                     int(bgr_color[0, 0, 2]),
                 )
                 attempt += 1
-
-            if color in colors_set:
-                hue = (hue + 1) % 180
-                saturation = 100 + (i % 100)
-                value = 155 + ((i + 13) % 100)
-                hsv_color = np.uint8([[[hue, saturation, value]]])
-                bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)
-                color = (
-                    int(bgr_color[0, 0, 0]),
-                    int(bgr_color[0, 0, 1]),
-                    int(bgr_color[0, 0, 2]),
-                )
 
             colors_set.add(color)
             self.predefined_colors.append(color)
@@ -132,9 +133,10 @@ class ColorManager:
                     file=sys.stderr,
                 )
         else:
+            # Fallback for class_id ≥ 1000: deterministic high-saturation colors
             hue = (class_id * 127) % 180
-            saturation = 100 + (class_id * 67) % 100
-            value = 155 + (class_id * 37) % 100
+            saturation = 180 + (class_id * 43) % 76   # [180, 255]
+            value = 160 + (class_id * 67) % 96        # [160, 255]
 
             hsv_color = np.uint8([[[hue, saturation, value]]])
             bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)
