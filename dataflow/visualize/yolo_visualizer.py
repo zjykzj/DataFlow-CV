@@ -74,11 +74,16 @@ class YOLOVisualizer(BaseVisualizer):
 
                 if obj.bbox:
                     # YOLO normalized center → absolute pixel [x1,y1,x2,y2]
-                    cx = int(obj.bbox.x * w)
-                    cy = int(obj.bbox.y * h)
-                    bw = int(obj.bbox.width * w / 2)
-                    bh = int(obj.bbox.height * h / 2)
-                    render_ann.bbox = (cx - bw, cy - bh, cx + bw, cy + bh)
+                    # Defer int() to final result to minimize precision loss
+                    cx = obj.bbox.x * w
+                    cy = obj.bbox.y * h
+                    half_w = obj.bbox.width * w / 2
+                    half_h = obj.bbox.height * h / 2
+                    x1 = int(cx - half_w)
+                    y1 = int(cy - half_h)
+                    x2 = int(cx + half_w)
+                    y2 = int(cy + half_h)
+                    render_ann.bbox = (x1, y1, x2, y2)
 
                 if obj.segmentation:
                     # YOLO normalized points → absolute pixel points

@@ -401,39 +401,45 @@ class BaseVisualizer(ABC):
             f"class_name={render_ann.class_name}, color={color}"
         )
 
+        # Determine label position (prefer bbox, fall back to polygon first point)
+        label_pos = None
         if render_ann.bbox is not None:
-            self._draw_bbox(image, render_ann.bbox, color, render_ann.class_name)
+            x1, y1, x2, y2 = render_ann.bbox
+            label_pos = (x1, y1 - self.config["text_padding"])
+
+        if render_ann.bbox is not None:
+            self._draw_bbox(image, render_ann.bbox, color)
 
         if render_ann.polygon is not None:
-            self._draw_polygon(image, render_ann.polygon, color, render_ann.class_name)
+            if label_pos is None and render_ann.polygon:
+                label_pos = render_ann.polygon[0]
+            self._draw_polygon(image, render_ann.polygon, color)
 
         if render_ann.rle is not None:
             self._draw_rle_mask(image, render_ann.rle, color)
+
+        if label_pos is not None:
+            self._draw_text(image, render_ann.class_name, label_pos, color)
 
     def _draw_bbox(
         self,
         image: np.ndarray,
         bbox: Tuple[int, int, int, int],
         color: Tuple[int, int, int],
-        class_name: str,
     ) -> None:
         """Draw bounding box from absolute pixel coordinates [x1, y1, x2, y2]."""
         x1, y1, x2, y2 = bbox
 
         cv2.rectangle(image, (x1, y1), (x2, y2), color, self.config["bbox_thickness"])
 
-        # Draw class label
-        self._draw_text(image, class_name, (x1, y1 - self.config["text_padding"]), color)
-
     def _draw_polygon(
         self,
         image: np.ndarray,
         polygon: List[Tuple[int, int]],
         color: Tuple[int, int, int],
-        class_name: str,
     ) -> None:
         """Draw polygon from absolute pixel points."""
-        if len(polygon) < 2:
+        if len(polygon) < 3:
             return
 
         points_np = np.array(polygon, dtype=np.int32)
@@ -452,10 +458,6 @@ class BaseVisualizer(ABC):
 
         # Draw polygon outline
         cv2.polylines(image, [points_np], True, color, self.config["seg_thickness"])
-
-        # Draw class label
-        if polygon:
-            self._draw_text(image, class_name, polygon[0], color)
 
     def _draw_rle_mask(
         self,
@@ -498,7 +500,11 @@ class BaseVisualizer(ABC):
         position: Tuple[int, int],
         color: Tuple[int, int, int],
     ) -> None:
-        """Draw text label."""
+        """Draw text label.
+
+        Args:
+            position: (x, y) baseline position for the text.
+        """
         x, y = int(position[0]), int(position[1])
 
         (text_width, text_height), baseline = cv2.getTextSize(
@@ -514,8 +520,10 @@ class BaseVisualizer(ABC):
 
         img_height, img_width = image.shape[:2]
 
+        # Background rectangle: covers from text top (y - text_height + baseline)
+        # to text bottom (y + baseline)
         x1 = x
-        y1 = y - text_height - baseline
+        y1 = y - text_height + baseline
         x2 = x + text_width
         y2 = y + baseline
 
@@ -530,7 +538,8 @@ class BaseVisualizer(ABC):
             except Exception as e:
                 self.logger.warning(f"Failed to draw text background: {e}")
 
-        text_y = y - baseline
+        # Text baseline is at position.y
+        text_y = y
         text_y = max(baseline, min(text_y, img_height - 1))
         text_x = max(0, min(x, img_width - 1))
 
