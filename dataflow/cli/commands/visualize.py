@@ -123,34 +123,34 @@ def yolo(
 @visualize_group.command(cls=FormattedCommand)
 @add_visualize_options
 @click.argument("image_dir", type=click.Path(exists=True, path_type=Path))
-@click.argument("coco_file", type=click.Path(exists=True, path_type=Path))
+@click.argument("label_dir", type=click.Path(exists=True, path_type=Path))
 @click.option(
     "--save",
     "-s",
     type=click.Path(path_type=Path),
     help="Directory to save visualization results",
 )
-def coco(
+def labelme(
     ctx,
     image_dir: Path,
-    coco_file: Path,
+    label_dir: Path,
     save: Optional[Path],
 ):
-    """Visualize COCO format labels"""
-    from dataflow.visualize.coco_visualizer import COCOVisualizer
+    """Visualize LabelMe format labels"""
+    from dataflow.visualize.labelme_visualizer import LabelMeVisualizer
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"]
 
-    logger.info(f"Starting visualization of COCO labels: {coco_file}")
+    logger.info(f"Starting visualization of LabelMe labels: {label_dir}")
 
     # Parameter validation
-    validate_visualize_params(coco_file, image_dir, save)
+    validate_visualize_params(label_dir, image_dir, save)
 
     # Call existing API
-    visualizer = COCOVisualizer(
-        annotation_file=coco_file,
+    visualizer = LabelMeVisualizer(
+        label_dir=label_dir,
         image_dir=image_dir,
         output_dir=save,
         is_show=ctx.obj["is_show"],
@@ -180,34 +180,34 @@ def coco(
 @visualize_group.command(cls=FormattedCommand)
 @add_visualize_options
 @click.argument("image_dir", type=click.Path(exists=True, path_type=Path))
-@click.argument("label_dir", type=click.Path(exists=True, path_type=Path))
+@click.argument("coco_file", type=click.Path(exists=True, path_type=Path))
 @click.option(
     "--save",
     "-s",
     type=click.Path(path_type=Path),
     help="Directory to save visualization results",
 )
-def labelme(
+def coco(
     ctx,
     image_dir: Path,
-    label_dir: Path,
+    coco_file: Path,
     save: Optional[Path],
 ):
-    """Visualize LabelMe format labels"""
-    from dataflow.visualize.labelme_visualizer import LabelMeVisualizer
+    """Visualize COCO format labels"""
+    from dataflow.visualize.coco_visualizer import COCOVisualizer
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
     strict = ctx.obj["strict"]
 
-    logger.info(f"Starting visualization of LabelMe labels: {label_dir}")
+    logger.info(f"Starting visualization of COCO labels: {coco_file}")
 
     # Parameter validation
-    validate_visualize_params(label_dir, image_dir, save)
+    validate_visualize_params(coco_file, image_dir, save)
 
     # Call existing API
-    visualizer = LabelMeVisualizer(
-        label_dir=label_dir,
+    visualizer = COCOVisualizer(
+        annotation_file=coco_file,
         image_dir=image_dir,
         output_dir=save,
         is_show=ctx.obj["is_show"],

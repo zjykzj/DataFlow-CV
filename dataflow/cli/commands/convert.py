@@ -129,94 +129,6 @@ def yolo2labelme(
 
 @convert_group.command(cls=FormattedCommand)
 @add_common_options
-@click.argument("input_path", type=click.Path(exists=True, path_type=Path), metavar="COCO_FILE")
-@click.argument("output_path", type=click.Path(path_type=Path), metavar="OUTPUT_DIR")
-def coco2yolo(
-    ctx,
-    input_path: Path,
-    output_path: Path,
-):
-    """Convert COCO format to YOLO format"""
-    from dataflow.convert.yolo_and_coco import YoloAndCocoConverter
-
-    logger = ctx.obj["logger"]
-    verbose = ctx.obj["verbose"]
-    strict = ctx.obj["strict"]
-
-    logger.info(f"Starting conversion of COCO to YOLO: {input_path} -> {output_path}")
-
-    # Parameter validation
-    validate_convert_params("coco", "yolo", input_path, output_path, None, None)
-
-    # Call existing API
-    converter = YoloAndCocoConverter(source_to_target=False, verbose=verbose, strict_mode=strict)
-    result = converter.convert(
-        source_path=str(input_path),
-        target_path=str(output_path),
-        class_file=None,
-        image_dir=None,
-        category_mapping=None,
-    )
-
-    # Print log file path if verbose mode is enabled
-    if verbose and result.log_file_path:
-        logger.info(f"Verbose log saved to: {result.log_file_path}")
-
-    if result.success:
-        logger.info(f"Conversion completed: {result.get_summary()}")
-    else:
-        # Use first error message if available, otherwise generic message
-        error_msg = result.errors[0] if result.errors else "Conversion failed"
-        logger.error(f"Conversion failed: {error_msg}")
-        raise RuntimeCLIError(f"Conversion failed: {error_msg}")
-
-
-@convert_group.command(cls=FormattedCommand)
-@add_common_options
-@click.argument("input_path", type=click.Path(exists=True, path_type=Path), metavar="COCO_FILE")
-@click.argument("output_path", type=click.Path(path_type=Path), metavar="OUTPUT_DIR")
-def coco2labelme(
-    ctx,
-    input_path: Path,
-    output_path: Path,
-):
-    """Convert COCO format to LabelMe format"""
-    from dataflow.convert.coco_and_labelme import CocoAndLabelMeConverter
-
-    logger = ctx.obj["logger"]
-    verbose = ctx.obj["verbose"]
-    strict = ctx.obj["strict"]
-
-    logger.info(f"Starting conversion of COCO to LabelMe: {input_path} -> {output_path}")
-
-    # Parameter validation
-    validate_convert_params("coco", "labelme", input_path, output_path, None, None)
-
-    # Call existing API
-    converter = CocoAndLabelMeConverter(source_to_target=True, verbose=verbose, strict_mode=strict)
-    result = converter.convert(
-        source_path=str(input_path),
-        target_path=str(output_path),
-        class_file=None,
-        image_dir=None,
-        category_mapping=None,
-    )
-
-    # Print log file path if verbose mode is enabled
-    if verbose and result.log_file_path:
-        logger.info(f"Verbose log saved to: {result.log_file_path}")
-
-    if result.success:
-        logger.info(f"Conversion completed: {result.get_summary()}")
-    else:
-        # Use first error message if available, otherwise generic message
-        error_msg = result.errors[0] if result.errors else "Conversion failed"
-        logger.error(f"Conversion failed: {error_msg}")
-        raise RuntimeCLIError(f"Conversion failed: {error_msg}")
-
-
-@convert_group.command(cls=FormattedCommand)
-@add_common_options
 @click.argument("labelme_dir", type=click.Path(exists=True, path_type=Path), metavar="LABELME_DIR")
 @click.argument("class_file", type=click.Path(exists=True, path_type=Path), metavar="CLASS_FILE")
 @click.argument("output_dir", type=click.Path(path_type=Path), metavar="OUTPUT_DIR")
@@ -309,6 +221,94 @@ def labelme2coco(
         image_dir=None,
         category_mapping=None,
         do_rle=do_rle,
+    )
+
+    # Print log file path if verbose mode is enabled
+    if verbose and result.log_file_path:
+        logger.info(f"Verbose log saved to: {result.log_file_path}")
+
+    if result.success:
+        logger.info(f"Conversion completed: {result.get_summary()}")
+    else:
+        # Use first error message if available, otherwise generic message
+        error_msg = result.errors[0] if result.errors else "Conversion failed"
+        logger.error(f"Conversion failed: {error_msg}")
+        raise RuntimeCLIError(f"Conversion failed: {error_msg}")
+
+
+@convert_group.command(cls=FormattedCommand)
+@add_common_options
+@click.argument("input_path", type=click.Path(exists=True, path_type=Path), metavar="COCO_FILE")
+@click.argument("output_path", type=click.Path(path_type=Path), metavar="OUTPUT_DIR")
+def coco2yolo(
+    ctx,
+    input_path: Path,
+    output_path: Path,
+):
+    """Convert COCO format to YOLO format"""
+    from dataflow.convert.yolo_and_coco import YoloAndCocoConverter
+
+    logger = ctx.obj["logger"]
+    verbose = ctx.obj["verbose"]
+    strict = ctx.obj["strict"]
+
+    logger.info(f"Starting conversion of COCO to YOLO: {input_path} -> {output_path}")
+
+    # Parameter validation
+    validate_convert_params("coco", "yolo", input_path, output_path, None, None)
+
+    # Call existing API
+    converter = YoloAndCocoConverter(source_to_target=False, verbose=verbose, strict_mode=strict)
+    result = converter.convert(
+        source_path=str(input_path),
+        target_path=str(output_path),
+        class_file=None,
+        image_dir=None,
+        category_mapping=None,
+    )
+
+    # Print log file path if verbose mode is enabled
+    if verbose and result.log_file_path:
+        logger.info(f"Verbose log saved to: {result.log_file_path}")
+
+    if result.success:
+        logger.info(f"Conversion completed: {result.get_summary()}")
+    else:
+        # Use first error message if available, otherwise generic message
+        error_msg = result.errors[0] if result.errors else "Conversion failed"
+        logger.error(f"Conversion failed: {error_msg}")
+        raise RuntimeCLIError(f"Conversion failed: {error_msg}")
+
+
+@convert_group.command(cls=FormattedCommand)
+@add_common_options
+@click.argument("input_path", type=click.Path(exists=True, path_type=Path), metavar="COCO_FILE")
+@click.argument("output_path", type=click.Path(path_type=Path), metavar="OUTPUT_DIR")
+def coco2labelme(
+    ctx,
+    input_path: Path,
+    output_path: Path,
+):
+    """Convert COCO format to LabelMe format"""
+    from dataflow.convert.coco_and_labelme import CocoAndLabelMeConverter
+
+    logger = ctx.obj["logger"]
+    verbose = ctx.obj["verbose"]
+    strict = ctx.obj["strict"]
+
+    logger.info(f"Starting conversion of COCO to LabelMe: {input_path} -> {output_path}")
+
+    # Parameter validation
+    validate_convert_params("coco", "labelme", input_path, output_path, None, None)
+
+    # Call existing API
+    converter = CocoAndLabelMeConverter(source_to_target=True, verbose=verbose, strict_mode=strict)
+    result = converter.convert(
+        source_path=str(input_path),
+        target_path=str(output_path),
+        class_file=None,
+        image_dir=None,
+        category_mapping=None,
     )
 
     # Print log file path if verbose mode is enabled

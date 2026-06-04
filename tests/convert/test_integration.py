@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from dataflow.convert import (CocoAndLabelMeConverter, LabelMeAndYoloConverter,
-                              YoloAndCocoConverter)
+from dataflow.convert import (LabelMeAndYoloConverter, YoloAndCocoConverter,
+                              CocoAndLabelMeConverter)
 
 
 class TestIntegrationConversions:

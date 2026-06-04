@@ -14,8 +14,8 @@ from typing import Any, Dict, List, Optional, Tuple
 class AnnotationFormat(Enum):
     """Supported annotation formats."""
 
-    LABELME = "labelme"
     YOLO = "yolo"
+    LABELME = "labelme"
     COCO = "coco"
     UNKNOWN = "unknown"
 

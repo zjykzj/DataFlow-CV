@@ -23,8 +23,8 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from dataflow.convert import (CocoAndLabelMeConverter, LabelMeAndYoloConverter,
-                              YoloAndCocoConverter)
+from dataflow.convert import (LabelMeAndYoloConverter, YoloAndCocoConverter,
+                              CocoAndLabelMeConverter)
 from dataflow.util import LoggingOperations, VerboseLoggingOperations
 
 

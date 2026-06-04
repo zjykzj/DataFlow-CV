@@ -4,8 +4,8 @@ CLI visualization function example script
 
 Demonstrates how to use the dataflow-cv visualize command to visualize three label formats:
 1. YOLO format visualization
-2. COCO format visualization
-3. LabelMe format visualization
+2. LabelMe format visualization
+3. COCO format visualization
 
 Usage:
 1. Run in project root directory: python samples/cli/visualize_demo.py
@@ -163,8 +163,8 @@ def main():
 
     # Demonstrate three format visualizations
     successes.append(demo_yolo_visualization())
-    successes.append(demo_coco_visualization())
     successes.append(demo_labelme_visualization())
+    successes.append(demo_coco_visualization())
 
     # Summary
     print("\n" + "="*60)

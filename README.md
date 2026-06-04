@@ -6,13 +6,13 @@
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/) ![License](https://img.shields.io/badge/license-MIT-green) [![PyPI](https://img.shields.io/pypi/v/dataflow-cv.svg)](https://pypi.org/project/dataflow-cv/) ![Development Status](https://img.shields.io/badge/status-alpha-yellow) [![GitHub Actions](https://github.com/zjykzj/DataFlow-CV/actions/workflows/python-publish.yml/badge.svg)](https://github.com/zjykzj/DataFlow-CV/actions/workflows/python-publish.yml) 
 ![Linux](https://img.shields.io/badge/Linux-Supported-fcc624?logo=linux) ![Windows](https://img.shields.io/badge/Windows-Supported-00a2e8?logo=windows) ![macOS](https://img.shields.io/badge/macOS-Supported-999999?logo=apple)
 
-A computer vision dataset processing library for seamless format conversion and visualization between LabelMe, COCO, and YOLO annotation formats. Designed for researchers and developers working with multi-format annotation pipelines.
+A computer vision dataset processing library for seamless format conversion and visualization between YOLO, LabelMe, and COCO annotation formats. Designed for researchers and developers working with multi-format annotation pipelines.
 
 ## Features
 
-- **Bidirectional Conversion**: Convert between LabelMe, COCO, and YOLO formats in any direction
+- **Bidirectional Conversion**: Convert between YOLO, LabelMe, and COCO formats in any direction
 - **Multi-format Support**: Handle object detection bounding boxes and instance segmentation polygons
-- **Native Coordinate Storage**: Coordinates stored in format-native representation (YOLO normalized, COCO/LabelMe absolute pixels)
+- **Native Coordinate Storage**: Coordinates stored in format-native representation (YOLO normalized, LabelMe/COCO absolute pixels)
 - **Visualization**: Visualize annotations with OpenCV, supporting both display and save modes
 - **Command-line Interface**: User-friendly CLI with `convert` and `visualize` subcommands
 - **Python API**: Programmatic access for integration into larger pipelines
@@ -90,12 +90,6 @@ dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt coco_annotations.
 # YOLO to LabelMe
 dataflow-cv convert yolo2labelme images/ yolo_labels/ classes.txt labelme_json/
 
-# COCO to YOLO
-dataflow-cv convert coco2yolo coco_annotations.json yolo_labels/
-
-# COCO to LabelMe
-dataflow-cv convert coco2labelme coco_annotations.json labelme_json/
-
 # LabelMe to YOLO
 dataflow-cv convert labelme2yolo labelme_json/ classes.txt yolo_labels/
 
@@ -104,6 +98,12 @@ dataflow-cv convert labelme2coco labelme_json/ classes.txt coco_annotations.json
 
 # With RLE encoding
 dataflow-cv convert labelme2coco labelme_json/ classes.txt coco_annotations.json --do-rle
+
+# COCO to YOLO
+dataflow-cv convert coco2yolo coco_annotations.json yolo_labels/
+
+# COCO to LabelMe
+dataflow-cv convert coco2labelme coco_annotations.json labelme_json/
 
 # Enable verbose logging
 dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt coco_annotations.json --verbose
@@ -117,11 +117,11 @@ dataflow-cv convert yolo2coco --no-strict images/ yolo_labels/ classes.txt coco_
 # Visualize YOLO annotations
 dataflow-cv visualize yolo images/ yolo_labels/ classes.txt --save visualized/
 
-# Visualize COCO annotations
-dataflow-cv visualize coco images/ coco_annotations.json --save visualized/
-
 # Visualize LabelMe annotations
 dataflow-cv visualize labelme images/ labelme_json/ --save visualized/
+
+# Visualize COCO annotations
+dataflow-cv visualize coco images/ coco_annotations.json --save visualized/
 
 # Enable verbose logging for detailed debug output
 dataflow-cv visualize yolo --verbose images/ yolo_labels/ classes.txt --save visualized/
@@ -171,12 +171,12 @@ See the `samples/` directory for complete examples:
 - **[CLAUDE.md](CLAUDE.md)**: Detailed architecture, development guide, and known gotchas
 - **[CHANGELOG.md](CHANGELOG.md)**: Version history and breaking changes
 - **[specs/](specs/)**: Canonical specifications organized into two layers:
-  - **`formats/`** — External format contracts (YOLO, COCO, LabelMe) and conversion rules
+  - **`formats/`** — External format contracts (YOLO, LabelMe, COCO) and conversion rules
   - **`modules/`** — Internal module architecture, interface contracts, and dependency constraints
 
 ### Key Concepts
 
-- **Format-Native Coordinates**: Coordinates stored in each format's native representation — YOLO normalized [0,1] center-based, COCO/LabelMe absolute pixels top-left. See `DatasetAnnotations.format` to determine semantics
+- **Format-Native Coordinates**: Coordinates stored in each format's native representation — YOLO normalized [0,1] center-based, LabelMe/COCO absolute pixels top-left. See `DatasetAnnotations.format` to determine semantics
 - **Explicit Coordinate Transforms**: Converters handle all coordinate transformations between formats. No hidden normalization — lossy vs lossless behavior is explicitly documented
 - **Strict Mode**: Validation errors raise exceptions (default). Disable in CLI with `--no-strict`, or in Python API with `strict_mode=False`
 - **Verbose Logging**: Detailed debug logs saved to files when `--verbose` is used. The CLI prints "Verbose log saved to: <path>" after operations.
@@ -287,6 +287,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-- Thanks to the creators of LabelMe, COCO, and YOLO formats for establishing these annotation standards
+- Thanks to the creators of YOLO, LabelMe, and COCO formats for establishing these annotation standards
 - Built with OpenCV, NumPy, and Click
 - Inspired by the need for seamless format conversion in multi-tool CV pipelines

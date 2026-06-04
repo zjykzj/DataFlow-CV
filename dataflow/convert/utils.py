@@ -190,7 +190,7 @@ def create_conversion_chain(chain: List[str]) -> List[Tuple[str, str]]:
     Create conversion steps list from format chain.
 
     Args:
-        chain: List of format names, e.g., ["labelme", "yolo", "coco"]
+        chain: List of format names, e.g., ["yolo", "labelme", "coco"]
 
     Returns:
         List of (source, target) format pairs for each step

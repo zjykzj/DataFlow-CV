@@ -2,12 +2,12 @@
 Visualization module for DataFlow-CV.
 
 This module provides annotation visualization for computer vision datasets,
-supporting three major formats: LabelMe, YOLO, and COCO. The module features
+supporting three major formats: YOLO, LabelMe, and COCO. The module features
 unified visualization
 for both object detection and instance segmentation annotations.
 
 Key features:
-- Multi-format support (LabelMe, YOLO, COCO)
+- Multi-format support (YOLO, LabelMe, COCO)
 - Dual-task support (object detection and instance segmentation)
 - RLE mask support for COCO format
 - Automatic color management (consistent colors per category)
@@ -17,10 +17,11 @@ Key features:
 - Strict error handling and format validation
 
 Example usage:
-    >>> from dataflow.visualize import LabelMeVisualizer
-    >>> visualizer = LabelMeVisualizer(
-    >>>     label_dir="path/to/labelme",
+    >>> from dataflow.visualize import YOLOVisualizer
+    >>> visualizer = YOLOVisualizer(
+    >>>     label_dir="path/to/yolo/labels",
     >>>     image_dir="path/to/images",
+    >>>     class_file="path/to/classes.txt",
     >>>     is_show=True,
     >>>     is_save=False
     >>> )
@@ -30,16 +31,16 @@ Example usage:
 from . import utils
 from .base import (BaseVisualizer, ColorManager, RenderAnnotation, RenderData,
                    VisualizationResult)
-from .coco_visualizer import COCOVisualizer
-from .labelme_visualizer import LabelMeVisualizer
 from .yolo_visualizer import YOLOVisualizer
+from .labelme_visualizer import LabelMeVisualizer
+from .coco_visualizer import COCOVisualizer
 
 __all__ = [
     "BaseVisualizer",
     "VisualizationResult",
     "ColorManager",
-    "LabelMeVisualizer",
     "YOLOVisualizer",
+    "LabelMeVisualizer",
     "COCOVisualizer",
     "utils",
 ]

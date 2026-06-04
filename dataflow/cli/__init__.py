@@ -6,7 +6,7 @@ offering convenient access to visualization and format conversion functionality
 through a unified command-line interface.
 
 The CLI follows a `<main-task> <sub-task>` structure:
-- `dataflow-cv visualize <format>`: Visualize annotations in YOLO, COCO, or LabelMe format
+- `dataflow-cv visualize <format>`: Visualize annotations in YOLO, LabelMe, or COCO format
 - `dataflow-cv convert <direction>`: Convert between six annotation format combinations
 
 Example usage:
