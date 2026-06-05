@@ -229,7 +229,7 @@ specs/
 4. 实现 converter（至少与一种现有格式互通）
 5. 实现 visualizer
 6. 添加 CLI 命令
-7. 写测试（`tests/label/`、`tests/convert/`、`tests/visualize/`）
+7. 写测试（`tests/label/`、`tests/convert/`、`tests/visualize/`、`tests/evaluate/`）
 
 ### 场景：新增转换方向
 
@@ -240,10 +240,10 @@ specs/
 
 ### 场景：新增评估能力
 
-1. 在  确认或新增指标定义
-2. 在  实现 evaluator 或 metric 函数
-3. 如需 CLI，在  新增子命令或选项
-4. 写单元测试 + 集成测试（需准备 mini GT/DT 测试数据）
+1. 在 `specs/evaluate/` 确认或新增指标定义（fundamentals → metrics → tasks 顺序）
+2. 在 `dataflow/evaluate/` 实现 evaluator 或 metric 函数
+3. 如需 CLI，在 `dataflow/cli/commands/evaluate.py` 新增子命令或选项
+4. 写单元测试 + 集成测试（需准备 mini GT/DT 测试数据到 `assets/test_data/evaluate/`）
 
 ### 场景：修复 Bug
 
