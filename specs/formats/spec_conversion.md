@@ -46,14 +46,14 @@ This state is used by `create_target_handler()` for:
 
 ## 2. Supported Conversion Directions
 
-| Direction | Converter Class | CLI Command |
-|-----------|----------------|-------------|
-| YOLO → COCO | `YoloAndCocoConverter(source_to_target=True)` | `yolo2coco` |
-| COCO → YOLO | `YoloAndCocoConverter(source_to_target=False)` | `coco2yolo` |
-| LabelMe → YOLO | `LabelMeAndYoloConverter(source_to_target=True)` | `labelme2yolo` |
-| YOLO → LabelMe | `LabelMeAndYoloConverter(source_to_target=False)` | `yolo2labelme` |
-| LabelMe → COCO | `CocoAndLabelMeConverter(source_to_target=False)` | `labelme2coco` |
-| COCO → LabelMe | `CocoAndLabelMeConverter(source_to_target=True)` | `coco2labelme` |
+| Direction | Converter Class | CLI Command | Notes |
+|-----------|----------------|-------------|-------|
+| YOLO → COCO | `YoloAndCocoConverter(source_to_target=True)` | `yolo2coco` | Supports `--prediction` flag for model output conversion |
+| COCO → YOLO | `YoloAndCocoConverter(source_to_target=False)` | `coco2yolo` | |
+| LabelMe → YOLO | `LabelMeAndYoloConverter(source_to_target=True)` | `labelme2yolo` | |
+| YOLO → LabelMe | `LabelMeAndYoloConverter(source_to_target=False)` | `yolo2labelme` | |
+| LabelMe → COCO | `CocoAndLabelMeConverter(source_to_target=False)` | `labelme2coco` | |
+| COCO → LabelMe | `CocoAndLabelMeConverter(source_to_target=True)` | `coco2labelme` | |
 
 ## 3. Coordinate Transformation Rules
 
@@ -94,6 +94,30 @@ h_norm  = h_abs / img_height
 ```
 
 **This conversion is lossy.** See §9 for details.
+
+### 3.1 YOLO → COCO Prediction Mode
+
+When converting YOLO **prediction** files to COCO **prediction** JSON (`--prediction` flag):
+
+1. Coordinate transform is **identical** to the label conversion path (§3.1 YOLO → COCO bbox, §3.2 YOLO → COCO segmentation)
+2. The only difference: `confidence` value from YOLO prediction lines is preserved as the COCO `score` field
+3. The converter passes `prediction=True` to `YoloHandler`, which enables 6-token (detection) and even-token (segmentation) format parsing
+
+**Data flow:**
+
+```
+YOLO pred (.txt):   class_id cx cy w h confidence  (6 tokens, detection)
+                 or class_id x1 y1 ... xn yn confidence  (even tokens, segmentation)
+
+  → YoloHandler(prediction=True): parse last token as confidence
+  → DatasetAnnotations(format=YOLO, ObjectAnnotation.confidence = parsed_value)
+  → Converter.convert_annotations(): denormalize coords (same as label mode)
+  → DatasetAnnotations(format=COCO, ObjectAnnotation.confidence preserved)
+  → CocoHandler.write(): confidence → "score" in JSON output
+  → pred.json: {"bbox": [...], "score": 0.95}
+```
+
+**Segmentation prediction output**: Polygon format is recommended (default `do_rle=False`). pycocotools `COCOeval` handles polygon→RLE conversion internally during mask IoU computation. See `spec_coco_format.md` §10.4 for rationale.
 
 ### 3.2 YOLO ↔ COCO (segmentation)
 

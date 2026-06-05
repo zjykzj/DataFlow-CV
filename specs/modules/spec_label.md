@@ -228,28 +228,42 @@ Both `is_det` and `is_seg` can be `True` simultaneously (mixed dataset).
 
 ### 4.1 `YoloAnnotationHandler`
 
-**Constructor:** `YoloAnnotationHandler(label_dir, class_file, image_dir, **kwargs)`
+**Constructor:** `YoloAnnotationHandler(label_dir, class_file, image_dir, prediction=False, **kwargs)`
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `label_dir` | Yes | Directory containing `.txt` label files |
+| `label_dir` | Yes | Directory containing `.txt` label or prediction files |
 | `class_file` | Yes | Path to `classes.txt` |
 | `image_dir` | Yes | Directory containing image files |
+| `prediction` | No | If True, parse prediction format (with confidence). Default False (label format). |
 
 **`read()`**: Returns `DatasetAnnotations(format=YOLO)` with:
 - `BoundingBox`: `(cx, cy, w, h)` all normalized [0,1], center-based (native YOLO format)
 - `Segmentation.points`: `(x, y)` normalized [0,1]
+- `ObjectAnnotation.confidence`: Set from the last token when `prediction=True`; defaults to `1.0` in label mode
 - No coordinate transformation — coordinates are stored as-is from YOLO text files
 
 **`write(annotations, output_dir)`**: Writes one `.txt` per image.
 - Expects `DatasetAnnotations.format == YOLO`
 - Output: `class_id cx cy w h` (5 tokens for detection) or `class_id x1 y1 x2 y2 ...` (segmentation)
-- Coordinates written with 6 decimal places (`.6f`)
+- **Prediction write**: When `ObjectAnnotation.confidence < 1.0`, writes 6 tokens (detection) or appends confidence (segmentation)
+- Coordinates written with 6 decimal places (`.6f`); confidence written with 6 decimal places
 - Empty images produce empty `.txt` files
 
 **`validate(annotation_file)`**: Validates a single `.txt` file structure.
 
-**Format detection**: Per-line, based on token count (5 = detection, odd > 5 = segmentation).
+**Format detection** (per-line, based on token count and `prediction` flag):
+
+| Mode | Detection | Segmentation | Invalid |
+|------|-----------|-------------|---------|
+| Label (`prediction=False`) | `len == 5` | `len > 5 AND len % 2 == 1` | 6, 8, 10, ... |
+| Prediction (`prediction=True`) | `len == 6` | `len > 6 AND len % 2 == 0` | 5, 7, 9, ... |
+
+**Strict mode**: In prediction mode, confidence values outside [0, 1] raise errors. In label mode, any line not matching the label format raises errors.
+
+### 4.2 `CocoAnnotationHandler`
+
+**Constructor:** `CocoAnnotationHandler(annotation_file, do_rle=False, **kwargs)`
 
 ### 4.2 `CocoAnnotationHandler`
 

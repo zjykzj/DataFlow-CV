@@ -80,12 +80,81 @@ Each line contains an **odd number > 5** of tokens:
 
 ### 2.3 Format Detection
 
-The handler determines annotation type by token count:
-- `len(tokens) == 5` → Detection (bbox)
-- `len(tokens) > 5 and len(tokens) % 2 == 1` → Segmentation (polygon)
-- Any other token count → Invalid
+Format detection is **mode-sensitive**. The same token count has different meanings depending on whether the file is being read as a label (ground truth) or a prediction (model output). The mode is controlled by a flag (`prediction=False` for labels, `prediction=True` for predictions) and applies to the entire batch of files being processed.
 
-### 2.4 Empty Lines
+#### Label Mode (`prediction=False`)
+
+| Token Count | Format |
+|------------|--------|
+| `len == 5` | Detection label |
+| `len > 5 AND len % 2 == 1` | Segmentation label |
+| Any other | **Invalid** |
+
+#### Prediction Mode (`prediction=True`)
+
+| Token Count | Format |
+|------------|--------|
+| `len == 6` | Detection prediction |
+| `len > 6 AND len % 2 == 0` | Segmentation prediction |
+| Any other | **Invalid** |
+
+**Why this is unambiguous**: Label files always have an odd number of tokens (class_id + even number of coordinates). Prediction files always have an even number of tokens (class_id + even number of coordinates + 1 confidence). The two sets are disjoint — no token count can be valid in both modes simultaneously:
+
+| Token Count | Label Mode | Prediction Mode |
+|------------|-----------|----------------|
+| 5 | Detection label | **Invalid** |
+| 6 | **Invalid** | Detection prediction |
+| 7 | Segmentation label (3 points) | **Invalid** |
+| 8 | **Invalid** | Segmentation prediction (3 points) |
+| 9 | Segmentation label (4 points) | **Invalid** |
+| 10 | **Invalid** | Segmentation prediction (4 points) |
+
+### 2.4 Prediction Format
+
+When reading YOLO files in **prediction mode** (`prediction=True`), each line contains an additional trailing `confidence` token beyond the standard label format.
+
+#### 2.4.1 Detection Prediction
+
+Exactly **6 tokens**:
+
+```
+<class_id> <x_center> <y_center> <width> <height> <confidence>
+```
+
+| Token | Type | Range | Description |
+|-------|------|-------|-------------|
+| `class_id` | int | 0..N-1 | Zero-based class index |
+| `x_center` | float | [0, 1] | Normalized x-coordinate of bbox center |
+| `y_center` | float | [0, 1] | Normalized y-coordinate of bbox center |
+| `width` | float | [0, 1] | Normalized bbox width |
+| `height` | float | [0, 1] | Normalized bbox height |
+| `confidence` | float | [0, 1] | Model confidence score |
+
+The first 5 tokens are identical to the detection label format (§2.1). The 6th token is the prediction confidence.
+
+#### 2.4.2 Segmentation Prediction
+
+An **even number > 6** of tokens:
+
+```
+<class_id> <x1> <y1> <x2> <y2> ... <xn> <yn> <confidence>
+```
+
+| Token | Type | Range | Description |
+|-------|------|-------|-------------|
+| `class_id` | int | 0..N-1 | Zero-based class index |
+| `x1, y1, ...` | float | [0, 1] | Normalized polygon vertex coordinates |
+| `confidence` | float | [0, 1] | Model confidence score (the **last token**) |
+
+All coordinate tokens except the last are identical to the segmentation label format (§2.2). The final token is the prediction confidence.
+
+#### 2.4.3 Confidence Validation
+
+- `confidence` must be a finite float in the range `[0, 1]`
+- Values outside this range are rejected in strict mode; in non-strict mode, they are clamped with a warning
+- Missing confidence in prediction mode is treated as a format error
+
+### 2.5 Empty Lines
 
 Empty lines (whitespace-only) are ignored during parsing. An empty file indicates an image with no objects.
 

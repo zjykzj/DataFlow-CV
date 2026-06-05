@@ -105,13 +105,14 @@ dataflow-cv convert yolo2coco [OPTIONS] IMAGE_DIR LABEL_DIR CLASS_FILE OUTPUT_FI
 | Argument | Type | Description |
 |----------|------|-------------|
 | `IMAGE_DIR` | Path (exists) | Image file directory |
-| `LABEL_DIR` | Path (exists) | YOLO label directory |
+| `LABEL_DIR` | Path (exists) | YOLO label/prediction directory |
 | `CLASS_FILE` | Path (exists) | Class file (`classes.txt`) |
 | `OUTPUT_FILE` | Path | Output COCO JSON file |
 
 | Option | Description |
 |--------|-------------|
 | `--do-rle` | Use RLE encoding for COCO segmentation |
+| `--prediction` | Treat input as prediction format (with confidence). Output includes `score` fields. |
 
 **Validates:** `class_file` and `image_dir` are required. `pycocotools` must be installed if `--do-rle` is set.
 

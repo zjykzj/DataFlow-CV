@@ -159,27 +159,32 @@ When `verbose=False`:
 
 ### 3.1 `YoloAndCocoConverter`
 
-**Constructor:** `YoloAndCocoConverter(source_to_target: bool, verbose=False, **kwargs)`
+**Constructor:** `YoloAndCocoConverter(source_to_target: bool, prediction: bool = False, verbose=False, **kwargs)`
 
 - `source_to_target=True` → YOLO → COCO
 - `source_to_target=False` → COCO → YOLO
+- `prediction=True` → Read YOLO files in prediction format (with confidence). Only meaningful when `source_to_target=True`.
 
 **Required parameters per direction:**
 
-| Direction | class_file | image_dir | do_rle |
-|-----------|-----------|-----------|--------|
-| YOLO → COCO | **Required** | **Required** | Optional (default False) |
-| COCO → YOLO | Optional (auto-generated) | Optional (auto-created) | N/A |
+| Direction | class_file | image_dir | do_rle | prediction |
+|-----------|-----------|-----------|--------|------------|
+| YOLO → COCO | **Required** | **Required** | Optional (default False) | Optional (default False) |
+| COCO → YOLO | Optional (auto-generated) | Optional (auto-created) | N/A | N/A |
 
 **YOLO → COCO behavior:**
 1. Validates `class_file` and `image_dir` exist
-2. Creates `YoloAnnotationHandler` as source, reads labels → `DatasetAnnotations(format=YOLO)`
+2. Creates `YoloAnnotationHandler(prediction=prediction)` as source, reads labels → `DatasetAnnotations(format=YOLO)`
+   - Label mode (`prediction=False`): parses 5-token detection, odd-token segmentation; confidence defaults to 1.0
+   - Prediction mode (`prediction=True`): parses 6-token detection prediction, even-token segmentation prediction; confidence extracted from last token
 3. `convert_annotations()`:
    - Reads YOLO-native coordinates (normalized, center-based)
    - Transforms to COCO-native coordinates (absolute pixels, top-left)
+   - Preserves `ObjectAnnotation.confidence` (used as COCO `score` in output)
    - Sets `result.format = AnnotationFormat.COCO`
 4. Creates `CocoAnnotationHandler` as target with `do_rle` setting
-5. If `do_rle=True`, adds RLE accuracy warning to result
+5. COCO output: includes `"score"` field when `confidence < 1.0` (always true in prediction mode)
+6. If `do_rle=True`, adds RLE accuracy warning to result
 
 **COCO → YOLO behavior:**
 1. Creates directory structure: `target_path/labels/` and `target_path/images/`

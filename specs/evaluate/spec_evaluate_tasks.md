@@ -180,14 +180,24 @@ The results are independent and complementary — bbox AP measures localization,
 
 ### 7.1 YOLO Format
 
-YOLO annotations must be converted to COCO format before evaluation. Use the existing Convert module:
+YOLO annotations must be converted to COCO format before evaluation. Use the Convert module with the `--prediction` flag for prediction files:
 
 ```
-YOLO GT (.txt + classes.txt) → [Convert: yolo2coco] → COCO JSON GT
-YOLO DT (.txt + classes.txt + score) → [Convert: yolo2coco] → COCO JSON DT
+YOLO GT (.txt, 5 tokens)  → [Convert: yolo2coco]                 → COCO JSON GT (anno.json)
+YOLO DT (.txt, 6 tokens)  → [Convert: yolo2coco --prediction]    → COCO JSON DT (pred.json)
 ```
 
-The DT file must include a score field. Standard YOLO prediction output includes per-box confidence, which maps to the COCO `score` field.
+**Format details:**
+
+| Step | YOLO Format | Tokens | CLI Command |
+|------|------------|--------|-------------|
+| Ground Truth | `class_id cx cy w h` | 5 | `yolo2coco images/ labels/ classes.txt anno.json` |
+| Detection Prediction | `class_id cx cy w h confidence` | 6 | `yolo2coco --prediction images/ preds/ classes.txt pred.json` |
+| Segmentation Prediction | `class_id x1 y1 ... xn yn confidence` | even > 6 | `yolo2coco --prediction images/ preds/ classes.txt pred.json` |
+
+The `--prediction` flag tells the YoloHandler to parse prediction format (even token count with trailing confidence) instead of label format (odd token count). The confidence value is preserved as the COCO `score` field in the output JSON.
+
+For segmentation predictions, the output COCO JSON stores segmentation as polygon format by default. pycocotools `COCOeval` converts polygon → RLE internally during evaluation. The `--do-rle` flag is available for smaller file size but is not required.
 
 ### 7.2 LabelMe Format
 

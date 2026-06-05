@@ -216,7 +216,63 @@ A valid COCO JSON file must satisfy:
 8. Polygon segmentation has at least 3 vertices (6 values)
 9. RLE segmentation has `size` (2-element list) and `counts` (string)
 
-## 10. Reference Example
+## 10. Prediction JSON (vs Annotation JSON)
+
+COCO JSON files serve two distinct purposes in the DataFlow-CV pipeline:
+
+| Purpose | File | Content |
+|---------|------|---------|
+| **Annotation** (Ground Truth) | `anno.json` | Human-annotated ground truth labels |
+| **Prediction** (Detection Result) | `pred.json` | Model inference output |
+
+### 10.1 Structural Identity
+
+Both annotation and prediction JSON share the **exact same top-level structure**:
+- `images` array — same schema
+- `categories` array — same schema
+- `annotations` array — **one field differs** (see §10.2)
+
+### 10.2 The `score` Field
+
+The only structural difference is in the `annotations` array:
+
+| Field | Annotation JSON | Prediction JSON |
+|-------|----------------|----------------|
+| `score` | **Not present** | **Required** — float in [0, 1] |
+
+Prediction annotations must include a `score` field representing the model's confidence:
+
+```json
+{
+  "id": 1,
+  "image_id": 1,
+  "category_id": 1,
+  "bbox": [320.0, 135.0, 160.0, 180.0],
+  "segmentation": [[320, 135, 480, 135, 480, 315, 320, 315]],
+  "area": 28800.0,
+  "score": 0.95
+}
+```
+
+### 10.3 Other Differences
+
+| Aspect | Annotation JSON | Prediction JSON |
+|--------|----------------|----------------|
+| `annotations[].score` | Absent | **Required** (float [0,1]) |
+| `annotations[].iscrowd` | 0 or 1 | Always 0 (crowd is a GT-only concept) |
+| Annotation count | Typically matches actual object count | Typically higher (model outputs multiple candidates per image) |
+| `annotations[].id` | Sequential, unique | Sequential, unique (can start from 1 independently of GT) |
+| Evaluation role | Used as GT in `COCOeval` | Used as DT in `COCOeval` (via `loadRes()`) |
+
+### 10.4 Segmentation Predictions
+
+For segmentation predictions, **polygon format is recommended** over RLE:
+
+- pycocotools `COCOeval` internally converts polygon → RLE during evaluation via `annToRLE()`. Pre-converting to RLE in the prediction file provides no evaluation benefit.
+- Polygon is **lossless** (preserves original vertex coordinates). RLE involves rasterization loss during polygon→mask conversion.
+- The `--do-rle` flag remains available for users who prioritize smaller file size over precision.
+
+## 11. Reference Example
 
 ```json
 {
