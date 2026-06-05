@@ -6,12 +6,13 @@
 
 ## 1. Module Overview
 
-The CLI module (`dataflow/cli/`) provides a command-line interface built on Click. It is a **thin wrapper** over the Convert and Visualize modules — CLI commands only call public APIs and never reach into internal module details.
+The CLI module (`dataflow/cli/`) provides a command-line interface built on Click. It is a **thin wrapper** over the Convert, Visualize, and Evaluate modules — CLI commands only call public APIs and never reach into internal module details.
 
 ### 1.1 Module Contract
 
 - **CLI → Convert**: Calls `Converter.convert()` only. Does NOT import label handlers.
 - **CLI → Visualize**: Calls `Visualizer.visualize()` only. Does NOT import label handlers.
+- **CLI → Evaluate**: Calls `Evaluator.evaluate()` only. Does NOT import label handlers or pycocotools directly.
 - **CLI responsibility**: Parameter parsing, validation, logging configuration, error formatting. Zero business logic.
 
 ### 1.2 File Map
@@ -23,6 +24,7 @@ dataflow/cli/
 │   ├── __init__.py
 │   ├── convert.py           # Convert subcommand group (6 commands)
 │   ├── visualize.py         # Visualize subcommand group (3 commands)
+│   ├── evaluate.py          # Evaluate subcommand group (2 commands)
 │   ├── utils.py             # Shared decorators, validators, FormattedCommand
 │   └── exceptions.py        # Exception hierarchy with exit codes
 ```
@@ -66,10 +68,14 @@ dataflow-cv
 │   ├── coco2yolo     COCO_FILE OUTPUT_DIR [--verbose] [--no-strict]
 │   └── coco2labelme  COCO_FILE OUTPUT_DIR [--verbose] [--no-strict]
 │
-└── visualize
-    ├── yolo     IMAGE_DIR LABEL_DIR CLASS_FILE [--save DIR] [--verbose] [--display/--no-display]
-    ├── labelme  IMAGE_DIR LABEL_DIR [--save DIR] [--verbose] [--display/--no-display]
-    └── coco     IMAGE_DIR COCO_FILE [--save DIR] [--verbose] [--display/--no-display]
+├── visualize
+│   ├── yolo     IMAGE_DIR LABEL_DIR CLASS_FILE [--save DIR] [--verbose] [--display/--no-display]
+│   ├── labelme  IMAGE_DIR LABEL_DIR [--save DIR] [--verbose] [--display/--no-display]
+│   └── coco     IMAGE_DIR COCO_FILE [--save DIR] [--verbose] [--display/--no-display]
+│
+└── evaluate
+    ├── detection     GT_JSON DT_JSON [--verbose] [--prf1] [--prf1-iou FLOAT] [--prf1-conf FLOAT] [--output PATH]
+    └── segmentation  GT_JSON DT_JSON [--verbose] [--prf1] [--prf1-iou FLOAT] [--prf1-conf FLOAT] [--output PATH]
 ```
 
 ## 4. Convert Subcommands
@@ -262,7 +268,139 @@ dataflow-cv visualize labelme [OPTIONS] IMAGE_DIR LABEL_DIR
 8. If failure: raise RuntimeCLIError with error message
 ```
 
-## 6. Exception Hierarchy
+## 6. Evaluate Subcommands
+
+### 6.1 Shared Options
+
+Evaluate subcommands share these options:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--verbose` | Flag | False | Enable verbose output: per-class metrics table + file logging |
+| `--prf1` | Flag | False | Additionally compute and display P/R/F1 at specified IoU threshold |
+| `--prf1-iou` | Float | 0.5 | IoU threshold for P/R/F1 calculation |
+| `--prf1-conf` | Float | 0.0 | Confidence threshold for P/R/F1 calculation |
+| `--output`, `-o` | Path | None | Save full `EvaluationResult` as JSON to this path |
+
+### 6.2 Command Signatures
+
+#### `detection`
+
+```
+dataflow-cv evaluate detection [OPTIONS] GT_JSON DT_JSON
+```
+
+Evaluates object detection results using bbox IoU (`iouType='bbox'`).
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `GT_JSON` | Path (exists) | COCO format Ground Truth JSON file |
+| `DT_JSON` | Path (exists) | COCO format Detection/Prediction JSON file (annotations must include `score`) |
+
+#### `segmentation`
+
+```
+dataflow-cv evaluate segmentation [OPTIONS] GT_JSON DT_JSON
+```
+
+Evaluates instance segmentation results using mask IoU (`iouType='segm'`).
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `GT_JSON` | Path (exists) | COCO format Ground Truth JSON file (annotations must include `segmentation`) |
+| `DT_JSON` | Path (exists) | COCO format Prediction JSON file (annotations must include `segmentation` + `score`) |
+
+### 6.3 Evaluate Command Flow (Both Commands)
+
+```
+1. Extract ctx.obj (logger, verbose, strict, log_file_path)
+2. Log start message with GT_JSON, DT_JSON paths
+3. Validate: GT_JSON exists and is valid COCO JSON
+4. Validate: DT_JSON exists and is valid COCO JSON
+5. Validate: pycocotools is installed (raise SystemError if not)
+6. Instantiate DetectionEvaluator or SegmentationEvaluator (with logger + verbose)
+7. Call evaluator.evaluate(GT_JSON, DT_JSON) → EvaluationResult
+8. If success:
+   a. Print 12 COCO standard metrics table
+   b. If verbose: print per-class breakdown table
+   c. If --prf1: call compute_pr_f1() and print results
+   d. If --output: write EvaluationResult as JSON to file
+   e. Log file path (if verbose)
+9. If failure: raise RuntimeCLIError with first error message
+```
+
+### 6.4 Output Format
+
+**Default output (always printed):**
+
+```
+Evaluation: detection (bbox)
+Ground Truth: 500 images, 3250 annotations, 10 categories
+Detections:   500 images, 4100 detections, 10 categories
+
+Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.352
+Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.568
+Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.371
+Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.152
+Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.389
+Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.524
+Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.289
+Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.452
+Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.467
+Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.213
+Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.501
+Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.689
+```
+
+**Verbose output (with `--verbose`):**
+
+Additional per-class table after the 12 metrics:
+
+```
+Per-Class Breakdown (IoU: 0.50:0.95):
+───────────────────────────────────────────────────────────────────────────
+ Class          GT    DT     TP    FP    FN     AP     AP50   AP75   P      R      F1
+ person         520   610   487   123    33   0.432  0.689  0.451  0.798  0.937  0.862
+ car            380   450   342   108    38   0.401  0.634  0.422  0.760  0.900  0.824
+ bicycle        150   180   128    52    22   0.321  0.521  0.338  0.711  0.853  0.775
+ ...
+───────────────────────────────────────────────────────────────────────────
+```
+
+**PRF1 output (with `--prf1`):**
+
+```
+Precision / Recall / F1-Score (IoU=0.50, Conf=0.00):
+  Overall:  P=0.756  R=0.912  F1=0.826  TP=1250  FP=403  FN=120
+```
+
+### 6.5 JSON Output (`--output`)
+
+When `--output PATH` is specified, the full `EvaluationResult` is serialized to JSON:
+
+```json
+{
+  "success": true,
+  "iou_type": "bbox",
+  "metrics": {
+    "ap": 0.352, "ap50": 0.568, "ap75": 0.371,
+    "ap_small": 0.152, "ap_medium": 0.389, "ap_large": 0.524,
+    "ar_max_1": 0.289, "ar_max_10": 0.452, "ar_max_100": 0.467,
+    "ar_small": 0.213, "ar_medium": 0.501, "ar_large": 0.689
+  },
+  "per_class": {
+    "1": {"class_id": 1, "class_name": "person", "gt_count": 520, "dt_count": 610, "tp": 487, "fp": 123, "fn": 33, "ap": 0.432, "ap50": 0.689, "ap75": 0.451, "precision": 0.798, "recall": 0.937, "f1_score": 0.862}
+  },
+  "gt_stats": {"images": 500, "annotations": 3250, "categories": 10},
+  "dt_stats": {"images": 500, "annotations": 4100, "categories": 10},
+  "warnings": [],
+  "errors": []
+}
+```
+
+The JSON output is intended for programmatic consumption (CI pipelines, experiment tracking, etc.).
+
+## 7. Exception Hierarchy
 
 All CLI exceptions extend `click.ClickException` with specific exit codes:
 
@@ -271,9 +409,18 @@ CLIError (base, exit_code configurable)
 ├── ParameterError  (exit 1)  — Invalid/missing command-line parameters
 ├── InputError      (exit 2)  — Input file/directory does not exist
 ├── OutputError     (exit 3)  — Cannot create/write output
-├── RuntimeCLIError (exit 4)  — API execution failed (converter or visualizer)
-└── SystemError     (exit 5)  — System-level failure (disk full, etc.)
+├── RuntimeCLIError (exit 4)  — API execution failed (converter, visualizer, or evaluator)
+└── SystemError     (exit 5)  — System-level failure (disk full, pycocotools not installed, etc.)
 ```
+
+### 7.1 Usage in Commands
+
+- `validate_convert_params()` raises `InputError` for missing/invalid inputs
+- `validate_evaluate_params()` raises `InputError` for missing/invalid inputs
+- `validate_path_exists()` raises `InputError` for non-existent paths
+- Post-conversion/visualization/evaluation failures raise `RuntimeCLIError`
+- `ParameterError`, `OutputError`, `SystemError` are defined but used sparingly
+- `SystemError` is used when pycocotools is not installed for evaluate commands
 
 ### 6.1 Usage in Commands
 
@@ -282,9 +429,9 @@ CLIError (base, exit_code configurable)
 - Post-conversion/visualization failures raise `RuntimeCLIError`
 - `ParameterError`, `OutputError`, `SystemError` are defined but used sparingly
 
-## 7. Parameter Validation
+## 8. Parameter Validation
 
-### 7.1 `validate_convert_params(source_format, target_format, input_path, output_path, image_dir, class_file)`
+### 8.1 `validate_convert_params(source_format, target_format, input_path, output_path, image_dir, class_file)`
 
 Format-specific required parameter checks:
 
@@ -299,13 +446,13 @@ Format-specific required parameter checks:
 
 Missing required parameters raise `InputError`.
 
-### 7.2 `validate_visualize_params(input_path, image_dir, output_dir)`
+### 8.2 `validate_visualize_params(input_path, image_dir, output_dir)`
 
 - Validates `input_path` exists
 - Validates `image_dir` exists (if provided)
 - Creates `output_dir` if it doesn't exist (if provided)
 
-## 8. Dependency Contract
+## 9. Dependency Contract
 
 ```
 CLI module imports FROM:
@@ -315,25 +462,31 @@ CLI module imports FROM:
 ├── dataflow.visualize.yolo_visualizer   (YOLOVisualizer)
 ├── dataflow.visualize.coco_visualizer   (COCOVisualizer)
 ├── dataflow.visualize.labelme_visualizer (LabelMeVisualizer)
+├── dataflow.evaluate.evaluator          (DetectionEvaluator, SegmentationEvaluator)
+├── dataflow.evaluate.metrics            (compute_pr_f1)
 ├── dataflow.util.logging_util           (LoggingOperations, VerboseLoggingOperations)
-├── dataflow.cli.exceptions              (InputError, RuntimeCLIError, etc.)
+├── dataflow.cli.exceptions              (InputError, RuntimeCLIError, SystemError)
 └── click                                (Framework)
 
 CLI module does NOT import FROM:
-├── dataflow.label.*                     (FORBIDDEN — must go through Convert/Visualize)
+├── dataflow.label.*                     (FORBIDDEN — must go through Convert/Visualize/Evaluate)
 ├── dataflow.convert.rle_converter       (FORBIDDEN — internal to Convert)
 ├── dataflow.convert.utils               (FORBIDDEN — internal to Convert)
-└── dataflow.visualize.base              (FORBIDDEN — internal to Visualize; only concrete classes)
+├── dataflow.visualize.base              (FORBIDDEN — internal to Visualize; only concrete classes)
+├── dataflow.evaluate.base               (FORBIDDEN — internal to Evaluate; only concrete classes)
+├── dataflow.evaluate.result             (FORBIDDEN — internal to Evaluate)
+└── pycocotools                          (FORBIDDEN — Evaluate dependency; CLI must not import directly)
 ```
 
-### 8.1 Validation
+### 9.1 Validation
 
 The CLI contract can be verified by checking that:
 1. `dataflow/cli/commands/convert.py` only imports from `dataflow.convert.*` (not `dataflow.label.*`)
 2. `dataflow/cli/commands/visualize.py` only imports from `dataflow.visualize.*` (not `dataflow.label.*`)
-3. No CLI file imports from both `dataflow.convert.*` and `dataflow.visualize.*` simultaneously (they don't need to know about each other)
+3. `dataflow/cli/commands/evaluate.py` only imports from `dataflow.evaluate.*` (not `dataflow.label.*` or `pycocotools`)
+4. No CLI file imports cross-module internals (e.g., convert commands don't import from visualize or evaluate internals)
 
-## 9. Verbose Logging Contract
+## 10. Verbose Logging Contract
 
 When `--verbose` is specified on any command:
 1. Logger is created via `VerboseLoggingOperations.get_verbose_logger()`
@@ -348,7 +501,7 @@ When `--verbose` is NOT specified:
 2. No log files created
 3. `log_file_path` is `None`
 
-## 10. FormattedCommand
+## 11. FormattedCommand
 
 Custom `click.Command` subclass that formats Arguments in the help output to match the style of Options:
 

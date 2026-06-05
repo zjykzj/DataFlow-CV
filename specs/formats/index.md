@@ -27,12 +27,15 @@ Formats Layer (WHAT)              Modules Layer (HOW)
 spec_yolo_format.md             spec_label.md
 spec_coco_format.md    ──▶      spec_convert.md
 spec_labelme_format.md          spec_visualize.md
-spec_conversion.md              spec_cli.md
+spec_conversion.md              spec_evaluate.md
+                                spec_cli.md
 
   "What is correct?"             "How does the code achieve it?"
 ```
 
-The Formats layer defines the data contract. The [Modules layer](../modules/index.md) defines the software components that read, write, convert, and visualize that data.
+The Formats layer defines the data contract. The [Modules layer](../modules/index.md) defines the software components that read, write, convert, visualize, and evaluate that data.
+
+Note: The [Evaluate layer](../evaluate/index.md) is an independent third layer — it defines evaluation metric contracts (WHAT) that the Evaluate module (HOW, in `specs/modules/spec_evaluate.md`) implements.
 
 ## Reading Order
 

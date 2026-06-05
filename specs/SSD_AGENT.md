@@ -44,6 +44,7 @@ Specs（什么是对的）→ CLAUDE.md（代码怎么写）→ 代码实现
 | 修改数据模型 | `specs/modules/spec_label.md` |
 | 新增/修改转换方向 | `specs/modules/spec_convert.md` → `specs/formats/spec_conversion.md` |
 | 新增/修改可视化 | `specs/modules/spec_visualize.md` |
+| 新增/修改评估 | `specs/evaluate/spec_evaluate_metrics.md` → `specs/modules/spec_evaluate.md` |
 | 新增 CLI 命令 | `specs/modules/spec_cli.md` |
 | 修改 YOLO 读写 | `specs/formats/spec_yolo_format.md` + `specs/modules/spec_label.md` |
 | 修改 COCO 读写 | `specs/formats/spec_coco_format.md` + `specs/modules/spec_label.md` |
@@ -66,7 +67,9 @@ Specs（什么是对的）→ CLAUDE.md（代码怎么写）→ 代码实现
 | 1 | Convert ↔ Visualize：**零交叉依赖** | 循环导入、模块耦合 |
 | 2 | Convert → Label：**仅通过公共接口** | 绕过 handler 直接操作文件 |
 | 3 | Visualize → Label：**仅通过公共接口** | 同上 |
-| 4 | CLI → Convert/Visualize：**不直接导入 label** | 打破分层 |
+| 4 | CLI → Convert/Visualize/Evaluate：**不直接导入 label** | 打破分层 |
+| 5 | Evaluate ↔ Convert/Visualize：**零交叉依赖** | 循环导入、模块耦合 |
+| 6 | Evaluate → Label：**仅通过公共接口** | 绕过 handler 直接操作文件 |
 
 **坐标系统（最容易出错的地方）**
 
@@ -164,7 +167,16 @@ EOF
   → specs/modules/spec_visualize.md（第 3 节：Drawing Pipeline）
 
 "CLI 的 exit code 分别代表什么？"
-  → specs/modules/spec_cli.md（第 6 节：Exception Hierarchy）
+  → specs/modules/spec_cli.md（第 7 节：Exception Hierarchy）
+
+"mAP50 和 mAP50_95 是怎么计算的？"
+  → specs/evaluate/spec_evaluate_metrics.md（第 6 节：mAP）
+
+"目标检测和实例分割的评估有什么区别？"
+  → specs/evaluate/spec_evaluate_tasks.md（第 5 节：Detection vs Segmentation）
+
+"Evaluate 模块的输入输出是什么？"
+  → specs/modules/spec_evaluate.md（第 4 节：Public API）
 
 "各模块之间的依赖关系是怎样的？"
   → specs/modules/index.md（Architecture Constraint 图）
@@ -183,11 +195,25 @@ specs/
 │   ├── spec_coco_format.md       # COCO .json 格式权威定义
 │   └── spec_conversion.md        # 转换规则（坐标变换、类别映射）
 │
+├── evaluate/                     # WHAT — 评估指标契约
+│   ├── index.md                  # 评估层概览
+│   ├── spec_evaluate_fundamentals.md  # IoU, 匹配规则, TP/FP/FN, 混淆矩阵
+│   ├── spec_evaluate_metrics.md       # P/R/F1, PR曲线, AP/mAP/AR, 尺度分层
+│   └── spec_evaluate_tasks.md         # 检测/分割评估, COCO 12项标准
+│
+├── formats/                      # WHAT — 外部格式契约
+│   ├── index.md                  # Formats 层概览
+│   ├── spec_yolo_format.md       # YOLO .txt 格式权威定义
+│   ├── spec_labelme_format.md    # LabelMe .json 格式权威定义
+│   ├── spec_coco_format.md       # COCO .json 格式权威定义
+│   └── spec_conversion.md        # 转换规则（坐标变换、类别映射）
+│
 └── modules/                      # HOW — 内部模块架构
     ├── index.md                  # Modules 层概览 + 依赖图
     ├── spec_label.md             # Label 模块（数据模型 + Handler 接口）
     ├── spec_convert.md           # Convert 模块（Pipeline + 3 Converter + RLE）
     ├── spec_visualize.md         # Visualize 模块（渲染管线 + ColorManager）
+    ├── spec_evaluate.md          # Evaluate 模块（评估管线 + API + 数据模型）
     └── spec_cli.md               # CLI 模块（命令签名 + 异常层次 + 退出码）
 ```
 
@@ -211,6 +237,13 @@ specs/
 2. 在 `dataflow/convert/` 新增或修改 converter
 3. 如果涉及 CLI，在 `dataflow/cli/commands/convert.py` 新增子命令
 4. 写集成测试
+
+### 场景：新增评估能力
+
+1. 在  确认或新增指标定义
+2. 在  实现 evaluator 或 metric 函数
+3. 如需 CLI，在  新增子命令或选项
+4. 写单元测试 + 集成测试（需准备 mini GT/DT 测试数据）
 
 ### 场景：修复 Bug
 
@@ -237,7 +270,8 @@ specs/
 - [ ] 坐标转换使用了正确的方法（`xyxy()` vs `xywh_abs()`）
 - [ ] RLE 编码使用了 `latin1` 而非 `utf-8`
 - [ ] Converter state（`_source_annotations_for_target`）在 `finally` 中清理
-- [ ] `strict_mode` 正确透传（converter → handler）
+- [ ] `strict_mode` 正确透传（converter/evaluator → handler）
+- [ ] DT 的 `score` 字段存在校验（evaluator）
 - [ ] 新增函数/类有对应的测试
 - [ ] `pytest -x -q` 全部通过
 - [ ] 如果行为变化影响 spec，已同步更新 spec 文档
