@@ -241,7 +241,7 @@ For detailed developer guidance including advanced test commands, debugging, and
 
 ### Testing
 
-362 tests, **73%** code coverage.
+362 tests, **75%** code coverage.
 
 ```bash
 # Run all tests
@@ -259,12 +259,12 @@ pytest tests/evaluate/test_evaluator.py
 
 | Module | Coverage | Notes |
 |--------|----------|-------|
-| `dataflow/label/` | 78% | Core data models (66%), handlers (67-82%) |
-| `dataflow/convert/` | 83% | Converters (81-92%), base pipeline (62%) |
-| `dataflow/visualize/` | 69% | Visualizers (94-100%), base drawing (79%) |
-| `dataflow/evaluate/` | — | Evaluation pipeline (new module) |
-| `dataflow/cli/` | 76% | CLI commands (47-96%), utils (86%) |
-| `dataflow/util/` | 87% | File ops (84%), logging (99%) |
+| `dataflow/label/` | 68% | models (87%), coco_handler (74%), labelme_handler (72%), yolo_handler (57%) |
+| `dataflow/convert/` | 84% | yolo_and_coco (89%), labelme_and_yolo (93%), coco_and_labelme (88%), rle (81%) |
+| `dataflow/visualize/` | 81% | yolo_vis (97%), labelme_vis (100%), coco_vis (97%), base (80%) |
+| `dataflow/evaluate/` | 88% | evaluator (100%), metrics (96%), result (99%), base (91%), utils (69%) |
+| `dataflow/cli/` | 59% | main (96%), convert cmd (48%), evaluate cmd (24%), visualize cmd (84%), utils (86%) |
+| `dataflow/util/` | 93% | logging (99%), file_util (84%) |
 ```bash
 # Install development dependencies
 pip install -e .[dev]
