@@ -22,12 +22,21 @@ from .rle_converter import RLEConverter
 class YoloAndCocoConverter(BaseConverter):
     """Converter for bidirectional conversion between YOLO and COCO formats."""
 
-    def __init__(self, source_to_target: bool, verbose: bool = False, **kwargs):
+    def __init__(
+        self,
+        source_to_target: bool,
+        prediction: bool = False,
+        verbose: bool = False,
+        **kwargs,
+    ):
         """
         Initialize converter.
 
         Args:
             source_to_target: True for YOLO→COCO, False for COCO→YOLO
+            prediction: If True, read YOLO files in prediction format
+                (with confidence scores). Only meaningful for YOLO→COCO.
+                Default False (label format).
             verbose: Whether to enable verbose logging (new)
             **kwargs: Arguments passed to BaseConverter
         """
@@ -40,10 +49,7 @@ class YoloAndCocoConverter(BaseConverter):
 
         super().__init__(source_format, target_format, verbose=verbose, **kwargs)
         self.source_to_target = source_to_target
-
-        if verbose:
-            direction = "YOLO→COCO" if source_to_target else "COCO→YOLO"
-            self.logger.debug(f"Initialized converter, direction: {direction}")
+        self.prediction = prediction
 
     def convert(self, source_path: str, target_path: str, **kwargs) -> ConversionResult:
         """
@@ -240,6 +246,7 @@ class YoloAndCocoConverter(BaseConverter):
                 label_dir=source_path,
                 class_file=class_file,
                 image_dir=image_dir,
+                prediction=self.prediction,
                 strict_mode=self.strict_mode,
                 logger=self.logger,
             )

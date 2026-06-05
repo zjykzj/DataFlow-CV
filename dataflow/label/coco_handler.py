@@ -271,13 +271,16 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                                 f"Invalid polygon segmentation in annotation {ann.get('id')}"
                             )
 
+                # Parse confidence/score (prediction JSONs include "score" field)
+                confidence = ann.get("score", 1.0)
+
                 # Create object annotation
                 obj = ObjectAnnotation(
                     class_id=class_id,
                     class_name=class_name,
                     bbox=bbox,
                     segmentation=segmentation,
-                    confidence=1.0,
+                    confidence=confidence,
                     is_crowd=is_crowd,
                 )
                 objects.append(obj)
@@ -650,7 +653,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
             image_id_val = int(img.image_id) if img.image_id.isdigit() else img_id
 
-            return {
+            ann_dict = {
                 "id": ann_id,
                 "image_id": image_id_val,
                 "category_id": obj.class_id,
@@ -659,6 +662,12 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 "bbox": bbox,
                 "iscrowd": iscrowd,
             }
+
+            # Include score for prediction output (confidence < 1.0)
+            if obj.confidence < 1.0:
+                ann_dict["score"] = obj.confidence
+
+            return ann_dict
 
         except Exception as e:
             self._log_error(f"Error converting object to COCO format: {e}")

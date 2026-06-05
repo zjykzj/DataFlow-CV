@@ -23,7 +23,10 @@ from .models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
 class YoloAnnotationHandler(BaseAnnotationHandler):
     """Handler for YOLO annotation format."""
 
-    def __init__(self, label_dir: str, class_file: str, image_dir: str, **kwargs):
+    def __init__(
+        self, label_dir: str, class_file: str, image_dir: str,
+        prediction: bool = False, **kwargs
+    ):
         """
         Initialize YOLO handler.
 
@@ -31,12 +34,15 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
             label_dir: Directory containing YOLO TXT label files
             class_file: File containing class names (one per line, required)
             image_dir: Directory containing image files (for getting image dimensions)
+            prediction: If True, parse prediction format (with confidence scores).
+                Default False (label format).
             **kwargs: Additional arguments for BaseAnnotationHandler
         """
         super().__init__(**kwargs)
         self.label_dir = Path(label_dir)
         self.class_file = Path(class_file)
         self.image_dir = Path(image_dir)
+        self.prediction = prediction
         self.file_ops = FileOperations(logger=self.logger)
         self.categories = self._load_categories()
 
@@ -61,28 +67,46 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
         return categories
 
-    def _detect_annotation_type(self, line_items: List[str]) -> Tuple[bool, bool]:
+    def _detect_annotation_type(self, line_items: List[str]) -> Tuple[bool, bool, bool]:
         """
         Detect annotation type from line data.
+
+        Format detection is mode-sensitive (label vs prediction).
+        Label mode: odd token count (class_id + pairs of coords).
+        Prediction mode: even token count (class_id + pairs of coords + confidence).
 
         Args:
             line_items: Split line data items
 
         Returns:
-            Tuple[is_detection, is_segmentation]
+            Tuple[is_detection, is_segmentation, has_confidence]
 
         Raises:
-            ValueError: If format is invalid
+            ValueError: If format is invalid for the current mode
         """
-        if len(line_items) == 5:
-            # Object detection format: class_id x_center y_center width height
-            return True, False
-        elif len(line_items) > 5 and len(line_items) % 2 == 1:
-            # Instance segmentation format: class_id x1 y1 x2 y2 ... xn yn
-            # First is class_id, followed by pairs of x,y coordinates
-            return False, True
+        n = len(line_items)
+        if not self.prediction:
+            # Label mode: odd tokens (class_id + pairs)
+            if n == 5:
+                return True, False, False
+            elif n > 5 and n % 2 == 1:
+                return False, True, False
+            else:
+                raise ValueError(
+                    f"Invalid YOLO label format: {n} tokens. "
+                    "Expected 5 (detection) or odd>5 (segmentation)."
+                )
         else:
-            raise ValueError(f"Invalid YOLO format: {len(line_items)} items")
+            # Prediction mode: even tokens (class_id + pairs + confidence)
+            if n == 6:
+                return True, False, True
+            elif n > 6 and n % 2 == 0:
+                return False, True, True
+            else:
+                raise ValueError(
+                    f"Invalid YOLO prediction format: {n} tokens. "
+                    "Expected 6 (detection) or even>6 (segmentation)."
+                )
 
     def _get_image_size(self, image_path: Path) -> Tuple[int, int]:
         """Get image dimensions from image file."""
@@ -225,8 +249,39 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     # Convert numeric tokens to float
                     items = [items[0]] + [float(x) for x in items[1:]]
 
-                    is_detection, is_segmentation = self._detect_annotation_type(items)
+                    is_detection, is_segmentation, has_confidence = \
+                        self._detect_annotation_type(items)
                     class_id = int(items[0])
+
+                    # Parse confidence if present (prediction mode)
+                    confidence = 1.0
+                    if has_confidence:
+                        try:
+                            confidence = float(items[-1])
+                            if confidence < 0.0 or confidence > 1.0:
+                                error_msg = (
+                                    f"Confidence out of range [0,1] in {txt_file}, "
+                                    f"line {line_num}: {confidence}"
+                                )
+                                if self.strict_mode:
+                                    result.add_error(error_msg)
+                                    return result
+                                else:
+                                    self._log_warning(
+                                        f"Clipping line {line_num}: {error_msg}"
+                                    )
+                                    confidence = max(0.0, min(1.0, confidence))
+                        except (ValueError, IndexError):
+                            result.add_error(
+                                f"Invalid confidence value in {txt_file}, line {line_num}"
+                            )
+                            if self.strict_mode:
+                                return result
+                            else:
+                                self._log_warning(
+                                    f"Skipping line {line_num}: invalid confidence"
+                                )
+                                continue
 
                     # Validate class ID
                     if class_id not in self.categories:
@@ -247,6 +302,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
                     if is_detection:
                         # Parse detection: class_id x_center y_center width height
+                        # (prediction format has 6th token = confidence, already parsed above)
                         x_center = float(items[1])
                         y_center = float(items[2])
                         width = float(items[3])
@@ -293,7 +349,11 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
                     elif is_segmentation:
                         # Parse segmentation: class_id x1 y1 x2 y2 ... xn yn
-                        coords = [float(x) for x in items[1:]]
+                        # In prediction mode, the last token is confidence (already parsed)
+                        if has_confidence:
+                            coords = [float(x) for x in items[1:-1]]
+                        else:
+                            coords = [float(x) for x in items[1:]]
                         if len(coords) % 2 != 0:
                             result.add_error(
                                 f"Odd number of coordinates in {txt_file}, line {line_num}"
@@ -377,7 +437,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                         class_name=class_name,
                         bbox=bbox,
                         segmentation=segmentation,
-                        confidence=1.0,
+                        confidence=confidence,
                     )
                     objects.append(obj)
 
@@ -534,10 +594,17 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                 width = obj.bbox.width
                 height = obj.bbox.height
 
-                # Format: class_id x_center y_center width height
-                return (
-                    f"{class_id} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}"
-                )
+                # Append confidence if present (prediction output)
+                if obj.confidence < 1.0:
+                    return (
+                        f"{class_id} {x_center:.6f} {y_center:.6f} "
+                        f"{width:.6f} {height:.6f} {obj.confidence:.6f}"
+                    )
+                else:
+                    return (
+                        f"{class_id} {x_center:.6f} {y_center:.6f} "
+                        f"{width:.6f} {height:.6f}"
+                    )
 
             elif obj.segmentation:
                 # Instance segmentation format: class_id x1 y1 x2 y2 ... xn yn
@@ -546,8 +613,11 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                 for x, y in points:
                     coords.extend([f"{x:.6f}", f"{y:.6f}"])
 
-                # Format: class_id x1 y1 x2 y2 ... xn yn
-                return f"{class_id} " + " ".join(coords)
+                # Append confidence if present (prediction output)
+                if obj.confidence < 1.0:
+                    return f"{class_id} " + " ".join(coords) + f" {obj.confidence:.6f}"
+                else:
+                    return f"{class_id} " + " ".join(coords)
 
             else:
                 self._log_warning(
@@ -580,88 +650,176 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                 if not items:
                     continue
 
-                # Check format
-                if len(items) == 5:
-                    # Detection format
-                    try:
-                        class_id = int(items[0])
-                        x_center = float(items[1])
-                        y_center = float(items[2])
-                        width = float(items[3])
-                        height = float(items[4])
+                # Check format (mode-sensitive)
+                n = len(items)
+                if not self.prediction:
+                    # Label mode: odd tokens
+                    if n == 5:
+                        # Detection format
+                        try:
+                            class_id = int(items[0])
+                            x_center = float(items[1])
+                            y_center = float(items[2])
+                            width = float(items[3])
+                            height = float(items[4])
 
-                        # Check class ID
-                        if class_id not in self.categories:
-                            self.logger.error(
-                                f"Invalid class ID {class_id} in line {line_num}"
-                            )
-                            return False
-
-                        # Check normalized coordinates
-                        for value, name in [
-                            (x_center, "x_center"),
-                            (y_center, "y_center"),
-                            (width, "width"),
-                            (height, "height"),
-                        ]:
-                            if value < 0 or value > 1:
+                            if class_id not in self.categories:
                                 self.logger.error(
-                                    f"{name} out of range [0, 1] in line {line_num}: {value}"
+                                    f"Invalid class ID {class_id} in line {line_num}"
                                 )
                                 return False
 
-                    except (ValueError, IndexError) as e:
-                        self.logger.error(f"Error parsing line {line_num}: {e}")
+                            for value, name in [
+                                (x_center, "x_center"),
+                                (y_center, "y_center"),
+                                (width, "width"),
+                                (height, "height"),
+                            ]:
+                                if value < 0 or value > 1:
+                                    self.logger.error(
+                                        f"{name} out of range [0, 1] in line {line_num}: {value}"
+                                    )
+                                    return False
+
+                        except (ValueError, IndexError) as e:
+                            self.logger.error(f"Error parsing line {line_num}: {e}")
+                            return False
+
+                    elif n > 5 and n % 2 == 1:
+                        # Segmentation format
+                        try:
+                            class_id = int(items[0])
+                            if class_id not in self.categories:
+                                self.logger.error(
+                                    f"Invalid class ID {class_id} in line {line_num}"
+                                )
+                                return False
+
+                            coords = [float(x) for x in items[1:]]
+                            if len(coords) % 2 != 0:
+                                self.logger.error(
+                                    f"Odd number of coordinates in line {line_num}"
+                                )
+                                return False
+
+                            for i in range(0, len(coords), 2):
+                                x, y = coords[i], coords[i + 1]
+                                if x < 0 or x > 1:
+                                    self.logger.error(
+                                        f"x coordinate out of range [0,1] in line {line_num}: {x}"
+                                    )
+                                    return False
+                                if y < 0 or y > 1:
+                                    self.logger.error(
+                                        f"y coordinate out of range [0,1] in line {line_num}: {y}"
+                                    )
+                                    return False
+
+                            if len(coords) // 2 < 3:
+                                self.logger.error(
+                                    f"Polygon needs at least 3 points in line {line_num}"
+                                )
+                                return False
+
+                        except (ValueError, IndexError) as e:
+                            self.logger.error(f"Error parsing line {line_num}: {e}")
+                            return False
+
+                    else:
+                        self.logger.error(
+                            f"Invalid label format in line {line_num}: {n} tokens. "
+                            "Expected 5 (detection) or odd>5 (segmentation)."
+                        )
                         return False
-
-                elif len(items) > 5 and len(items) % 2 == 1:
-                    # Segmentation format
-                    try:
-                        class_id = int(items[0])
-                        if class_id not in self.categories:
-                            self.logger.error(
-                                f"Invalid class ID {class_id} in line {line_num}"
-                            )
-                            return False
-
-                        # Check coordinates
-                        coords = [float(x) for x in items[1:]]
-                        if len(coords) % 2 != 0:
-                            self.logger.error(
-                                f"Odd number of coordinates in line {line_num}"
-                            )
-                            return False
-
-                        # Check each coordinate
-                        for i in range(0, len(coords), 2):
-                            x, y = coords[i], coords[i + 1]
-                            if x < 0 or x > 1:
-                                self.logger.error(
-                                    f"x coordinate out of range [0, 1] in line {line_num}: {x}"
-                                )
-                                return False
-                            if y < 0 or y > 1:
-                                self.logger.error(
-                                    f"y coordinate out of range [0, 1] in line {line_num}: {y}"
-                                )
-                                return False
-
-                        # Check polygon has at least 3 points
-                        if len(coords) // 2 < 3:
-                            self.logger.error(
-                                f"Polygon needs at least 3 points in line {line_num}"
-                            )
-                            return False
-
-                    except (ValueError, IndexError) as e:
-                        self.logger.error(f"Error parsing line {line_num}: {e}")
-                        return False
-
                 else:
-                    self.logger.error(
-                        f"Invalid number of items in line {line_num}: {len(items)}"
-                    )
-                    return False
+                    # Prediction mode: even tokens
+                    if n == 6:
+                        # Detection prediction
+                        try:
+                            class_id = int(items[0])
+                            x_center = float(items[1])
+                            y_center = float(items[2])
+                            width = float(items[3])
+                            height = float(items[4])
+                            confidence = float(items[5])
+
+                            if class_id not in self.categories:
+                                self.logger.error(
+                                    f"Invalid class ID {class_id} in line {line_num}"
+                                )
+                                return False
+
+                            for value, name in [
+                                (x_center, "x_center"),
+                                (y_center, "y_center"),
+                                (width, "width"),
+                                (height, "height"),
+                                (confidence, "confidence"),
+                            ]:
+                                if value < 0 or value > 1:
+                                    self.logger.error(
+                                        f"{name} out of range [0,1] in line {line_num}: {value}"
+                                    )
+                                    return False
+
+                        except (ValueError, IndexError) as e:
+                            self.logger.error(f"Error parsing line {line_num}: {e}")
+                            return False
+
+                    elif n > 6 and n % 2 == 0:
+                        # Segmentation prediction
+                        try:
+                            class_id = int(items[0])
+                            if class_id not in self.categories:
+                                self.logger.error(
+                                    f"Invalid class ID {class_id} in line {line_num}"
+                                )
+                                return False
+
+                            confidence = float(items[-1])
+                            coords = [float(x) for x in items[1:-1]]
+
+                            if len(coords) % 2 != 0:
+                                self.logger.error(
+                                    f"Odd number of coordinates in line {line_num}"
+                                )
+                                return False
+
+                            for i in range(0, len(coords), 2):
+                                x, y = coords[i], coords[i + 1]
+                                if x < 0 or x > 1:
+                                    self.logger.error(
+                                        f"x coordinate out of range [0,1] in line {line_num}: {x}"
+                                    )
+                                    return False
+                                if y < 0 or y > 1:
+                                    self.logger.error(
+                                        f"y coordinate out of range [0,1] in line {line_num}: {y}"
+                                    )
+                                    return False
+
+                            if confidence < 0 or confidence > 1:
+                                self.logger.error(
+                                    f"confidence out of range [0,1] in line {line_num}: {confidence}"
+                                )
+                                return False
+
+                            if len(coords) // 2 < 3:
+                                self.logger.error(
+                                    f"Polygon needs at least 3 points in line {line_num}"
+                                )
+                                return False
+
+                        except (ValueError, IndexError) as e:
+                            self.logger.error(f"Error parsing line {line_num}: {e}")
+                            return False
+
+                    else:
+                        self.logger.error(
+                            f"Invalid prediction format in line {line_num}: {n} tokens. "
+                            "Expected 6 (detection) or even>6 (segmentation)."
+                        )
+                        return False
 
             return True
 

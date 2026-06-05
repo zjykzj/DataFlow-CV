@@ -25,6 +25,12 @@ def convert_group():
     is_flag=True,
     help="Use RLE encoding for COCO format",
 )
+@click.option(
+    "--prediction",
+    is_flag=True,
+    help="Treat input as prediction format (with confidence scores). "
+         "Output COCO JSON will include 'score' fields.",
+)
 def yolo2coco(
     ctx,
     image_dir: Path,
@@ -32,6 +38,7 @@ def yolo2coco(
     class_file: Path,
     output_file: Path,
     do_rle: bool,
+    prediction: bool,
 ):
     """Convert YOLO format to COCO format"""
     from dataflow.convert.yolo_and_coco import YoloAndCocoConverter
@@ -41,6 +48,8 @@ def yolo2coco(
     strict = ctx.obj["strict"]  # Use global strict mode (default True)
 
     logger.info(f"Starting conversion of YOLO to COCO: {label_dir} -> {output_file}")
+    if prediction:
+        logger.info("Prediction mode enabled: reading with confidence scores")
 
     # Parameter validation
     validate_convert_params("yolo", "coco", label_dir, output_file, image_dir, class_file)
@@ -56,7 +65,9 @@ def yolo2coco(
             )
 
     # Call existing API
-    converter = YoloAndCocoConverter(source_to_target=True, verbose=verbose, strict_mode=strict)
+    converter = YoloAndCocoConverter(
+        source_to_target=True, prediction=prediction, verbose=verbose, strict_mode=strict
+    )
     result = converter.convert(
         source_path=str(label_dir),
         target_path=str(output_file),

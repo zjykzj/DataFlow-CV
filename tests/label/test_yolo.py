@@ -200,9 +200,10 @@ class TestYoloAnnotationHandler:
 
         # Test detection format (5 items)
         line_items = ["0", "0.5", "0.5", "0.2", "0.2"]
-        is_det, is_seg = handler._detect_annotation_type(line_items)
+        is_det, is_seg, has_conf = handler._detect_annotation_type(line_items)
         assert is_det is True
         assert is_seg is False
+        assert has_conf is False
 
     def test_detect_annotation_type_segmentation(self, sample_segmentation_data):
         """Test annotation type detection for instance segmentation."""
@@ -215,9 +216,10 @@ class TestYoloAnnotationHandler:
 
         # Test segmentation format (7 items: class_id + 3 points = 6 coordinates)
         line_items = ["0", "0.1", "0.1", "0.2", "0.1", "0.15", "0.2"]
-        is_det, is_seg = handler._detect_annotation_type(line_items)
+        is_det, is_seg, has_conf = handler._detect_annotation_type(line_items)
         assert is_det is False
         assert is_seg is True
+        assert has_conf is False
 
     def test_detect_annotation_type_invalid(self, sample_detection_data):
         """Test annotation type detection for invalid format."""
@@ -230,12 +232,12 @@ class TestYoloAnnotationHandler:
 
         # Test invalid format (4 items)
         line_items = ["0", "0.5", "0.5", "0.2"]
-        with pytest.raises(ValueError, match="Invalid YOLO format"):
+        with pytest.raises(ValueError, match="Invalid YOLO label format"):
             handler._detect_annotation_type(line_items)
 
-        # Test invalid format (6 items, even number)
+        # Test invalid format (6 items, even number — prediction format in label mode)
         line_items = ["0", "0.1", "0.1", "0.2", "0.1", "0.15"]
-        with pytest.raises(ValueError, match="Invalid YOLO format"):
+        with pytest.raises(ValueError, match="Invalid YOLO label format"):
             handler._detect_annotation_type(line_items)
 
     def test_read_detection_success(self, sample_detection_data):
