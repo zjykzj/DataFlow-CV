@@ -2,5 +2,6 @@
 
 from . import visualize
 from . import convert
+from . import evaluate
 
-__all__ = ["visualize", "convert"]
+__all__ = ["visualize", "convert", "evaluate"]

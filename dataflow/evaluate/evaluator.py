@@ -1,0 +1,91 @@
+"""
+Concrete evaluator implementations for DataFlow-CV.
+
+Provides DetectionEvaluator (bbox IoU) and SegmentationEvaluator (mask IoU).
+"""
+
+import logging
+from typing import Any, Optional
+
+from .base import BaseEvaluator
+from .utils import _validate_coco_available
+
+
+class DetectionEvaluator(BaseEvaluator):
+    """Object detection evaluation using bounding box IoU.
+
+    Evaluates predicted bounding boxes against ground truth using the
+    COCO detection protocol (``iouType='bbox'``).  GT and DT must be in
+    COCO format; DT annotations must include a ``score`` field.
+
+    Example usage::
+
+        evaluator = DetectionEvaluator(verbose=True)
+        result = evaluator.evaluate("gt.json", "dt.json")
+        print(result.get_summary())
+    """
+
+    def __init__(
+        self,
+        strict_mode: bool = True,
+        verbose: bool = False,
+        logger: Optional[logging.Logger] = None,
+        log_file_path: Optional[str] = None,
+    ):
+        super().__init__(
+            strict_mode=strict_mode,
+            verbose=verbose,
+            logger=logger,
+            log_file_path=log_file_path,
+        )
+
+    def _iou_type(self) -> str:
+        return "bbox"
+
+    def _create_cocoeval(self, coco_gt: Any, coco_dt: Any) -> Any:
+        """Create COCOeval for detection (bbox IoU)."""
+        _validate_coco_available()
+        from pycocotools.cocoeval import COCOeval
+
+        return COCOeval(coco_gt, coco_dt, iouType="bbox")
+
+
+class SegmentationEvaluator(BaseEvaluator):
+    """Instance segmentation evaluation using mask IoU.
+
+    Evaluates predicted segmentation masks against ground truth using the
+    COCO segmentation protocol (``iouType='segm'``).  GT and DT must
+    include ``segmentation`` data (polygon or RLE format).
+
+    Requires pycocotools.
+
+    Example usage::
+
+        evaluator = SegmentationEvaluator(verbose=True)
+        result = evaluator.evaluate("gt_segm.json", "dt_segm.json")
+        print(result.get_summary())
+    """
+
+    def __init__(
+        self,
+        strict_mode: bool = True,
+        verbose: bool = False,
+        logger: Optional[logging.Logger] = None,
+        log_file_path: Optional[str] = None,
+    ):
+        super().__init__(
+            strict_mode=strict_mode,
+            verbose=verbose,
+            logger=logger,
+            log_file_path=log_file_path,
+        )
+
+    def _iou_type(self) -> str:
+        return "segm"
+
+    def _create_cocoeval(self, coco_gt: Any, coco_dt: Any) -> Any:
+        """Create COCOeval for segmentation (mask IoU)."""
+        _validate_coco_available()
+        from pycocotools.cocoeval import COCOeval
+
+        return COCOeval(coco_gt, coco_dt, iouType="segm")

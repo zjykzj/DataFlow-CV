@@ -1,0 +1,21 @@
+{
+  "info": {
+    "description": "Mini test dataset for evaluate module",
+    "version": "1.0",
+    "year": 2026
+  },
+  "images": [
+    {"id": 1, "file_name": "img_001.jpg", "width": 640, "height": 480},
+    {"id": 2, "file_name": "img_002.jpg", "width": 640, "height": 480}
+  ],
+  "categories": [
+    {"id": 1, "name": "cat", "supercategory": "animal"},
+    {"id": 2, "name": "dog", "supercategory": "animal"}
+  ],
+  "annotations": [
+    {"id": 1, "image_id": 1, "category_id": 1, "bbox": [100.0, 200.0, 150.0, 180.0], "area": 27000.0, "iscrowd": 0},
+    {"id": 2, "image_id": 1, "category_id": 2, "bbox": [300.0, 100.0, 200.0, 250.0], "area": 50000.0, "iscrowd": 0},
+    {"id": 3, "image_id": 2, "category_id": 1, "bbox": [50.0, 60.0, 100.0, 120.0], "area": 12000.0, "iscrowd": 0},
+    {"id": 4, "image_id": 2, "category_id": 2, "bbox": [400.0, 300.0, 180.0, 140.0], "area": 25200.0, "iscrowd": 0}
+  ]
+}

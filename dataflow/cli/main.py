@@ -45,10 +45,11 @@ def cli(ctx):
 
 
 # Register subcommand groups
-from .commands import visualize, convert
+from .commands import visualize, convert, evaluate
 
 cli.add_command(visualize.visualize_group)
 cli.add_command(convert.convert_group)
+cli.add_command(evaluate.evaluate_group)
 
 if __name__ == "__main__":
     cli()
