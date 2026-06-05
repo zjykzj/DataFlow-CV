@@ -4,60 +4,70 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-DataFlow-CV is a computer vision dataset processing library for format conversion and visualization between YOLO, LabelMe, and COCO annotation formats. It provides both a Python API and a command-line interface (CLI) with `convert` and `visualize` subcommands.
+DataFlow-CV is a computer vision dataset processing library for format conversion, visualization, and evaluation between YOLO, LabelMe, and COCO annotation formats. It provides both a Python API and a command-line interface (CLI) with `convert`, `visualize`, and `evaluate` subcommands.
 
-The project follows a modular architecture with clear separation between format handlers, converters, visualizers, and utilities. Each handler stores coordinates in its format's native representation — see `DatasetAnnotations.format` to determine coordinate semantics.
+The project follows a modular architecture with clear separation between format handlers, converters, visualizers, evaluators, and utilities. Each handler stores coordinates in its format's native representation — see `DatasetAnnotations.format` to determine coordinate semantics.
 
 ## Specifications
 
-The `specs/` directory contains the **canonical specifications** — the single source of truth for SSD Agent development. It is organized into two layers:
+The `specs/` directory contains the **canonical specifications** — the single source of truth for SSD Agent development. It is organized into three layers:
 
 ```
 specs/
-├── formats/                   # WHAT — external data format contracts
-│   ├── index.md               # Formats layer overview
-│   ├── spec_yolo_format.md    # YOLO .txt format authority
-│   ├── spec_labelme_format.md # LabelMe .json format authority
-│   ├── spec_coco_format.md    # COCO .json format authority
-│   └── spec_conversion.md     # Conversion rules (coordinate transforms, category mapping)
+├── evaluate/                       # WHAT — evaluation metric contracts
+│   ├── index.md                    # Evaluate layer overview + conventions
+│   ├── spec_evaluate_fundamentals.md  # IoU, matching rules, TP/FP/FN
+│   ├── spec_evaluate_metrics.md       # P/R/F1, AP/mAP/AR, scale stratification
+│   └── spec_evaluate_tasks.md         # Detection vs segmentation, COCO 12 metrics
 │
-└── modules/                   # HOW — internal module architecture & interface contracts
-    ├── index.md               # Modules layer overview + dependency diagram
-    ├── spec_label.md          # Label module (data models + handler interface)
-    ├── spec_convert.md        # Convert module (pipeline, converters, RLE)
-    ├── spec_visualize.md      # Visualize module (rendering pipeline, ColorManager, interaction)
-    └── spec_cli.md            # CLI module (command signatures, exit codes, decorators)
+├── formats/                        # WHAT — external data format contracts
+│   ├── index.md                    # Formats layer overview
+│   ├── spec_yolo_format.md         # YOLO .txt format authority
+│   ├── spec_labelme_format.md      # LabelMe .json format authority
+│   ├── spec_coco_format.md         # COCO .json format authority
+│   └── spec_conversion.md          # Conversion rules (coordinate transforms, category mapping)
+│
+└── modules/                        # HOW — internal module architecture & interface contracts
+    ├── index.md                    # Modules layer overview + dependency diagram
+    ├── spec_label.md               # Label module (data models + handler interface)
+    ├── spec_convert.md             # Convert module (pipeline, converters, RLE)
+    ├── spec_visualize.md           # Visualize module (rendering pipeline, ColorManager, interaction)
+    ├── spec_evaluate.md            # Evaluate module (evaluation pipeline, API, data models)
+    └── spec_cli.md                 # CLI module (command signatures, exit codes, decorators)
 ```
 
 ### Architecture Constraint (from specs/modules/index.md)
 
 ```
-┌──────────────────────────────────────────────┐
-│                    CLI                        │
-│  (calls Convert & Visualize public APIs)      │
-└──────┬─────────────────────┬─────────────────┘
-       │                     │
-       ▼                     ▼
-┌──────────────┐    ┌──────────────────┐
-│   Convert    │    │    Visualize     │
-│  (pipeline)  │    │  (rendering)     │
-└──────┬───────┘    └───────┬──────────┘
-       │                    │
-       │    ZERO CROSS-     │
-       │    DEPENDENCY      │
-       │                    │
-       ▼                    ▼
-┌──────────────────────────────────────────────┐
-│                   Label                       │
-│  Data Models + Handlers (read/write/validate) │
-└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                           CLI                                 │
+│  (calls Convert, Visualize & Evaluate public APIs)            │
+└──────┬─────────────────────┬──────────────────┬──────────────┘
+       │                     │                  │
+       ▼                     ▼                  ▼
+┌──────────────┐    ┌──────────────────┐    ┌──────────────┐
+│   Convert    │    │    Visualize     │    │   Evaluate   │
+│  (pipeline)  │    │  (rendering)     │    │  (metrics)   │
+└──────┬───────┘    └───────┬──────────┘    └──────┬───────┘
+       │                    │                      │
+       │    ZERO CROSS-     │    ZERO CROSS-       │
+       │    DEPENDENCY      │    DEPENDENCY        │
+       │                    │                      │
+       ▼                    ▼                      ▼
+┌──────────────────────────────────────────────────────────────┐
+│                         Label                                 │
+│  Data Models + Handlers (read/write/validate)                 │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 **Hard constraints:**
 1. **Convert ↔ Visualize**: Zero dependency. They do not import from each other.
-2. **Convert → Label**: Converters import handlers and models only through public interfaces.
-3. **Visualize → Label**: Visualizers import handlers and models only through public interfaces.
-4. **CLI → Convert/Visualize**: CLI commands only call converter/visualizer public APIs. CLI must NOT import label handlers directly.
+2. **Evaluate ↔ Convert**: Zero dependency. They do not import from each other.
+3. **Evaluate ↔ Visualize**: Zero dependency. They do not import from each other.
+4. **Convert → Label**: Converters import handlers and models only through public interfaces.
+5. **Visualize → Label**: Visualizers import handlers and models only through public interfaces.
+6. **Evaluate → Label**: Evaluators import COCO handler and models only through public interfaces.
+7. **CLI → Convert/Visualize/Evaluate**: CLI commands only call converter/visualizer/evaluator public APIs. CLI must NOT import label handlers or pycocotools directly.
 
 ### Specs vs CLAUDE.md
 
@@ -168,11 +178,40 @@ All extend `BaseVisualizer` which provides `ColorManager` (HSV-based palette, ma
 
 **Display behavior**: Uses a single persistent OpenCV window (created once, reused across images) with fixed position. The window auto-sizes to match each image's dimensions. Keyboard controls: `Enter`/`Space` to advance to next image, `q`/`ESC` to exit early, any other key to continue.
 
+### Evaluators (`dataflow/evaluate/`)
+
+Evaluation of object detection and instance segmentation results, wrapping pycocotools' `COCOeval`.
+
+- `DetectionEvaluator(verbose, strict_mode, logger)`: Detection evaluation using bbox IoU (`iouType='bbox'`). Input: GT COCO JSON + DT COCO JSON (with `score` field).
+- `SegmentationEvaluator(verbose, strict_mode, logger)`: Segmentation evaluation using mask IoU (`iouType='segm'`). Input: GT COCO JSON + DT COCO JSON (with `segmentation` and `score` fields).
+- `compute_pr_f1(gt, dt, iou_threshold, confidence_threshold, iou_type)`: Single-threshold P/R/F1 using manual greedy matching. Independent of full COCOeval pipeline for speed.
+- `EvaluationResult`: Structured container with 12 COCO metrics, per-class breakdown (verbose mode), and stats.
+
+**Key data models**: `EvaluationMetrics` (12 standard metrics), `PerClassMetrics` (per-category TP/FP/FN/AP/P/R/F1), `PRF1Result` (single-threshold P/R/F1).
+
+**Verbose mode**: When `verbose=True`, computes per-class metrics and outputs a per-class breakdown table. Uses `VerboseLoggingOperations` for file logging (same pattern as Convert and Visualize).
+
+**Input formats**: Accepts `str/Path` (COCO JSON file path), `dict` (COCO dict), or `DatasetAnnotations` (Label module). All normalized to `pycocotools.COCO` objects internally.
+
+**pycocotools dependency**: pycocotools is a required runtime dependency for evaluation. Guard with `try/except ImportError` and raise a clear error message if not installed.
+
+### Prediction File Conversion
+
+YOLO prediction files (model output) differ from YOLO label files (ground truth):
+
+| Format | Detection | Segmentation | Token Count |
+|--------|-----------|-------------|-------------|
+| **Label** (GT) | `class_id cx cy w h` | `class_id x1 y1 ... xn yn` | Odd (>0) |
+| **Prediction** (DT) | `class_id cx cy w h confidence` | `class_id x1 y1 ... xn yn confidence` | Even (>0) |
+
+Use `yolo2coco --prediction` to convert prediction files. The confidence value is preserved as the COCO `score` field. For segmentation predictions, polygon format is used by default (pycocotools handles polygon→RLE internally during evaluation).
+
 ### CLI Structure (`dataflow/cli/`)
 
 - `main.py`: Entry point `cli` group with global `--version`/`-v` flag
-- `commands/convert.py`: 6 subcommands — `yolo2coco`, `yolo2labelme`, `labelme2yolo`, `labelme2coco`, `coco2yolo`, `coco2labelme`
+- `commands/convert.py`: 6 subcommands — `yolo2coco`, `yolo2labelme`, `labelme2yolo`, `labelme2coco`, `coco2yolo`, `coco2labelme`. `yolo2coco` supports `--prediction` for model output.
 - `commands/visualize.py`: 3 subcommands — `yolo`, `labelme`, `coco`
+- `commands/evaluate.py`: 2 subcommands — `detection`, `segmentation`
 - `commands/utils.py`: Shared decorators (`add_common_options`, `add_visualize_options`), validators, and `FormattedCommand` (custom Click Command with aligned argument display in --help)
 - `commands/exceptions.py`: Exception hierarchy with distinct exit codes:
   - `ParameterError` (exit 1), `InputError` (exit 2), `OutputError` (exit 3), `RuntimeCLIError` (exit 4), `SystemError` (exit 5)
@@ -249,11 +288,17 @@ mypy dataflow                       # Type check
 
 ### Manual CLI Verification
 ```bash
-# Test conversion
-dataflow-cv convert yolo2coco --verbose assets/test_data/ images/ yolo_labels/ classes.txt /tmp/out.json
+# Test conversion (label)
+dataflow-cv convert yolo2coco --verbose images/ yolo_labels/ classes.txt /tmp/out.json
+
+# Test conversion (prediction)
+dataflow-cv convert yolo2coco --prediction --verbose images/ yolo_labels/ classes.txt /tmp/pred.json
 
 # Test visualization (non-display)
 dataflow-cv visualize yolo --no-display --verbose images/ yolo_labels/ classes.txt --save /tmp/viz/
+
+# Test evaluation
+dataflow-cv evaluate detection --verbose --prf1 assets/test_data/evaluate/gt_coco.json assets/test_data/evaluate/dt_coco.json
 ```
 
 ## Known Gotchas
@@ -267,6 +312,10 @@ dataflow-cv visualize yolo --no-display --verbose images/ yolo_labels/ classes.t
 7. **Visualization keyboard control**: The OpenCV window captures keyboard input. Press `Enter`/`Space` to advance, `q`/`ESC` to exit. The window manager close button (X) may not work reliably — always use keyboard to close.
 8. **Single persistent window**: The visualizer creates one window (named by format) and reuses it for all images. Window auto-sizes to each image's dimensions. Fixed window position prevents flickering across images.
 9. **BoundingBox semantics depend on format**: The same `BoundingBox` class is used for all formats. Always check `DatasetAnnotations.format` to interpret `(x, y, width, height)` correctly.
+10. **DT predictions require `score`**: COCO prediction JSON must include `"score"` field in every annotation. The evaluate module validates this — missing scores cause errors in strict mode.
+11. **DT predictions require `area`**: pycocotools `COCOeval` requires `area` on both GT and DT annotations. When generating DT JSON, ensure area is populated (typically `bbox.width * bbox.height`).
+12. **Segmentation evaluation with mask IoU**: pycocotools automatically converts polygon → RLE internally during `COCOeval.evaluate()`. Pre-converting to RLE in pred.json is unnecessary — polygon format is recommended.
+13. **YOLO prediction format**: YOLO prediction files use 6 tokens (detection) or even tokens (segmentation) vs 5/odd for labels. Use `--prediction` flag with `yolo2coco` to convert model outputs. Mixed label/prediction files are not supported — the flag applies dataset-wide.
 
 ## Bug Report
 
@@ -279,8 +328,9 @@ tests/
 ├── label/          # Handler unit tests (read/write/validate per format)
 ├── convert/        # Converter unit tests + integration tests
 ├── visualize/      # Visualizer unit tests
+├── evaluate/       # Evaluator unit tests + metric computation tests
 ├── util/           # Utility unit tests
-└── cli/            # CLI integration tests
+└── cli/            # CLI integration tests (convert, visualize, evaluate)
 ```
 
-Test data lives in `assets/test_data/`, organized by format (det/seg) and annotation type.
+Test data lives in `assets/test_data/`, organized by format (det/seg) and annotation type. Evaluate test data lives under `assets/test_data/evaluate/`.
