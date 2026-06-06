@@ -1,62 +1,58 @@
 # DataFlow-CV
 
-> **Where Vibe Coding meets CV data.** 🌊
-> Convert, visualize & evaluate datasets. Built with the flow of Claude Code.
+> 🌊 **Where Vibe Coding meets CV data.** Convert, visualize & evaluate datasets — built with the flow of Claude Code.
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/) ![License](https://img.shields.io/badge/license-MIT-green) [![PyPI](https://img.shields.io/pypi/v/dataflow-cv.svg)](https://pypi.org/project/dataflow-cv/) ![Development Status](https://img.shields.io/badge/status-alpha-yellow) [![GitHub Actions](https://github.com/zjykzj/DataFlow-CV/actions/workflows/python-publish.yml/badge.svg)](https://github.com/zjykzj/DataFlow-CV/actions/workflows/python-publish.yml) 
-![Linux](https://img.shields.io/badge/Linux-Supported-fcc624?logo=linux) ![Windows](https://img.shields.io/badge/Windows-Supported-00a2e8?logo=windows) ![macOS](https://img.shields.io/badge/macOS-Supported-999999?logo=apple)
+<p align="center">
+  <a href="https://pypi.org/project/dataflow-cv/"><img src="https://img.shields.io/pypi/v/dataflow-cv.svg" alt="PyPI"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.8+-blue.svg" alt="Python 3.8+"></a>
+  <a href="https://github.com/zjykzj/DataFlow-CV/actions/workflows/python-publish.yml"><img src="https://github.com/zjykzj/DataFlow-CV/actions/workflows/python-publish.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
+  <br>
+  <img src="https://img.shields.io/badge/Linux-Supported-fcc624?logo=linux" alt="Linux">
+  <img src="https://img.shields.io/badge/Windows-Supported-00a2e8?logo=windows" alt="Windows">
+  <img src="https://img.shields.io/badge/macOS-Supported-999999?logo=apple" alt="macOS">
+</p>
 
 A computer vision dataset processing library for seamless format conversion, visualization, and evaluation between YOLO, LabelMe, and COCO annotation formats. Designed for researchers and developers working with multi-format annotation pipelines.
 
-## Features
+```mermaid
+graph LR
+    A[YOLO<br/>.txt] -->|convert| D[DataFlow-CV]
+    B[LabelMe<br/>.json] -->|convert| D
+    C[COCO<br/>.json] -->|convert| D
+    D -->|visualize| E[🎨 Rendered<br/>Images]
+    D -->|evaluate| F[📊 mAP / AR<br/>Metrics]
+```
 
-- **Format Conversion**: Convert between YOLO, LabelMe, and COCO formats in any direction (6 conversion paths). Supports prediction file conversion with confidence scores.
-- **Multi-format Support**: Handle object detection bounding boxes and instance segmentation polygons
-- **Native Coordinate Storage**: Coordinates stored in format-native representation (YOLO normalized, LabelMe/COCO absolute pixels)
-- **Visualization**: Visualize annotations with OpenCV, supporting both display and save modes with color-coded classes
-- **Evaluation**: Evaluate detection/segmentation model outputs with COCO-standard metrics (mAP, mAP50, mAP75, AR) using pycocotools
-- **Command-line Interface**: User-friendly CLI with `convert`, `visualize`, and `evaluate` subcommands
-- **Python API**: Programmatic access for integration into larger pipelines
-- **Verbose Logging**: Detailed logging with file output for debugging
-- **Headless Mode**: Run visualization in server/Docker environments with `--no-display`
-- **Flexible Error Handling**: Choose between strict (abort on error) or lenient (skip and continue) modes
-- **Cross-platform**: Full support for Windows, Linux, and macOS
+---
 
-## Table of Contents
+## ✨ Features
 
-- [DataFlow-CV](#dataflow-cv)
-  - [Features](#features)
-  - [Table of Contents](#table-of-contents)
-  - [Installation](#installation)
-    - [From PyPI](#from-pypi)
-    - [From Source](#from-source)
-    - [Optional Dependencies](#optional-dependencies)
-  - [Quick Start](#quick-start)
-    - [Command-line Interface](#command-line-interface)
-      - [Format Conversion](#format-conversion)
-      - [Visualization](#visualization)
-      - [Evaluation](#evaluation)
-    - [Python API](#python-api)
-  - [Documentation](#documentation)
-    - [Key Concepts](#key-concepts)
-  - [Development](#development)
-    - [Testing](#testing)
-    - [Linting and Formatting](#linting-and-formatting)
-    - [Project Structure](#project-structure)
-  - [Contributing](#contributing)
-  - [License](#license)
-  - [Acknowledgments](#acknowledgments)
+| | | |
+|:---|:---|:---|
+| 🔄 **Format Conversion** | Convert between YOLO, LabelMe, and COCO in any direction — 6 conversion paths, plus prediction file support with confidence scores |
+| 🎯 **Detection & Segmentation** | Handle both object detection (bbox) and instance segmentation (polygon/RLE) annotations |
+| 🎨 **Visualization** | Render annotations with OpenCV — color-coded classes, semi-transparent masks, display & save modes |
+| 📊 **Evaluation** | COCO-standard 12-metric output (mAP, AP50, AP75, AR) via pycocotools, with per-class breakdowns |
+| 💻 **Command-line Interface** | Intuitive CLI with `convert`, `visualize`, and `evaluate` subcommands — positional args, rich `--help` |
+| 🐍 **Python API** | Programmatic access for integration into larger ML pipelines |
+| 📝 **Verbose Logging** | File-based debug logging with timestamps — toggle with `--verbose` |
+| 🖥️ **Headless Mode** | Server/Docker-friendly: `--no-display` + `--save` for off-screen rendering |
+| 🛡️ **Flexible Error Handling** | Strict mode (abort on error) or lenient mode (skip & continue with warnings) via `--no-strict` |
 
-## Installation
+---
+
+## 📦 Installation
 
 ### From PyPI
+
 ```bash
 pip install dataflow-cv
 ```
 
 ### From Source
+
 ```bash
-# Clone the repository
 git clone https://github.com/zjykzj/DataFlow-CV.git
 cd DataFlow-CV
 
@@ -67,57 +63,56 @@ pip install .
 pip install -e .
 ```
 
-**Note**: When installed in editable mode, use `python -m dataflow.cli` instead of the `dataflow-cv` command.
+> 💡 **Tip**: When installed in editable mode, use `python -m dataflow.cli` instead of the `dataflow-cv` command.
 
 ### Optional Dependencies
-- `pycocotools`: Required for COCO RLE segmentation support
-  ```bash
-  pip install pycocotools
-  ```
 
-## Quick Start
+| Dependency | Purpose | Install |
+|-----------|---------|---------|
+| `pycocotools` | COCO RLE segmentation + evaluation | `pip install pycocotools` |
+
+---
+
+## 🚀 Quick Start
 
 ### Command-line Interface
 
 All required parameters (image directories, label directories, class files, output paths) are positional arguments for better usability. Use `--help` on any subcommand for detailed usage.
 
-#### Format Conversion
+#### 🔄 Format Conversion
+
 ```bash
-# YOLO to COCO
-dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt coco_annotations.json
+# YOLO → COCO
+dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt output.json
 
-# With RLE encoding
-dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt coco_annotations.json --do-rle
+# YOLO → COCO (with RLE encoding)
+dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt output.json --do-rle
 
-# YOLO to LabelMe
+# YOLO → LabelMe
 dataflow-cv convert yolo2labelme images/ yolo_labels/ classes.txt labelme_json/
 
-# LabelMe to YOLO
+# LabelMe → YOLO
 dataflow-cv convert labelme2yolo labelme_json/ classes.txt yolo_labels/
 
-# LabelMe to COCO
-dataflow-cv convert labelme2coco labelme_json/ classes.txt coco_annotations.json
+# LabelMe → COCO
+dataflow-cv convert labelme2coco labelme_json/ classes.txt output.json
 
-# With RLE encoding
-dataflow-cv convert labelme2coco labelme_json/ classes.txt coco_annotations.json --do-rle
+# COCO → YOLO
+dataflow-cv convert coco2yolo input.json yolo_labels/
 
-# COCO to YOLO
-dataflow-cv convert coco2yolo coco_annotations.json yolo_labels/
+# COCO → LabelMe
+dataflow-cv convert coco2labelme input.json labelme_json/
 
-# COCO to LabelMe
-dataflow-cv convert coco2labelme coco_annotations.json labelme_json/
-
-# Convert YOLO predictions to COCO (with confidence scores)
+# YOLO predictions → COCO (with confidence scores)
 dataflow-cv convert yolo2coco --prediction images/ yolo_preds/ classes.txt pred.json
 
-# Enable verbose logging
-dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt coco_annotations.json --verbose
-
-# Disable strict mode (skip invalid annotations instead of aborting)
-dataflow-cv convert yolo2coco --no-strict images/ yolo_labels/ classes.txt coco_annotations.json
+# Options
+dataflow-cv convert yolo2coco --verbose images/ labels/ classes.txt output.json
+dataflow-cv convert yolo2coco --no-strict images/ labels/ classes.txt output.json
 ```
 
-#### Visualization
+#### 🎨 Visualization
+
 ```bash
 # Visualize YOLO annotations
 dataflow-cv visualize yolo images/ yolo_labels/ classes.txt --save visualized/
@@ -128,259 +123,236 @@ dataflow-cv visualize labelme images/ labelme_json/ --save visualized/
 # Visualize COCO annotations
 dataflow-cv visualize coco images/ coco_annotations.json --save visualized/
 
-# Enable verbose logging for detailed debug output
-dataflow-cv visualize yolo --verbose images/ yolo_labels/ classes.txt --save visualized/
-
-# Run on headless server (no display window)
-dataflow-cv visualize yolo --no-display images/ yolo_labels/ classes.txt --save visualized/
+# Verbose logging + headless mode
+dataflow-cv visualize yolo --verbose --no-display images/ yolo_labels/ classes.txt --save visualized/
 ```
 
-#### Evaluation
+#### 📊 Evaluation
 
-Evaluate object detection and instance segmentation model outputs using COCO-standard metrics (mAP, AP50, AP75, AR, per-class breakdown). Evaluation requires two COCO-format JSON files:
+Evaluate object detection and instance segmentation model outputs using COCO-standard metrics. Two COCO-format JSON files are required:
 
-- **`anno.json`** (Ground Truth / GT): Reference annotations in COCO JSON format
-- **`pred.json`** (Detection / DT): Model predictions in COCO JSON format with `score` field
+| File | Role | Source |
+|------|------|--------|
+| **`anno.json`** | Ground Truth (GT) — reference annotations | `yolo2coco` (label mode) |
+| **`pred.json`** | Detection (DT) — model predictions with `score` | `yolo2coco --prediction` |
 
-##### Preparing Evaluation Data
+##### ① Preparing Evaluation Data
 
 If your annotations and predictions are in YOLO format, convert them to COCO JSON first:
 
 ```bash
-# Step 1: Convert YOLO ground truth labels → COCO GT (anno.json)
-# YOLO label format:  class_id cx cy w h  (5 tokens for detection)
-#                     class_id x1 y1 ... xn yn  (odd tokens for segmentation)
+# Step 1: YOLO ground truth labels → COCO GT (anno.json)
+#   Label format:   class_id cx cy w h               ← 5 tokens (detection)
+#                   class_id x1 y1 ... xn yn          ← odd tokens (segmentation)
 dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt anno.json
 
-# Step 2: Convert YOLO predictions → COCO DT (pred.json)
-# YOLO prediction format:  class_id cx cy w h confidence  (6 tokens for detection)
-#                          class_id x1 y1 ... xn yn confidence  (even tokens for segmentation)
+# Step 2: YOLO predictions → COCO DT (pred.json)
+#   Prediction fmt: class_id cx cy w h confidence     ← 6 tokens (detection)
+#                   class_id x1 y1 ... xn yn confidence ← even tokens (segmentation)
 dataflow-cv convert yolo2coco --prediction images/ yolo_preds/ classes.txt pred.json
 ```
 
-> **Important**: YOLO label files (GT) use odd token counts (5 for detection), while prediction files (DT) use even token counts (6 for detection) with a trailing `confidence` value. The `--prediction` flag tells the converter to parse prediction format and store confidence as the COCO `score` field. Mixed label/prediction files in the same directory are not supported — the flag applies dataset-wide.
+> ⚠️ **Important**: YOLO label files (GT) use **odd** token counts, while prediction files (DT) use **even** token counts with a trailing `confidence`. The `--prediction` flag is required for DT — it preserves confidence as the COCO `score` field. Mixed label/prediction files in the same directory are not supported.
 
-##### Detection vs Segmentation — Format Requirements
+##### ② Detection vs Segmentation — Format Requirements
 
 | Field | Detection GT | Detection DT | Segmentation GT | Segmentation DT |
 |-------|:-----------:|:-----------:|:---------------:|:---------------:|
-| `bbox` | Required | Required | Required (for area) | Required (for area) |
-| `score` | — | **Required** | — | **Required** |
-| `segmentation` | Not required | Not required | **Required** | **Required** |
-| `area` | Recommended | Recommended | **Required** | **Required** |
-| `iscrowd` | Optional | — | Optional | — |
+| `bbox` | ✅ Required | ✅ Required | ✅ Required (for area) | ✅ Required (for area) |
+| `score` | — | ✅ **Required** | — | ✅ **Required** |
+| `segmentation` | ❌ Not required | ❌ Not required | ✅ **Required** | ✅ **Required** |
+| `area` | ⚪ Recommended | ⚪ Recommended | ✅ **Required** | ✅ **Required** |
+| `iscrowd` | ⚪ Optional | — | ⚪ Optional | — |
 
-- **Object Detection** evaluates bounding box overlap using bbox IoU (`iouType='bbox'`). Only `bbox` and `score` are mandatory in DT.
-- **Instance Segmentation** evaluates mask overlap using mask IoU (`iouType='segm'`). Both GT and DT must include `segmentation` (polygon or RLE), `area`, and `bbox`.
+- **Object Detection** (`iouType='bbox'`): Bounding box overlap evaluation. Only `bbox` + `score` mandatory in DT.
+- **Instance Segmentation** (`iouType='segm'`): Mask overlap evaluation. GT and DT must include `segmentation` (polygon or RLE), `area`, and `bbox`.
 
-##### CLI Commands
+##### ③ CLI Commands
 
 ```bash
-# Evaluate object detection results (bbox IoU)
+# Object detection evaluation (bbox IoU)
 dataflow-cv evaluate detection anno.json pred.json
 
-# Evaluate with verbose per-class breakdown
+# Verbose per-class breakdown
 dataflow-cv evaluate detection --verbose anno.json pred.json
 
-# Evaluate with additional P/R/F1 computation at IoU=0.5
+# With P/R/F1 at IoU=0.5
 dataflow-cv evaluate detection --prf1 --prf1-iou 0.5 anno.json pred.json
 
-# Evaluate instance segmentation results (mask IoU)
+# Instance segmentation evaluation (mask IoU)
 dataflow-cv evaluate segmentation anno.json pred.json
 
-# Save evaluation results as JSON
+# Save results as JSON
 dataflow-cv evaluate detection --output results.json anno.json pred.json
 ```
 
-##### End-to-End Workflow
+##### ④ End-to-End Workflow
 
 ```bash
-# Complete pipeline: YOLO data → COCO conversion → evaluation
+# Complete pipeline: YOLO → COCO → Evaluation
 dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt anno.json
 dataflow-cv convert yolo2coco --prediction images/ yolo_preds/ classes.txt pred.json
 dataflow-cv evaluate detection --verbose --prf1 anno.json pred.json
 ```
 
-### Python API
+### 🐍 Python API
 
 ```python
 from dataflow.convert import YoloAndCocoConverter
 from dataflow.visualize import YOLOVisualizer
 from dataflow.evaluate import DetectionEvaluator, compute_pr_f1
 
-# Convert YOLO to COCO (label mode)
+# ── Convert ──────────────────────────────────────────
+# YOLO labels → COCO (label mode)
 converter = YoloAndCocoConverter(source_to_target=True, verbose=True, strict_mode=True)
 result = converter.convert(
-    source_path="yolo_labels/",
-    target_path="coco_annotations.json",
-    class_file="classes.txt",
-    image_dir="images/",
-    do_rle=False
+    source_path="yolo_labels/", target_path="anno.json",
+    class_file="classes.txt", image_dir="images/",
 )
 
-# Convert YOLO predictions to COCO (prediction mode)
+# YOLO predictions → COCO (prediction mode)
 converter = YoloAndCocoConverter(source_to_target=True, prediction=True)
 result = converter.convert(
-    source_path="yolo_preds/",
-    target_path="pred.json",
-    class_file="classes.txt",
-    image_dir="images/"
+    source_path="yolo_preds/", target_path="pred.json",
+    class_file="classes.txt", image_dir="images/",
 )
 
-# Visualize YOLO annotations
+# ── Visualize ────────────────────────────────────────
 visualizer = YOLOVisualizer(
-    label_dir="yolo_labels/",
-    image_dir="images/",
-    class_file="classes.txt",
-    is_show=True,
-    is_save=True,
-    output_dir="visualized/",
-    verbose=True,
-    strict_mode=True
+    label_dir="yolo_labels/", image_dir="images/",
+    class_file="classes.txt", is_show=True, is_save=True,
+    output_dir="visualized/", verbose=True, strict_mode=True,
 )
 result = visualizer.visualize()
 
-# Evaluate detection results
+# ── Evaluate ─────────────────────────────────────────
 evaluator = DetectionEvaluator(verbose=True)
-result = evaluator.evaluate("gt.json", "pred.json")
+result = evaluator.evaluate("anno.json", "pred.json")
 print(f"AP: {result.metrics.ap:.3f}, AP50: {result.metrics.ap50:.3f}")
 
 # Quick P/R/F1 at IoU=0.5
-prf1 = compute_pr_f1("gt.json", "pred.json", iou_threshold=0.5)
+prf1 = compute_pr_f1("anno.json", "pred.json", iou_threshold=0.5)
 print(f"F1: {prf1.overall.f1_score:.3f}")
 ```
 
-See the `samples/` directory for complete examples:
-- `samples/visualize/yolo_demo.py` - YOLO visualization example
-- `samples/visualize/labelme_demo.py` - LabelMe visualization example
-- `samples/visualize/coco_demo.py` - COCO visualization example
-- `samples/convert/` - Conversion examples
+> 📂 See the `samples/` directory for complete examples: `samples/visualize/` (YOLO, LabelMe, COCO demos), `samples/convert/` (conversion examples).
 
-## Documentation
+---
 
-- **[CLAUDE.md](CLAUDE.md)**: Detailed architecture, development guide, and known gotchas
-- **[CHANGELOG.md](CHANGELOG.md)**: Version history and breaking changes
-- **[specs/](specs/)**: Canonical specifications organized into three layers:
-  - **`evaluate/`** — Evaluation metric contracts (IoU, matching, AP/mAP/AR, detection vs segmentation)
-  - **`formats/`** — External format contracts (YOLO, LabelMe, COCO) and conversion rules
-  - **`modules/`** — Internal module architecture, interface contracts, and dependency constraints
+## 📖 Documentation
 
-### Key Concepts
+| Resource | Description |
+|----------|-------------|
+| **[CLAUDE.md](CLAUDE.md)** | Architecture overview, development guide, and known gotchas |
+| **[CHANGELOG.md](CHANGELOG.md)** | Version history and breaking changes |
+| **[specs/evaluate/](specs/evaluate/)** | Evaluation metric contracts — IoU, matching, AP/mAP/AR |
+| **[specs/formats/](specs/formats/)** | External format contracts — YOLO, LabelMe, COCO, conversion rules |
+| **[specs/modules/](specs/modules/)** | Internal module architecture, interface contracts, dependency constraints |
 
-- **Format-Native Coordinates**: Coordinates stored in each format's native representation — YOLO normalized [0,1] center-based, LabelMe/COCO absolute pixels top-left. See `DatasetAnnotations.format` to determine semantics
-- **Explicit Coordinate Transforms**: Converters handle all coordinate transformations between formats. No hidden normalization — lossy vs lossless behavior is explicitly documented
-- **Strict Mode**: Validation errors raise exceptions (default). Disable in CLI with `--no-strict`, or in Python API with `strict_mode=False`
-- **Verbose Logging**: Detailed debug logs saved to files when `--verbose` is used. The CLI prints "Verbose log saved to: <path>" after operations.
-- **Headless Support**: Use `--no-display` for servers/Docker; use `--save` to output visualization images without a window
-- **Keyboard Shortcuts**: During visualization, press `q` or `ESC` to exit early; `Enter`/`Space` to advance; any other key continues
-- **Missing Image Handling**: Missing images are skipped with warnings, allowing processing to continue
-- **RLE Mask Visualization**: COCO RLE masks are displayed with semi-transparent fills for better visibility
-- **Color Management**: Each class ID gets a unique color from an HSV-based palette for consistent visualization
-- **Evaluation Metrics**: COCO-standard 12-metric output (AP, AP50, AP75, AP-small/medium/large, AR@1/10/100, AR-small/medium/large) with optional per-class breakdown
-- **Prediction Files**: YOLO prediction files (6 tokens for detection, even tokens for segmentation) differ from label files (5/odd tokens). Use `--prediction` flag for conversion
-- **Specifications**: The `specs/` directory contains the canonical format, evaluate, and module specifications — the authoritative reference for expected behavior
+### 💡 Key Concepts
 
-## Development
+- **Format-Native Coordinates**: Coordinates stored in each format's native representation — YOLO normalized [0,1] center-based, LabelMe/COCO absolute pixels top-left. Check `DatasetAnnotations.format` to determine semantics.
+- **Explicit Coordinate Transforms**: Converters handle all coordinate transformations between formats — no hidden normalization.
+- **Strict Mode**: Validation errors raise exceptions by default. Disable with `--no-strict` (CLI) or `strict_mode=False` (API).
+- **Verbose Logging**: Detailed debug logs saved to files when `--verbose` is used. The CLI prints the log file path after each operation.
+- **Headless Support**: Use `--no-display` for servers/Docker; pair with `--save` to output visualization images without a window.
+- **Keyboard Shortcuts**: During visualization — `q`/`ESC` to exit, `Enter`/`Space` to advance, any other key to continue.
+- **Color Management**: Each class ID gets a unique color from an HSV-based palette (up to 1000 classes) for consistent visualization.
+- **Evaluation Metrics**: COCO-standard 12-metric output with optional per-class breakdown and P/R/F1 computation.
+- **Prediction Files**: YOLO prediction files (6 tokens detection, even tokens segmentation) differ from label files (5/odd tokens). Use `--prediction` flag.
+
+---
+
+## 🔧 Development
+
 For detailed developer guidance including advanced test commands, debugging, and architecture overview, see [CLAUDE.md](CLAUDE.md).
 
-### Testing
+### 🧪 Testing
 
-362 tests, **75%** code coverage.
+**362 tests, 75% code coverage.**
 
 ```bash
-# Run all tests
-pytest
-
-# Run tests with coverage report
-pytest --cov=dataflow --cov-report=term
-
-# Run specific test module
-pytest tests/convert/test_yolo_and_coco.py
-pytest tests/evaluate/test_evaluator.py
+pytest                                    # All tests
+pytest --cov=dataflow --cov-report=term   # With coverage
+pytest tests/convert/test_yolo_and_coco.py  # Single module
+pytest tests/evaluate/test_evaluator.py     # Single module
 ```
 
-**Coverage by module:**
+<details>
+<summary><b>📊 Coverage by module</b></summary>
 
-| Module | Coverage | Notes |
-|--------|----------|-------|
+| Module | Coverage | Highlights |
+|--------|:--------:|------------|
 | `dataflow/label/` | 68% | models (87%), coco_handler (74%), labelme_handler (72%), yolo_handler (57%) |
 | `dataflow/convert/` | 84% | yolo_and_coco (89%), labelme_and_yolo (93%), coco_and_labelme (88%), rle (81%) |
 | `dataflow/visualize/` | 81% | yolo_vis (97%), labelme_vis (100%), coco_vis (97%), base (80%) |
 | `dataflow/evaluate/` | 88% | evaluator (100%), metrics (96%), result (99%), base (91%), utils (69%) |
 | `dataflow/cli/` | 59% | main (96%), convert cmd (48%), evaluate cmd (24%), visualize cmd (84%), utils (86%) |
 | `dataflow/util/` | 93% | logging (99%), file_util (84%) |
+
+</details>
+
+### 🎨 Code Quality
+
 ```bash
-# Install development dependencies
-pip install -e .[dev]
-
-# Format code
-black dataflow tests samples
-
-# Sort imports
-isort dataflow tests samples
-
-# Type checking
-mypy dataflow
-
-# Linting
-flake8 dataflow tests samples
+pip install -e .[dev]        # Install dev dependencies
+black dataflow tests samples  # Format
+isort dataflow tests samples  # Sort imports
+mypy dataflow                 # Type check
+flake8 dataflow tests samples # Lint
 ```
 
-### Pre-commit Hooks (Optional)
-
-Automatically check code quality before each commit:
+### 🔗 Pre-commit Hooks (Optional)
 
 ```bash
-# Install pre-commit
 pip install pre-commit
+pre-commit install            # Install git hooks (run once)
 
-# Install git hooks (run once)
-pre-commit install
+# After this, every `git commit` auto-runs:
+#   black → isort → flake8 → whitespace checks
 
-# After this, every `git commit` will auto-run:
-#   black (code formatting)
-#   isort (import sorting)
-#   flake8 (linting)
-#   trailing-whitespace / end-of-file-fixer / check-yaml / check-toml
-
-# Manually run against all files
-pre-commit run --all-files
+pre-commit run --all-files    # Manual run against all files
 ```
 
-### Project Structure
+### 📁 Project Structure
+
 ```
 dataflow/
-├── label/           # Annotation handlers + data models (YOLO, LabelMe, COCO)
-├── convert/         # Format converters + RLE conversion utility
-├── visualize/       # Visualization modules (OpenCV-based)
-├── evaluate/        # Evaluation modules (pycocotools-based)
-├── util/            # Logging and file operation utilities
-└── cli/             # CLI entry point, commands, and validation
-tests/               # Unit and integration tests (label, convert, visualize, evaluate, cli, util)
-samples/             # Python API usage examples (visualize, convert, label, cli)
-assets/              # Test data organized by format (det/seg) and annotation type
-specs/               # Canonical specifications (evaluate/ + formats/ + modules/ layers)
+├── label/           # Annotation handlers + data models
+├── convert/         # Format converters + RLE utility
+├── visualize/       # OpenCV-based rendering
+├── evaluate/        # pycocotools-based metrics
+├── util/            # Logging & file utilities
+└── cli/             # CLI entry point, commands, validation
+tests/               # Unit & integration tests
+samples/             # Python API usage examples
+assets/              # Test data (det/seg by format)
+specs/               # Canonical specifications (evaluate/ + formats/ + modules/)
 ```
 
-## Contributing
+---
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## 🤝 Contributing
 
-Before contributing, review [CLAUDE.md](CLAUDE.md) for architecture and development patterns.
+Contributions are welcome! Please review [CLAUDE.md](CLAUDE.md) for architecture and development patterns before contributing.
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add or update tests as needed
-5. Ensure code passes formatting and linting checks
-6. Submit a pull request
+1. 🍴 Fork the repository
+2. 🌿 Create a feature branch
+3. ✏️ Make your changes
+4. 🧪 Add or update tests as needed
+5. ✅ Ensure code passes formatting and linting checks
+6. 📬 Submit a pull request
 
-## License
+---
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## 📄 License
 
-## Acknowledgments
+This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+## 🙏 Acknowledgments
 
 - Thanks to the creators of YOLO, LabelMe, and COCO formats for establishing these annotation standards
-- Built with OpenCV, NumPy, and Click
+- Built with [OpenCV](https://opencv.org/), [NumPy](https://numpy.org/), [Click](https://click.palletsprojects.com/), and [pycocotools](https://github.com/cocodataset/cocoapi)
 - Inspired by the need for seamless format conversion in multi-tool CV pipelines
