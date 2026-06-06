@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-06-06
+
+### Added
+
+- **Evaluation module** (`dataflow/evaluate/`): COCO-standard evaluation for object detection and instance segmentation. Supports DetectionEvaluator (bbox IoU), SegmentationEvaluator (mask IoU), compute_pr_f1() for single-threshold quick evaluation, and full 12-metric COCO output (AP/AP50/AP75/mAP/AR with scale stratification). Verbose mode provides per-class breakdown tables.
+- **YOLO prediction mode** (`--prediction` flag): `yolo2coco` now supports converting YOLO model output files (6 tokens for detection, even tokens for segmentation) with confidence scores preserved as COCO `score` field. Enables end-to-end YOLO model evaluation pipeline.
+- **CLI evaluate commands**: `dataflow-cv evaluate detection` and `dataflow-cv evaluate segmentation` with `--verbose`, `--prf1`, `--prf1-iou`, `--prf1-conf`, and `--output` options.
+
+### Documentation
+
+- **README evaluation section**: Expanded with data preparation guide, detection vs segmentation format requirements table, numbered step-by-step workflow, and end-to-end YOLO→COCO→evaluation pipeline example.
+- **README visual polish**: Added emoji section headers, mermaid pipeline diagram, centered badges, collapsible coverage table, and blockquote callouts.
+
 ## [1.0.1] - 2026-06-04
 
 ### Fixed
