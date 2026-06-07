@@ -64,7 +64,7 @@ Specs（什么是对的）→ CLAUDE.md（代码怎么写）→ 制定计划 →
 **第三步：对照 CLAUDE.md**
 
 读 CLAUDE.md 的相关章节，重点关注：
-- **Known Gotchas**（9 条常见陷阱）
+- **Known Gotchas**（13 条常见陷阱）
 - **Critical Implementation Details**（坐标系统、RLE 编码、原生坐标存储）
 
 **第四步：制定开发计划**
@@ -227,13 +227,6 @@ specs/
 │   ├── spec_evaluate_fundamentals.md  # IoU, 匹配规则, TP/FP/FN, 混淆矩阵
 │   ├── spec_evaluate_metrics.md       # P/R/F1, PR曲线, AP/mAP/AR, 尺度分层
 │   └── spec_evaluate_tasks.md         # 检测/分割评估, COCO 12项标准
-│
-├── formats/                      # WHAT — 外部格式契约
-│   ├── index.md                  # Formats 层概览
-│   ├── spec_yolo_format.md       # YOLO .txt 格式权威定义
-│   ├── spec_labelme_format.md    # LabelMe .json 格式权威定义
-│   ├── spec_coco_format.md       # COCO .json 格式权威定义
-│   └── spec_conversion.md        # 转换规则（坐标变换、类别映射）
 │
 └── modules/                      # HOW — 内部模块架构
     ├── index.md                  # Modules 层概览 + 依赖图

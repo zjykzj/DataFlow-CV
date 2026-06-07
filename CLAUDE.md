@@ -71,7 +71,7 @@ specs/
 
 ### Specs vs CLAUDE.md
 
-- **Specs** define "what is correct" — the behavioral contract. Stable; change only when requirements change.
+- **Specs** define "what is correct" — the behavioral contract. They are **living documents**: when specs are insufficient or unreasonable, update them first before touching code.
 - **CLAUDE.md** describes "how the code works" — architecture, patterns, known gotchas. Evolves with the codebase.
 - For SDD Agent development, specs are the **compliance benchmark**; CLAUDE.md is the **development context**.
 - The full SDD Agent development workflow is documented in [`specs/SDD_AGENT.md`](specs/SDD_AGENT.md).
