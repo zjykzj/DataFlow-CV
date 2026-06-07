@@ -8,7 +8,7 @@ The Formats layer defines **what** constitutes valid annotation data in each ext
 
 - **Handler validation** — determining whether an input file is valid
 - **Conversion correctness** — verifying coordinate transforms produce valid output
-- **SSD Agent compliance** — checking that read/write operations conform to the format contract
+- **SDD Agent compliance** — checking that read/write operations conform to the format contract
 
 ## Documents
 
@@ -40,6 +40,6 @@ Note: The [Evaluate layer](../evaluate/index.md) is an independent third layer �
 ## Reading Order
 
 - **New to annotation formats?** Start with all four in order (YOLO → LabelMe → COCO → Conversion).
-- **New to the project?** Read [`SSD_AGENT.md`](../SSD_AGENT.md) first for the development workflow.
+- **New to the project?** Read [`SDD_AGENT.md`](../SDD_AGENT.md) first for the development workflow.
 - **Implementing a handler?** Read the relevant format spec + `spec_conversion.md` for coordinate transforms.
 - **Auditing compliance?** Use each format spec's Validation Rules section as your checklist.

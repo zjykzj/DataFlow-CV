@@ -64,7 +64,7 @@ specs/
 ## Reading Order
 
 - **New to evaluation metrics?** Read all three in order: fundamentals → metrics → tasks.
-- **New to the project?** Read [`SSD_AGENT.md`](../SSD_AGENT.md) first for the development workflow.
+- **New to the project?** Read [`SDD_AGENT.md`](../SDD_AGENT.md) first for the development workflow.
 - **Implementing the evaluate module?** Read all three evaluate specs, then [`spec_evaluate.md`](../modules/spec_evaluate.md) for the module contract.
 - **Using evaluation in CLI?** Read `spec_evaluate_tasks.md` for the task guide, then [`spec_cli.md`](../modules/spec_cli.md) for command signatures.
 - **Auditing metric correctness?** Use `spec_evaluate_metrics.md` formulas as your ground truth.

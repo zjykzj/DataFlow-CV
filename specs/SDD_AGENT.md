@@ -1,6 +1,6 @@
-# SSD Agent 开发指南
+# SDD Agent 开发指南
 
-> **本文档定义 DataFlow-CV 项目的 SSD Agent 开发方法论。**
+> **本文档定义 DataFlow-CV 项目的 SDD Agent 开发方法论。**
 >
 > 目标读者：接手本项目的 AI Agent（如 Claude Code）。也适用于人类开发者。
 
@@ -14,7 +14,7 @@ Specs（什么是对的）→ CLAUDE.md（代码怎么写）→ 代码实现
      └──────────── 测试验证 ←────────────────────────┘
 ```
 
-**SSD Agent 开发的三层体系：**
+**SDD Agent 开发的三层体系：**
 
 | 层级 | 文件 | 角色 | 修改频率 |
 |------|------|------|----------|
@@ -186,7 +186,7 @@ EOF
 
 ```
 specs/
-├── SSD_AGENT.md                  # 本文档 — SSD Agent 开发指南
+├── SDD_AGENT.md                  # 本文档 — SDD Agent 开发指南
 │
 ├── formats/                      # WHAT — 外部格式契约
 │   ├── index.md                  # Formats 层概览
