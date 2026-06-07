@@ -15,6 +15,7 @@ try:
     HAS_COCO_MASK = True
 except ImportError:
     HAS_COCO_MASK = False
+    coco_mask = None  # Placeholder for test mocking
 
 import numpy as np
 
