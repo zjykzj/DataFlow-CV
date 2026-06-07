@@ -94,13 +94,21 @@ Specs（什么是对的）→ CLAUDE.md（代码怎么写）→ 制定计划 →
 **坐标系统（最容易出错的地方）**
 
 ```
-内部模型：所有坐标 0-1 归一化，BoundingBox x/y 是中心点
+原生格式存储（无统一内部模型）—— 每个 handler 存原生坐标：
 
-YOLO  ↔  内部模型：center-based, normalized → 直通
-COCO  →  内部模型：top-left, absolute pixels → 需要转换
-        输出时用 BoundingBox.xyxy() → [x1, y1, w, h]
-        ❌ 不要用 xywh_abs() 输出 COCO bbox
-LabelMe → 内部模型：绝对像素 → 归一化
+┌────────┬───────────┬──────────────────┬──────────────────────┐
+│ Format │ Bbox 原点 │ 坐标空间          │ 示例                 │
+├────────┼───────────┼──────────────────┼──────────────────────┤
+│ YOLO   │ Center    │ 归一化 [0, 1]     │ (cx, cy, w, h)       │
+│ COCO   │ Top-left  │ 绝对像素          │ (x_tl, y_tl, w, h)   │
+│ LabelMe│ Top-left  │ 绝对像素          │ (x_tl, y_tl, w, h)   │
+└────────┴───────────┴──────────────────┴──────────────────────┘
+
+坐标转换仅在 converter.convert_annotations() 中进行：
+- BoundingBox 是纯 dataclass（无 xyxy()/xywh_abs() 等方法）
+- 转换时直接计算新 BoundingBox 实例：
+  YOLO→COCO:  cx_abs = x * img_w → x_tl = cx_abs - w_abs/2
+  COCO→YOLO:  cx_abs = x + w/2   → cx_norm = cx_abs / img_w
 ```
 
 **RLE 编码（第二容易出错的地方）**
@@ -286,7 +294,7 @@ specs/
 
 每次改动后自查：
 
-- [ ] 4 条架构硬约束未被违反
+- [ ] 6 条架构硬约束未被违反（详见 2.2 节：Convert/Visualize/Evaluate 模块间零交叉依赖、各模块仅通过公共接口访问 Label、CLI 不直接导入 label）
 - [ ] 坐标转换使用了正确的方法（`xyxy()` vs `xywh_abs()`）
 - [ ] RLE 编码使用了 `latin1` 而非 `utf-8`
 - [ ] Converter state（`_source_annotations_for_target`）在 `finally` 中清理
