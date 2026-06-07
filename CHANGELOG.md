@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-06-07
+
+### Fixed
+
+- **RLE converter test compatibility**: Added `coco_mask = None` placeholder in `except ImportError` block to fix test mocking when pycocotools is not installed.
+
+### Documentation
+
+- **SDD Agent development workflow**: Enhanced `specs/SDD_AGENT.md` with living-document philosophy, explicit planning step before implementation, and structured P0–P2 document sync checklist.
+- **CLAUDE.md alignment**: Updated "Specs vs CLAUDE.md" to reflect the living-document approach — specs should be proactively updated when insufficient, not only when requirements change.
+- **SDD_AGENT.md bug fixes**: Fixed stale Known Gotchas count (9→13), removed duplicate formats/ directory in file listing, corrected coordinate system description to match actual native-format storage architecture.
+
 ## [1.1.0] - 2026-06-06
 
 ### Added
