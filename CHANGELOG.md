@@ -13,9 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
-- **SDD Agent development workflow**: Enhanced `specs/SDD_AGENT.md` with living-document philosophy, explicit planning step before implementation, and structured P0–P2 document sync checklist.
+- **SDD development workflow**: Enhanced `specs/SDD_GUIDE.md` with living-document philosophy, explicit planning step before implementation, and structured P0–P2 document sync checklist.
 - **CLAUDE.md alignment**: Updated "Specs vs CLAUDE.md" to reflect the living-document approach — specs should be proactively updated when insufficient, not only when requirements change.
-- **SDD_AGENT.md bug fixes**: Fixed stale Known Gotchas count (9→13), removed duplicate formats/ directory in file listing, corrected coordinate system description to match actual native-format storage architecture.
+- **SDD_GUIDE.md bug fixes**: Fixed stale Known Gotchas count (9→13), removed duplicate formats/ directory in file listing, corrected coordinate system description to match actual native-format storage architecture.
 
 ## [1.1.0] - 2026-06-06
 

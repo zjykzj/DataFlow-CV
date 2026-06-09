@@ -82,7 +82,7 @@ The [Formats layer](../formats/index.md) defines the data contracts that the Lab
 
 ## Reading Order
 
-- **New to the codebase?** Start with [`SDD_AGENT.md`](../SDD_AGENT.md) for the development methodology, then `spec_label.md` (foundation), then `spec_convert.md`, then `spec_visualize.md`, then `spec_evaluate.md`, then `spec_cli.md`.
+- **New to the codebase?** Start with [`SDD_GUIDE.md`](../SDD_GUIDE.md) for the development methodology, then `spec_label.md` (foundation), then `spec_convert.md`, then `spec_visualize.md`, then `spec_evaluate.md`, then `spec_cli.md`.
 - **Adding a conversion direction?** Read `spec_convert.md` first, then reference `spec_label.md` for handler interfaces.
 - **Adding a visualization?** Read `spec_visualize.md` and `spec_label.md`.
 - **Adding evaluation functionality?** Read the [Evaluate layer](../evaluate/index.md) for metric definitions, then `spec_evaluate.md` for the module contract.

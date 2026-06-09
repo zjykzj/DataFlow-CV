@@ -1,6 +1,6 @@
-# SDD Agent 开发指南
+# SDD 开发指南
 
-> **本文档定义 DataFlow-CV 项目的 SDD Agent 开发方法论。**
+> **本文档定义 DataFlow-CV 项目的 SDD（规约驱动开发）方法论。**
 >
 > 目标读者：接手本项目的 AI Agent（如 Claude Code）。也适用于人类开发者。
 
@@ -14,7 +14,7 @@ Specs（什么是对的）→ CLAUDE.md（代码怎么写）→ 制定计划 →
      └─────────── 测试验证 + 文档同步 ←───────────────────┘
 ```
 
-**SDD Agent 开发的三层体系：**
+**SDD 开发的三层体系：**
 
 | 层级 | 文件 | 角色 | 修改频率 |
 |------|------|------|----------|
@@ -35,8 +35,8 @@ Specs（什么是对的）→ CLAUDE.md（代码怎么写）→ 制定计划 →
 **第一步：确定影响范围**
 
 问自己三个问题：
-1. 改动涉及哪个模块？（Label / Convert / Visualize / CLI）
-2. 涉及哪个外部格式？（YOLO / COCO / LabelMe）
+1. 改动涉及哪个模块？（Label / Convert / Visualize / Evaluate / CLI）
+2. 涉及哪个外部格式？（YOLO / LabelMe / COCO）
 3. 是否跨模块？（如果跨 Convert 和 Visualize，需特别小心）
 
 **第二步：读 spec，评估充分性（按此顺序）**
@@ -100,8 +100,8 @@ Specs（什么是对的）→ CLAUDE.md（代码怎么写）→ 制定计划 →
 │ Format │ Bbox 原点 │ 坐标空间          │ 示例                 │
 ├────────┼───────────┼──────────────────┼──────────────────────┤
 │ YOLO   │ Center    │ 归一化 [0, 1]     │ (cx, cy, w, h)       │
-│ COCO   │ Top-left  │ 绝对像素          │ (x_tl, y_tl, w, h)   │
 │ LabelMe│ Top-left  │ 绝对像素          │ (x_tl, y_tl, w, h)   │
+│ COCO   │ Top-left  │ 绝对像素          │ (x_tl, y_tl, w, h)   │
 └────────┴───────────┴──────────────────┴──────────────────────┘
 
 坐标转换仅在 converter.convert_annotations() 中进行：
@@ -221,7 +221,7 @@ EOF
 
 ```
 specs/
-├── SDD_AGENT.md                  # 本文档 — SDD Agent 开发指南
+├── SDD_GUIDE.md                  # 本文档 — SDD 开发指南
 │
 ├── formats/                      # WHAT — 外部格式契约
 │   ├── index.md                  # Formats 层概览
@@ -295,7 +295,7 @@ specs/
 每次改动后自查：
 
 - [ ] 6 条架构硬约束未被违反（详见 2.2 节：Convert/Visualize/Evaluate 模块间零交叉依赖、各模块仅通过公共接口访问 Label、CLI 不直接导入 label）
-- [ ] 坐标转换使用了正确的方法（`xyxy()` vs `xywh_abs()`）
+- [ ] 坐标转换直接构造新 BoundingBox 实例（BoundingBox 是纯 dataclass，无 xyxy()/xywh_abs() 方法）
 - [ ] RLE 编码使用了 `latin1` 而非 `utf-8`
 - [ ] Converter state（`_source_annotations_for_target`）在 `finally` 中清理
 - [ ] `strict_mode` 正确透传（converter/evaluator → handler）
