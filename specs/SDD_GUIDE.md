@@ -1,50 +1,73 @@
 # SDD 开发指南
 
-> **本文档定义 DataFlow-CV 项目的 SDD（规约驱动开发）方法论。**
+> **本文档定义 DataFlow-CV 工程的 SDD 开发指南。**
 >
 > 目标读者：接手本项目的 AI Agent（如 Claude Code）。也适用于人类开发者。
+>
+> **通用方法论见 [`SDD_METHODOLOGY.md`](SDD_METHODOLOGY.md)**。本文档聚焦 DataFlow-CV 工程的特有内容，是对通用方法论的工程化补充。
 
 ---
 
-## 一、核心理念
+## 一、工程架构
+
+### 模块体系
+
+DataFlow-CV 的模块依赖关系（详见 [`modules/index.md`](modules/index.md)）：
 
 ```
-Specs（什么是对的）→ CLAUDE.md（代码怎么写）→ 制定计划 → 代码实现
-     ↑         ← （行为变化时回写）                       |
-     └─────────── 测试验证 + 文档同步 ←───────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                           CLI                                 │
+│  (calls Convert, Visualize & Evaluate public APIs)            │
+└──────┬─────────────────────┬──────────────────┬──────────────┘
+       │                     │                  │
+       ▼                     ▼                  ▼
+┌──────────────┐    ┌──────────────────┐    ┌──────────────┐
+│   Convert    │    │    Visualize     │    │   Evaluate   │
+│  (pipeline)  │    │  (rendering)     │    │  (metrics)   │
+└──────┬───────┘    └───────┬──────────┘    └──────┬───────┘
+       │                    │                      │
+       │    ZERO CROSS-     │    ZERO CROSS-       │
+       │    DEPENDENCY      │    DEPENDENCY        │
+       │                    │                      │
+       ▼                    ▼                      ▼
+┌──────────────────────────────────────────────────────────────┐
+│                         Label                                 │
+│  Data Models + Handlers (read/write/validate)                 │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-**SDD 开发的三层体系：**
+### 架构硬约束（写代码前默念一遍）
 
-| 层级 | 文件 | 角色 | 修改频率 |
-|------|------|------|----------|
-| **Specs** | `specs/` | 行为契约——定义"什么是对的" | 很少（需求变更时才改） |
-| **CLAUDE.md** | `CLAUDE.md` | 开发上下文——描述"代码怎么写的" | 随代码演进 |
-| **Code** | `dataflow/` | 实现——实际运行的代码 | 日常 |
+| # | 约束 | 违反后果 |
+|---|------|----------|
+| 1 | Convert ↔ Visualize：**零交叉依赖** | 循环导入、模块耦合 |
+| 2 | Convert → Label：**仅通过公共接口** | 绕过 handler 直接操作文件 |
+| 3 | Visualize → Label：**仅通过公共接口** | 同上 |
+| 4 | CLI → Convert/Visualize/Evaluate：**不直接导入 label** | 打破分层 |
+| 5 | Evaluate ↔ Convert/Visualize：**零交叉依赖** | 循环导入、模块耦合 |
+| 6 | Evaluate → Label：**仅通过公共接口** | 绕过 handler 直接操作文件 |
 
-**开发铁律**：
-- Specs 是最高权威。如果代码行为与 specs 冲突，以 specs 为准，改代码。
-- Specs 是活文档。需求变更或 specs 不充分时，优先更新 specs，再动手。
+### 外部格式
+
+DataFlow-CV 涉及三种标注格式，按以下固定顺序排列（贯穿代码库的所有 listing）：
+
+```
+YOLO → LabelMe → COCO
+```
 
 ---
 
-## 二、开发工作流
+## 二、开发工作流（工程特有补充）
 
-### 2.1 接到新任务时
+> 通用四步工作流（影响范围 → spec → 上下文文档 → 计划）参见 [`SDD_METHODOLOGY.md`](SDD_METHODOLOGY.md) 第二章。
 
-**第一步：确定影响范围**
+### 2.1 第一步：确定影响范围（工程模板）
 
-问自己三个问题：
 1. 改动涉及哪个模块？（Label / Convert / Visualize / Evaluate / CLI）
 2. 涉及哪个外部格式？（YOLO / LabelMe / COCO）
 3. 是否跨模块？（如果跨 Convert 和 Visualize，需特别小心）
 
-**第二步：读 spec，评估充分性（按此顺序）**
-
-> ⚠️ **Specs 是活文档。** 读 spec 时带着批判眼光：
-> - Specs 是否覆盖了当前场景？定义是否清晰无歧义？
-> - Specs 的行为定义是否合理、内部是否一致？
-> - **如果不充分或不合理 → 优先更新 specs，再往下走。** 不在不稳固的基础上盖楼。
+### 2.2 第二步：读 spec（工程映射表）
 
 按改动类型找对应 spec：
 
@@ -61,35 +84,13 @@ Specs（什么是对的）→ CLAUDE.md（代码怎么写）→ 制定计划 →
 | 跨模块改动 | `specs/modules/index.md`（架构约束图 + 依赖规则） |
 | 不确定影响范围 | `specs/modules/index.md` 和 `specs/formats/index.md`（全局概览） |
 
-**第三步：对照 CLAUDE.md**
+### 2.3 第三步：对照 CLAUDE.md
 
-读 CLAUDE.md 的相关章节，重点关注：
-- **Known Gotchas**（13 条常见陷阱）
+重点关注：
+- **Known Gotchas**（常见陷阱）
 - **Critical Implementation Details**（坐标系统、RLE 编码、原生坐标存储）
 
-**第四步：制定开发计划**
-
-读完 specs（知道"什么是对的"）和 CLAUDE.md（知道"代码怎么写的"）之后，**显式制定开发计划**再写代码：
-
-1. **列出涉及的所有文件**：哪些需要创建、修改、删除
-2. **确定改动顺序**：按依赖关系排定先后（先改基础接口，再改上层调用）
-3. **识别风险点**：可能影响哪些现有功能？哪个环节最容易出错？
-4. **复杂任务用 Plan**：跨模块改动或新增格式/评估能力时，使用 `EnterPlanMode` / `Plan` agent 生成完整方案
-
-> 先计划，再实现——避免在实现中途发现架构冲突、推倒重来。
-
-### 2.2 动手写代码时
-
-**架构硬约束（写代码前默念一遍）**
-
-| # | 约束 | 违反后果 |
-|---|------|----------|
-| 1 | Convert ↔ Visualize：**零交叉依赖** | 循环导入、模块耦合 |
-| 2 | Convert → Label：**仅通过公共接口** | 绕过 handler 直接操作文件 |
-| 3 | Visualize → Label：**仅通过公共接口** | 同上 |
-| 4 | CLI → Convert/Visualize/Evaluate：**不直接导入 label** | 打破分层 |
-| 5 | Evaluate ↔ Convert/Visualize：**零交叉依赖** | 循环导入、模块耦合 |
-| 6 | Evaluate → Label：**仅通过公共接口** | 绕过 handler 直接操作文件 |
+### 2.4 工程特有实现细节
 
 **坐标系统（最容易出错的地方）**
 
@@ -140,42 +141,6 @@ finally:
 | 图片错误 | **总是** warning，不受 strict_mode 影响 |
 | `--no-strict`（CLI） | 透传到 converter → handler 的 `strict_mode` |
 
-### 2.3 提交前
-
-```bash
-# 1. 跑测试（必须通过）
-pytest -x -q
-
-# 2. 格式检查（如果装了 pre-commit 会自动做）
-black --check dataflow tests samples
-isort --check-only dataflow tests samples
-flake8 dataflow tests samples
-```
-
-**文档同步检查（每次改动必做）：**
-
-| 优先级 | 文档 | 检查条件 | 操作 |
-|--------|------|---------|------|
-| **P0** | `specs/` | 行为发生变化（接口、契约、数据流） | **必须**同步更新 |
-| **P1** | `CLAUDE.md` | 新增架构细节、新陷阱、新硬约束、新关键实现 | 更新 Known Gotchas 或 Critical Details |
-| **P1** | `README.md` | API 变化、新增功能入口、安装步骤变化 | 同步更新用户文档 |
-| **P2** | `samples/` | 用户 API 变化、新增格式支持、调用方式变化 | 更新示例代码 |
-
-**Git commit 格式：**
-
-```bash
-git commit -m "$(cat <<'EOF'
-<type>(<scope>): <subject>
-
-<body if needed>
-
-Co-Authored-By: DeepSeek-V4.0 <noreply@deepseek.com>
-EOF
-)"
-```
-
-类型：`feat` / `fix` / `docs` / `refactor` / `test` / `style` / `chore`
-
 ---
 
 ## 三、Specs 导航地图
@@ -187,31 +152,31 @@ EOF
   → specs/formats/spec_yolo_format.md
 
 "COCO JSON 里 bbox 是左上角还是中心？"
-  → specs/formats/spec_coco_format.md（第 4 节：Coordinate System）
+  → specs/formats/spec_coco_format.md（Coordinate System 节）
 
 "LabelMe JSON 有哪些必填字段？"
-  → specs/formats/spec_labelme_format.md（第 7 节：Validation Rules）
+  → specs/formats/spec_labelme_format.md（Validation Rules 节）
 
 "YOLO 转 COCO 的坐标怎么转换？"
-  → specs/formats/spec_conversion.md（第 5 节：YOLO↔COCO）
+  → specs/formats/spec_conversion.md（YOLO↔COCO 节）
 
 "Converter 的 execute 流程是什么？"
-  → specs/modules/spec_convert.md（第 2 节：BaseConverter Pipeline）
+  → specs/modules/spec_convert.md（BaseConverter Pipeline 节）
 
 "Visualizer 怎么画多边形的？"
-  → specs/modules/spec_visualize.md（第 3 节：Drawing Pipeline）
+  → specs/modules/spec_visualize.md（Drawing Pipeline 节）
 
 "CLI 的 exit code 分别代表什么？"
-  → specs/modules/spec_cli.md（第 7 节：Exception Hierarchy）
+  → specs/modules/spec_cli.md（Exception Hierarchy 节）
 
 "mAP50 和 mAP50_95 是怎么计算的？"
-  → specs/evaluate/spec_evaluate_metrics.md（第 6 节：mAP）
+  → specs/evaluate/spec_evaluate_metrics.md（mAP 节）
 
 "目标检测和实例分割的评估有什么区别？"
-  → specs/evaluate/spec_evaluate_tasks.md（第 5 节：Detection vs Segmentation）
+  → specs/evaluate/spec_evaluate_tasks.md（Detection vs Segmentation 节）
 
 "Evaluate 模块的输入输出是什么？"
-  → specs/modules/spec_evaluate.md（第 4 节：Public API）
+  → specs/modules/spec_evaluate.md（Public API 节）
 
 "各模块之间的依赖关系是怎样的？"
   → specs/modules/index.md（Architecture Constraint 图）
@@ -221,28 +186,29 @@ EOF
 
 ```
 specs/
-├── SDD_GUIDE.md                  # 本文档 — SDD 开发指南
+├── SDD_METHODOLOGY.md             # 通用 SDD 方法论（可跨工程复用）
+├── SDD_GUIDE.md                   # 本文档 — DataFlow-CV 工程开发指南
 │
-├── formats/                      # WHAT — 外部格式契约
-│   ├── index.md                  # Formats 层概览
-│   ├── spec_yolo_format.md       # YOLO .txt 格式权威定义
-│   ├── spec_labelme_format.md    # LabelMe .json 格式权威定义
-│   ├── spec_coco_format.md       # COCO .json 格式权威定义
-│   └── spec_conversion.md        # 转换规则（坐标变换、类别映射）
+├── formats/                       # WHAT — 外部格式契约
+│   ├── index.md                   # Formats 层概览
+│   ├── spec_yolo_format.md        # YOLO .txt 格式权威定义
+│   ├── spec_labelme_format.md     # LabelMe .json 格式权威定义
+│   ├── spec_coco_format.md        # COCO .json 格式权威定义
+│   └── spec_conversion.md         # 转换规则（坐标变换、类别映射）
 │
-├── evaluate/                     # WHAT — 评估指标契约
-│   ├── index.md                  # 评估层概览
+├── evaluate/                      # WHAT — 评估指标契约
+│   ├── index.md                   # 评估层概览
 │   ├── spec_evaluate_fundamentals.md  # IoU, 匹配规则, TP/FP/FN, 混淆矩阵
 │   ├── spec_evaluate_metrics.md       # P/R/F1, PR曲线, AP/mAP/AR, 尺度分层
 │   └── spec_evaluate_tasks.md         # 检测/分割评估, COCO 12项标准
 │
-└── modules/                      # HOW — 内部模块架构
-    ├── index.md                  # Modules 层概览 + 依赖图
-    ├── spec_label.md             # Label 模块（数据模型 + Handler 接口）
-    ├── spec_convert.md           # Convert 模块（Pipeline + 3 Converter + RLE）
-    ├── spec_visualize.md         # Visualize 模块（渲染管线 + ColorManager）
-    ├── spec_evaluate.md          # Evaluate 模块（评估管线 + API + 数据模型）
-    └── spec_cli.md               # CLI 模块（命令签名 + 异常层次 + 退出码）
+└── modules/                       # HOW — 内部模块架构
+    ├── index.md                   # Modules 层概览 + 依赖图
+    ├── spec_label.md              # Label 模块（数据模型 + Handler 接口）
+    ├── spec_convert.md            # Convert 模块（Pipeline + 3 Converter + RLE）
+    ├── spec_visualize.md          # Visualize 模块（渲染管线 + ColorManager）
+    ├── spec_evaluate.md           # Evaluate 模块（评估管线 + API + 数据模型）
+    └── spec_cli.md                # CLI 模块（命令签名 + 异常层次 + 退出码）
 ```
 
 ---
@@ -292,9 +258,12 @@ specs/
 
 ## 五、代码审查检查清单
 
+> 通用清单（测试、格式、文档同步）见 [`SDD_METHODOLOGY.md`](SDD_METHODOLOGY.md) 第三章。
+> 以下是 DataFlow-CV 工程的特有检查项。
+
 每次改动后自查：
 
-- [ ] 6 条架构硬约束未被违反（详见 2.2 节：Convert/Visualize/Evaluate 模块间零交叉依赖、各模块仅通过公共接口访问 Label、CLI 不直接导入 label）
+- [ ] 6 条架构硬约束未被违反（详见第一章：Convert/Visualize/Evaluate 模块间零交叉依赖、各模块仅通过公共接口访问 Label、CLI 不直接导入 label）
 - [ ] 坐标转换直接构造新 BoundingBox 实例（BoundingBox 是纯 dataclass，无 xyxy()/xywh_abs() 方法）
 - [ ] RLE 编码使用了 `latin1` 而非 `utf-8`
 - [ ] Converter state（`_source_annotations_for_target`）在 `finally` 中清理
@@ -311,6 +280,7 @@ specs/
 
 ## 六、参考
 
+- **SDD_METHODOLOGY.md**：通用 SDD 方法论（可跨工程复用）
 - **CLAUDE.md**：项目架构、关键细节、已知陷阱、开发命令
 - **README.md**：用户文档、安装、快速开始、项目结构
 - **Bug Report**：`~/.claude/plans/bug-p0-p1-p2-glowing-hellman.md`
