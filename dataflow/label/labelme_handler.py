@@ -11,7 +11,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from dataflow.util.file_util import FileOperations
 
@@ -136,6 +136,87 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             result.add_error(f"Unexpected error reading LabelMe annotations: {e}")
 
         return result
+
+    def iter_images(self) -> Iterator[ImageAnnotation]:
+        """Yield LabelMe ImageAnnotation objects one at a time (streaming).
+
+        Reuses ``_read_single_file()`` for per-file parsing — same validation
+        logic as ``read()`` but yields incrementally instead of accumulating
+        into a ``DatasetAnnotations``.
+
+        Categories are auto-extracted from annotations when ``class_file``
+        is not provided.
+
+        Yields:
+            ImageAnnotation with LabelMe-native absolute-pixel coordinates.
+
+        Raises:
+            ValueError: Structural errors (bad directory, no files) raise
+                immediately.  Per-file parse errors raise in strict mode.
+        """
+        from .models import ImageAnnotation as IA
+
+        if not self.label_dir.exists():
+            raise ValueError(
+                f"Label directory does not exist: {self.label_dir}"
+            )
+
+        json_files = self.file_ops.find_files(
+            self.label_dir, "*.json", recursive=False
+        )
+        if not json_files:
+            raise ValueError(
+                f"No JSON files found in {self.label_dir}"
+            )
+
+        categories_from_annotations: Dict[int, str] = {}
+
+        for json_file in json_files:
+            try:
+                image_result = self._read_single_file(json_file)
+            except ImageError as e:
+                self._log_warning(
+                    f"Skipping {json_file} (image error): {e}"
+                )
+                continue
+
+            if not image_result.success:
+                if self.strict_mode:
+                    raise ValueError(
+                        f"Failed to read {json_file}: "
+                        f"{image_result.message}"
+                    )
+                else:
+                    self._log_warning(
+                        f"Skipping {json_file}: {image_result.message}"
+                    )
+                    continue
+
+            image_ann = image_result.data
+            if image_ann is None:
+                raise ValueError(
+                    f"Internal error: image annotation data is None for "
+                    f"{json_file}"
+                )
+            if not isinstance(image_ann, IA):
+                raise ValueError(
+                    f"Internal error: invalid image annotation type for "
+                    f"{json_file}"
+                )
+
+            # Extract categories from this image
+            for obj in image_ann.objects:
+                if obj.class_id not in categories_from_annotations:
+                    categories_from_annotations[obj.class_id] = obj.class_name
+
+            yield image_ann
+
+        # Update categories from annotations if no class_file was provided
+        if not self.categories:
+            self.categories = categories_from_annotations
+            self._log_info(
+                f"Extracted {len(self.categories)} categories from annotations"
+            )
 
     def _read_single_file(self, json_file: Path) -> AnnotationResult:
         """Read a single LabelMe JSON file."""

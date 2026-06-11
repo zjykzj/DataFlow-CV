@@ -17,6 +17,8 @@ import cv2
 import numpy as np
 
 from dataflow.util import FileOperations
+from dataflow.label.base import BaseAnnotationHandler
+from dataflow.label.models import ImageAnnotation
 
 
 @dataclass
@@ -221,38 +223,54 @@ class BaseVisualizer(ABC):
         self._window_positioned = False
 
     @abstractmethod
-    def load_annotations(self) -> Dict[str, RenderData]:
-        """Load annotation data and convert to RenderData (abstract method).
+    def _create_handler(self) -> BaseAnnotationHandler:
+        """Create and return the format-specific Label handler instance.
+
+        The handler will be used to stream ``ImageAnnotation`` objects via
+        its ``iter_images()`` method.
+        """
+        pass
+
+    @abstractmethod
+    def _convert_to_render_data(self, image_ann: ImageAnnotation) -> RenderData:
+        """Convert a single ImageAnnotation to RenderData.
+
+        This is called per-image during the streaming loop. Each concrete
+        visualizer implements format-specific coordinate conversion.
+
+        Args:
+            image_ann: Single ImageAnnotation with format-native coordinates.
 
         Returns:
-            Dict mapping image_path → RenderData for that image
+            RenderData with absolute-pixel annotations ready for drawing.
         """
         pass
 
     def visualize(self) -> VisualizationResult:
-        """Execute visualization pipeline."""
+        """Execute visualization pipeline using streaming iteration.
+
+        Images are loaded, converted, and displayed one at a time via
+        ``handler.iter_images()``. This provides low first-image latency
+        and low memory usage.
+        """
         start_time = datetime.datetime.now()
         self.summary_data["start_time"] = start_time
 
         if self.verbose:
-            self.logger.debug(f"Starting visualization pipeline: {self.label_dir}")
-
-        result = VisualizationResult(success=False, log_file_path=self.log_file_path)
-
-        try:
-            # 1. Load and convert all annotations to render data
-            render_data_map = self.load_annotations()
-            self.summary_data["total_images"] = len(render_data_map)
-            self.summary_data["total_objects"] = sum(
-                len(rd.annotations) for rd in render_data_map.values()
+            self.logger.debug(
+                f"Starting visualization pipeline: {self.label_dir}"
             )
 
-            if self.verbose:
-                self.logger.info(
-                    f"Loaded annotations for {len(render_data_map)} images"
-                )
+        result = VisualizationResult(
+            success=False, log_file_path=self.log_file_path
+        )
 
-            # 2. Validate output directory
+        processed_count = 0
+        image_index = 0
+        total_objects = 0
+
+        try:
+            # 1. Validate output directory
             if self.is_save:
                 if not self.output_dir:
                     error_msg = "Save mode requires output_dir parameter"
@@ -261,23 +279,35 @@ class BaseVisualizer(ABC):
                     return result
                 self.file_ops.ensure_dir(self.output_dir)
 
-            # 3. Process all images
-            processed_count = 0
+            # 2. Create handler and obtain streaming iterator
+            handler = self._create_handler()
+            image_iter = handler.iter_images()
+
+            # 3. Process images one at a time (streaming)
             user_interrupted = False
-            image_paths = list(render_data_map.keys())
 
-            for i, image_path_str in enumerate(image_paths):
-                render_data = render_data_map[image_path_str]
+            for image_ann in image_iter:
+                image_index += 1
 
-                if self.progress_logger and i % 10 == 0:
+                if self.progress_logger and image_index % 10 == 0:
                     self._log_progress(
-                        i, len(image_paths), f"Processing {image_path_str}"
+                        image_index,
+                        message=f"Processing {image_ann.image_path}",
                     )
 
                 if self.verbose:
-                    self.logger.debug(f"Processing image: {image_path_str}")
+                    self.logger.debug(
+                        f"Processing image: {image_ann.image_path}"
+                    )
 
-                success = self._visualize_single_image(image_path_str, render_data)
+                # Convert to render data (per-image)
+                render_data = self._convert_to_render_data(image_ann)
+                total_objects += len(render_data.annotations)
+
+                # Visualize
+                success = self._visualize_single_image(
+                    image_ann.image_path, render_data
+                )
                 if success is None:
                     user_interrupted = True
                     break
@@ -287,25 +317,55 @@ class BaseVisualizer(ABC):
                 else:
                     self.summary_data["failed_images"] += 1
 
+            # Update summary data with actual counts
+            self.summary_data["total_images"] = image_index
+            self.summary_data["total_objects"] = total_objects
+
             if user_interrupted:
                 result.success = True
                 result.message = (
-                    f"Visualization interrupted by user after {processed_count} images. "
-                    f"{self.summary_data['failed_images']} failed out of {len(render_data_map)} images"
+                    f"Visualization interrupted by user after "
+                    f"{processed_count} images. "
+                    f"{self.summary_data['failed_images']} failed out of "
+                    f"{image_index} images"
                 )
-                result.data = {"processed_count": processed_count, "interrupted": True}
+                result.data = {
+                    "processed_count": processed_count,
+                    "interrupted": True,
+                }
             else:
                 result.success = True
                 failed_count = self.summary_data["failed_images"]
                 result.message = (
                     f"Visualization completed: {processed_count} successful, "
-                    f"{failed_count} failed out of {len(render_data_map)} images"
+                    f"{failed_count} failed out of {image_index} images"
                 )
                 result.data = {"processed_count": processed_count}
 
             self.summary_data["end_time"] = datetime.datetime.now()
             if self.verbose:
                 self._log_visualization_summary(result)
+
+        except ValueError as e:
+            # Handler structural errors or strict-mode parsing errors
+            # during iteration. Partial results before the error are valid.
+            error_msg = str(e)
+            result.add_error(error_msg)
+            self.summary_data["total_images"] = image_index
+            self.summary_data["total_objects"] = total_objects
+            if processed_count > 0:
+                result.success = True
+                result.message = (
+                    f"Visualization completed with partial results: "
+                    f"{processed_count} processed. Error: {error_msg}"
+                )
+                result.data = {
+                    "processed_count": processed_count,
+                    "partial": True,
+                }
+            else:
+                result.message = error_msg
+            self.summary_data["end_time"] = datetime.datetime.now()
 
         except Exception as e:
             error_msg = str(e)
@@ -614,15 +674,25 @@ class BaseVisualizer(ABC):
             self.logger, "Visualization Operation Summary", summary_data
         )
 
-    def _log_progress(self, current: int, total: int, message: str = ""):
-        """Log progress information."""
-        if self.progress_logger and total > 0:
-            percentage = (current / total) * 100
-            progress_bar = self._create_progress_bar(current, total)
-            self.progress_logger.info(f"{progress_bar} {percentage:.1f}% {message}")
+    def _log_progress(self, current: int, message: str = ""):
+        """Log progress information (counter-based for streaming).
+
+        Uses a counter format since the total image count is unknown
+        until the iterator exhausts.
+        """
+        if self.progress_logger:
+            failed = self.summary_data.get("failed_images", 0)
+            tail = f" - {message}" if message else ""
+            self.progress_logger.info(
+                f"Processed {current} images, {failed} failed{tail}"
+            )
 
     def _create_progress_bar(self, current: int, total: int, width: int = 40) -> str:
-        """Create text progress bar."""
+        """Create text progress bar (retained for compatibility).
+
+        No longer used by the streaming pipeline — kept for subclasses
+        or external consumers that may reference it.
+        """
         if total == 0:
             return "[>······································]"
 

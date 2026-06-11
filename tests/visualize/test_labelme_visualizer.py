@@ -15,6 +15,16 @@ TEST_DATA_DET = PROJECT_ROOT / "assets" / "test_data" / "det" / "labelme"
 TEST_DATA_SEG = PROJECT_ROOT / "assets" / "test_data" / "seg" / "labelme"
 
 
+def _load_all(visualizer):
+    """Helper: load all annotations using the streaming API."""
+    render_data_map = {}
+    handler = visualizer._create_handler()
+    for image_ann in handler.iter_images():
+        render_data = visualizer._convert_to_render_data(image_ann)
+        render_data_map[image_ann.image_path] = render_data
+    return render_data_map
+
+
 class TestLabelMeVisualizer:
     """Test LabelMeVisualizer class."""
 
@@ -39,7 +49,9 @@ class TestLabelMeVisualizer:
         assert visualizer.is_show is False
         assert visualizer.is_save is False
         assert visualizer.strict_mode is True
-        assert visualizer.handler is not None
+        # Handler is created lazily via _create_handler()
+        handler = visualizer._create_handler()
+        assert handler is not None
 
     def test_load_annotations_detection(self):
         visualizer = LabelMeVisualizer(
@@ -50,7 +62,7 @@ class TestLabelMeVisualizer:
             is_save=False,
         )
 
-        render_data_map = visualizer.load_annotations()
+        render_data_map = _load_all(visualizer)
         assert render_data_map is not None
         assert isinstance(render_data_map, dict)
         assert len(render_data_map) > 0
@@ -75,7 +87,7 @@ class TestLabelMeVisualizer:
             is_save=False,
         )
 
-        render_data_map = visualizer.load_annotations()
+        render_data_map = _load_all(visualizer)
         assert render_data_map is not None
         assert len(render_data_map) > 0
 
@@ -99,8 +111,10 @@ class TestLabelMeVisualizer:
 
         result = visualizer.visualize()
         assert result.success is True
-        render_data_map = visualizer.load_annotations()
-        assert result.data["processed_count"] == len(render_data_map)
+        image_count = sum(
+            1 for _ in visualizer._create_handler().iter_images()
+        )
+        assert result.data["processed_count"] == image_count
         assert "Visualization completed:" in result.message
 
     def test_visualize_with_save(self, temp_dir):
@@ -117,9 +131,11 @@ class TestLabelMeVisualizer:
         result = visualizer.visualize()
         assert result.success is True
 
-        render_data_map = visualizer.load_annotations()
+        image_count = sum(
+            1 for _ in visualizer._create_handler().iter_images()
+        )
         output_files = list(temp_dir.glob("*_visualized.jpg"))
-        assert len(output_files) == len(render_data_map)
+        assert len(output_files) == image_count
 
     def test_visualize_with_invalid_paths(self):
         with pytest.raises(ValueError):
@@ -130,7 +146,8 @@ class TestLabelMeVisualizer:
                 is_save=False,
                 strict_mode=True,
             )
-            visualizer.load_annotations()
+            handler = visualizer._create_handler()
+            list(handler.iter_images())
 
     def test_visualize_without_class_file(self):
         visualizer = LabelMeVisualizer(
@@ -142,7 +159,7 @@ class TestLabelMeVisualizer:
             strict_mode=False,
         )
 
-        render_data_map = visualizer.load_annotations()
+        render_data_map = _load_all(visualizer)
         assert render_data_map is not None
         assert len(render_data_map) > 0
 
@@ -183,6 +200,8 @@ class TestLabelMeVisualizer:
         result = visualizer.visualize()
         assert result.success is True
 
-        render_data_map = visualizer.load_annotations()
+        image_count = sum(
+            1 for _ in visualizer._create_handler().iter_images()
+        )
         output_files = list(temp_dir.glob("*_visualized.jpg"))
-        assert len(output_files) == len(render_data_map)
+        assert len(output_files) == image_count

@@ -13,7 +13,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 try:
     from pycocotools import mask as coco_mask
@@ -121,6 +121,87 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             result.add_error(f"Unexpected error reading COCO annotations: {e}")
 
         return result
+
+    def iter_images(self) -> Iterator[ImageAnnotation]:
+        """Yield COCO ImageAnnotation objects one at a time (streaming).
+
+        The full COCO JSON is loaded upfront (required by the single-file
+        format), but images are yielded one at a time so callers can start
+        processing before all grouping is complete.
+
+        Yields:
+            ImageAnnotation with COCO-native absolute-pixel coordinates.
+
+        Raises:
+            ValueError: Structural errors (bad file, missing fields, no
+                categories) raise immediately.
+        """
+        from .models import ImageAnnotation as IA
+
+        if not self.annotation_file.exists():
+            raise ValueError(
+                f"Annotation file does not exist: {self.annotation_file}"
+            )
+
+        try:
+            with open(self.annotation_file, "r", encoding="utf-8") as f:
+                coco_data = json.load(f)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"Invalid JSON in {self.annotation_file}: {e}"
+            )
+
+        # Validate required fields
+        required_fields = ["images", "annotations", "categories"]
+        for field in required_fields:
+            if field not in coco_data:
+                raise ValueError(
+                    f"Missing required field '{field}' in "
+                    f"{self.annotation_file}"
+                )
+
+        # Load metadata
+        self.categories = self._load_categories(coco_data["categories"])
+        if not self.categories:
+            raise ValueError(
+                f"No categories found in {self.annotation_file}"
+            )
+
+        images_meta = self._load_images(coco_data["images"])
+        if not images_meta:
+            raise ValueError(
+                f"No images found in {self.annotation_file}"
+            )
+
+        annotations_list = coco_data["annotations"]
+        self.dataset_info = {
+            k: v
+            for k, v in coco_data.items()
+            if k not in ["images", "annotations", "categories"]
+        }
+        self.is_rle = self._detect_rle_format(annotations_list)
+
+        # Group annotations by image_id
+        anns_by_image: Dict[int, List[Dict]] = {}
+        for ann in annotations_list:
+            img_id = ann.get("image_id")
+            if img_id is not None:
+                anns_by_image.setdefault(img_id, []).append(ann)
+
+        # Yield per image
+        for img_id, img_info in images_meta.items():
+            img_anns = anns_by_image.get(img_id, [])
+            objects = self._create_objects(
+                img_anns, img_info["width"], img_info["height"]
+            )
+            image_ann = IA(
+                image_id=str(img_id),
+                image_path=img_info["file_name"],
+                width=img_info["width"],
+                height=img_info["height"],
+                objects=objects,
+            )
+            yield image_ann
 
     def _load_categories(self, coco_categories: List[Dict]) -> Dict[int, str]:
         """Load category mapping from COCO categories list."""

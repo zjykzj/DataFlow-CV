@@ -8,7 +8,7 @@ Supports both object detection and instance segmentation formats.
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -234,6 +234,79 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
             result.add_error(f"Unexpected error reading YOLO annotations: {e}")
 
         return result
+
+    def iter_images(self) -> Iterator[ImageAnnotation]:
+        """Yield YOLO ImageAnnotation objects one at a time (streaming).
+
+        Reuses ``_read_single_file()`` for per-file parsing — same validation
+        logic as ``read()`` but yields incrementally instead of accumulating
+        into a ``DatasetAnnotations``.
+
+        Yields:
+            ImageAnnotation with YOLO-native normalized coordinates.
+
+        Raises:
+            ValueError: Structural errors (bad directory, no categories)
+                raise immediately.  Per-file parse errors raise in strict mode.
+        """
+        from .models import ImageAnnotation as IA
+
+        # --- Upfront validation (raises immediately) ---
+        if not self.label_dir.exists():
+            raise ValueError(
+                f"Label directory does not exist: {self.label_dir}"
+            )
+        if not self.image_dir.exists():
+            raise ValueError(
+                f"Image directory does not exist: {self.image_dir}"
+            )
+        if not self.categories:
+            raise ValueError(
+                f"No categories loaded from {self.class_file}"
+            )
+
+        txt_files = self.file_ops.find_files(
+            self.label_dir, "*.txt", recursive=False
+        )
+        if not txt_files:
+            raise ValueError(
+                f"No TXT files found in {self.label_dir}"
+            )
+
+        # --- Streaming iteration ---
+        for txt_file in txt_files:
+            try:
+                image_result = self._read_single_file(txt_file)
+            except ImageError as e:
+                self._log_warning(
+                    f"Skipping {txt_file} (image error): {e}"
+                )
+                continue
+
+            if not image_result.success:
+                if self.strict_mode:
+                    raise ValueError(
+                        f"Failed to read {txt_file}: {image_result.message}"
+                    )
+                else:
+                    self._log_warning(
+                        f"Skipping {txt_file}: {image_result.message}"
+                    )
+                    continue
+
+            image_ann = image_result.data
+            if image_ann is None:
+                raise ValueError(
+                    f"Internal error: image annotation data is None for "
+                    f"{txt_file}"
+                )
+            if not isinstance(image_ann, IA):
+                raise ValueError(
+                    f"Internal error: invalid image annotation type for "
+                    f"{txt_file}"
+                )
+
+            yield image_ann
 
     def _read_single_file(self, txt_file: Path) -> AnnotationResult:
         """Read a single YOLO TXT file."""

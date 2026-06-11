@@ -8,9 +8,9 @@ import logging
 import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
-from .models import AnnotationFormat, DatasetAnnotations
+from .models import AnnotationFormat, DatasetAnnotations, ImageAnnotation
 
 
 class ImageError(Exception):
@@ -68,6 +68,36 @@ class BaseAnnotationHandler(ABC):
     @abstractmethod
     def read(self, *args, **kwargs) -> AnnotationResult:
         """Read annotation files and return DatasetAnnotations."""
+        pass
+
+    @abstractmethod
+    def iter_images(self) -> Iterator[ImageAnnotation]:
+        """Yield ImageAnnotation objects one at a time (streaming).
+
+        Validates directories and categories upfront
+        (raises immediately if invalid). Then scans annotation files
+        and yields each successfully parsed image.
+
+        Image errors (missing file, unreadable) always skip regardless
+        of strict_mode.
+
+        Strict mode (default):
+            Raises ValueError on the first invalid file or annotation
+            line. The iterator stops — partial results before the error
+            are available.
+
+        Non-strict mode:
+            Skips invalid files/lines, logs warnings, continues yielding
+            valid images.
+
+        Yields:
+            ImageAnnotation with format-native coordinates, one per
+            image file.
+
+        Raises:
+            ValueError: In strict mode, when parsing fails for any file
+                or line.
+        """
         pass
 
     @abstractmethod

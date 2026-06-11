@@ -15,6 +15,16 @@ TEST_DATA_DET = PROJECT_ROOT / "assets" / "test_data" / "det" / "yolo"
 TEST_DATA_SEG = PROJECT_ROOT / "assets" / "test_data" / "seg" / "yolo"
 
 
+def _load_all(visualizer):
+    """Helper: load all annotations using the streaming API."""
+    render_data_map = {}
+    handler = visualizer._create_handler()
+    for image_ann in handler.iter_images():
+        render_data = visualizer._convert_to_render_data(image_ann)
+        render_data_map[image_ann.image_path] = render_data
+    return render_data_map
+
+
 class TestYOLOVisualizer:
     """Test YOLOVisualizer class."""
 
@@ -41,10 +51,12 @@ class TestYOLOVisualizer:
         assert visualizer.is_show is False
         assert visualizer.is_save is False
         assert visualizer.strict_mode is True
-        assert visualizer.handler is not None
+        # Handler is created lazily via _create_handler()
+        handler = visualizer._create_handler()
+        assert handler is not None
 
     def test_load_annotations_detection(self):
-        """Test loading detection annotations."""
+        """Test loading detection annotations (streaming)."""
         visualizer = YOLOVisualizer(
             label_dir=TEST_DATA_DET / "labels",
             image_dir=TEST_DATA_DET / "images",
@@ -53,7 +65,7 @@ class TestYOLOVisualizer:
             is_save=False,
         )
 
-        render_data_map = visualizer.load_annotations()
+        render_data_map = _load_all(visualizer)
         assert render_data_map is not None
         assert isinstance(render_data_map, dict)
         assert len(render_data_map) > 0
@@ -68,7 +80,7 @@ class TestYOLOVisualizer:
                 assert render_ann.class_name != ""
 
     def test_load_annotations_segmentation(self):
-        """Test loading segmentation annotations."""
+        """Test loading segmentation annotations (streaming)."""
         if not TEST_DATA_SEG.exists():
             pytest.skip(f"Segmentation test data not found: {TEST_DATA_SEG}")
 
@@ -80,7 +92,7 @@ class TestYOLOVisualizer:
             is_save=False,
         )
 
-        render_data_map = visualizer.load_annotations()
+        render_data_map = _load_all(visualizer)
         assert render_data_map is not None
         assert len(render_data_map) > 0
 
@@ -106,8 +118,10 @@ class TestYOLOVisualizer:
 
         result = visualizer.visualize()
         assert result.success is True
-        render_data_map = visualizer.load_annotations()
-        assert result.data["processed_count"] == len(render_data_map)
+        image_count = sum(
+            1 for _ in visualizer._create_handler().iter_images()
+        )
+        assert result.data["processed_count"] == image_count
         assert "Visualization completed:" in result.message
 
     def test_visualize_with_save(self, temp_dir):
@@ -126,8 +140,10 @@ class TestYOLOVisualizer:
         assert result.success is True
 
         output_files = list(temp_dir.glob("*_visualized.jpg"))
-        render_data_map = visualizer.load_annotations()
-        assert len(output_files) == len(render_data_map)
+        image_count = sum(
+            1 for _ in visualizer._create_handler().iter_images()
+        )
+        assert len(output_files) == image_count
 
     def test_visualize_with_invalid_paths(self):
         """Test visualization with invalid paths."""
@@ -140,7 +156,8 @@ class TestYOLOVisualizer:
                 is_save=False,
                 strict_mode=True,
             )
-            visualizer.load_annotations()
+            handler = visualizer._create_handler()
+            list(handler.iter_images())
 
     def test_visualize_with_missing_class_file(self):
         """Test visualization with missing class file."""
@@ -153,7 +170,8 @@ class TestYOLOVisualizer:
                 is_save=False,
                 strict_mode=True,
             )
-            visualizer.load_annotations()
+            handler = visualizer._create_handler()
+            list(handler.iter_images())
 
     def test_verbose_parameter(self):
         """Test verbose parameter functionality."""
@@ -195,5 +213,7 @@ class TestYOLOVisualizer:
         assert result.success is True
 
         output_files = list(temp_dir.glob("*_visualized.jpg"))
-        render_data_map = visualizer.load_annotations()
-        assert len(output_files) == len(render_data_map)
+        image_count = sum(
+            1 for _ in visualizer._create_handler().iter_images()
+        )
+        assert len(output_files) == image_count

@@ -3,6 +3,7 @@ Unit tests for base.py
 """
 
 import logging
+from typing import Iterator
 from unittest.mock import Mock
 
 import pytest
@@ -17,6 +18,10 @@ class ConcreteHandler(BaseAnnotationHandler):
 
     def read(self, *args, **kwargs) -> AnnotationResult:
         return AnnotationResult(success=True, data="test")
+
+    def iter_images(self) -> Iterator[ImageAnnotation]:
+        """Test implementation — yields nothing."""
+        return iter([])
 
     def write(
         self, annotations: DatasetAnnotations, *args, **kwargs

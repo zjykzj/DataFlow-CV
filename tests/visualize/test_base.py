@@ -15,9 +15,19 @@ from dataflow.visualize.base import (BaseVisualizer, ColorManager,
 class MockVisualizer(BaseVisualizer):
     """Concrete visualizer for testing base class."""
 
-    def load_annotations(self):
-        """Mock implementation for testing."""
-        return {}
+    def _create_handler(self):
+        """Mock handler with empty iterator for testing."""
+        handler = Mock()
+        handler.iter_images.return_value = iter([])
+        return handler
+
+    def _convert_to_render_data(self, image_ann):
+        """Mock conversion returning empty RenderData."""
+        return RenderData(
+            annotations=[],
+            image_width=image_ann.width,
+            image_height=image_ann.height,
+        )
 
 
 class TestColorManager:
@@ -110,10 +120,9 @@ class TestBaseVisualizer:
     def test_visualize_without_output_dir_in_save_mode(self):
         """Test that save mode requires output_dir."""
         visualizer = MockVisualizer("/tmp/labels", "/tmp/images", is_save=True)
-        with patch.object(visualizer, "load_annotations", return_value={}):
-            result = visualizer.visualize()
-            assert result.success is False
-            assert "output_dir" in result.errors[0].lower()
+        result = visualizer.visualize()
+        assert result.success is False
+        assert "output_dir" in result.errors[0].lower()
 
     @pytest.mark.skipif(not Path("/tmp").exists(), reason="Requires /tmp directory")
     def test_visualize_with_empty_dataset(self):
@@ -125,10 +134,9 @@ class TestBaseVisualizer:
             is_show=False,
             is_save=False,
         )
-        with patch.object(visualizer, "load_annotations", return_value={}):
-            result = visualizer.visualize()
-            assert result.success is True
-            assert result.data["processed_count"] == 0
+        result = visualizer.visualize()
+        assert result.success is True
+        assert result.data["processed_count"] == 0
 
     def test_log_methods(self):
         """Test logging methods."""
