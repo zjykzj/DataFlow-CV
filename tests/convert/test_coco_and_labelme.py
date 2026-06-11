@@ -224,7 +224,7 @@ class TestCocoAndLabelMeConverter:
     def test_convert_coco_to_labelme_mocked(
         self, mock_labelme_handler_class, mock_coco_handler_class
     ):
-        """Test COCO→LabelMe conversion with mocked handlers."""
+        """Test COCO→LabelMe conversion with mocked handlers (streaming)."""
         converter = CocoAndLabelMeConverter(source_to_target=True)
 
         # Mock handlers
@@ -234,22 +234,14 @@ class TestCocoAndLabelMeConverter:
         mock_coco_handler_class.return_value = mock_source_handler
         mock_labelme_handler_class.return_value = mock_target_handler
 
-        # Mock read result
-        mock_annotations = Mock(spec=DatasetAnnotations)
-        mock_annotations.images = []
-        mock_annotations.categories = {}
-        mock_annotations.categories = {}
-        mock_read_result = Mock(spec=AnnotationResult)
-        mock_read_result.success = True
-        mock_read_result.data = mock_annotations
-        mock_read_result.errors = []
-        mock_source_handler.read.return_value = mock_read_result
+        # Mock streaming source: empty iterator
+        mock_source_handler.iter_images.return_value = iter([])
 
-        # Mock write result
+        # Mock streaming target: write_one returns success
         mock_write_result = Mock(spec=AnnotationResult)
         mock_write_result.success = True
         mock_write_result.errors = []
-        mock_target_handler.write.return_value = mock_write_result
+        mock_target_handler.write_one.return_value = mock_write_result
 
         # Run conversion
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -265,13 +257,8 @@ class TestCocoAndLabelMeConverter:
         assert result.source_format == "coco"
         assert result.target_format == "labelme"
 
-        # Verify handlers were called
-        mock_source_handler.read.assert_called_once()
-        # convert_annotations creates a new DatasetAnnotations object,
-        # so we check that write was called once with any args
-        assert mock_target_handler.write.call_count == 1
-        args, _ = mock_target_handler.write.call_args
-        assert args[1] == str(target_path)
+        # Verify streaming API was called
+        mock_source_handler.iter_images.assert_called_once()
 
     @patch("dataflow.convert.coco_and_labelme.LabelMeAnnotationHandler")
     @patch("dataflow.convert.coco_and_labelme.CocoAnnotationHandler")

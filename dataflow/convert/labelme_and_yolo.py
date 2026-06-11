@@ -45,97 +45,13 @@ class LabelMeAndYoloConverter(BaseConverter):
             self.logger.debug(f"Initialized converter, direction: {direction}")
 
     def convert(self, source_path: str, target_path: str, **kwargs) -> ConversionResult:
-        """
-        Convert annotations between LabelMe and YOLO formats.
+        """Convert annotations between LabelMe and YOLO formats.
 
-        Args:
-            source_path: Path to source annotations
-            target_path: Path for target annotations
-            **kwargs: Additional conversion parameters:
-                - class_file: Required, path to class file
-                - image_dir: Optional for LabelMe→YOLO, required for YOLO→LabelMe
-
-        Returns:
-            ConversionResult with conversion status and details
+        Both directions use the streaming pipeline (per-file output).
         """
-        # Store source information for use in create_target_handler if needed
+        # Store source path for use by create_target_handler (image copying)
         self._source_path = source_path
-        self._source_annotations_for_target = None
-
-        # 1. Validate inputs
-        if not self.validate_inputs(source_path, target_path, kwargs):
-            return self._create_conversion_result(
-                success=False,
-                source_path=source_path,
-                target_path=target_path,
-                errors=["Input validation failed"],
-                log_file_path=self.log_file_path,
-            )
-
-        # 2. Read data using source handler
-        source_handler = self.create_source_handler(source_path, kwargs)
-        read_result = source_handler.read()
-        if not read_result.success:
-            return self._create_conversion_result(
-                success=False,
-                source_path=source_path,
-                target_path=target_path,
-                errors=read_result.errors,
-                log_file_path=self.log_file_path,
-            )
-
-        # 3. Convert data (format-specific conversions like category mapping)
-        annotations = read_result.data
-        converted_annotations = self.convert_annotations(annotations, kwargs)
-
-        if self.verbose:
-            self.logger.debug(
-                f"Conversion completed, object count: {converted_annotations.num_objects}"
-            )
-
-        # 4. Write data using target handler
-        # Wrap in try/finally to guarantee _source_annotations_for_target cleanup
-        self._source_annotations_for_target = converted_annotations
-        try:
-            target_handler = self.create_target_handler(target_path, kwargs)
-
-            if self.verbose:
-                self.logger.debug(
-                    f"Created target handler: {target_handler.__class__.__name__}"
-                )
-
-            # For YOLO target, write to labels directory instead of root directory
-            if self.source_to_target:  # LabelMe → YOLO
-                if hasattr(target_handler, "label_dir"):
-                    write_output_path = target_handler.label_dir
-                else:
-                    write_output_path = str(Path(target_path) / "labels")
-            else:  # YOLO → LabelMe
-                write_output_path = target_path
-
-            write_result = target_handler.write(converted_annotations, write_output_path)
-        finally:
-            self._source_annotations_for_target = None
-
-        # 5. Return result
-        result = self._create_conversion_result(
-            success=write_result.success,
-            source_path=source_path,
-            target_path=target_path,
-            annotations=converted_annotations,
-            write_result=write_result,
-            log_file_path=self.log_file_path,
-        )
-
-        if self.verbose:
-            result.add_verbose_log(f"Source format: {self.source_format}")
-            result.add_verbose_log(f"Target format: {self.target_format}")
-            result.add_verbose_log(f"Images processed: {annotations.num_images}")
-            result.add_verbose_log(
-                f"Objects converted: {converted_annotations.num_objects}"
-            )
-
-        return result
+        return self.stream_convert(source_path, target_path, **kwargs)
 
     def validate_inputs(self, source_path: str, target_path: str, kwargs: Dict) -> bool:
         """
@@ -317,125 +233,122 @@ class LabelMeAndYoloConverter(BaseConverter):
 
         return handler
 
+    def _convert_single_image(
+        self, image_ann: ImageAnnotation, **kwargs
+    ) -> ImageAnnotation:
+        """Convert a single ImageAnnotation from source to target format.
+
+        Dispatches based on conversion direction.
+        """
+        if self.target_format == "yolo":
+            return self._absolute_to_normalized_one(image_ann)
+        else:
+            return self._normalized_to_absolute_one(image_ann)
+
+    def _absolute_to_normalized_one(
+        self, img: ImageAnnotation
+    ) -> ImageAnnotation:
+        """Convert single image: LabelMe absolute px → YOLO normalized center."""
+        new_objects = []
+        for obj in img.objects:
+            new_bbox = None
+            new_seg = None
+
+            if obj.bbox:
+                cx_abs = obj.bbox.x + obj.bbox.width / 2
+                cy_abs = obj.bbox.y + obj.bbox.height / 2
+                cx_norm = cx_abs / img.width
+                cy_norm = cy_abs / img.height
+                w_norm = obj.bbox.width / img.width
+                h_norm = obj.bbox.height / img.height
+                new_bbox = BoundingBox(
+                    x=cx_norm, y=cy_norm, width=w_norm, height=h_norm
+                )
+
+            if obj.segmentation:
+                new_points = [
+                    (x / img.width, y / img.height)
+                    for x, y in obj.segmentation.points
+                ]
+                new_seg = Segmentation(points=new_points)
+
+            new_objects.append(ObjectAnnotation(
+                class_id=obj.class_id,
+                class_name=obj.class_name,
+                bbox=new_bbox,
+                segmentation=new_seg,
+                confidence=obj.confidence,
+                is_crowd=obj.is_crowd,
+            ))
+
+        return ImageAnnotation(
+            image_id=img.image_id,
+            image_path=img.image_path,
+            width=img.width,
+            height=img.height,
+            objects=new_objects,
+        )
+
+    def _normalized_to_absolute_one(
+        self, img: ImageAnnotation
+    ) -> ImageAnnotation:
+        """Convert single image: YOLO normalized center → LabelMe absolute px."""
+        new_objects = []
+        for obj in img.objects:
+            new_bbox = None
+            new_seg = None
+
+            if obj.bbox:
+                cx_abs = obj.bbox.x * img.width
+                cy_abs = obj.bbox.y * img.height
+                w_abs = obj.bbox.width * img.width
+                h_abs = obj.bbox.height * img.height
+                x_tl = cx_abs - w_abs / 2
+                y_tl = cy_abs - h_abs / 2
+                new_bbox = BoundingBox(
+                    x=x_tl, y=y_tl, width=w_abs, height=h_abs
+                )
+
+            if obj.segmentation:
+                new_points = [
+                    (x * img.width, y * img.height)
+                    for x, y in obj.segmentation.points
+                ]
+                new_seg = Segmentation(points=new_points)
+
+            new_objects.append(ObjectAnnotation(
+                class_id=obj.class_id,
+                class_name=obj.class_name,
+                bbox=new_bbox,
+                segmentation=new_seg,
+                confidence=obj.confidence,
+                is_crowd=obj.is_crowd,
+            ))
+
+        return ImageAnnotation(
+            image_id=img.image_id,
+            image_path=img.image_path,
+            width=img.width,
+            height=img.height,
+            objects=new_objects,
+        )
+
     def convert_annotations(
         self, source_annotations: DatasetAnnotations, kwargs: Dict
     ) -> DatasetAnnotations:
+        """Convert annotation data between LabelMe and YOLO formats.
+
+        Delegates to ``_convert_single_image()`` per image.
         """
-        Convert annotation data between LabelMe and YOLO formats.
+        target_format = (
+            AnnotationFormat.YOLO
+            if self.target_format == "yolo"
+            else AnnotationFormat.LABELME
+        )
+        target = DatasetAnnotations(format=target_format)
+        target.categories = source_annotations.categories.copy()
 
-        Performs explicit coordinate transformation:
-        - LabelMe→YOLO: absolute pixel → normalized center
-        - YOLO→LabelMe: normalized center → absolute pixel
-        """
-        if self.target_format == "yolo":
-            # LabelMe → YOLO: absolute pixel → normalized
-            return self._absolute_to_normalized(source_annotations)
-        else:
-            # YOLO → LabelMe: normalized → absolute pixel
-            return self._normalized_to_absolute(source_annotations)
-
-    def _absolute_to_normalized(
-        self, source: DatasetAnnotations
-    ) -> DatasetAnnotations:
-        """Convert absolute pixel (LabelMe) to normalized (YOLO)."""
-        target = DatasetAnnotations(format=AnnotationFormat.YOLO)
-        target.categories = source.categories.copy()
-
-        for img in source.images:
-            new_objects = []
-            for obj in img.objects:
-                new_bbox = None
-                new_seg = None
-
-                if obj.bbox:
-                    # LabelMe (abs px, top-left) → YOLO (normalized, center)
-                    cx_abs = obj.bbox.x + obj.bbox.width / 2
-                    cy_abs = obj.bbox.y + obj.bbox.height / 2
-                    cx_norm = cx_abs / img.width
-                    cy_norm = cy_abs / img.height
-                    w_norm = obj.bbox.width / img.width
-                    h_norm = obj.bbox.height / img.height
-                    new_bbox = BoundingBox(
-                        x=cx_norm, y=cy_norm, width=w_norm, height=h_norm
-                    )
-
-                if obj.segmentation:
-                    # LabelMe (abs px) → YOLO (normalized)
-                    new_points = [
-                        (x / img.width, y / img.height)
-                        for x, y in obj.segmentation.points
-                    ]
-                    new_seg = Segmentation(points=new_points)
-
-                new_obj = ObjectAnnotation(
-                    class_id=obj.class_id,
-                    class_name=obj.class_name,
-                    bbox=new_bbox,
-                    segmentation=new_seg,
-                    confidence=obj.confidence,
-                    is_crowd=obj.is_crowd,
-                )
-                new_objects.append(new_obj)
-
-            new_img = ImageAnnotation(
-                image_id=img.image_id,
-                image_path=img.image_path,
-                width=img.width,
-                height=img.height,
-                objects=new_objects,
-            )
-            target.add_image(new_img)
-
-        return target
-
-    def _normalized_to_absolute(
-        self, source: DatasetAnnotations
-    ) -> DatasetAnnotations:
-        """Convert normalized (YOLO) to absolute pixel (LabelMe)."""
-        target = DatasetAnnotations(format=AnnotationFormat.LABELME)
-        target.categories = source.categories.copy()
-
-        for img in source.images:
-            new_objects = []
-            for obj in img.objects:
-                new_bbox = None
-                new_seg = None
-
-                if obj.bbox:
-                    # YOLO (normalized, center) → LabelMe (abs px, top-left)
-                    cx_abs = obj.bbox.x * img.width
-                    cy_abs = obj.bbox.y * img.height
-                    w_abs = obj.bbox.width * img.width
-                    h_abs = obj.bbox.height * img.height
-                    x_tl = cx_abs - w_abs / 2
-                    y_tl = cy_abs - h_abs / 2
-                    new_bbox = BoundingBox(x=x_tl, y=y_tl, width=w_abs, height=h_abs)
-
-                if obj.segmentation:
-                    # YOLO (normalized) → LabelMe (abs px)
-                    new_points = [
-                        (x * img.width, y * img.height)
-                        for x, y in obj.segmentation.points
-                    ]
-                    new_seg = Segmentation(points=new_points)
-
-                new_obj = ObjectAnnotation(
-                    class_id=obj.class_id,
-                    class_name=obj.class_name,
-                    bbox=new_bbox,
-                    segmentation=new_seg,
-                    confidence=obj.confidence,
-                    is_crowd=obj.is_crowd,
-                )
-                new_objects.append(new_obj)
-
-            new_img = ImageAnnotation(
-                image_id=img.image_id,
-                image_path=img.image_path,
-                width=img.width,
-                height=img.height,
-                objects=new_objects,
-            )
-            target.add_image(new_img)
+        for img in source_annotations.images:
+            target.add_image(self._convert_single_image(img, **kwargs))
 
         return target

@@ -9,10 +9,11 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
-from ..label.base import AnnotationResult
-from ..label.models import AnnotationFormat, DatasetAnnotations
+from ..label.base import AnnotationResult, BaseAnnotationHandler
+from ..label.models import (AnnotationFormat, DatasetAnnotations,
+                              ImageAnnotation)
 from ..util.file_util import FileOperations
 
 
@@ -121,6 +122,149 @@ class BaseConverter(ABC):
             self.log_file_path = None
 
         self.file_ops = FileOperations(logger=self.logger)
+
+        # Initialize conversion stats for batch convert()
+        self.conversion_stats: Dict[str, Any] = {}
+
+        # Source annotations retained for target handler creation
+        # (category extraction, image copying). Cleared in try/finally.
+        self._source_annotations_for_target: Optional[DatasetAnnotations] = None
+
+    def _ensure_categories_for_streaming(
+        self,
+        source_handler: BaseAnnotationHandler,
+        source_path: str,
+        kwargs: Dict,
+    ) -> None:
+        """Ensure categories are available before streaming iteration.
+
+        Called by ``stream_convert()`` before ``create_target_handler()``.
+        Subclasses may override to pre-load categories from source files
+        that donʼt expose them until ``read()`` / ``iter_images()`` runs.
+
+        Default: try ``source_handler.categories`` if available and it is
+        a genuine dict (not a mock).
+        """
+        cats = getattr(source_handler, "categories", None)
+        if isinstance(cats, dict) and cats:
+            self._source_annotations_for_target = DatasetAnnotations(
+                format=AnnotationFormat.UNKNOWN,
+                categories=cats.copy(),
+            )
+
+    @abstractmethod
+    def _convert_single_image(
+        self, image_ann: ImageAnnotation, **kwargs
+    ) -> ImageAnnotation:
+        """Convert a single ImageAnnotation from source to target format.
+
+        Operates on one image at a time for the streaming pipeline.
+        The coordinate transformation must match the batch
+        ``convert_annotations()`` for the same direction.
+
+        Args:
+            image_ann: Single ImageAnnotation with source-native coordinates.
+            **kwargs: Additional conversion parameters.
+
+        Returns:
+            New ImageAnnotation with target-native coordinates.
+        """
+        pass
+
+    def stream_convert(
+        self, source_path: str, target_path: str, **kwargs
+    ) -> ConversionResult:
+        """Convert annotations using streaming (per-image) pipeline.
+
+        Sources images one at a time via ``handler.iter_images()``, converts
+        each via ``_convert_single_image()``, and writes immediately via
+        ``target_handler.write_one()``.
+
+        Applicable when the target format supports per-file output
+        (YOLO .txt, LabelMe .json). Not applicable for COCO target.
+
+        Args:
+            source_path: Path to source annotations.
+            target_path: Path to target output.
+            **kwargs: Conversion parameters (class_file, image_dir, etc.).
+
+        Returns:
+            ConversionResult with conversion statistics.
+        """
+        start_time = datetime.datetime.now()
+        result = ConversionResult(
+            success=False,
+            source_format=self.source_format,
+            target_format=self.target_format,
+            source_path=source_path,
+            target_path=target_path,
+        )
+
+        num_images = 0
+        num_objects = 0
+
+        try:
+            # 1. Validate inputs
+            if not self.validate_inputs(source_path, target_path, kwargs):
+                result.add_error("Input validation failed")
+                return result
+
+            # 2. Create source handler
+            source_handler = self.create_source_handler(source_path, kwargs)
+
+            # 3. Extract categories from source (needed for target handler)
+            self._ensure_categories_for_streaming(
+                source_handler, source_path, kwargs
+            )
+
+            # 4. Create target handler
+            target_handler = self.create_target_handler(target_path, kwargs)
+
+            # 5. Stream: iterate, convert, write per image
+            write_dir = getattr(
+                target_handler, "label_dir",
+                Path(target_path)
+            )
+
+            for image_ann in source_handler.iter_images():
+                target_ann = self._convert_single_image(
+                    image_ann, **kwargs
+                )
+                write_result = target_handler.write_one(
+                    target_ann, write_dir
+                )
+                if not write_result.success:
+                    err = (
+                        f"Failed to write {target_ann.image_id}: "
+                        f"{write_result.message}"
+                    )
+                    if self.strict_mode:
+                        result.add_error(err)
+                        return result
+                    else:
+                        result.add_warning(err)
+                        continue
+
+                num_images += 1
+                num_objects += len(target_ann.objects)
+
+            result.success = True
+            result.num_images_converted = num_images
+            result.num_objects_converted = num_objects
+
+            duration = (datetime.datetime.now() - start_time).total_seconds()
+            result.add_metadata("duration_seconds", f"{duration:.2f}")
+
+        except ValueError as e:
+            result.add_error(str(e))
+            result.num_images_converted = num_images
+            result.num_objects_converted = num_objects
+        except Exception as e:
+            result.add_error(f"Unexpected error: {e}")
+            if self.verbose:
+                self.logger.exception("Streaming conversion failed")
+
+        return result
 
     def convert(self, source_path: str, target_path: str, **kwargs) -> ConversionResult:
         """

@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..label.base import AnnotationResult
+from ..label.base import AnnotationResult, BaseAnnotationHandler
 from ..label.coco_handler import CocoAnnotationHandler
 from ..label.labelme_handler import LabelMeAnnotationHandler
 from ..label.models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
@@ -46,24 +46,23 @@ class CocoAndLabelMeConverter(BaseConverter):
             self.logger.debug(f"Initialized converter, direction: {direction}")
 
     def convert(self, source_path: str, target_path: str, **kwargs) -> ConversionResult:
-        """
-        Convert annotations between COCO and LabelMe formats.
+        """Convert annotations between COCO and LabelMe formats.
 
-        Args:
-            source_path: Path to source annotations
-            target_path: Path for target annotations
-            **kwargs: Additional conversion parameters:
-                - class_file: Required for LabelMe→COCO, optional for COCO→LabelMe
-                - image_dir: Optional for both directions
-                - do_rle: Whether to output RLE format (default False, only for LabelMe→COCO)
-
-        Returns:
-            ConversionResult with conversion status and details
+        Auto-selects pipeline:
+        - COCO→LabelMe: streaming (per-file .json output)
+        - LabelMe→COCO: batch (single JSON output)
         """
-        # Store source_annotations for use in create_target_handler if needed
+        if self.source_to_target:
+            # COCO → LabelMe: streaming pipeline
+            return self.stream_convert(source_path, target_path, **kwargs)
+        else:
+            # LabelMe → COCO: batch pipeline (COCO is single JSON)
+            return self._batch_convert(source_path, target_path, **kwargs)
+
+    def _batch_convert(self, source_path: str, target_path: str, **kwargs) -> ConversionResult:
+        """Batch pipeline: read ALL → convert ALL → write ALL (for COCO target)."""
         self._source_annotations_for_target = None
 
-        # 1. Validate inputs
         if not self.validate_inputs(source_path, target_path, kwargs):
             return self._create_conversion_result(
                 success=False,
@@ -73,7 +72,6 @@ class CocoAndLabelMeConverter(BaseConverter):
                 log_file_path=self.log_file_path,
             )
 
-        # 2. Read data using source handler
         source_handler = self.create_source_handler(source_path, kwargs)
         read_result = source_handler.read()
         if not read_result.success:
@@ -85,7 +83,6 @@ class CocoAndLabelMeConverter(BaseConverter):
                 log_file_path=self.log_file_path,
             )
 
-        # 3. Convert data (format-specific conversions like category mapping)
         annotations = read_result.data
         converted_annotations = self.convert_annotations(annotations, kwargs)
 
@@ -94,22 +91,15 @@ class CocoAndLabelMeConverter(BaseConverter):
                 f"Conversion completed, object count: {converted_annotations.num_objects}"
             )
 
-        # 4. Write data using target handler
-        # Wrap in try/finally to guarantee _source_annotations_for_target cleanup
         self._source_annotations_for_target = converted_annotations
         try:
             target_handler = self.create_target_handler(target_path, kwargs)
-
-            if self.verbose:
-                self.logger.debug(
-                    f"Created target handler: {target_handler.__class__.__name__}"
-                )
-
-            write_result = target_handler.write(converted_annotations, target_path)
+            write_result = target_handler.write(
+                converted_annotations, target_path
+            )
         finally:
             self._source_annotations_for_target = None
 
-        # 5. Create result
         result = self._create_conversion_result(
             success=write_result.success,
             source_path=source_path,
@@ -127,14 +117,13 @@ class CocoAndLabelMeConverter(BaseConverter):
                 f"Objects converted: {converted_annotations.num_objects}"
             )
 
-        # 6. Add RLE accuracy warning if do_rle is True (LabelMe → COCO only)
-        if not self.source_to_target:  # LabelMe → COCO
-            do_rle = kwargs.get("do_rle", False)
-            if do_rle:
-                rle_converter = RLEConverter(logger=self.logger)
-                warning_msg = rle_converter.get_rle_accuracy_warning()
-                result.add_warning(warning_msg)
-                self.logger.warning(f"RLE conversion accuracy loss: {warning_msg}")
+        # RLE accuracy warning (LabelMe → COCO)
+        do_rle = kwargs.get("do_rle", False)
+        if do_rle:
+            rle_converter = RLEConverter(logger=self.logger)
+            warning_msg = rle_converter.get_rle_accuracy_warning()
+            result.add_warning(warning_msg)
+            self.logger.warning(f"RLE conversion accuracy loss: {warning_msg}")
 
         return result
 
@@ -291,67 +280,107 @@ class CocoAndLabelMeConverter(BaseConverter):
 
         return handler
 
+    def _ensure_categories_for_streaming(
+        self,
+        source_handler: BaseAnnotationHandler,
+        source_path: str,
+        kwargs: Dict,
+    ) -> None:
+        """Ensure COCO categories are loaded before streaming.
+
+        For COCO→LabelMe, reads categories from the COCO JSON file so
+        ``create_target_handler()`` can generate ``classes.txt``.
+        """
+        import json
+
+        super()._ensure_categories_for_streaming(
+            source_handler, source_path, kwargs
+        )
+
+        if (
+            self.source_format == "coco"
+            and (
+                not self._source_annotations_for_target
+                or not self._source_annotations_for_target.categories
+            )
+        ):
+            try:
+                with open(source_path, "r", encoding="utf-8") as f:
+                    coco_data = json.load(f)
+                categories_dict = {}
+                for cat in coco_data.get("categories", []):
+                    cat_id = cat.get("id")
+                    cat_name = cat.get("name", "")
+                    if cat_id is not None:
+                        categories_dict[cat_id] = cat_name
+                if categories_dict:
+                    self._source_annotations_for_target = DatasetAnnotations(
+                        format=AnnotationFormat.COCO,
+                        categories=categories_dict,
+                    )
+            except Exception:
+                pass
+
+    def _convert_single_image(
+        self, image_ann: ImageAnnotation, **kwargs
+    ) -> ImageAnnotation:
+        """Convert a single ImageAnnotation between COCO and LabelMe.
+
+        Both formats share the same absolute-pixel coordinate semantics.
+        Only the structural representation differs — coordinate values pass
+        through unchanged.
+        """
+        new_objects = []
+        for obj in image_ann.objects:
+            new_bbox = None
+            new_seg = None
+
+            if obj.bbox:
+                new_bbox = BoundingBox(
+                    x=obj.bbox.x, y=obj.bbox.y,
+                    width=obj.bbox.width, height=obj.bbox.height,
+                )
+
+            if obj.segmentation:
+                new_seg = Segmentation(
+                    points=obj.segmentation.points.copy(),
+                    rle=obj.segmentation.rle,
+                )
+
+            new_objects.append(ObjectAnnotation(
+                class_id=obj.class_id,
+                class_name=obj.class_name,
+                bbox=new_bbox,
+                segmentation=new_seg,
+                confidence=obj.confidence,
+                is_crowd=obj.is_crowd,
+            ))
+
+        return ImageAnnotation(
+            image_id=image_ann.image_id,
+            image_path=image_ann.image_path,
+            width=image_ann.width,
+            height=image_ann.height,
+            objects=new_objects,
+        )
+
     def convert_annotations(
         self, source_annotations: DatasetAnnotations, kwargs: Dict
     ) -> DatasetAnnotations:
+        """Convert annotation data between COCO and LabelMe formats.
+
+        Both formats use absolute pixel coordinates with identical semantics.
+        Delegates to ``_convert_single_image()`` per image.
         """
-        Convert annotation data between COCO and LabelMe formats.
-
-        Both formats use absolute pixel coordinates with identical semantics
-        for bbox (top-left origin) and polygon points. No coordinate
-        transformation needed — only the format field changes.
-
-        Note: RLE segmentation data (COCO-specific) is preserved as-is but
-        will be skipped by LabelMe reader if encountered.
-        """
-        # Determine target format
-        if self.target_format == "labelme":
-            target_format = AnnotationFormat.LABELME
-        else:
-            target_format = AnnotationFormat.COCO
-
-        # COCO and LabelMe share the same coordinate semantics (absolute pixels),
-        # so annotation data can be passed through directly
+        target_format = (
+            AnnotationFormat.LABELME
+            if self.target_format == "labelme"
+            else AnnotationFormat.COCO
+        )
         target = DatasetAnnotations(format=target_format)
         target.categories = source_annotations.categories.copy()
 
         for img in source_annotations.images:
-            new_objects = []
-            for obj in img.objects:
-                new_bbox = None
-                new_seg = None
-
-                if obj.bbox:
-                    # Same semantics: (x, y, w, h) = top-left, absolute pixels
-                    new_bbox = BoundingBox(
-                        x=obj.bbox.x, y=obj.bbox.y,
-                        width=obj.bbox.width, height=obj.bbox.height,
-                    )
-
-                if obj.segmentation:
-                    # Same semantics: absolute pixel points
-                    new_seg = Segmentation(
-                        points=obj.segmentation.points.copy(),
-                        rle=obj.segmentation.rle,
-                    )
-
-                new_obj = ObjectAnnotation(
-                    class_id=obj.class_id,
-                    class_name=obj.class_name,
-                    bbox=new_bbox,
-                    segmentation=new_seg,
-                    confidence=obj.confidence,
-                    is_crowd=obj.is_crowd,
-                )
-                new_objects.append(new_obj)
-
-            new_img = ImageAnnotation(
-                image_id=img.image_id,
-                image_path=img.image_path,
-                width=img.width,
-                height=img.height,
-                objects=new_objects,
-            )
-            target.add_image(new_img)
+            target.add_image(self._convert_single_image(img, **kwargs))
 
         return target

@@ -35,6 +35,14 @@ class ConcreteConverter(BaseConverter):
             num_objects_converted=2,
         )
 
+    def _convert_single_image(self, image_ann, **kwargs):
+        """Passthrough for testing."""
+        return image_ann
+
+    def convert_annotations(self, source_annotations, kwargs):
+        """Default passthrough for testing."""
+        return source_annotations
+
     def create_source_handler(self, source_path: str, kwargs: dict):
         return Mock()
 

@@ -598,7 +598,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
             written_count = 0
             for image_ann in annotations.images:
-                file_result = self._write_single_image(image_ann, output_path)
+                file_result = self.write_one(image_ann, output_path)
                 if file_result.success:
                     written_count += 1
                 elif self.strict_mode:
@@ -625,7 +625,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
         return result
 
-    def _write_single_image(
+    def write_one(
         self, image_ann: ImageAnnotation, output_dir: Path
     ) -> AnnotationResult:
         """Write annotations for a single image to YOLO TXT file."""

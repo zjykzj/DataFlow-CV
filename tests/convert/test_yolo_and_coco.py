@@ -354,56 +354,46 @@ class TestYoloAndCocoConverter:
     def test_convert_coco_to_yolo_mocked(
         self, mock_yolo_handler_class, mock_coco_handler_class
     ):
-        """Test COCO→YOLO conversion with mocked handlers."""
+        """Test COCO→YOLO conversion with mocked handlers (streaming)."""
         converter = YoloAndCocoConverter(source_to_target=False)
 
         # Mock handlers
         mock_source_handler = Mock()
         mock_target_handler = Mock()
-        # Set label_dir attribute for YOLO handler
         mock_target_handler.label_dir = "mock_labels_dir"
 
         mock_coco_handler_class.return_value = mock_source_handler
         mock_yolo_handler_class.return_value = mock_target_handler
 
-        # Mock read result
-        mock_annotations = Mock(spec=DatasetAnnotations)
-        mock_annotations.images = []
-        mock_annotations.categories = {}
-        mock_annotations.categories = {}
-        mock_read_result = Mock(spec=AnnotationResult)
-        mock_read_result.success = True
-        mock_read_result.data = mock_annotations
-        mock_read_result.errors = []
-        mock_source_handler.read.return_value = mock_read_result
+        # Mock streaming source: empty iterator
+        mock_source_handler.iter_images.return_value = iter([])
+        # Categories extracted from COCO JSON by _ensure_categories_for_streaming
+        # — source_path is "{}" (empty JSON), so no categories are extracted.
+        # This is fine; the test verifies the streaming pipeline runs successfully
+        # with an empty source.
 
-        # Mock write result
+        # Mock streaming target
         mock_write_result = Mock(spec=AnnotationResult)
         mock_write_result.success = True
         mock_write_result.errors = []
-        mock_target_handler.write.return_value = mock_write_result
+        mock_target_handler.write_one.return_value = mock_write_result
 
         # Run conversion
         with tempfile.TemporaryDirectory() as tmpdir:
             source_path = Path(tmpdir) / "coco.json"
-            source_path.write_text("{}")  # Empty JSON
+            source_path.write_text(
+                '{"images":[],"annotations":[],"categories":[]}'
+            )
             target_path = Path(tmpdir) / "target"
 
             kwargs = {}
             result = converter.convert(str(source_path), str(target_path), **kwargs)
 
-        # Verify result
         assert result.success is True
         assert result.source_format == "coco"
         assert result.target_format == "yolo"
 
-        # Verify handlers were called
-        mock_source_handler.read.assert_called_once()
-        # convert_annotations creates a new DatasetAnnotations object,
-        # so we check that write was called once with any args
-        assert mock_target_handler.write.call_count == 1
-        args, _ = mock_target_handler.write.call_args
-        assert args[1] == mock_target_handler.label_dir
+        mock_source_handler.iter_images.assert_called_once()
 
     def test_converter_verbose_param(self):
         """Test converter verbose parameter."""

@@ -280,35 +280,26 @@ class TestLabelMeAndYoloConverter:
     def test_convert_labelme_to_yolo_mocked(
         self, mock_yolo_handler_class, mock_labelme_handler_class
     ):
-        """Test LabelMe→YOLO conversion with mocked handlers."""
+        """Test LabelMe→YOLO conversion with mocked handlers (streaming)."""
         converter = LabelMeAndYoloConverter(source_to_target=True)
 
         # Mock handlers
         mock_source_handler = Mock()
         mock_target_handler = Mock()
-        # Set label_dir attribute for YOLO handler
         mock_target_handler.label_dir = "mock_labels_dir"
 
         mock_labelme_handler_class.return_value = mock_source_handler
         mock_yolo_handler_class.return_value = mock_target_handler
 
-        # Mock read result
-        mock_annotations = Mock(spec=DatasetAnnotations)
-        mock_annotations.images = []
-        mock_annotations.categories = {}
-        mock_annotations.images = []
-        mock_annotations.categories = {}
-        mock_read_result = Mock(spec=AnnotationResult)
-        mock_read_result.success = True
-        mock_read_result.data = mock_annotations
-        mock_read_result.errors = []
-        mock_source_handler.read.return_value = mock_read_result
+        # Mock streaming source
+        mock_source_handler.iter_images.return_value = iter([])
+        mock_source_handler.categories = {0: "cat", 1: "dog"}
 
-        # Mock write result
+        # Mock streaming target
         mock_write_result = Mock(spec=AnnotationResult)
         mock_write_result.success = True
         mock_write_result.errors = []
-        mock_target_handler.write.return_value = mock_write_result
+        mock_target_handler.write_one.return_value = mock_write_result
 
         # Run conversion
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -316,32 +307,24 @@ class TestLabelMeAndYoloConverter:
             source_path.mkdir()
             target_path = Path(tmpdir) / "target"
 
-            # Create dummy class file
             class_file = Path(tmpdir) / "classes.txt"
             class_file.write_text("cat\ndog\n")
 
             kwargs = {"class_file": str(class_file)}
             result = converter.convert(str(source_path), str(target_path), **kwargs)
 
-        # Verify result
         assert result.success is True
         assert result.source_format == "labelme"
         assert result.target_format == "yolo"
 
-        # Verify handlers were called
-        mock_source_handler.read.assert_called_once()
-        # convert_annotations creates a new DatasetAnnotations object,
-        # so we check that write was called once with any args
-        assert mock_target_handler.write.call_count == 1
-        args, _ = mock_target_handler.write.call_args
-        assert args[1] == mock_target_handler.label_dir
+        mock_source_handler.iter_images.assert_called_once()
 
-    @patch("dataflow.convert.labelme_and_yolo.YoloAnnotationHandler")
     @patch("dataflow.convert.labelme_and_yolo.LabelMeAnnotationHandler")
+    @patch("dataflow.convert.labelme_and_yolo.YoloAnnotationHandler")
     def test_convert_yolo_to_labelme_mocked(
-        self, mock_labelme_handler_class, mock_yolo_handler_class
+        self, mock_yolo_handler_class, mock_labelme_handler_class
     ):
-        """Test YOLO→LabelMe conversion with mocked handlers."""
+        """Test YOLO→LabelMe conversion with mocked handlers (streaming)."""
         converter = LabelMeAndYoloConverter(source_to_target=False)
 
         # Mock handlers
@@ -351,23 +334,15 @@ class TestLabelMeAndYoloConverter:
         mock_yolo_handler_class.return_value = mock_source_handler
         mock_labelme_handler_class.return_value = mock_target_handler
 
-        # Mock read result
-        mock_annotations = Mock(spec=DatasetAnnotations)
-        mock_annotations.images = []
-        mock_annotations.categories = {}
-        mock_annotations.images = []
-        mock_annotations.categories = {}
-        mock_read_result = Mock(spec=AnnotationResult)
-        mock_read_result.success = True
-        mock_read_result.data = mock_annotations
-        mock_read_result.errors = []
-        mock_source_handler.read.return_value = mock_read_result
+        # Mock streaming source
+        mock_source_handler.iter_images.return_value = iter([])
+        mock_source_handler.categories = {0: "cat", 1: "dog"}
 
-        # Mock write result
+        # Mock streaming target
         mock_write_result = Mock(spec=AnnotationResult)
         mock_write_result.success = True
         mock_write_result.errors = []
-        mock_target_handler.write.return_value = mock_write_result
+        mock_target_handler.write_one.return_value = mock_write_result
 
         # Run conversion
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -375,7 +350,6 @@ class TestLabelMeAndYoloConverter:
             source_path.mkdir()
             target_path = Path(tmpdir) / "target"
 
-            # Create dummy files
             class_file = Path(tmpdir) / "classes.txt"
             class_file.write_text("cat\ndog\n")
 
@@ -385,14 +359,11 @@ class TestLabelMeAndYoloConverter:
             kwargs = {"class_file": str(class_file), "image_dir": str(image_dir)}
             result = converter.convert(str(source_path), str(target_path), **kwargs)
 
-        # Verify result
         assert result.success is True
         assert result.source_format == "yolo"
         assert result.target_format == "labelme"
 
-        # Verify handlers were called
-        mock_source_handler.read.assert_called_once()
-        assert mock_target_handler.write.call_count == 1
+        mock_source_handler.iter_images.assert_called_once()
 
     def test_converter_verbose_param(self):
         """Test converter verbose parameter."""
