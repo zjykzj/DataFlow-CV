@@ -269,7 +269,7 @@ For detailed developer guidance including advanced test commands, debugging, and
 
 ### 🧪 Testing
 
-**362 tests, 75% code coverage.**
+**370 tests, 75% code coverage.**
 
 ```bash
 pytest                                    # All tests

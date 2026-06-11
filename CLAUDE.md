@@ -132,8 +132,15 @@ YOLO → LabelMe → COCO
 - Conversion direction descriptions that follow an actual pipeline sequence
 
 ### Data Flow Pipeline
+
+**Batch path (used by Convert→COCO, Evaluate):**
 ```
-Source Format (YOLO/LabelMe/COCO) → Handler.read() → DatasetAnnotations → Converter → Target Handler.write() → Target Format
+Source Format → Handler.read() → DatasetAnnotations → Converter.convert_annotations() → Target Handler.write() → Target Format
+```
+
+**Streaming path (used by Visualize, Convert→YOLO/LabelMe):**
+```
+Source Format → Handler.iter_images() → ImageAnnotation → _convert_single_image() → Target Handler.write_one() → Target Format
 ```
 
 ### Core Data Model (`dataflow/label/models.py`)
@@ -149,20 +156,39 @@ Source Format (YOLO/LabelMe/COCO) → Handler.read() → DatasetAnnotations → 
 
 ### Annotation Handlers (`dataflow/label/`)
 
-- `BaseAnnotationHandler`: Abstract base with `read()`, `write()`, `validate()` methods. Takes `strict_mode` (default True) and `verbose` (default False) kwargs.
+- `BaseAnnotationHandler`: Abstract base with `read()`, `write()`, `validate()`, `iter_images()` methods. Takes `strict_mode` (default True) and `verbose` (default False) kwargs.
+  - `read()`: Batch load — returns `DatasetAnnotations` (all data in memory). Used by Convert (batch path), Evaluate.
+  - `iter_images()`: Streaming iterator — yields `ImageAnnotation` one at a time. Used by Visualize, Convert (streaming path). Lower memory, faster first-image latency.
 - `YoloHandler(label_dir, class_file, image_dir, **kwargs)`: Reads/writes `.txt` files (one per image). Supports detection (`class_id x y w h`) and segmentation (`class_id x1 y1 x2 y2 ...`).
 - `LabelMeHandler(label_dir, class_file=None, **kwargs)`: Reads/writes per-image `.json` files.
 - `CocoHandler(annotation_file, do_rle=False, **kwargs)`: Reads/writes a single COCO JSON file. Supports polygon and RLE segmentation.
 
 ### Converters (`dataflow/convert/`)
 
-All converters follow the pattern: **validate → read source → convert annotations → write target**. They support `strict_mode` and `verbose` kwargs.
+**Two pipelines**, auto-selected by target format:
 
-- `YoloAndCocoConverter(source_to_target)`: YOLO ↔ COCO. Supports `do_rle` for RLE encoding in COCO output.
+| Pipeline | Method | When Used |
+|----------|--------|-----------|
+| **Batch** | `_batch_convert()` → `handler.read()` → `convert_annotations()` → `handler.write()` | COCO target (single JSON) |
+| **Streaming** | `stream_convert()` → `handler.iter_images()` → `_convert_single_image()` → `handler.write_one()` | YOLO/LabelMe target (per-file) |
+
+**Template method hierarchy:**
+- `convert()`: Auto-dispatches to batch or streaming based on target format
+- `_convert_single_image(image_ann, **kwargs)`: Abstract — per-image coordinate transform (single source of truth)
+- `convert_annotations(source_annotations, kwargs)`: batch wrapper — calls `_convert_single_image()` in a loop
+- `stream_convert(source_path, target_path, **kwargs)`: streaming template method in `BaseConverter`
+- `_ensure_categories_for_streaming()`: Pre-loads categories before streaming (COCO sources)
+
+- `YoloAndCocoConverter(source_to_target, prediction=False)`: YOLO ↔ COCO. `prediction=True` for model output. Supports `do_rle`.
+  - YOLO→COCO: batch (COCO single JSON)
+  - COCO→YOLO: streaming (per-file .txt)
 - `LabelMeAndYoloConverter(source_to_target)`: LabelMe ↔ YOLO. Copies images between directories.
+  - Both directions: streaming (per-file output)
 - `CocoAndLabelMeConverter(source_to_target)`: COCO ↔ LabelMe.
+  - COCO→LabelMe: streaming (per-file .json)
+  - LabelMe→COCO: batch (COCO single JSON)
 
-Converters set `self._source_annotations_for_target` before write, which is used by `create_target_handler` for image copying (LabelMe→YOLO). Must be cleaned up via try/finally to prevent state leakage if write raises.
+**State management**: `_source_annotations_for_target` stores categories for target handler creation. Must be cleared via `try/finally` in batch path. Streaming path avoids stale state by extracting categories upfront via `_ensure_categories_for_streaming()`.
 
 ### RLE Conversion (`dataflow/convert/rle_converter.py`)
 
@@ -170,11 +196,25 @@ Handles polygon-to-RLE and RLE-to-polygon conversion using pycocotools. **Critic
 
 ### Visualizers (`dataflow/visualize/`)
 
-- `YOLOVisualizer`: YOLO annotation visualization
-- `LabelMeVisualizer`: LabelMe annotation visualization
-- `CocoVisualizer`: COCO annotation visualization
+- `YOLOVisualizer(label_dir, image_dir, class_file, **kwargs)`: YOLO annotation visualization
+- `LabelMeVisualizer(label_dir, image_dir, class_file=None, **kwargs)`: LabelMe annotation visualization
+- `CocoVisualizer(annotation_file, image_dir, **kwargs)`: COCO annotation visualization
 
-All extend `BaseVisualizer` which provides `ColorManager` (HSV-based palette, max 1000 colors), image loading/drawing, progress bars, and both display (`is_show`) and save (`is_save`) modes.
+All extend `BaseVisualizer` which provides `ColorManager` (HSV-based palette, max 1000 colors), image loading/drawing, counter-based progress, and both display (`is_show`) and save (`is_save`) modes.
+
+**Streaming pipeline** (no batch accumulation):
+```
+visualize()
+├── handler = _create_handler()
+├── for image_ann in handler.iter_images():
+│   ├── render_data = _convert_to_render_data(image_ann)  ← per-image coordinate conversion
+│   └── _visualize_single_image(image_path, render_data)   ← display or save
+```
+
+**Template method hierarchy:**
+- `_create_handler()`: Abstract — creates format-specific Label handler (lazy, not in `__init__`)
+- `_convert_to_render_data(image_ann)`: Abstract — converts single ImageAnnotation (format-native coords) to RenderData (absolute pixel coords)
+- `_visualize_single_image(image_path, render_data)`: Concrete — load image, draw annotations, display/save
 
 **Display behavior**: Uses a single persistent OpenCV window (created once, reused across images) with fixed position. The window auto-sizes to match each image's dimensions. Keyboard controls: `Enter`/`Space` to advance to next image, `q`/`ESC` to exit early, any other key to continue.
 
@@ -236,7 +276,7 @@ Common CLI options: `--verbose` (enable file logging), `--no-strict` (disable st
 | LabelMe | Top-left | Absolute pixels | `_validate_absolute_coordinate()` |
 | COCO | Top-left | Absolute pixels | `_validate_absolute_coordinate()` |
 
-**Coordinate transforms** happen exclusively in converters (`dataflow/convert/`), not in handlers or visualizers. Transform logic is in each converter's `convert_annotations()` method.
+**Coordinate transforms** happen exclusively in converters (`dataflow/convert/`), not in handlers or visualizers. The single source of truth is `_convert_single_image()` — the batch `convert_annotations()` delegates to it in a loop. Visualizers do per-image coordinate conversion to `RenderData` in `_convert_to_render_data()` (format-native → absolute pixels for OpenCV drawing).
 
 ### RLE Serialization
 
@@ -248,7 +288,7 @@ Never use UTF-8 for RLE counts — it cannot represent all 256 byte values and w
 
 ### Visualizer Rendering Pipeline
 
-Visualizers convert all annotations to `RenderAnnotation` (absolute pixel integers) during `load_annotations()`. Drawing methods receive pre-computed absolute pixel coordinates — no coordinate math happens in the draw path.
+Visualizers convert annotations per-image to `RenderAnnotation` (absolute pixel integers) during `_convert_to_render_data()`. Drawing methods receive pre-computed absolute pixel coordinates — no coordinate math happens in the draw path. The first image appears as soon as the first annotation file is parsed (streaming).
 
 ### Validation Behavior
 
@@ -308,7 +348,7 @@ dataflow-cv evaluate detection --verbose --prf1 assets/test_data/evaluate/gt_coc
 3. **LabelMe imageData**: Not required on read; valid external files may omit it.
 4. **Converter state**: `_source_annotations_for_target` must be cleared in a `finally` block to prevent stale state on exceptions.
 5. **COCO image_id fallback**: When `img.image_id` is not a digit string, use a dedicated image counter (not the annotation counter).
-6. **Progress bar at 100%**: Guard against `filled == width` causing `"." * -1`.
+6. **Progress bar at 100%**: Guard against `filled == width` causing `"." * -1`. Note: Visualize module now uses counter-based progress (streaming), so this only applies to batch-mode progress bars in utility code.
 7. **Visualization keyboard control**: The OpenCV window captures keyboard input. Press `Enter`/`Space` to advance, `q`/`ESC` to exit. The window manager close button (X) may not work reliably — always use keyboard to close.
 8. **Single persistent window**: The visualizer creates one window (named by format) and reuses it for all images. Window auto-sizes to each image's dimensions. Fixed window position prevents flickering across images.
 9. **BoundingBox semantics depend on format**: The same `BoundingBox` class is used for all formats. Always check `DatasetAnnotations.format` to interpret `(x, y, width, height)` correctly.
