@@ -1,14 +1,146 @@
 """
 Utility functions for format conversion.
 
-Provides helper functions for category handling, path resolution, and conversion validation.
+Provides helper functions for category handling, path resolution,
+conversion validation, and shared coordinate transforms.
 """
 
+import json
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..label.models import DatasetAnnotations
+from ..label.models import BoundingBox, DatasetAnnotations, Segmentation
+
+
+# ---------------------------------------------------------------------------
+# Shared coordinate transforms
+# ---------------------------------------------------------------------------
+
+def yolo_to_absolute_pixel(
+    bbox: Optional[BoundingBox],
+    seg: Optional[Segmentation],
+    img_width: int,
+    img_height: int,
+) -> Tuple[Optional[BoundingBox], Optional[Segmentation]]:
+    """Convert YOLO normalized center → absolute pixel top-left.
+
+    Bbox transformation:
+        (cx_norm, cy_norm, w_norm, h_norm) → (x_tl, y_tl, w_abs, h_abs)
+
+    Segmentation transformation:
+        (x_norm, y_norm) per point → (x_abs, y_abs) per point
+
+    This is a pure function — stateless, no side effects.
+
+    Used by:
+        - YoloAndCocoConverter (YOLO → COCO)
+        - LabelMeAndYoloConverter (YOLO → LabelMe)
+    """
+    new_bbox = None
+    new_seg = None
+
+    if bbox:
+        cx_abs = bbox.x * img_width
+        cy_abs = bbox.y * img_height
+        w_abs = bbox.width * img_width
+        h_abs = bbox.height * img_height
+        x_tl = cx_abs - w_abs / 2
+        y_tl = cy_abs - h_abs / 2
+        new_bbox = BoundingBox(x=x_tl, y=y_tl, width=w_abs, height=h_abs)
+
+    if seg:
+        new_points = [
+            (x * img_width, y * img_height) for x, y in seg.points
+        ]
+        new_seg = Segmentation(points=new_points, rle=seg.rle)
+
+    return new_bbox, new_seg
+
+
+def absolute_pixel_to_yolo(
+    bbox: Optional[BoundingBox],
+    seg: Optional[Segmentation],
+    img_width: int,
+    img_height: int,
+) -> Tuple[Optional[BoundingBox], Optional[Segmentation]]:
+    """Convert absolute pixel top-left → YOLO normalized center.
+
+    Bbox transformation:
+        (x_tl, y_tl, w_abs, h_abs) → (cx_norm, cy_norm, w_norm, h_norm)
+
+    Segmentation transformation:
+        (x_abs, y_abs) per point → (x_norm, y_norm) per point
+
+    This is a pure function — stateless, no side effects.
+
+    Used by:
+        - YoloAndCocoConverter (COCO → YOLO)
+        - LabelMeAndYoloConverter (LabelMe → YOLO)
+    """
+    new_bbox = None
+    new_seg = None
+
+    if bbox:
+        if img_width <= 0 or img_height <= 0:
+            raise ValueError(
+                f"Image dimensions must be positive, got {img_width}x{img_height}"
+            )
+        cx_abs = bbox.x + bbox.width / 2
+        cy_abs = bbox.y + bbox.height / 2
+        cx_norm = cx_abs / img_width
+        cy_norm = cy_abs / img_height
+        w_norm = bbox.width / img_width
+        h_norm = bbox.height / img_height
+        new_bbox = BoundingBox(x=cx_norm, y=cy_norm, width=w_norm, height=h_norm)
+
+    if seg:
+        if img_width <= 0 or img_height <= 0:
+            raise ValueError(
+                f"Image dimensions must be positive, got {img_width}x{img_height}"
+            )
+        new_points = [
+            (x / img_width, y / img_height) for x, y in seg.points
+        ]
+        new_seg = Segmentation(points=new_points, rle=seg.rle)
+
+    return new_bbox, new_seg
+
+
+# ---------------------------------------------------------------------------
+# COCO helpers
+# ---------------------------------------------------------------------------
+
+def read_coco_categories(json_path: str) -> Dict[int, str]:
+    """Read categories from a COCO JSON file without loading the full dataset.
+
+    Only parses the ``"categories"`` array — does not load images or
+    annotations. Returns an empty dict on any error (file not found,
+    invalid JSON, missing key).
+
+    Args:
+        json_path: Path to a COCO JSON annotation file.
+
+    Returns:
+        Category mapping ``{cat_id: cat_name}``, or empty dict on error.
+    """
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            coco_data = json.load(f)
+        categories: Dict[int, str] = {}
+        for cat in coco_data.get("categories", []):
+            cat_id = cat.get("id")
+            cat_name = cat.get("name", "")
+            if cat_id is not None:
+                categories[cat_id] = cat_name
+        return categories
+    except Exception:
+        return {}
+
+
+# ---------------------------------------------------------------------------
+# Category utilities
+# ---------------------------------------------------------------------------
 
 
 def extract_categories_from_annotations(

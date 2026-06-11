@@ -200,6 +200,10 @@ class BaseConverter(ABC):
             target_path=target_path,
         )
 
+        # Store source_path for subclasses that need it in
+        # create_target_handler() (e.g., image copying in LabelMe→YOLO)
+        self._source_path = source_path
+
         num_images = 0
         num_objects = 0
 
@@ -267,48 +271,56 @@ class BaseConverter(ABC):
         return result
 
     def convert(self, source_path: str, target_path: str, **kwargs) -> ConversionResult:
-        """
-        Convert annotations from source format to target format (enhanced with verbose logging).
+        """Convert annotations from source format to target format.
+
+        Auto-dispatches to the correct pipeline based on target format:
+        - COCO target (single JSON) → batch pipeline (``_batch_convert()``)
+        - YOLO / LabelMe target (per-file output) → streaming pipeline
+          (``stream_convert()``)
+
+        Subclasses should NOT override this method. Instead, override the
+        abstract hooks: ``create_source_handler()``, ``create_target_handler()``,
+        ``_convert_single_image()``, ``convert_annotations()``, and optionally
+        ``_post_batch_convert()``.
 
         Args:
-            source_path: Path to source annotations
-            target_path: Path for target annotations
-            **kwargs: Additional conversion parameters
+            source_path: Path to source annotations.
+            target_path: Path for target annotations.
+            **kwargs: Additional conversion parameters.
 
         Returns:
-            ConversionResult containing conversion status and details
+            ConversionResult containing conversion status and details.
         """
-        start_time = datetime.datetime.now()
-        self.conversion_stats["start_time"] = start_time
+        if self.target_format == "coco":
+            return self._batch_convert(source_path, target_path, **kwargs)
+        else:
+            return self.stream_convert(source_path, target_path, **kwargs)
 
-        # Log start information
-        if self.verbose:
-            self.logger.debug(f"Starting conversion: {source_path} -> {target_path}")
-            self.logger.debug(f"Conversion parameters: {kwargs}")
+    def _batch_convert(
+        self, source_path: str, target_path: str, **kwargs
+    ) -> ConversionResult:
+        """Batch pipeline: read ALL → convert ALL → write ALL.
 
-        # 1. Validate input parameters
+        Used when the target format is a single file (COCO JSON).
+        Subclasses should NOT override this — override the abstract
+        hooks and the optional ``_post_batch_convert()`` hook instead.
+        """
+        self._source_annotations_for_target = None
+
+        # 1. Validate inputs
         if not self.validate_inputs(source_path, target_path, kwargs):
-            if self.verbose:
-                self.logger.error("Input parameter validation failed")
             return self._create_conversion_result(
                 success=False,
                 source_path=source_path,
                 target_path=target_path,
-                errors=["Input parameter validation failed"],
+                errors=["Input validation failed"],
                 log_file_path=self.log_file_path,
             )
 
-        # 2. Use source handler to read data
+        # 2. Read data using source handler
         source_handler = self.create_source_handler(source_path, kwargs)
-        if self.verbose:
-            self.logger.debug(
-                f"Created source handler: {source_handler.__class__.__name__}"
-            )
-
         read_result = source_handler.read()
         if not read_result.success:
-            if self.verbose:
-                self.logger.error(f"Failed to read source data: {read_result.errors}")
             return self._create_conversion_result(
                 success=False,
                 source_path=source_path,
@@ -317,34 +329,33 @@ class BaseConverter(ABC):
                 log_file_path=self.log_file_path,
             )
 
-        # Record read results
+        # 3. Convert data
         annotations = read_result.data
         if self.verbose:
-            self.logger.info(f"Read annotations for {annotations.num_images} images")
+            self.logger.info(
+                f"Read annotations for {annotations.num_images} images"
+            )
             self.logger.debug(f"Category count: {len(annotations.categories)}")
 
-        # 3. Convert data (format-specific conversion)
-        if self.verbose:
-            self.logger.debug("Starting format-specific conversion")
-
         converted_annotations = self.convert_annotations(annotations, kwargs)
-        self.conversion_stats["objects_converted"] = converted_annotations.num_objects
 
         if self.verbose:
             self.logger.debug(
-                f"Conversion completed, object count: {converted_annotations.num_objects}"
+                f"Conversion completed, object count: "
+                f"{converted_annotations.num_objects}"
             )
 
-        # 4. Use target handler to write data
-        target_handler = self.create_target_handler(target_path, kwargs)
-        if self.verbose:
-            self.logger.debug(
-                f"Created target handler: {target_handler.__class__.__name__}"
+        # 4. Write data (with state cleanup guarantee)
+        self._source_annotations_for_target = converted_annotations
+        try:
+            target_handler = self.create_target_handler(target_path, kwargs)
+            write_result = target_handler.write(
+                converted_annotations, target_path
             )
+        finally:
+            self._source_annotations_for_target = None
 
-        write_result = target_handler.write(converted_annotations, target_path)
-
-        # 5. Create result
+        # 5. Build result
         result = self._create_conversion_result(
             success=write_result.success,
             source_path=source_path,
@@ -354,31 +365,36 @@ class BaseConverter(ABC):
             log_file_path=self.log_file_path,
         )
 
-        # Add verbose log entries
         if self.verbose:
-            result.add_verbose_log(f"Source format: {self.source_format}")
-            result.add_verbose_log(f"Target format: {self.target_format}")
-            result.add_verbose_log(f"Source path: {source_path}")
-            result.add_verbose_log(f"Target path: {target_path}")
-            result.add_verbose_log(f"Images processed: {annotations.num_images}")
+            result.add_verbose_log(
+                f"Images processed: {annotations.num_images}"
+            )
             result.add_verbose_log(
                 f"Objects converted: {converted_annotations.num_objects}"
             )
+            if write_result.errors:
+                for error in write_result.errors:
+                    result.add_verbose_log(f"Error: {error}")
 
-            if write_result.warnings:
-                for warning in write_result.warnings:
-                    result.add_verbose_log(f"Warning: {warning}")
-
-            # Record conversion statistics
-            self.conversion_stats["end_time"] = datetime.datetime.now()
-            duration = (
-                self.conversion_stats["end_time"] - self.conversion_stats["start_time"]
-            )
-            result.add_verbose_log(
-                f"Total duration: {duration.total_seconds():.2f} seconds"
-            )
+        # 6. Post-processing hook (e.g., RLE warnings)
+        self._post_batch_convert(result, source_handler, kwargs)
 
         return result
+
+    def _post_batch_convert(
+        self,
+        result: ConversionResult,
+        source_handler: BaseAnnotationHandler,
+        kwargs: Dict,
+    ) -> None:
+        """Optional post-processing hook for batch conversions.
+
+        Called after a successful batch write. Subclasses override this
+        to add format-specific warnings or metadata (e.g., RLE accuracy
+        warnings).
+
+        Default: no-op.
+        """
 
     def validate_inputs(self, source_path: str, target_path: str, kwargs: Dict) -> bool:
         """
@@ -442,19 +458,38 @@ class BaseConverter(ABC):
     def convert_annotations(
         self, source_annotations: DatasetAnnotations, kwargs: Dict
     ) -> DatasetAnnotations:
-        """
-        Convert annotation data (format-specific conversion).
+        """Convert annotation data (format-specific transformation).
+
+        Subclasses MUST override this to implement the coordinate
+        transformation for their conversion direction.  There is no
+        safe pass-through default because coordinate semantics differ
+        between formats.
+
+        The canonical implementation delegates to
+        ``_convert_single_image()`` per image:
+
+        .. code-block:: python
+
+            target = DatasetAnnotations(format=target_format)
+            target.categories = source_annotations.categories.copy()
+            for img in source_annotations.images:
+                target.add_image(self._convert_single_image(img, **kwargs))
+            return target
 
         Args:
-            source_annotations: Annotations read from source format
-            kwargs: Additional conversion parameters
+            source_annotations: Annotations in source-native coordinates.
+            kwargs: Additional conversion parameters.
 
         Returns:
-            Converted DatasetAnnotations ready for writing to target format
+            Converted DatasetAnnotations in target-native coordinates.
+
+        Raises:
+            NotImplementedError: Always — subclasses must implement.
         """
-        # Default implementation: return as-is (assuming categories and data are already correct)
-        # Subclasses should override for format-specific conversions like category mapping
-        return source_annotations
+        raise NotImplementedError(
+            "Subclass must implement convert_annotations() "
+            "for this conversion direction"
+        )
 
     def _create_conversion_result(
         self,
@@ -514,6 +549,6 @@ class BaseConverter(ABC):
 
     def _log_error(self, message: str):
         """Log error message, raise exception in strict mode."""
-        self.logger.error(message)
-        if self.strict_mode:
-            raise ValueError(message)
+        from dataflow.util.logging_util import logging_error_or_raise
+
+        logging_error_or_raise(message, self.logger, self.strict_mode)

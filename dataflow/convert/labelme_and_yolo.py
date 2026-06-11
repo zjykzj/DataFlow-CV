@@ -9,13 +9,11 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..label.base import AnnotationResult
 from ..label.labelme_handler import LabelMeAnnotationHandler
-from ..label.models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
-                            ImageAnnotation, ObjectAnnotation, Segmentation)
+from ..label.models import (AnnotationFormat, DatasetAnnotations,
+                            ImageAnnotation, ObjectAnnotation)
 from ..label.yolo_handler import YoloAnnotationHandler
-from . import utils
-from .base import BaseConverter, ConversionResult
+from .base import BaseConverter
 
 
 class LabelMeAndYoloConverter(BaseConverter):
@@ -43,15 +41,6 @@ class LabelMeAndYoloConverter(BaseConverter):
         if verbose:
             direction = "LabelMe→YOLO" if source_to_target else "YOLO→LabelMe"
             self.logger.debug(f"Initialized converter, direction: {direction}")
-
-    def convert(self, source_path: str, target_path: str, **kwargs) -> ConversionResult:
-        """Convert annotations between LabelMe and YOLO formats.
-
-        Both directions use the streaming pipeline (per-file output).
-        """
-        # Store source path for use by create_target_handler (image copying)
-        self._source_path = source_path
-        return self.stream_convert(source_path, target_path, **kwargs)
 
     def validate_inputs(self, source_path: str, target_path: str, kwargs: Dict) -> bool:
         """
@@ -249,29 +238,13 @@ class LabelMeAndYoloConverter(BaseConverter):
         self, img: ImageAnnotation
     ) -> ImageAnnotation:
         """Convert single image: LabelMe absolute px → YOLO normalized center."""
+        from .utils import absolute_pixel_to_yolo
+
         new_objects = []
         for obj in img.objects:
-            new_bbox = None
-            new_seg = None
-
-            if obj.bbox:
-                cx_abs = obj.bbox.x + obj.bbox.width / 2
-                cy_abs = obj.bbox.y + obj.bbox.height / 2
-                cx_norm = cx_abs / img.width
-                cy_norm = cy_abs / img.height
-                w_norm = obj.bbox.width / img.width
-                h_norm = obj.bbox.height / img.height
-                new_bbox = BoundingBox(
-                    x=cx_norm, y=cy_norm, width=w_norm, height=h_norm
-                )
-
-            if obj.segmentation:
-                new_points = [
-                    (x / img.width, y / img.height)
-                    for x, y in obj.segmentation.points
-                ]
-                new_seg = Segmentation(points=new_points)
-
+            new_bbox, new_seg = absolute_pixel_to_yolo(
+                obj.bbox, obj.segmentation, img.width, img.height
+            )
             new_objects.append(ObjectAnnotation(
                 class_id=obj.class_id,
                 class_name=obj.class_name,
@@ -293,29 +266,13 @@ class LabelMeAndYoloConverter(BaseConverter):
         self, img: ImageAnnotation
     ) -> ImageAnnotation:
         """Convert single image: YOLO normalized center → LabelMe absolute px."""
+        from .utils import yolo_to_absolute_pixel
+
         new_objects = []
         for obj in img.objects:
-            new_bbox = None
-            new_seg = None
-
-            if obj.bbox:
-                cx_abs = obj.bbox.x * img.width
-                cy_abs = obj.bbox.y * img.height
-                w_abs = obj.bbox.width * img.width
-                h_abs = obj.bbox.height * img.height
-                x_tl = cx_abs - w_abs / 2
-                y_tl = cy_abs - h_abs / 2
-                new_bbox = BoundingBox(
-                    x=x_tl, y=y_tl, width=w_abs, height=h_abs
-                )
-
-            if obj.segmentation:
-                new_points = [
-                    (x * img.width, y * img.height)
-                    for x, y in obj.segmentation.points
-                ]
-                new_seg = Segmentation(points=new_points)
-
+            new_bbox, new_seg = yolo_to_absolute_pixel(
+                obj.bbox, obj.segmentation, img.width, img.height
+            )
             new_objects.append(ObjectAnnotation(
                 class_id=obj.class_id,
                 class_name=obj.class_name,

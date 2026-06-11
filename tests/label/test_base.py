@@ -3,6 +3,7 @@ Unit tests for base.py
 """
 
 import logging
+from pathlib import Path
 from typing import Iterator
 from unittest.mock import Mock
 
@@ -25,6 +26,11 @@ class ConcreteHandler(BaseAnnotationHandler):
 
     def write(
         self, annotations: DatasetAnnotations, *args, **kwargs
+    ) -> AnnotationResult:
+        return AnnotationResult(success=True)
+
+    def write_one(
+        self, image_ann: ImageAnnotation, output_dir: Path
     ) -> AnnotationResult:
         return AnnotationResult(success=True)
 

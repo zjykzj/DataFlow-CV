@@ -621,27 +621,22 @@ class BaseVisualizer(ABC):
         self.logger.info(message)
 
     def _log_error(self, message: str) -> None:
-        """Log error message and raise exception (strict mode)."""
-        self.logger.error(message)
-        if self.strict_mode:
-            _msg = message.lower()
-            is_image_error = (
-                "image" in _msg
-                and any(
-                    kw in _msg
-                    for kw in (
-                        "not found",
-                        "failed to load",
-                        "failed to read",
-                        "invalid",
-                        "error getting",
-                        "no corresponding",
-                        "does not exist",
-                    )
-                )
-            )
-            if not is_image_error:
-                raise ValueError(message)
+        """Log error message and raise exception (strict mode).
+
+        Image-related errors are always downgraded to warnings
+        regardless of ``strict_mode``.
+        """
+        from dataflow.util.logging_util import (
+            detect_image_error,
+            logging_error_or_raise,
+        )
+
+        logging_error_or_raise(
+            message,
+            self.logger,
+            self.strict_mode,
+            is_image_error=detect_image_error(message),
+        )
 
     def _log_warning(self, message: str) -> None:
         """Log warning message."""

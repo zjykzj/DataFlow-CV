@@ -549,6 +549,19 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
         return result
 
+    def write_one(
+        self, image_ann: ImageAnnotation, output_dir: Path
+    ) -> AnnotationResult:
+        """COCO does not support per-image write.
+
+        COCO is always written as a single JSON file via ``write()``.
+        Use ``write()`` for COCO output.
+        """
+        raise NotImplementedError(
+            "COCO format does not support per-image write. "
+            "Use write() to output a single JSON file."
+        )
+
     def _prepare_coco_data(self, annotations: DatasetAnnotations) -> Dict[str, Any]:
         """Prepare COCO JSON data structure from DatasetAnnotations."""
         # Info section from dataset_info or defaults

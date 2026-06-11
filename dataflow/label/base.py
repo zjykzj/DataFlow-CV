@@ -8,6 +8,7 @@ import logging
 import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from .models import AnnotationFormat, DatasetAnnotations, ImageAnnotation
@@ -108,6 +109,31 @@ class BaseAnnotationHandler(ABC):
         pass
 
     @abstractmethod
+    def write_one(
+        self, image_ann: ImageAnnotation, output_dir: Path
+    ) -> AnnotationResult:
+        """Write annotations for a single image (streaming write).
+
+        Called by the Convert module's streaming pipeline
+        (``stream_convert()``) to write each image immediately after
+        conversion. Receives an ``ImageAnnotation`` with coordinates
+        already in the target format's native space.
+
+        Args:
+            image_ann: Single ImageAnnotation with target-native
+                coordinates.
+            output_dir: Directory to write the output file into.
+
+        Returns:
+            AnnotationResult with success status.
+
+        Note:
+            For single-file formats (COCO JSON), this must raise
+            ``NotImplementedError``. Use ``write()`` instead.
+        """
+        pass
+
+    @abstractmethod
     def validate(self, *args, **kwargs) -> bool:
         """Validate annotation files."""
         pass
@@ -118,9 +144,9 @@ class BaseAnnotationHandler(ABC):
 
     def _log_error(self, message: str):
         """Log error message and raise exception in strict mode."""
-        self.logger.error(message)
-        if self.strict_mode:
-            raise ValueError(message)
+        from dataflow.util.logging_util import logging_error_or_raise
+
+        logging_error_or_raise(message, self.logger, self.strict_mode)
 
     def _log_warning(self, message: str):
         """Log warning message."""

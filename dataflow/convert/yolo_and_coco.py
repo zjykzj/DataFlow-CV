@@ -9,12 +9,11 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..label.base import AnnotationResult, BaseAnnotationHandler
+from ..label.base import BaseAnnotationHandler
 from ..label.coco_handler import CocoAnnotationHandler
-from ..label.models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
-                            ImageAnnotation, ObjectAnnotation, Segmentation)
+from ..label.models import (AnnotationFormat, DatasetAnnotations,
+                            ImageAnnotation, ObjectAnnotation)
 from ..label.yolo_handler import YoloAnnotationHandler
-from . import utils
 from .base import BaseConverter, ConversionResult
 from .rle_converter import RLEConverter
 
@@ -51,95 +50,19 @@ class YoloAndCocoConverter(BaseConverter):
         self.source_to_target = source_to_target
         self.prediction = prediction
 
-    def convert(self, source_path: str, target_path: str, **kwargs) -> ConversionResult:
-        """Convert annotations between YOLO and COCO formats.
-
-        Auto-selects pipeline:
-        - COCO→YOLO: streaming (per-file .txt output)
-        - YOLO→COCO: batch (single JSON output)
-        """
-        if not self.source_to_target:
-            # COCO → YOLO: streaming pipeline
-            return self.stream_convert(source_path, target_path, **kwargs)
-        else:
-            # YOLO → COCO: batch pipeline (COCO is single JSON)
-            return self._batch_convert(source_path, target_path, **kwargs)
-
-    def _batch_convert(self, source_path: str, target_path: str, **kwargs) -> ConversionResult:
-        """Batch pipeline: read ALL → convert ALL → write ALL (for COCO target)."""
-        self._source_annotations_for_target = None
-
-        # 1. Validate inputs
-        if not self.validate_inputs(source_path, target_path, kwargs):
-            return self._create_conversion_result(
-                success=False,
-                source_path=source_path,
-                target_path=target_path,
-                errors=["Input validation failed"],
-                log_file_path=self.log_file_path,
-            )
-
-        # 2. Read data using source handler
-        source_handler = self.create_source_handler(source_path, kwargs)
-        read_result = source_handler.read()
-        if not read_result.success:
-            return self._create_conversion_result(
-                success=False,
-                source_path=source_path,
-                target_path=target_path,
-                errors=read_result.errors,
-                log_file_path=self.log_file_path,
-            )
-
-        # 3. Convert data
-        annotations = read_result.data
-        converted_annotations = self.convert_annotations(annotations, kwargs)
-
-        if self.verbose:
-            self.logger.debug(
-                f"Conversion completed, object count: {converted_annotations.num_objects}"
-            )
-
-        # 4. Write data
-        self._source_annotations_for_target = converted_annotations
-        try:
-            target_handler = self.create_target_handler(target_path, kwargs)
-            write_result = target_handler.write(
-                converted_annotations, target_path
-            )
-        finally:
-            self._source_annotations_for_target = None
-
-        # 5. Create result
-        result = self._create_conversion_result(
-            success=write_result.success,
-            source_path=source_path,
-            target_path=target_path,
-            annotations=converted_annotations,
-            write_result=write_result,
-            log_file_path=self.log_file_path,
-        )
-
-        if self.verbose:
-            result.add_verbose_log(f"Source format: {self.source_format}")
-            result.add_verbose_log(f"Target format: {self.target_format}")
-            result.add_verbose_log(f"Images processed: {annotations.num_images}")
-            result.add_verbose_log(
-                f"Objects converted: {converted_annotations.num_objects}"
-            )
-            if write_result.errors:
-                for error in write_result.errors:
-                    result.add_verbose_log(f"Error: {error}")
-
-        # RLE accuracy warning
+    def _post_batch_convert(
+        self,
+        result: ConversionResult,
+        source_handler: BaseAnnotationHandler,
+        kwargs: Dict,
+    ) -> None:
+        """Add RLE accuracy warning when segmentation data is encoded."""
         do_rle = kwargs.get("do_rle", False)
-        if do_rle:
+        if do_rle and getattr(source_handler, "is_seg", False):
             rle_converter = RLEConverter(logger=self.logger)
             warning_msg = rle_converter.get_rle_accuracy_warning()
             result.add_warning(warning_msg)
             self.logger.warning(f"RLE conversion accuracy loss: {warning_msg}")
-
-        return result
 
     def validate_inputs(self, source_path: str, target_path: str, kwargs: Dict) -> bool:
         """
@@ -341,7 +264,7 @@ class YoloAndCocoConverter(BaseConverter):
         ``iter_images()`` runs.  Read them directly from the JSON file
         so ``create_target_handler()`` can generate ``classes.txt``.
         """
-        import json
+        from .utils import read_coco_categories
 
         # Try default (handler.categories)
         super()._ensure_categories_for_streaming(
@@ -356,22 +279,12 @@ class YoloAndCocoConverter(BaseConverter):
                 or not self._source_annotations_for_target.categories
             )
         ):
-            try:
-                with open(source_path, "r", encoding="utf-8") as f:
-                    coco_data = json.load(f)
-                categories_dict = {}
-                for cat in coco_data.get("categories", []):
-                    cat_id = cat.get("id")
-                    cat_name = cat.get("name", "")
-                    if cat_id is not None:
-                        categories_dict[cat_id] = cat_name
-                if categories_dict:
-                    self._source_annotations_for_target = DatasetAnnotations(
-                        format=AnnotationFormat.COCO,
-                        categories=categories_dict,
-                    )
-            except Exception:
-                pass
+            categories_dict = read_coco_categories(source_path)
+            if categories_dict:
+                self._source_annotations_for_target = DatasetAnnotations(
+                    format=AnnotationFormat.COCO,
+                    categories=categories_dict,
+                )
 
     def _convert_single_image(
         self, image_ann: ImageAnnotation, **kwargs
@@ -390,29 +303,13 @@ class YoloAndCocoConverter(BaseConverter):
         self, img: ImageAnnotation
     ) -> ImageAnnotation:
         """Convert single image: YOLO normalized center → COCO absolute px."""
+        from .utils import yolo_to_absolute_pixel
+
         new_objects = []
         for obj in img.objects:
-            new_bbox = None
-            new_seg = None
-
-            if obj.bbox:
-                cx_abs = obj.bbox.x * img.width
-                cy_abs = obj.bbox.y * img.height
-                w_abs = obj.bbox.width * img.width
-                h_abs = obj.bbox.height * img.height
-                x_tl = cx_abs - w_abs / 2
-                y_tl = cy_abs - h_abs / 2
-                new_bbox = BoundingBox(
-                    x=x_tl, y=y_tl, width=w_abs, height=h_abs
-                )
-
-            if obj.segmentation:
-                new_points = [
-                    (x * img.width, y * img.height)
-                    for x, y in obj.segmentation.points
-                ]
-                new_seg = Segmentation(points=new_points)
-
+            new_bbox, new_seg = yolo_to_absolute_pixel(
+                obj.bbox, obj.segmentation, img.width, img.height
+            )
             new_objects.append(ObjectAnnotation(
                 class_id=obj.class_id,
                 class_name=obj.class_name,
@@ -434,29 +331,13 @@ class YoloAndCocoConverter(BaseConverter):
         self, img: ImageAnnotation
     ) -> ImageAnnotation:
         """Convert single image: COCO absolute px → YOLO normalized center."""
+        from .utils import absolute_pixel_to_yolo
+
         new_objects = []
         for obj in img.objects:
-            new_bbox = None
-            new_seg = None
-
-            if obj.bbox:
-                cx_abs = obj.bbox.x + obj.bbox.width / 2
-                cy_abs = obj.bbox.y + obj.bbox.height / 2
-                cx_norm = cx_abs / img.width
-                cy_norm = cy_abs / img.height
-                w_norm = obj.bbox.width / img.width
-                h_norm = obj.bbox.height / img.height
-                new_bbox = BoundingBox(
-                    x=cx_norm, y=cy_norm, width=w_norm, height=h_norm
-                )
-
-            if obj.segmentation:
-                new_points = [
-                    (x / img.width, y / img.height)
-                    for x, y in obj.segmentation.points
-                ]
-                new_seg = Segmentation(points=new_points)
-
+            new_bbox, new_seg = absolute_pixel_to_yolo(
+                obj.bbox, obj.segmentation, img.width, img.height
+            )
             new_objects.append(ObjectAnnotation(
                 class_id=obj.class_id,
                 class_name=obj.class_name,

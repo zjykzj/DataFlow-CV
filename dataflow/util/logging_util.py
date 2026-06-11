@@ -132,6 +132,73 @@ class LoggingOperations:
             handler.setLevel(level_map[level])
 
 
+# ---------------------------------------------------------------------------
+# Shared error-logging utility
+# ---------------------------------------------------------------------------
+
+# Keywords that indicate an image-related error (always downgraded to
+# warnings, never cause a raise even in strict mode).
+_IMAGE_ERROR_KEYWORDS: Tuple[str, ...] = (
+    "not found",
+    "failed to load",
+    "failed to read",
+    "invalid",
+    "error getting",
+    "no corresponding",
+    "does not exist",
+)
+
+
+def logging_error_or_raise(
+    message: str,
+    logger: logging.Logger,
+    strict_mode: bool,
+    is_image_error: bool = False,
+) -> None:
+    """Log an error and optionally raise ``ValueError`` in strict mode.
+
+    This is the canonical error-handling utility used by all base classes
+    (``BaseAnnotationHandler``, ``BaseConverter``, ``BaseVisualizer``).
+    It provides a consistent contract:
+
+    1. Always logs the message at ERROR level
+    2. In strict mode, raises ``ValueError`` — **unless** the error is
+       flagged as image-related (``is_image_error=True``), in which case
+       it is downgraded to a WARNING and does not raise
+
+    Args:
+        message: The error message to log.
+        logger: Logger instance to use.
+        strict_mode: Whether to raise on error (strict mode).
+        is_image_error: If True, the error is never raised (image errors
+            always skip regardless of strict_mode).
+    """
+    if is_image_error:
+        logger.warning(message)
+    else:
+        logger.error(message)
+        if strict_mode:
+            raise ValueError(message)
+
+
+def detect_image_error(message: str) -> bool:
+    """Check if an error message indicates an image-related error.
+
+    Image errors should always be treated as warnings regardless of
+    ``strict_mode``. This function checks for known image-error keywords.
+
+    Args:
+        message: The error message to inspect.
+
+    Returns:
+        True if the message appears to be image-related.
+    """
+    msg_lower = message.lower()
+    return "image" in msg_lower and any(
+        kw in msg_lower for kw in _IMAGE_ERROR_KEYWORDS
+    )
+
+
 class VerboseLoggingOperations(LoggingOperations):
     """Enhanced logging operations with verbose mode support."""
 
