@@ -108,6 +108,39 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     "Expected 6 (detection) or even>6 (segmentation)."
                 )
 
+    @staticmethod
+    def _parse_class_id(token: str) -> int:
+        """Parse a class_id token from a YOLO annotation line.
+
+        Accepts integer strings (``"1"``) and integer-valued float strings
+        (``"1.00"``, ``"0.0"``).  Raises ``ValueError`` for non-integer floats
+        (``"0.5"``) and non-numeric strings.
+
+        Args:
+            token: Raw string token from a YOLO line.
+
+        Returns:
+            Parsed integer class ID.
+
+        Raises:
+            ValueError: If the token is not a valid integer or integer-valued
+                float.
+        """
+        # Fast path: try direct int conversion first
+        try:
+            return int(token)
+        except ValueError:
+            pass
+
+        # Fallback: check if it's an integer-valued float
+        value = float(token)
+        if value.is_integer():
+            return int(value)
+
+        raise ValueError(
+            f"Invalid class_id '{token}': must be an integer"
+        )
+
     def _get_image_size(self, image_path: Path) -> Tuple[int, int]:
         """Get image dimensions from image file."""
         try:
@@ -251,7 +284,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
                     is_detection, is_segmentation, has_confidence = \
                         self._detect_annotation_type(items)
-                    class_id = int(items[0])
+                    class_id = self._parse_class_id(items[0])
 
                     # Parse confidence if present (prediction mode)
                     confidence = 1.0
@@ -657,7 +690,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     if n == 5:
                         # Detection format
                         try:
-                            class_id = int(items[0])
+                            class_id = self._parse_class_id(items[0])
                             x_center = float(items[1])
                             y_center = float(items[2])
                             width = float(items[3])
@@ -688,7 +721,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     elif n > 5 and n % 2 == 1:
                         # Segmentation format
                         try:
-                            class_id = int(items[0])
+                            class_id = self._parse_class_id(items[0])
                             if class_id not in self.categories:
                                 self.logger.error(
                                     f"Invalid class ID {class_id} in line {line_num}"
@@ -736,7 +769,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     if n == 6:
                         # Detection prediction
                         try:
-                            class_id = int(items[0])
+                            class_id = self._parse_class_id(items[0])
                             x_center = float(items[1])
                             y_center = float(items[2])
                             width = float(items[3])
@@ -769,7 +802,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     elif n > 6 and n % 2 == 0:
                         # Segmentation prediction
                         try:
-                            class_id = int(items[0])
+                            class_id = self._parse_class_id(items[0])
                             if class_id not in self.categories:
                                 self.logger.error(
                                     f"Invalid class ID {class_id} in line {line_num}"

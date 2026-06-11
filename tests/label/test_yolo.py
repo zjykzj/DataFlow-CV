@@ -240,6 +240,37 @@ class TestYoloAnnotationHandler:
         with pytest.raises(ValueError, match="Invalid YOLO label format"):
             handler._detect_annotation_type(line_items)
 
+    # === _parse_class_id unit tests ===
+
+    def test_parse_class_id_accepts_integer_string(self):
+        """Test _parse_class_id with plain integer strings."""
+        assert YoloAnnotationHandler._parse_class_id("0") == 0
+        assert YoloAnnotationHandler._parse_class_id("1") == 1
+        assert YoloAnnotationHandler._parse_class_id("42") == 42
+
+    def test_parse_class_id_accepts_integer_valued_float(self):
+        """Test _parse_class_id with integer-valued float strings."""
+        assert YoloAnnotationHandler._parse_class_id("1.00") == 1
+        assert YoloAnnotationHandler._parse_class_id("0.0") == 0
+        assert YoloAnnotationHandler._parse_class_id("2.0000") == 2
+        assert YoloAnnotationHandler._parse_class_id("-0.0") == 0
+
+    def test_parse_class_id_rejects_non_integer_float(self):
+        """Test _parse_class_id rejects non-integer float strings."""
+        with pytest.raises(ValueError):
+            YoloAnnotationHandler._parse_class_id("0.5")
+        with pytest.raises(ValueError):
+            YoloAnnotationHandler._parse_class_id("1.5")
+        with pytest.raises(ValueError):
+            YoloAnnotationHandler._parse_class_id("3.14")
+
+    def test_parse_class_id_rejects_non_numeric(self):
+        """Test _parse_class_id rejects non-numeric strings."""
+        with pytest.raises(ValueError):
+            YoloAnnotationHandler._parse_class_id("abc")
+        with pytest.raises(ValueError):
+            YoloAnnotationHandler._parse_class_id("")
+
     def test_read_detection_success(self, sample_detection_data):
         """Test successful reading of detection annotations."""
         handler = YoloAnnotationHandler(
@@ -401,6 +432,55 @@ class TestYoloAnnotationHandler:
         result = handler.read()
         assert result.success is False
         assert "Invalid class ID" in result.message
+
+    def test_read_float_class_id_accepted(self, temp_dir):
+        """Test reading YOLO file with integer-valued float class_id."""
+        class_file = temp_dir / "classes.txt"
+        class_file.write_text("person\nbicycle\n")
+        image_dir = temp_dir / "images"
+        image_dir.mkdir()
+        label_dir = temp_dir / "labels"
+        label_dir.mkdir()
+        img_path = image_dir / "test.jpg"
+        img = np.zeros((100, 200, 3), dtype=np.uint8)
+        cv2.imwrite(str(img_path), img)
+        label_file = label_dir / "test.txt"
+        label_file.write_text("0.0 0.5 0.5 0.2 0.2\n1.00 0.3 0.3 0.1 0.1\n")
+
+        handler = YoloAnnotationHandler(
+            label_dir=str(label_dir),
+            class_file=str(class_file),
+            image_dir=str(image_dir),
+            strict_mode=True,
+        )
+        result = handler.read()
+        assert result.success is True
+        assert len(result.data.images[0].objects) == 2
+        assert result.data.images[0].objects[0].class_id == 0
+        assert result.data.images[0].objects[1].class_id == 1
+
+    def test_read_non_integer_float_class_id_rejected(self, temp_dir):
+        """Test reading YOLO file with non-integer float class_id fails."""
+        class_file = temp_dir / "classes.txt"
+        class_file.write_text("person\n")
+        image_dir = temp_dir / "images"
+        image_dir.mkdir()
+        label_dir = temp_dir / "labels"
+        label_dir.mkdir()
+        img_path = image_dir / "test.jpg"
+        img = np.zeros((100, 100, 3), dtype=np.uint8)
+        cv2.imwrite(str(img_path), img)
+        label_file = label_dir / "test.txt"
+        label_file.write_text("0.5 0.5 0.5 0.2 0.2\n")
+
+        handler = YoloAnnotationHandler(
+            label_dir=str(label_dir),
+            class_file=str(class_file),
+            image_dir=str(image_dir),
+            strict_mode=True,
+        )
+        result = handler.read()
+        assert result.success is False
 
     def test_read_invalid_coordinate(self, temp_dir):
         """Test reading with invalid coordinate (out of range)."""
@@ -676,6 +756,44 @@ class TestYoloAnnotationHandler:
 
         is_valid = handler.validate(str(label_file))
         assert is_valid is False
+
+    def test_validate_float_class_id_accepted(self, temp_dir):
+        """Test validation passes for integer-valued float class_id."""
+        class_file = temp_dir / "classes.txt"
+        class_file.write_text("person\nbicycle\n")
+        image_dir = temp_dir / "images"
+        image_dir.mkdir()
+        label_dir = temp_dir / "labels"
+        label_dir.mkdir()
+        label_file = label_dir / "test.txt"
+        label_file.write_text("1.00 0.5 0.5 0.2 0.2\n")
+
+        handler = YoloAnnotationHandler(
+            label_dir=str(label_dir),
+            class_file=str(class_file),
+            image_dir=str(image_dir),
+            strict_mode=True,
+        )
+        assert handler.validate(str(label_file)) is True
+
+    def test_validate_non_integer_float_class_id_rejected(self, temp_dir):
+        """Test validation rejects non-integer float class_id."""
+        class_file = temp_dir / "classes.txt"
+        class_file.write_text("person\n")
+        image_dir = temp_dir / "images"
+        image_dir.mkdir()
+        label_dir = temp_dir / "labels"
+        label_dir.mkdir()
+        label_file = label_dir / "test.txt"
+        label_file.write_text("1.5 0.5 0.5 0.2 0.2\n")
+
+        handler = YoloAnnotationHandler(
+            label_dir=str(label_dir),
+            class_file=str(class_file),
+            image_dir=str(image_dir),
+            strict_mode=True,
+        )
+        assert handler.validate(str(label_file)) is False
 
     def test_validate_missing_file(self, sample_detection_data):
         """Test validation of non-existent file."""
