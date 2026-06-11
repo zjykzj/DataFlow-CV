@@ -186,7 +186,7 @@ Where `W` = image_width, `H` = image_height.
 
 A valid YOLO annotation line must satisfy ALL of the following:
 
-1. `class_id` is a valid integer and exists in `classes.txt`
+1. `class_id` is a valid integer and exists in `classes.txt`. Integer-valued floats (e.g., `1.00`, `0.0`) are accepted and parsed as their integer equivalent (`1`, `0`). Non-integer floats (e.g., `0.5`) are rejected.
 2. All coordinate values are finite floats in [0, 1]
 3. For detection: exactly 5 tokens
 4. For segmentation: odd number of tokens, at least 7 (class_id + 3 point pairs)
