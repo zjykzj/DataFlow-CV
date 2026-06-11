@@ -1,7 +1,7 @@
 # Convert Module Specification
 
-> **Version:** 3.0
-> **Status:** Draft — added streaming pipeline as complement to batch `convert_annotations()`
+> **Version:** 4.0
+> **Status:** Draft — added shared coordinate transforms, `_ensure_categories_for_streaming()` contract, `NotImplementedError` for base `convert_annotations()`
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models)
 
@@ -46,12 +46,12 @@ This avoids holding both source and target datasets in memory simultaneously.
 
 ```
 dataflow/convert/
-├── base.py                # BaseConverter + ConversionResult
-├── yolo_and_coco.py       # YOLO ↔ COCO converter (with normalize/denormalize)
-├── labelme_and_yolo.py    # LabelMe ↔ YOLO converter (with normalize/denormalize)
-├── coco_and_labelme.py    # COSO ↔ LabelMe converter (absolute ↔ absolute, no normalize)
+├── base.py                # BaseConverter + ConversionResult + shared streaming/batch pipelines
+├── yolo_and_coco.py       # YOLO ↔ COCO converter (uses shared coordinate transforms from utils)
+├── labelme_and_yolo.py    # LabelMe ↔ YOLO converter (uses shared coordinate transforms from utils)
+├── coco_and_labelme.py    # COCO ↔ LabelMe converter (absolute ↔ absolute, no normalize)
 ├── rle_converter.py       # Polygon ↔ RLE utility
-└── utils.py               # Category extraction, path resolution
+└── utils.py               # Shared coordinate transforms, category extraction, path resolution
 ```
 
 ## 2. Conversion Pipeline (`BaseConverter`)
@@ -139,6 +139,11 @@ class BaseConverter(ABC):
 
 **`convert_annotations()` — Batch Path:**
 
+**Base class contract**: The default implementation in `BaseConverter` MUST raise
+`NotImplementedError`. This forces every concrete converter to explicitly implement
+the coordinate transformation for its direction — there is no safe "pass-through"
+default because coordinate semantics differ between formats.
+
 Every implementation MUST:
 
 1. Receive a `DatasetAnnotations` with coordinates in the **source format's native space**
@@ -146,6 +151,19 @@ Every implementation MUST:
 3. Set `result.format = target_format` on the returned DatasetAnnotations
 4. Preserve all non-coordinate data (categories, image metadata, is_crowd flags)
 5. Document the precision characteristics of the transform (lossless or lossy, see §9)
+
+**Implementation pattern**: The canonical batch `convert_annotations()` delegates to
+`_convert_single_image()` per image. This ensures the batch and streaming paths
+produce identical output for the same input:
+
+```python
+def convert_annotations(self, source_annotations, kwargs):
+    target = DatasetAnnotations(format=target_format)
+    target.categories = source_annotations.categories.copy()
+    for img in source_annotations.images:
+        target.add_image(self._convert_single_image(img, **kwargs))
+    return target
+```
 
 **`_convert_single_image()` — Streaming Path:**
 
@@ -213,14 +231,100 @@ per-image through the pipeline without accumulated state.
 
 | Direction | Transform Type | Precision | Implementation Location |
 |-----------|---------------|-----------|------------------------|
-| YOLO → COCO | Normalized → Absolute pixels | **Lossy** (±1 px) | `convert_annotations()` in `YoloAndCocoConverter` |
-| COCO → YOLO | Absolute pixels → Normalized | **Lossy** (±1 px) | `convert_annotations()` in `YoloAndCocoConverter` |
-| LabelMe → YOLO | Absolute pixels → Normalized | **Lossy** (±1 px) | `convert_annotations()` in `LabelMeAndYoloConverter` |
-| YOLO → LabelMe | Normalized → Absolute pixels | **Lossy** (±1 px) | `convert_annotations()` in `LabelMeAndYoloConverter` |
-| COCO → LabelMe | Absolute → Absolute (no normalize) | **Near-lossless** | `convert_annotations()` in `CocoAndLabelMeConverter` |
-| LabelMe → COCO | Absolute → Absolute (no normalize) | **Near-lossless** | `convert_annotations()` in `CocoAndLabelMeConverter` |
+| YOLO → COCO | Normalized → Absolute pixels | **Lossy** (±1 px) | `_convert_single_image()` → shared `utils.yolo_to_absolute_pixel()` |
+| COCO → YOLO | Absolute pixels → Normalized | **Lossy** (±1 px) | `_convert_single_image()` → shared `utils.absolute_pixel_to_yolo()` |
+| LabelMe → YOLO | Absolute pixels → Normalized | **Lossy** (±1 px) | `_convert_single_image()` → shared `utils.absolute_pixel_to_yolo()` |
+| YOLO → LabelMe | Normalized → Absolute pixels | **Lossy** (±1 px) | `_convert_single_image()` → shared `utils.yolo_to_absolute_pixel()` |
+| COCO → LabelMe | Absolute → Absolute (no normalize) | **Near-lossless** | `_convert_single_image()` — direct passthrough (no transform needed) |
+| LabelMe → COCO | Absolute → Absolute (no normalize) | **Near-lossless** | `_convert_single_image()` — direct passthrough (no transform needed) |
 
-### 2.7 Verbose Logging Contract
+**Shared coordinate transform utilities** (`convert/utils.py`):
+
+All YOLO↔absolute pixel transforms share the same underlying math (center↔top-left
+origin shift, normalization/denormalization). These are factored into two canonical
+utility functions to eliminate the duplication previously spread across
+`YoloAndCocoConverter` and `LabelMeAndYoloConverter`:
+
+```python
+def yolo_to_absolute_pixel(
+    bbox: Optional[BoundingBox],
+    segmentation: Optional[Segmentation],
+    img_width: int, img_height: int,
+) -> Tuple[Optional[BoundingBox], Optional[Segmentation]]:
+    """Convert YOLO normalized center → absolute pixel top-left.
+
+    Bbox: (cx_norm, cy_norm, w_norm, h_norm) → (x_tl, y_tl, w_abs, h_abs)
+    Segmentation: (x_norm, y_norm) per point → (x_abs, y_abs) per point
+
+    This is a pure function with no side effects. Used by:
+    - YoloAndCocoConverter (YOLO → COCO)
+    - LabelMeAndYoloConverter (YOLO → LabelMe)
+    """
+
+def absolute_pixel_to_yolo(
+    bbox: Optional[BoundingBox],
+    segmentation: Optional[Segmentation],
+    img_width: int, img_height: int,
+) -> Tuple[Optional[BoundingBox], Optional[Segmentation]]:
+    """Convert absolute pixel top-left → YOLO normalized center.
+
+    Bbox: (x_tl, y_tl, w_abs, h_abs) → (cx_norm, cy_norm, w_norm, h_norm)
+    Segmentation: (x_abs, y_abs) per point → (x_norm, y_norm) per point
+
+    This is a pure function with no side effects. Used by:
+    - YoloAndCocoConverter (COCO → YOLO)
+    - LabelMeAndYoloConverter (LabelMe → YOLO)
+    """
+```
+
+**Key design rules:**
+1. These utilities operate on individual `BoundingBox`/`Segmentation` objects — they
+   do NOT process `ImageAnnotation` or `DatasetAnnotations` containers
+2. They are pure functions — stateless, no side effects, no handler interaction
+3. Callers remain responsible for class_id/class_name/confidence/is_crowd preservation
+4. The COCO↔LabelMe direction (both absolute pixel) does NOT use these — coordinates
+   pass through unchanged
+
+### 2.7 Streaming Category Pre-Loading
+
+When the streaming pipeline targets YOLO or LabelMe (per-file formats), the target
+handler must be configured before iteration begins. This requires category information
+to be available upfront. For source formats that expose categories lazily (e.g., COCO
+JSON), a dedicated pre-loading step is needed.
+
+**`_ensure_categories_for_streaming()` contract:**
+
+```python
+def _ensure_categories_for_streaming(
+    self,
+    source_handler: BaseAnnotationHandler,
+    source_path: str,
+    kwargs: Dict,
+) -> None:
+    """Ensure categories are available before streaming iteration.
+
+    Called by ``stream_convert()`` before ``create_target_handler()``.
+    Subclasses may override to pre-load categories from source files
+    that don't expose them until ``read()`` / ``iter_images()`` runs.
+
+    Default implementation:
+        Checks ``source_handler.categories`` — if it's a non-empty dict,
+        stores a minimal ``DatasetAnnotations`` with those categories in
+        ``self._source_annotations_for_target``.
+
+    Subclass overrides (COCO sources):
+        Reads categories directly from the COCO JSON file's ``"categories"``
+        array. This avoids loading the full dataset into memory just to
+        extract category mappings.
+    """
+```
+
+Implementation is in `BaseConverter` (default) with COCO-specific overrides. The
+COCO JSON reading logic (`_read_coco_categories()`) is a shared helper in
+`convert/utils.py` to avoid duplication between `YoloAndCocoConverter` and
+`CocoAndLabelMeConverter`.
+
+### 2.8 Verbose Logging Contract
 
 When `verbose=True`:
 - Logger is configured with file output via `VerboseLoggingOperations`
@@ -398,6 +502,9 @@ responsibility to:
 | Function | Purpose |
 |----------|---------|
 | `extract_categories_from_annotations(dataset)` | Extracts `Dict[id, name]` from DatasetAnnotations |
+| `yolo_to_absolute_pixel(bbox, seg, img_w, img_h)` | **Shared** — YOLO normalized center → absolute pixel top-left (bbox + polygon) |
+| `absolute_pixel_to_yolo(bbox, seg, img_w, img_h)` | **Shared** — absolute pixel top-left → YOLO normalized center (bbox + polygon) |
+| `read_coco_categories(json_path)` | **Shared** — reads categories from a COCO JSON file without full dataset load |
 | `generate_classes_file(categories, path)` | Writes `classes.txt` from category dict |
 | `load_classes_file(path)` | Reads `classes.txt` into `Dict[int, str]` |
 | `extract_categories_from_coco(coco_data)` | Extracts categories from raw COCO dict |
@@ -461,3 +568,32 @@ the error are on disk. This is different from the batch path which is all-or-not
 
 **Streaming path**: No accumulated state to clean up — images are written as they
 are processed. If the stream is interrupted, already-written files remain on disk.
+
+## 8. Change History
+
+### v3 → v4: Shared Transforms + Interface Hardening
+
+| Aspect | v3 | v4 |
+|--------|----|----|
+| `convert_annotations()` base | Default no-op (returns `source_annotations` unchanged) | Raises `NotImplementedError` — forces explicit implementation |
+| Coordinate transform location | Duplicated in `YoloAndCocoConverter` and `LabelMeAndYoloConverter` | Shared in `convert/utils.py` via `yolo_to_absolute_pixel()` / `absolute_pixel_to_yolo()` |
+| COCO category pre-loading | Duplicated `_ensure_categories_for_streaming()` in 2 classes | Shared `read_coco_categories()` in `utils.py` + single override pattern |
+| Batch pipeline | Duplicated `_batch_convert()` in 2 converter classes | Single `batch_convert()` in `BaseConverter.convert()` |
+| `_convert_single_image()` contract | Implemented per converter | Uses shared coordinate transforms from `utils.py` |
+
+**Design rationale**: The YOLO↔absolute pixel coordinate transform is identical regardless
+of whether the other format is COCO or LabelMe. Factoring it into shared utilities
+eliminates ~80 lines of duplicated math, ensures identical precision characteristics
+across all four conversion directions, and makes the code easier to verify and test.
+
+### v2 → v3: Streaming Pipeline
+
+| Aspect | v2 | v3 |
+|--------|----|----|
+| Pipeline | Single batch pipeline (`convert()`) | Dual pipeline: batch (`convert_annotations()`) + streaming (`stream_convert()`) |
+| Data flow | All-at-once (full `DatasetAnnotations`) | Per-image optional (`iter_images()` → `_convert_single_image()` → `write_one()`) |
+| Memory for YOLO/ LabelMe target | O(N) — source + target datasets in memory | O(1) — single image at a time |
+
+### v1 → v2: Format-Native Coordinates
+
+Initial specification with explicit coordinate transforms and modular converter architecture.

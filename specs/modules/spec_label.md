@@ -1,7 +1,7 @@
 # Label Module Specification
 
-> **Version:** 3.0
-> **Status:** Draft — added `iter_images()` streaming iterator alongside batch `read()`
+> **Version:** 4.0
+> **Status:** Draft — added `write_one()` to abstract handler interface
 > **Layer:** Modules
 > **Dependencies:** None (foundation module)
 
@@ -176,7 +176,7 @@ Standardized return type for all handler operations:
 
 ### 3.2 `BaseAnnotationHandler`
 
-Abstract base class — all handlers must implement these four methods:
+Abstract base class — all handlers must implement these five methods:
 
 ```python
 class BaseAnnotationHandler(ABC):
@@ -190,6 +190,9 @@ class BaseAnnotationHandler(ABC):
 
     @abstractmethod
     def write(self, annotations: DatasetAnnotations, *args, **kwargs) -> AnnotationResult: ...
+
+    @abstractmethod
+    def write_one(self, image_ann: ImageAnnotation, output_dir: Path) -> AnnotationResult: ...
 
     @abstractmethod
     def validate(self, *args, **kwargs) -> bool: ...
@@ -260,6 +263,48 @@ def iter_images(self) -> Iterator[ImageAnnotation]:
 **Format-specific validation in `_validate_segmentation_points`:**
 - `YOLO`: ≥ 3 points; all coordinates ∈ [0, 1]
 - `COCO/LabelMe`: ≥ 3 points; all coordinates > 0; finite real numbers
+
+#### `write_one()` — Single-Image Write (Streaming)
+
+Writes annotation data for a **single image** to the target format. This is the per-image
+counterpart to `write()` — used by the Convert module's streaming pipeline
+(`stream_convert()`) to write each image immediately after conversion.
+
+**Signature:**
+
+```python
+@abstractmethod
+def write_one(
+    self, image_ann: ImageAnnotation, output_dir: Path
+) -> AnnotationResult:
+    """Write annotations for a single image.
+
+    Args:
+        image_ann: Single ImageAnnotation with target-native coordinates.
+        output_dir: Directory to write the output file into.
+
+    Returns:
+        AnnotationResult with success status.
+    """
+```
+
+**Key contract:**
+- Receives a single `ImageAnnotation` — coordinates are already in the **target format's
+  native space** (conversion happened upstream in the converter)
+- Writes exactly one output file (e.g., one `.txt` for YOLO, one `.json` for LabelMe)
+- Output filename is derived from `image_ann.image_id`
+- Does NOT accumulate data or maintain cross-image state — each call is independent
+- Empty images (no objects) produce valid empty output files
+- **Not applicable to single-file targets**: COCO handler MUST raise `NotImplementedError`
+  because COCO is always written as a single JSON via `write()`
+
+**Concrete implementations:**
+
+| Handler | Output per call | File naming |
+|---------|----------------|-------------|
+| `YoloAnnotationHandler` | One `.txt` per image | `{image_id}.txt` |
+| `LabelMeAnnotationHandler` | One `.json` per image | `{image_id}.json` |
+| `CocoAnnotationHandler` | N/A — raises `NotImplementedError` | — |
 
 ### 3.3 Handler State Flags
 
@@ -485,6 +530,18 @@ A valid read operation must satisfy ALL of:
 | `compare_annotation_dirs(dir_a, dir_b, format)` | Format-aware comparison (text diff for YOLO, JSON diff for LabelMe) |
 
 ## 8. Change History
+
+### v3 → v4: `write_one()` Streaming Write
+
+| Aspect | v3 | v4 |
+|--------|----|----|
+| `BaseAnnotationHandler` methods | `read()`, `iter_images()`, `write()`, `validate()` | + `write_one()` — single-image write |
+| Convert streaming pipeline | Calls `target_handler.write_one()` without interface guarantee | `write_one()` is an abstract contract — type-checker verified |
+| COCO handler streaming write | Not defined | Explicitly raises `NotImplementedError` (batch-only format) |
+
+**Design rationale**: `write_one()` was already called by `stream_convert()` in the Convert
+module but was not part of the handler's abstract interface. Formalizing it ensures all
+handlers declare the method and new handlers won't silently fail at runtime.
 
 ### v2 → v3: Streaming Iterator
 
