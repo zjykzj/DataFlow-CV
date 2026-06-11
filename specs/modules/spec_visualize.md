@@ -1,7 +1,7 @@
 # Visualize Module Specification
 
-> **Version:** 2.0
-> **Status:** Draft — updated for unified rendering format
+> **Version:** 3.0
+> **Status:** Draft — redesigned pipeline to streaming (handler.iter_images() + per-image conversion)
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models)
 
@@ -10,19 +10,21 @@
 The Visualize module (`dataflow/visualize/`) renders annotation data onto images for visual
 inspection. It depends **only** on the Label module — it does not import from Convert or CLI.
 
-### 1.1 Key Design: Unified Rendering Format
+### 1.1 Key Design: Streaming + Unified Rendering Format
 
-Visualizers accept `DatasetAnnotations` in **any format** and convert all coordinates to a
-**unified intermediate rendering format** before drawing. This means:
+Visualizers stream `ImageAnnotation` objects from the Label handler's `iter_images()` and
+convert coordinates to a **unified intermediate rendering format** per-image. This means:
 
 - One rendering pipeline handles all source formats
-- Coordinate conversion to absolute pixels happens once, in one place
-- Visualizers don't need to know the source format
+- Coordinate conversion to absolute pixels happens per-image, in one place
+- Visualizers don't need to accumulate the entire dataset in memory
+- First image appears as soon as the first annotation file is parsed (streaming)
 
 ### 1.2 Module Contract
 
-- **Input**: `DatasetAnnotations` (any format) + image files
-- **Processing**: Convert all annotations to absolute-pixel render data → draw → display/save
+- **Input**: Label handler's `iter_images()` streaming iterator — yields `ImageAnnotation`
+  objects (format-native coordinates) one at a time, + image files
+- **Processing**: Per-image: convert annotations to absolute-pixel render data → draw → display/save
 - **Output**: Rendered images (display window and/or saved files)
 - **Dependency**: Label module only (for handlers and data models)
 
@@ -72,7 +74,7 @@ class RenderData:
 
 ### 2.3 Coordinate Conversion to RenderData
 
-The conversion from `DatasetAnnotations` (any format) → `RenderData`:
+The conversion from `ImageAnnotation` (format-native coords) → `RenderData`:
 
 | Source Format | Bounding Box Conversion | Polygon Conversion |
 |---------------|------------------------|-------------------|
@@ -87,11 +89,18 @@ saving annotations), precision loss in the rendering pipeline is acceptable.
 
 ### 2.4 Conversion Logic Location
 
-Coordinate conversion to `RenderData` is done in each concrete visualizer's
-`load_annotations()` method. This method:
-1. Calls the Label handler's `read()` to get `DatasetAnnotations` in native format
-2. Converts all annotations to `List[RenderAnnotation]` using the conversion rules above
-3. Stores the `RenderData` for the rendering pipeline
+Coordinate conversion to `RenderData` is done **per-image** in each concrete visualizer's
+`_convert_to_render_data()` method. The conversion happens on-the-fly during iteration:
+
+1. The Label handler's `iter_images()` yields one `ImageAnnotation` at a time
+   (format-native coordinates)
+2. `_convert_to_render_data(image_ann)` converts that single image's annotations
+   to `RenderData` using the conversion rules above
+3. The result is immediately rendered — no accumulation of all images in memory
+
+**Streaming advantage**: The first image is displayed as soon as the first annotation
+file is parsed, rather than waiting for all files to load. Memory usage is proportional
+to the largest single image's annotations, not the entire dataset.
 
 **No dependency on the Convert module** — each visualizer implements its own lightweight
 coordinate conversion to absolute pixels.
@@ -167,9 +176,11 @@ Abstract base class implementing the template method pattern.
 
 ```
 visualize()
-├── 1. load_annotations()          # Abstract — subclass returns List[RenderAnnotation]
-├── 2. Validate output_dir         # Required if is_save=True
-├── 3. For each RenderAnnotation + image:
+├── 1. Validate output_dir              # Required if is_save=True
+├── 2. Obtain image iterator             # From handler.iter_images()
+├── 3. For each image (streaming):
+│   ├── handler.iter_images() → ImageAnnotation (format-native)
+│   ├── _convert_to_render_data()  → RenderData (absolute pixel)
 │   ├── _visualize_single_image()
 │   │   ├── Load image (resolve path, cv2.imread)
 │   │   ├── For each RenderAnnotation:
@@ -178,25 +189,74 @@ visualize()
 │   │   │   └── _draw_rle_mask()   # If RLE exists
 │   │   ├── Display (cv2.imshow)   # If is_show=True
 │   │   └── Save (cv2.imwrite)     # If is_save=True
-│   └── Handle keyboard input
+│   └── Handle keyboard input (q/ESC stops iteration)
 └── 4. Return VisualizationResult
 ```
 
-### 4.2 Abstract Method: `load_annotations()`
+**Streaming semantics**: Images are loaded, converted, and displayed one at a time.
+The handler's `iter_images()` yields each `ImageAnnotation` incrementally — no
+batch accumulation. This means:
+- **Low first-image latency**: The first image appears as soon as parsing completes
+  for the first annotation file, not after all files are processed.
+- **Low memory**: Only the current image's annotation data is held in memory.
+- **Incremental summary**: `total_images` and `total_objects` are updated as images
+  are processed, rather than known upfront.
+- **Progress display**: Uses counter format (`Processing image 5`) instead of
+  percentage-based progress bars (total count unknown until iteration completes).
+
+### 4.2 Abstract Methods: `_create_handler()` and `_convert_to_render_data()`
 
 Each concrete visualizer must implement:
 
 ```python
 @abstractmethod
-def load_annotations(self) -> Dict[str, RenderAnnotations]: ...
+def _create_handler(self) -> BaseAnnotationHandler:
+    """Create the format-specific Label handler instance."""
+    ...
+
+@abstractmethod
+def _convert_to_render_data(self, image_ann: ImageAnnotation) -> RenderData:
+    """Convert a single ImageAnnotation (format-native coords) to RenderData (absolute pixel coords).
+
+    This is called per-image during the streaming loop. The conversion logic
+    uses the format-specific coordinate transform rules (Section 2.3).
+
+    Each concrete visualizer implements format-specific conversion:
+    - YOLOVisualizer: normalized center → absolute pixel top-left
+    - COCOVisualizer: absolute pixel top-left → absolute pixel top-left (passthrough)
+    - LabelMeVisualizer: absolute pixel top-left → absolute pixel top-left (passthrough)
+
+    Args:
+        image_ann: Single ImageAnnotation with format-native coordinates.
+
+    Returns:
+        RenderData with absolute-pixel annotations ready for drawing.
+    """
 ```
 
-The implementation:
-1. Creates the appropriate Label handler
-2. Calls `handler.read()` → `DatasetAnnotations` (format-native coordinates)
-3. Converts all annotations to absolute-pixel `RenderAnnotation` objects
-4. Returns mapping of `{image_path: [RenderAnnotation, ...]}`
-5. Raises `ValueError` on failure
+**Streaming loading flow in `visualize()`:**
+
+```python
+def visualize(self) -> VisualizationResult:
+    handler = self._create_handler()
+    image_iter = handler.iter_images()
+    for image_ann in image_iter:
+        render_data = self._convert_to_render_data(image_ann)
+        success = self._visualize_single_image(image_ann.image_path, render_data)
+        ...
+```
+
+**Key design points:**
+1. **Handler creates the iterator** — `_create_handler()` replaces the old
+   `load_annotations()` setup step. The handler is created once and its
+   `iter_images()` method provides the streaming iterator.
+2. **Per-image coordinate conversion** — `_convert_to_render_data()` replaces the
+   old bulk conversion loop inside `load_annotations()`. It operates on a single
+   `ImageAnnotation` at a time.
+3. **No `Dict[str, RenderData]` accumulator** — RenderData is created and consumed
+   in the same loop iteration. Nothing is stored for later.
+4. **Format awareness** — Each concrete visualizer knows its source format and
+   applies the corresponding coordinate transform from Section 2.3.
 
 ### 4.3 Drawing Methods
 
@@ -248,11 +308,16 @@ When `is_save=True`:
 ### 4.6 Progress Feedback
 
 When a progress logger is available (verbose mode), progress is reported every 10 images
-with a text progress bar:
+with a counter-based format (total count is unknown in streaming mode):
 
 ```
-[==========>...............................] 25.0% Processing image_025
+[====] Processed 40 images, 0 failed
 ```
+
+Percentage-based progress bars are not used because the total image count is not
+known until the iterator exhausts. If the handler provides a total count hint
+(e.g., from file enumeration), the visualizer may optionally display both count
+and percentage.
 
 ## 5. Concrete Visualizers
 
@@ -260,34 +325,87 @@ with a text progress bar:
 
 **Constructor:** `YOLOVisualizer(label_dir, image_dir, class_file, verbose=False, **kwargs)`
 
-- Creates `YoloAnnotationHandler` internally
+- Creates `YoloAnnotationHandler` internally via `_create_handler()`
 - `class_file` is required (passed to handler)
-- `load_annotations()`:
-  1. Calls `YoloAnnotationHandler.read()` → `DatasetAnnotations(format=YOLO)`
-  2. For each `ObjectAnnotation`: converts YOLO-native (normalized center) coords
-     to `RenderAnnotation` (absolute pixel `[x1,y1,x2,y2]`)
+
+**`_create_handler()`:**
+```python
+def _create_handler(self) -> YoloAnnotationHandler:
+    return YoloAnnotationHandler(
+        label_dir=str(self.label_dir),
+        class_file=str(self.class_file),
+        image_dir=str(self.image_dir),
+        strict_mode=self.strict_mode,
+        logger=self.logger,
+    )
+```
+
+**`_convert_to_render_data(image_ann)`:**
+For each `ObjectAnnotation` in `image_ann.objects`:
+1. If `obj.bbox`: convert YOLO-native (normalized center `[cx,cy,w,h]`) to
+   absolute pixel `[x1,y1,x2,y2]`:
+   - `cx_abs = cx * image_width`
+   - `cy_abs = cy * image_height`
+   - `half_w = w * image_width / 2`
+   - `half_h = h * image_height / 2`
+   - `x1 = int(cx_abs - half_w)`, `y1 = int(cy_abs - half_h)`
+   - `x2 = int(cx_abs + half_w)`, `y2 = int(cy_abs + half_h)`
+2. If `obj.segmentation`: convert each normalized point `(x, y)` to
+   absolute pixel `(int(x * width), int(y * height))`
+3. Return `RenderData(annotations=[...], image_width, image_height)`
 
 ### 5.2 `COCOVisualizer`
 
 **Constructor:** `COCOVisualizer(annotation_file, image_dir, verbose=False, **kwargs)`
 
-- Creates `CocoAnnotationHandler` internally
+- Creates `CocoAnnotationHandler` internally via `_create_handler()`
 - `annotation_file` is the COCO JSON file path
-- `load_annotations()`:
-  1. Calls `CocoAnnotationHandler.read()` → `DatasetAnnotations(format=COCO)`
-  2. For each `ObjectAnnotation`: converts COCO-native (absolute pixel `[x,y,w,h]`)
-     to `RenderAnnotation` (absolute pixel `[x1,y1,x2,y2]`)
+
+**`_create_handler()`:**
+```python
+def _create_handler(self) -> CocoAnnotationHandler:
+    return CocoAnnotationHandler(
+        annotation_file=str(self.annotation_file),
+        strict_mode=self.strict_mode,
+        logger=self.logger,
+    )
+```
+
+**`_convert_to_render_data(image_ann)`:**
+For each `ObjectAnnotation` in `image_ann.objects`:
+1. If `obj.bbox`: convert COCO-native (absolute pixel top-left `[x,y,w,h]`) to
+   absolute pixel `[x1,y1,x2,y2]`:
+   - `x1 = int(x)`, `y1 = int(y)`
+   - `x2 = int(x + w)`, `y2 = int(y + h)`
+2. If `obj.segmentation`: use absolute pixel polygon points as-is, truncate to int
+3. If `obj.segmentation.rle`: preserve RLE dict as-is in `RenderAnnotation.rle`
+4. Return `RenderData(annotations=[...], image_width, image_height)`
 
 ### 5.3 `LabelMeVisualizer`
 
 **Constructor:** `LabelMeVisualizer(label_dir, image_dir, class_file=None, verbose=False, **kwargs)`
 
-- Creates `LabelMeAnnotationHandler` internally
+- Creates `LabelMeAnnotationHandler` internally via `_create_handler()`
 - `class_file` is optional
-- `load_annotations()`:
-  1. Calls `LabelMeAnnotationHandler.read()` → `DatasetAnnotations(format=LABELME)`
-  2. For each `ObjectAnnotation`: LabelMe coordinates are already in the right form;
-     directly converts to `RenderAnnotation`
+
+**`_create_handler()`:**
+```python
+def _create_handler(self) -> LabelMeAnnotationHandler:
+    kwargs = dict(strict_mode=self.strict_mode, logger=self.logger)
+    if self.class_file:
+        kwargs["class_file"] = str(self.class_file)
+    return LabelMeAnnotationHandler(
+        label_dir=str(self.label_dir),
+        **kwargs,
+    )
+```
+
+**`_convert_to_render_data(image_ann)`:**
+For each `ObjectAnnotation` in `image_ann.objects`:
+1. If `obj.bbox`: LabelMe-native (absolute pixel top-left `[x,y,w,h]`) →
+   `x1 = int(x)`, `y1 = int(y)`, `x2 = int(x + w)`, `y2 = int(y + h)`
+2. If `obj.segmentation`: use absolute pixel polygon points as-is, truncate to int
+3. Return `RenderData(annotations=[...], image_width, image_height)`
 
 ## 6. Dependency Contract
 
@@ -310,14 +428,23 @@ Visualize module does NOT import FROM:
 
 | Error Type | Strict Mode | Non-Strict Mode |
 |------------|-------------|-----------------|
+| Annotation parse error (handler) | `ValueError` raised from `iter_images()`, stops iteration | Logged and skipped inside handler, continues to next image |
 | Image file not found | Log warning, skip image, continue | Log warning, skip image, continue |
 | Image failed to load (cv2.imread) | Log warning, skip image, continue | Log warning, skip image, continue |
 | Display window error | Log warning, continue without display | Log warning, continue without display |
 | RLE decode failed (no pycocotools) | Log error, skip RLE mask drawing | Log error, skip RLE mask drawing |
-| Annotation load failed | `ValueError` raised (caught by `visualize()`) | `ValueError` raised |
+| Annotation load failed (handler constructor) | `ValueError` raised before iteration begins | `ValueError` raised before iteration begins |
 
-**Key rule**: Image loading errors never abort the entire visualization — individual image
-failures are counted in `summary_data["failed_images"]` but processing continues.
+**Key rules:**
+- **Image loading errors** never abort the entire visualization — individual image
+  failures are counted in `summary_data["failed_images"]` but processing continues.
+- **Handler structural errors** (missing directory, no categories) raise immediately
+  before any images are processed, regardless of `strict_mode`.
+- **Streaming strict mode**: When `iter_images()` raises `ValueError` mid-iteration,
+  the visualizer catches it, records the error, and returns a partial result with
+  `processed_count` reflecting images successfully shown before the failure.
+- **Non-strict mode**: All parse/skip decisions happen inside the handler's
+  `iter_images()`. The visualizer only sees valid `ImageAnnotation` objects.
 
 ## 8. Verbose Logging Contract
 
@@ -325,7 +452,10 @@ When `verbose=True`:
 - Each image processing step is logged at DEBUG level
 - Color assignments are logged (class_id → BGR)
 - Drawing operations include coordinate verification logs
-- Summary statistics are logged at completion (total, success, failed, success rate, duration)
+- Progress is reported as a counter (`Processing image N`) rather than a percentage
+  (total image count is unknown until iteration completes in streaming mode)
+- Summary statistics are logged at completion (success, failed, success rate, duration,
+  total objects — all accumulated incrementally during iteration)
 - Log file path is recorded in `VisualizationResult.log_file_path`
 
 When `verbose=False`:

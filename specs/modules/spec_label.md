@@ -1,7 +1,7 @@
 # Label Module Specification
 
-> **Version:** 2.0
-> **Status:** Draft — major redesign removing unified normalized coordinate model
+> **Version:** 3.0
+> **Status:** Draft — added `iter_images()` streaming iterator alongside batch `read()`
 > **Layer:** Modules
 > **Dependencies:** None (foundation module)
 
@@ -34,8 +34,9 @@ The Label module is the **only module** that Convert and Visualize are allowed t
 It exposes a stable public API through:
 
 - `DatasetAnnotations` with `format` field identifying coordinate semantics
-- `BaseAnnotationHandler` abstract interface (read/write/validate)
+- `BaseAnnotationHandler` abstract interface (read/write/validate/iter_images)
 - `AnnotationResult` return type
+- `iter_images()` streaming iterator — incremental per-image yield for memory-efficient processing
 
 ### 1.3 File Map
 
@@ -175,7 +176,7 @@ Standardized return type for all handler operations:
 
 ### 3.2 `BaseAnnotationHandler`
 
-Abstract base class — all handlers must implement these three methods:
+Abstract base class — all handlers must implement these four methods:
 
 ```python
 class BaseAnnotationHandler(ABC):
@@ -185,11 +186,59 @@ class BaseAnnotationHandler(ABC):
     def read(self, *args, **kwargs) -> AnnotationResult: ...
 
     @abstractmethod
+    def iter_images(self) -> Iterator[ImageAnnotation]: ...
+
+    @abstractmethod
     def write(self, annotations: DatasetAnnotations, *args, **kwargs) -> AnnotationResult: ...
 
     @abstractmethod
     def validate(self, *args, **kwargs) -> bool: ...
 ```
+
+#### `read()` — Batch Load
+
+Returns all annotations as a complete `DatasetAnnotations`. Suitable for workflows that need
+the entire dataset in memory (conversion, evaluation).
+
+#### `iter_images()` — Streaming Iterator
+
+Yields `ImageAnnotation` objects **one at a time** as they are parsed. This is the streaming
+alternative to `read()` — callers process images incrementally without waiting for the entire
+dataset to load.
+
+**Signature:**
+
+```python
+@abstractmethod
+def iter_images(self) -> Iterator[ImageAnnotation]:
+    """Yield ImageAnnotation objects one at a time.
+
+    Validates directories and categories upfront (raises immediately if invalid).
+    Then scans annotation files and yields each successfully parsed image.
+
+    Strict mode (default):
+        Raises ValueError on the first invalid file or annotation line.
+        The iterator stops — partial results before the error are available.
+
+    Non-strict mode:
+        Skips invalid files/lines, logs warnings, continues yielding valid images.
+
+    Yields:
+        ImageAnnotation with format-native coordinates, one per image file.
+
+    Raises:
+        ValueError: In strict mode, when parsing fails for any file or line.
+    """
+```
+
+**Key contract:**
+- Each yielded `ImageAnnotation` contains **format-native coordinates** (same as `read()`).
+- Callers must check `DatasetAnnotations.format` (from handler metadata) to interpret
+  coordinate semantics correctly.
+- Image errors (missing file, unreadable) always skip regardless of strict_mode,
+  consistent with the image-error downgrade rule (Section 5).
+- Categories are validated upfront — if no categories are loaded, iteration raises
+  immediately (no images are yielded).
 
 **Constructor parameters:**
 - `strict_mode` (default `True`): Validation errors immediately abort processing
@@ -243,6 +292,24 @@ Both `is_det` and `is_seg` can be `True` simultaneously (mixed dataset).
 - `ObjectAnnotation.confidence`: Set from the last token when `prediction=True`; defaults to `1.0` in label mode
 - No coordinate transformation — coordinates are stored as-is from YOLO text files
 
+**`iter_images()`**: Yields `ImageAnnotation` objects one at a time.
+Implementation steps:
+1. Validate `label_dir`, `image_dir`, `categories` exist (raise immediately if not)
+2. Scan `label_dir` for `*.txt` files
+3. For each `.txt` file:
+   a. Find corresponding image file (same stem, known extensions)
+   b. Read image dimensions via OpenCV
+   c. Parse YOLO lines into `ObjectAnnotation` list (same per-line logic as `read()`)
+   d. Yield `ImageAnnotation(image_id, image_path, width, height, objects)`
+4. Strict mode: raise `ValueError` on first parse error in any file/line
+5. Non-strict mode: log warning, skip invalid files/lines, continue to next
+6. Image errors (missing file, unreadable) always skip regardless of strict_mode
+
+**Key difference from `read()`**: Does not accumulate all images into a `DatasetAnnotations`.
+Callers that need `DatasetAnnotations` (with format flags, full category dict) should use
+`read()` instead. Callers that only need per-image data (visualization) should prefer
+`iter_images()` for lower memory and faster first-image latency.
+
 **`write(annotations, output_dir)`**: Writes one `.txt` per image.
 - Expects `DatasetAnnotations.format == YOLO`
 - Output: `class_id cx cy w h` (5 tokens for detection) or `class_id x1 y1 x2 y2 ...` (segmentation)
@@ -280,6 +347,20 @@ Both `is_det` and `is_seg` can be `True` simultaneously (mixed dataset).
 - `Segmentation.rle`: Preserved RLE data when segmentation is RLE-encoded
 - No coordinate normalization — COCO native coordinates are absolute pixels
 
+**`iter_images()`**: Yields `ImageAnnotation` objects one at a time.
+Implementation steps:
+1. Validate `annotation_file` exists and is valid JSON (raise immediately if not)
+2. Extract categories and image metadata from COCO JSON
+3. Group annotations by `image_id`
+4. For each image in the COCO dataset:
+   a. Resolve image path from COCO `file_name`
+   b. Collect all annotations for this `image_id`
+   c. Parse each annotation (bbox, segmentation, RLE) into `ObjectAnnotation`
+   d. Yield `ImageAnnotation(image_id, image_path, width, height, objects)`
+5. Strict mode: raise `ValueError` on first invalid annotation
+6. Non-strict mode: log warning, skip invalid annotations, continue
+7. Image errors (missing file) always skip regardless of strict_mode
+
 **`write(annotations, output_file, output_rle=None)`**: Writes COCO JSON.
 - Expects `DatasetAnnotations.format == COCO`
 - Crowd annotations (`iscrowd=1`) always use RLE format
@@ -306,6 +387,20 @@ Both `is_det` and `is_seg` can be `True` simultaneously (mixed dataset).
 - Shape types: `rectangle` → BoundingBox; `polygon` (≥ 3 points) → Segmentation
 - Other shape types (circle, line, point) → parse error
 
+**`iter_images()`**: Yields `ImageAnnotation` objects one at a time.
+Implementation steps:
+1. Validate `label_dir` exists (raise immediately if not)
+2. Scan `label_dir` for `*.json` files
+3. For each `.json` file:
+   a. Parse LabelMe JSON structure
+   b. Extract image dimensions from `imageWidth`/`imageHeight`
+   c. Parse shapes into `ObjectAnnotation` list (rectangle → BoundingBox, polygon → Segmentation)
+   d. Yield `ImageAnnotation(image_id, image_path, width, height, objects)`
+4. Strict mode: raise `ValueError` on first parse error in any file
+5. Non-strict mode: log warning, skip invalid files/shapes, continue
+6. Image errors (missing file, unreadable `imagePath`) always skip regardless of strict_mode
+7. Category discovery: auto-extract from `shape.label` if `class_file` not provided
+
 **`write(annotations, output_dir)`**: Writes one `.json` per image.
 - Expects `DatasetAnnotations.format == LABELME`
 - `imageData` is always set to `None`
@@ -318,6 +413,8 @@ from `shape.label` values during reading.
 
 ## 5. Strict Mode vs Non-Strict Mode Contract
 
+### 5.1 Batch Read (`read()`)
+
 | Error Type | Strict Mode | Non-Strict Mode |
 |------------|-------------|-----------------|
 | Invalid annotation format (wrong token count, bad JSON) | Abort immediately | Skip annotation, log warning, continue |
@@ -328,8 +425,31 @@ from `shape.label` values during reading.
 | Image unreadable / corrupt | **Always skip with warning** | **Always skip with warning** |
 | Invalid image dimensions | **Always skip with warning** | **Always skip with warning** |
 
+### 5.2 Streaming Read (`iter_images()`)
+
+| Error Type | Strict Mode | Non-Strict Mode |
+|------------|-------------|-----------------|
+| Label/image directory not found | Raise `ValueError` immediately (no images yielded) | Raise `ValueError` immediately (no images yielded) |
+| No categories loaded | Raise `ValueError` immediately (no images yielded) | Raise `ValueError` immediately (no images yielded) |
+| No annotation files found | Raise `ValueError` immediately (no images yielded) | Raise `ValueError` immediately (no images yielded) |
+| Invalid annotation format (per-file) | Raise `ValueError` immediately, stop iteration | Skip file, log warning, continue to next |
+| Invalid class_id / coordinate / bbox (per-line) | Raise `ValueError` immediately, stop iteration | Skip line, log warning, continue |
+| Image file not found | **Always skip with warning** | **Always skip with warning** |
+| Image unreadable / corrupt | **Always skip with warning** | **Always skip with warning** |
+| Invalid image dimensions | **Always skip with warning** | **Always skip with warning** |
+
 **Key rule**: Image-related errors never cause an abort — they are always downgraded to
 warnings regardless of `strict_mode`.
+
+**Upfront validation**: Both `read()` and `iter_images()` perform upfront validation of
+directory existence and category availability. These structural errors always raise
+immediately (cannot yield any valid data without them).
+
+**Streaming strict-mode behavior**: When a parse error occurs in strict mode, the iterator
+raises `ValueError`. Images that were already yielded before the error are valid — the
+caller has already processed them. This is different from `read()` which returns nothing
+on error (all-or-nothing). Callers should handle this by wrapping iteration in try/except
+and discarding partial results if needed.
 
 **Coordinate validity depends on format:**
 - **YOLO**: coordinates must be finite floats in [0, 1]
@@ -364,7 +484,23 @@ A valid read operation must satisfy ALL of:
 | `calculate_file_hash(file_path, algorithm="md5")` | Computes hash of a file for integrity comparison |
 | `compare_annotation_dirs(dir_a, dir_b, format)` | Format-aware comparison (text diff for YOLO, JSON diff for LabelMe) |
 
-## 8. Changes from v1 Architecture
+## 8. Change History
+
+### v2 → v3: Streaming Iterator
+
+| Aspect | v2 | v3 |
+|--------|----|----|
+| `BaseAnnotationHandler` methods | `read()`, `write()`, `validate()` | + `iter_images()` — streaming yield |
+| Data loading in visualizers | `handler.read()` → full `DatasetAnnotations` | `handler.iter_images()` → per-image `ImageAnnotation` |
+| Memory usage | O(N) — all images loaded at once | O(1) — single image at a time |
+| First-image latency | Wait for all files to parse | Display after first file parsed |
+| Error granularity | All-or-nothing (strict mode) | Partial results before error available (strict mode) |
+
+**Design rationale**: `read()` is preserved for batch workflows (conversion, evaluation) that
+need `DatasetAnnotations` with format flags and full category dict. `iter_images()` is for
+streaming workflows (visualization) that prefer low latency and low memory.
+
+### v1 → v2: Format-Native Coordinates
 
 | v1 (Deprecated) | v2 (Current) |
 |-----------------|--------------|
