@@ -1,7 +1,7 @@
 # Convert Module Specification
 
-> **Version:** 2.0
-> **Status:** Draft — updated for explicit coordinate transforms in converters
+> **Version:** 3.0
+> **Status:** Draft — added streaming pipeline as complement to batch `convert_annotations()`
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models)
 
@@ -11,7 +11,7 @@ The Convert module (`dataflow/convert/`) transforms annotation data between YOLO
 LabelMe formats through a standardized pipeline. It depends **only** on the Label module —
 it does not import from Visualize or CLI.
 
-### 1.1 Key Design: Explicit Coordinate Transforms
+### 1.1 Key Design: Explicit Coordinate Transforms + Dual Pipeline
 
 **Converters own all coordinate transformations.** The Label module stores coordinates in
 format-native representation. When converting between formats, the converter:
@@ -21,12 +21,26 @@ format-native representation. When converting between formats, the converter:
 3. Sets `DatasetAnnotations.format` to the target format
 4. Writes target data in its native format (via Label handler)
 
+**Two pipelines are available**, selected by the converter based on the target format:
+
+| Pipeline | Trigger | When Used |
+|----------|---------|-----------|
+| **Batch** (`convert()`) | Default — `handler.read()` → `convert_annotations()` | Single-file target (COCO JSON) or small datasets |
+| **Streaming** (`stream_convert()`) | New — `handler.iter_images()` → per-image convert+write | Per-file target (YOLO .txt, LabelMe .json) or large datasets |
+
+The streaming pipeline processes images one at a time:
+```
+handler.iter_images() → ImageAnnotation → _convert_single_image() → RenderData → handler.write_one()
+```
+This avoids holding both source and target datasets in memory simultaneously.
+
 ### 1.2 Module Contract
 
-- **Input**: Source format annotations (via Label handlers — coordinates in source-native form)
-- **Processing**: Explicit coordinate transformation from source to target native representation
-- **Output**: Target format annotations (via Label handlers — coordinates in target-native form)
+- **Input**: Source format annotations (via `handler.read()` for batch, `handler.iter_images()` for streaming)
+- **Processing**: Explicit coordinate transformation — either all-at-once (`convert_annotations()`) or per-image (`_convert_single_image()`)
+- **Output**: Target format annotations (via `handler.write()` for batch, `handler.write_one()` for streaming)
 - **State**: `_source_annotations_for_target` — MUST be cleaned up in `try/finally`
+- **Memory**: Batch path holds source + target in memory; streaming path holds one image at a time
 
 ### 1.3 File Map
 
@@ -44,7 +58,9 @@ dataflow/convert/
 
 ### 2.1 Pipeline Contract
 
-Every converter must follow this exact sequence:
+#### 2.1.1 Batch Pipeline (`convert()`)
+
+Used when the target format is a single file (e.g., COCO JSON) or the dataset is small:
 
 ```
 validate_inputs()
@@ -55,7 +71,30 @@ validate_inputs()
     → handler.write()             → Target format files
 ```
 
-**The critical step is `convert_annotations()`, which performs coordinate transformation.**
+**The critical step is `convert_annotations()`, which performs coordinate transformation
+on the complete dataset.**
+
+#### 2.1.2 Streaming Pipeline (`stream_convert()`)
+
+Used when the target format is per-file (YOLO .txt, LabelMe .json) and the dataset
+is large enough to warrant memory-conscious processing:
+
+```
+validate_inputs()
+    → create_source_handler()
+    → create_target_handler()
+    → for each image_ann in handler.iter_images():
+          target_ann = _convert_single_image(image_ann)   → ImageAnnotation (target-native coords)
+          target_handler.write_one(target_ann)            → Single target file
+```
+
+**The critical step is `_convert_single_image()`, which transforms one image at a time.**
+
+**Streaming preconditions:**
+- Target format MUST support per-file output (YOLO .txt, LabelMe .json)
+- For COCO target (single JSON), use the batch pipeline; streaming is not applicable
+- Categories must be extractable upfront (via `handler.categories` or source metadata)
+  before iteration begins, so the target handler can be configured correctly
 
 ### 2.2 `BaseConverter` Abstract Class
 
@@ -64,8 +103,9 @@ class BaseConverter(ABC):
     def __init__(self, source_format: str, target_format: str,
                  strict_mode=True, verbose=False, logger=None): ...
 
-    # Template method — orchestrates the pipeline
+    # Template methods — orchestrate the pipeline
     def convert(self, source_path, target_path, **kwargs) -> ConversionResult: ...
+    def stream_convert(self, source_path, target_path, **kwargs) -> ConversionResult: ...
 
     # Hook 1: Validate inputs (default: check source exists, create target parent dir)
     def validate_inputs(self, source_path, target_path, kwargs) -> bool: ...
@@ -74,24 +114,50 @@ class BaseConverter(ABC):
     @abstractmethod
     def create_source_handler(self, source_path, kwargs) -> BaseAnnotationHandler: ...
 
-    # Hook 3: Transform annotations (abstract — subclass implements coordinate transform)
+    # Hook 3: Transform ALL annotations (abstract — batch path)
     @abstractmethod
     def convert_annotations(self, source_annotations, kwargs) -> DatasetAnnotations: ...
 
-    # Hook 4: Create target handler (abstract — subclass must implement)
+    # Hook 4: Transform SINGLE image (abstract — streaming path)
+    @abstractmethod
+    def _convert_single_image(self, image_ann: ImageAnnotation, kwargs) -> ImageAnnotation: ...
+
+    # Hook 5: Create target handler (abstract — subclass must implement)
     @abstractmethod
     def create_target_handler(self, target_path, kwargs) -> BaseAnnotationHandler: ...
 ```
 
-### 2.3 `convert_annotations()` Contract
+**`_convert_single_image()` contract:**
+- Receives a single `ImageAnnotation` with coordinates in the **source format's native space**
+- Transforms coordinates to the **target format's native space**
+- Returns a new `ImageAnnotation` with the same metadata (image_path, width, height) but
+  converted objects
+- Does NOT accumulate data — each call is independent
+- Same precision characteristics as the batch `convert_annotations()` (§9)
 
-Every implementation of `convert_annotations()` MUST:
+### 2.3 Conversion Method Contracts
+
+**`convert_annotations()` — Batch Path:**
+
+Every implementation MUST:
 
 1. Receive a `DatasetAnnotations` with coordinates in the **source format's native space**
 2. Transform ALL coordinates to the **target format's native space**
 3. Set `result.format = target_format` on the returned DatasetAnnotations
 4. Preserve all non-coordinate data (categories, image metadata, is_crowd flags)
 5. Document the precision characteristics of the transform (lossless or lossy, see §9)
+
+**`_convert_single_image()` — Streaming Path:**
+
+Every implementation MUST:
+
+1. Receive a single `ImageAnnotation` with coordinates in the **source format's native space**
+2. Transform all objects' coordinates to the **target format's native space**
+3. Return a new `ImageAnnotation` with the same metadata (image_path, width, height,
+   image_id) but transformed objects
+4. Preserve non-coordinate data (class_name, class_id, confidence, is_crowd)
+5. Be stateless — each call is independent
+6. Match the precision characteristics of `convert_annotations()` for the same direction
 
 ### 2.4 `ConversionResult`
 
@@ -114,8 +180,8 @@ Return type for all converter operations:
 
 ### 2.5 State Management Contract
 
-Converters store `self._source_annotations_for_target` between pipeline stages. This is used
-by `create_target_handler()` for:
+**Batch path**: Converters store `self._source_annotations_for_target` between pipeline
+stages. This is used by `create_target_handler()` for:
 
 - **COCO → YOLO / COCO → LabelMe**: Generating `classes.txt` from COCO categories
 - **LabelMe → YOLO**: Copying image files to the target images directory
@@ -131,6 +197,17 @@ finally:
 
 Failure to do this causes **stale state leakage** — the next conversion would see the previous
 conversion's data.
+
+**Streaming path**: The `_source_annotations_for_target` pattern is replaced by direct
+category extraction from the source handler **before** iteration begins. For example:
+
+- **COCO → YOLO**: Extract `handler.categories` after `handler.read()` (or from
+  `handler.iter_images()` metadata) to generate `classes.txt` before writing images
+- **LabelMe → YOLO**: Copy image files per-image during the streaming loop
+  (no need to hold all images in memory)
+
+The streaming path avoids the stale-state problem entirely since data flows
+per-image through the pipeline without accumulated state.
 
 ### 2.6 Coordinate Transform Responsibility
 
@@ -172,7 +249,7 @@ When `verbose=False`:
 | YOLO → COCO | **Required** | **Required** | Optional (default False) | Optional (default False) |
 | COCO → YOLO | Optional (auto-generated) | Optional (auto-created) | N/A | N/A |
 
-**YOLO → COCO behavior:**
+**YOLO → COCO behavior (batch — COCO output is single JSON):**
 1. Validates `class_file` and `image_dir` exist
 2. Creates `YoloAnnotationHandler(prediction=prediction)` as source, reads labels → `DatasetAnnotations(format=YOLO)`
    - Label mode (`prediction=False`): parses 5-token detection, odd-token segmentation; confidence defaults to 1.0
@@ -186,15 +263,21 @@ When `verbose=False`:
 5. COCO output: includes `"score"` field when `confidence < 1.0` (always true in prediction mode)
 6. If `do_rle=True`, adds RLE accuracy warning to result
 
-**COCO → YOLO behavior:**
+**COCO → YOLO behavior (streaming — YOLO output is per-file):**
 1. Creates directory structure: `target_path/labels/` and `target_path/images/`
 2. Generates `classes.txt` from COCO categories if not provided
-3. Creates `CocoAnnotationHandler` as source, reads JSON → `DatasetAnnotations(format=COCO)`
-4. `convert_annotations()`:
-   - Reads COCO-native coordinates (absolute pixels, top-left)
-   - Transforms to YOLO-native coordinates (normalized, center-based)
-   - Sets `result.format = AnnotationFormat.YOLO`
-5. Creates `YoloAnnotationHandler` as target, writes `.txt` files
+3. Creates `CocoAnnotationHandler` as source, reads JSON → extracts categories and images metadata
+4. `stream_convert()`:
+   - Iterates `handler.iter_images()` (yields one `ImageAnnotation` per image)
+   - `_convert_single_image()`:
+     - Reads COCO-native coordinates (absolute pixels, top-left)
+     - Transforms to YOLO-native coordinates (normalized, center-based)
+   - Writes one `.txt` file per image immediately
+5. Creates `YoloAnnotationHandler` as target upfront (categories known from COCO metadata)
+
+**Streaming applicability:**
+- YOLO → COCO: **Batch only** — COCO output is a single JSON; cannot stream
+- COCO → YOLO: **Streaming** — YOLO output is per-file .txt; streaming reduces memory
 
 ### 3.2 `LabelMeAndYoloConverter`
 
@@ -210,25 +293,23 @@ When `verbose=False`:
 | LabelMe → YOLO | **Required** | Optional |
 | YOLO → LabelMe | **Required** | **Required** |
 
-**LabelMe → YOLO behavior:**
+**LabelMe → YOLO behavior (streaming — both formats are per-file):**
 1. Creates directory structure: `target_path/labels/`, `target_path/images/`
 2. Copies `classes.txt` to target directory
-3. Copies image files from source to `target_path/images/`
-4. Creates `LabelMeAnnotationHandler` → reads → `DatasetAnnotations(format=LABELME)`
-5. `convert_annotations()`:
-   - Reads LabelMe-native coordinates (absolute pixels)
-   - Transforms to YOLO-native coordinates (normalized)
-   - Sets `result.format = AnnotationFormat.YOLO`
-6. Creates `YoloAnnotationHandler` → writes
+3. `stream_convert()`:
+   - Iterates `LabelMeAnnotationHandler.iter_images()` (yields one `ImageAnnotation` per JSON)
+   - `_convert_single_image()`: LabelMe absolute pixels → YOLO normalized
+   - Copies image file to `target_path/images/` per-image
+   - Writes one `.txt` file per image immediately
+4. Creates `LabelMeAnnotationHandler` as source, `YoloAnnotationHandler` as target
 
-**YOLO → LabelMe behavior:**
+**YOLO → LabelMe behavior (streaming — both formats are per-file):**
 1. Creates output directory
-2. Creates `YoloAnnotationHandler` → reads → `DatasetAnnotations(format=YOLO)`
-3. `convert_annotations()`:
-   - Reads YOLO-native coordinates (normalized)
-   - Transforms to LabelMe-native coordinates (absolute pixels)
-   - Sets `result.format = AnnotationFormat.LABELME`
-4. Creates `LabelMeAnnotationHandler` → writes
+2. `stream_convert()`:
+   - Iterates `YoloAnnotationHandler.iter_images()` (yields one `ImageAnnotation` per .txt)
+   - `_convert_single_image()`: YOLO normalized → LabelMe absolute pixels
+   - Writes one `.json` file per image immediately
+3. Creates `YoloAnnotationHandler` as source, `LabelMeAnnotationHandler` as target
 
 ### 3.3 `CocoAndLabelMeConverter`
 
@@ -250,7 +331,14 @@ When `verbose=False`:
 - Polygon points are reformatted (flatten/unflatten) but values are preserved
 - Precision: **near-lossless** (bound by floating-point arithmetic, << 1 pixel)
 
-**LabelMe → COCO behavior:**
+**COCO → LabelMe behavior (streaming — LabelMe output is per-file):**
+1. `stream_convert()`:
+   - Iterates `CocoAnnotationHandler.iter_images()` (yields one `ImageAnnotation` per image)
+   - `_convert_single_image()`: COCO absolute → LabelMe absolute (structural reformat only)
+   - Writes one `.json` file per image immediately
+2. Generates `classes.txt` from COCO categories if not provided
+
+**LabelMe → COCO behavior (batch — COCO output is single JSON):**
 1. Validates `class_file` exists
 2. Creates `LabelMeAnnotationHandler` as source → reads → `DatasetAnnotations(format=LABELME)`
 3. `convert_annotations()`:
@@ -259,6 +347,10 @@ When `verbose=False`:
    - Sets `result.format = AnnotationFormat.COCO`
 4. Creates `CocoAnnotationHandler` as target with `do_rle` setting
 5. If `do_rle=True`, adds RLE accuracy warning
+
+**Streaming applicability:**
+- COCO → LabelMe: **Streaming** — LabelMe output is per-file .json
+- LabelMe → COCO: **Batch only** — COCO output is a single JSON; cannot stream
 
 ## 4. RLE Converter (`RLEConverter`)
 
@@ -336,10 +428,20 @@ Convert module does NOT import FROM:
 
 ### 7.1 Error Propagation
 
+**Batch path:**
 ```
 validate_inputs() fails → ConversionResult(success=False, errors=[...])
 handler.read() fails     → ConversionResult(success=False, errors=read_result.errors)
 handler.write() fails    → ConversionResult(success=False, errors=write_result.errors)
+```
+
+**Streaming path:**
+```
+validate_inputs() fails           → ConversionResult(success=False, errors=[...])
+handler.iter_images() raises      → ConversionResult(success=False, errors=[error_msg])
+                                   (partial results: images written before the error are valid)
+handler.write_one() fails         → ConversionResult(success=False, errors=[file_error])
+                                   (remaining images not processed)
 ```
 
 ### 7.2 Strict vs Non-Strict
@@ -348,7 +450,14 @@ Converters pass `strict_mode` to handlers. The handler controls whether errors a
 skip — the converter does not add its own strict/non-strict logic beyond what handlers
 already enforce.
 
+**Streaming strict mode**: When `iter_images()` raises `ValueError` mid-stream,
+the converter catches it and returns a partial result — images already written before
+the error are on disk. This is different from the batch path which is all-or-nothing.
+
 ### 7.3 State Cleanup Guarantee
 
-`_source_annotations_for_target` is always cleared — even if `handler.write()` raises an
-exception — because it's wrapped in `try/finally`.
+**Batch path**: `_source_annotations_for_target` is always cleared — even if
+`handler.write()` raises an exception — because it's wrapped in `try/finally`.
+
+**Streaming path**: No accumulated state to clean up — images are written as they
+are processed. If the stream is interrupted, already-written files remain on disk.
