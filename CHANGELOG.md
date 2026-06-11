@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-06-11
+
+### Added
+
+- **Streaming visualization pipeline**: Redesigned `Visualize` module to stream images one at a time via `handler.iter_images()` instead of batch-loading all annotations upfront. First image appears as soon as the first annotation file is parsed, with low memory usage (single image at a time).
+  - `BaseAnnotationHandler.iter_images()`: New abstract method yielding `ImageAnnotation` one at a time. Implemented in YOLO, COCO, and LabelMe handlers.
+  - `BaseVisualizer._create_handler()` and `_convert_to_render_data()`: Replace `load_annotations()`. Per-image coordinate conversion and rendering.
+  - Counter-based progress display replaces percentage bars (total unknown in streaming mode).
+- **Streaming conversion pipeline**: `Convert` module now auto-selects batch vs streaming based on target format.
+  - `BaseConverter.stream_convert()`: Template method using `iter_images()` + `_convert_single_image()` + `write_one()`.
+  - `BaseConverter._convert_single_image()`: Abstract method — single source of truth for per-image coordinate transforms. `convert_annotations()` delegates to it in a loop.
+  - Streaming directions: COCO→YOLO, LabelMe↔YOLO, COCO→LabelMe (per-file output).
+  - Batch directions: YOLO→COCO, LabelMe→COCO (single JSON output — required by COCO format).
+- **Per-image write API**: `YoloAnnotationHandler.write_one()` and `LabelMeAnnotationHandler.write_one()` (renamed from `_write_single_image`).
+- **Category extraction for streaming**: `_ensure_categories_for_streaming()` pre-loads categories from COCO JSON before streaming iteration, enabling `classes.txt` generation in the target handler.
+
+### Changed
+
+- Visualize pipeline: `load_annotations()` (batch) → `_create_handler()` + `iter_images()` + `_convert_to_render_data()` (streaming)
+- Convert pipeline: `convert_annotations()` now delegates to `_convert_single_image()` per image.
+- Label handler: `_write_single_image()` renamed to public `write_one()` on YOLO and LabelMe handlers.
+- Progress display: Counter format (`Processed 40 images, 0 failed`) replaces ASCII percentage bar in visualize.
+- Test count: 362 → 370.
+
+### Documentation
+
+- `specs/modules/spec_label.md` v3.0: Added `iter_images()` streaming iterator contract.
+- `specs/modules/spec_visualize.md` v3.0: Redesigned pipeline to streaming per-image.
+- `specs/modules/spec_convert.md` v3.0: Added dual pipeline (batch + streaming) with applicability per direction.
+- `CLAUDE.md`: Updated architecture, data flow, converters, visualizers, and gotchas for streaming.
+- `README.md`: Updated test count.
+
 ## [1.1.1] - 2026-06-07
 
 ### Fixed
