@@ -76,6 +76,18 @@ specs/
 - For SDD development, specs are the **compliance benchmark**; CLAUDE.md is the **development context**.
 - The SDD methodology is documented in [`specs/SDD_METHODOLOGY.md`](specs/SDD_METHODOLOGY.md) (general, reusable) and [`specs/SDD_GUIDE.md`](specs/SDD_GUIDE.md) (DataFlow-CV specific).
 
+## Version Bump Checklist
+
+When bumping the project version, **all three** locations must be updated:
+
+| # | File | Field |
+|---|------|-------|
+| 1 | `pyproject.toml` | `version = "X.Y.Z"` |
+| 2 | `dataflow/__init__.py` | `__version__ = "X.Y.Z"` |
+| 3 | `CHANGELOG.md` | `## [X.Y.Z] - YYYY-MM-DD` section header |
+
+Verify with: `grep -rn '"X\.Y\.Z"' dataflow/ pyproject.toml` (exclude `CHANGELOG.md` which retains old entries).
+
 ## Git Commits
 
 When creating git commits, use the following format:
