@@ -168,16 +168,18 @@ Source Format → Handler.iter_images() → ImageAnnotation → _convert_single_
 
 ### Annotation Handlers (`dataflow/label/`)
 
-- `BaseAnnotationHandler`: Abstract base with `read()`, `write()`, `validate()`, `iter_images()` methods. Takes `strict_mode` (default True) and `verbose` (default False) kwargs.
+- `BaseAnnotationHandler`: Abstract base with `read()`, `write()`, `write_one()`, `validate()`, `iter_images()` methods. Takes `strict_mode` (default True) and `verbose` (default False) kwargs.
   - `read()`: Batch load — returns `DatasetAnnotations` (all data in memory). Used by Convert (batch path), Evaluate.
   - `iter_images()`: Streaming iterator — yields `ImageAnnotation` one at a time. Used by Visualize, Convert (streaming path). Lower memory, faster first-image latency.
+  - `write()`: Batch write — writes entire `DatasetAnnotations` to target format (e.g., COCO JSON).
+  - `write_one()`: Single-image write — writes one `ImageAnnotation` to target format. Used by Convert streaming path for per-file output (YOLO `.txt`, LabelMe `.json`). COCO handler raises `NotImplementedError` (always batch).
 - `YoloHandler(label_dir, class_file, image_dir, **kwargs)`: Reads/writes `.txt` files (one per image). Supports detection (`class_id x y w h`) and segmentation (`class_id x1 y1 x2 y2 ...`).
 - `LabelMeHandler(label_dir, class_file=None, **kwargs)`: Reads/writes per-image `.json` files.
-- `CocoHandler(annotation_file, do_rle=False, **kwargs)`: Reads/writes a single COCO JSON file. Supports polygon and RLE segmentation.
+- `CocoHandler(annotation_file, do_rle=False, **kwargs)`: Reads/writes a single COCO JSON file. Supports polygon and RLE segmentation. `write_one()` raises `NotImplementedError` — COCO is always batch output.
 
 ### Converters (`dataflow/convert/`)
 
-**Two pipelines**, auto-selected by target format:
+**Two pipelines**, auto-selected by `BaseConverter.convert()` based on target format:
 
 | Pipeline | Method | When Used |
 |----------|--------|-----------|
@@ -185,11 +187,23 @@ Source Format → Handler.iter_images() → ImageAnnotation → _convert_single_
 | **Streaming** | `stream_convert()` → `handler.iter_images()` → `_convert_single_image()` → `handler.write_one()` | YOLO/LabelMe target (per-file) |
 
 **Template method hierarchy:**
-- `convert()`: Auto-dispatches to batch or streaming based on target format
-- `_convert_single_image(image_ann, **kwargs)`: Abstract — per-image coordinate transform (single source of truth)
-- `convert_annotations(source_annotations, kwargs)`: batch wrapper — calls `_convert_single_image()` in a loop
-- `stream_convert(source_path, target_path, **kwargs)`: streaming template method in `BaseConverter`
-- `_ensure_categories_for_streaming()`: Pre-loads categories before streaming (COCO sources)
+- `convert()`: Concrete in `BaseConverter` — auto-dispatches: COCO target → `_batch_convert()`, else → `stream_convert()`. Subclasses should NOT override.
+- `_batch_convert()`: Concrete template method in `BaseConverter` — orchestrates read → `convert_annotations()` → write with try/finally state cleanup. Subclasses should NOT override.
+- `_convert_single_image(image_ann, **kwargs)`: Abstract — per-image coordinate transform (single source of truth). Uses shared utilities from `convert/utils.py`.
+- `convert_annotations(source_annotations, kwargs)`: Abstract — batch coordinate transform. Base implementation raises `NotImplementedError` (no safe pass-through). Canonical delegation: calls `_convert_single_image()` per image.
+- `stream_convert(source_path, target_path, **kwargs)`: Concrete template method in `BaseConverter` — streaming pipeline. Sets `self._source_path` for handlers that need it during `create_target_handler()`.
+- `_ensure_categories_for_streaming()`: Pre-loads categories before streaming iteration. Base implementation checks `handler.categories`; COCO subclasses use `read_coco_categories()` from utils.
+- `_post_batch_convert(result, source_handler, kwargs)`: Optional post-processing hook (default no-op). Overridden to add RLE accuracy warnings when `do_rle=True` AND segmentation data exists.
+
+**Shared coordinate transforms** (`convert/utils.py`):
+
+| Function | Direction | Used By |
+|----------|-----------|---------|
+| `yolo_to_absolute_pixel(bbox, seg, w, h)` | YOLO normalized center → absolute px top-left | `YoloAndCocoConverter` (YOLO→COCO), `LabelMeAndYoloConverter` (YOLO→LabelMe) |
+| `absolute_pixel_to_yolo(bbox, seg, w, h)` | Absolute px top-left → YOLO normalized center | `YoloAndCocoConverter` (COCO→YOLO), `LabelMeAndYoloConverter` (LabelMe→YOLO) |
+| `read_coco_categories(json_path)` | Read COCO categories without full dataset load | `YoloAndCocoConverter`, `CocoAndLabelMeConverter` (_ensure_categories_for_streaming) |
+
+These are pure functions — stateless, no handler interaction. They replaced ~80 lines of duplicated coordinate math previously spread across two converter files.
 
 - `YoloAndCocoConverter(source_to_target, prediction=False)`: YOLO ↔ COCO. `prediction=True` for model output. Supports `do_rle`.
   - YOLO→COCO: batch (COCO single JSON)
@@ -273,7 +287,7 @@ Common CLI options: `--verbose` (enable file logging), `--no-strict` (disable st
 
 ### Utilities (`dataflow/util/`)
 
-- `logging_util.py`: `LoggingOperations` (console logging) and `VerboseLoggingOperations` (console + file logging). `get_verbose_logger()` returns `(logger, log_file_path)` tuple.
+- `logging_util.py`: `LoggingOperations` (console logging) and `VerboseLoggingOperations` (console + file logging). `get_verbose_logger()` returns `(logger, log_file_path)` tuple. Also provides `logging_error_or_raise()` (shared error-handling utility used by all base classes) and `detect_image_error()` (identifies image-related errors that should always be warnings).
 - `file_util.py`: `FileOperations` for file I/O (read/write lines, copy, glob). `read_lines()` uses `rstrip()` to preserve leading whitespace.
 
 ## Critical Implementation Details
@@ -288,7 +302,7 @@ Common CLI options: `--verbose` (enable file logging), `--no-strict` (disable st
 | LabelMe | Top-left | Absolute pixels | `_validate_absolute_coordinate()` |
 | COCO | Top-left | Absolute pixels | `_validate_absolute_coordinate()` |
 
-**Coordinate transforms** happen exclusively in converters (`dataflow/convert/`), not in handlers or visualizers. The single source of truth is `_convert_single_image()` — the batch `convert_annotations()` delegates to it in a loop. Visualizers do per-image coordinate conversion to `RenderData` in `_convert_to_render_data()` (format-native → absolute pixels for OpenCV drawing).
+**Coordinate transforms** happen exclusively in converters (`dataflow/convert/`), not in handlers or visualizers. The single source of truth is `_convert_single_image()`, which delegates to shared utilities in `convert/utils.py` (`yolo_to_absolute_pixel()` / `absolute_pixel_to_yolo()`). The batch `convert_annotations()` delegates to `_convert_single_image()` in a loop. Visualizers do per-image coordinate conversion to `RenderData` in `_convert_to_render_data()` (format-native → absolute pixels for OpenCV drawing).
 
 ### RLE Serialization
 
@@ -368,6 +382,11 @@ dataflow-cv evaluate detection --verbose --prf1 assets/test_data/evaluate/gt_coc
 11. **DT predictions require `area`**: pycocotools `COCOeval` requires `area` on both GT and DT annotations. When generating DT JSON, ensure area is populated (typically `bbox.width * bbox.height`).
 12. **Segmentation evaluation with mask IoU**: pycocotools automatically converts polygon → RLE internally during `COCOeval.evaluate()`. Pre-converting to RLE in pred.json is unnecessary — polygon format is recommended.
 13. **YOLO prediction format**: YOLO prediction files use 6 tokens (detection) or even tokens (segmentation) vs 5/odd for labels. Use `--prediction` flag with `yolo2coco` to convert model outputs. Mixed label/prediction files are not supported — the flag applies dataset-wide.
+14. **`convert_annotations()` must be overridden**: The base class raises `NotImplementedError` — there is no safe pass-through default. Every concrete converter must explicitly implement coordinate transformation.
+15. **Shared coordinate transforms are in `convert/utils.py`**: `yolo_to_absolute_pixel()` and `absolute_pixel_to_yolo()` are the canonical implementations. New YOLO-involving converters must use these, not reimplement the math.
+16. **`write_one()` is part of the handler contract**: `BaseAnnotationHandler` declares it as abstract. COCO handler raises `NotImplementedError`; YOLO/LabelMe handlers write per-file. New handlers must implement it.
+17. **RLE warning is conditional**: Only added when `do_rle=True` AND the source dataset actually contains segmentation data (`handler.is_seg`). Detection-only datasets with `--do-rle` no longer produce misleading warnings.
+18. **`_log_error` delegates to `logging_util.logging_error_or_raise()`**: All three base classes use the same shared utility. When modifying error behavior, update the utility, not individual base classes.
 
 ## Bug Report
 

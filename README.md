@@ -269,7 +269,7 @@ For detailed developer guidance including advanced test commands, debugging, and
 
 ### 🧪 Testing
 
-**370 tests, 75% code coverage.**
+**370 tests, 75% code coverage (3912 statements).**
 
 ```bash
 pytest                                    # All tests
@@ -283,12 +283,12 @@ pytest tests/evaluate/test_evaluator.py     # Single module
 
 | Module | Coverage | Highlights |
 |--------|:--------:|------------|
-| `dataflow/label/` | 68% | models (87%), coco_handler (74%), labelme_handler (72%), yolo_handler (57%) |
-| `dataflow/convert/` | 84% | yolo_and_coco (89%), labelme_and_yolo (93%), coco_and_labelme (88%), rle (81%) |
-| `dataflow/visualize/` | 81% | yolo_vis (97%), labelme_vis (100%), coco_vis (97%), base (80%) |
+| `dataflow/label/` | 68% | models (87%), coco_handler (75%), labelme_handler (70%), yolo_handler (58%) |
+| `dataflow/convert/` | 87% | yolo_and_coco (90%), labelme_and_yolo (86%), coco_and_labelme (87%), rle (80%), base (83%), utils (92%) |
+| `dataflow/visualize/` | 81% | yolo_vis (100%), labelme_vis (100%), coco_vis (97%), base (74%) |
 | `dataflow/evaluate/` | 88% | evaluator (100%), metrics (96%), result (99%), base (91%), utils (69%) |
 | `dataflow/cli/` | 59% | main (96%), convert cmd (48%), evaluate cmd (24%), visualize cmd (84%), utils (86%) |
-| `dataflow/util/` | 93% | logging (99%), file_util (84%) |
+| `dataflow/util/` | 93% | logging (98%), file_util (84%) |
 
 </details>
 
