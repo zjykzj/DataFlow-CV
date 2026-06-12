@@ -130,6 +130,81 @@ class TestGreedyMatch:
         assert tp50 == 1
         # At 0.9 it may or may not match depending on exact overlap
 
+    # --- Crowd (iscrowd) handling ---
+
+    def test_crowd_gt_not_counted_as_fn(self):
+        """Unmatched crowd GT should NOT count as FN."""
+        gt = [
+            {"bbox": [0, 0, 100, 100], "iscrowd": 1},  # crowd — unmatched
+        ]
+        dt = []  # no detections
+        tp, fp, fn = _greedy_match(gt, dt, iou_threshold=0.5)
+        assert tp == 0
+        assert fp == 0
+        assert fn == 0  # Crowd GT → no FN
+
+    def test_dt_matches_crowd_ignored(self):
+        """DT that matches a crowd GT (and no non-crowd GT) should be ignored."""
+        gt = [
+            {"bbox": [0, 0, 100, 100], "iscrowd": 1},   # crowd
+            {"bbox": [300, 300, 50, 50], "iscrowd": 0},  # non-crowd, far away
+        ]
+        dt = [
+            {"bbox": [5, 5, 95, 95], "score": 0.9},  # overlaps crowd GT only
+        ]
+        tp, fp, fn = _greedy_match(gt, dt, iou_threshold=0.5)
+        assert tp == 0
+        assert fp == 0  # Ignored because it matches crowd GT
+        assert fn == 1  # Non-crowd GT unmatched → FN
+
+    def test_dt_matches_non_crowd_wins_over_crowd(self):
+        """DT should match non-crowd GT even if crowd IoU is higher.
+
+        Both IoUs are above threshold, so the non-crowd GT is matched first.
+        """
+        gt = [
+            {"bbox": [0, 0, 100, 100], "iscrowd": 1},     # crowd — IoU=0.81 with DT
+            {"bbox": [20, 20, 80, 80], "iscrowd": 0},      # non-crowd — IoU≈0.51 with DT
+        ]
+        dt = [
+            {"bbox": [0, 0, 90, 90], "score": 0.9},  # overlaps both (crowd more)
+        ]
+        tp, fp, fn = _greedy_match(gt, dt, iou_threshold=0.5)
+        assert tp == 1  # Matches non-crowd GT (checked first, IoU≥threshold)
+        assert fp == 0  # Not a crowd-sourced FP because it matched non-crowd
+        assert fn == 0
+
+    def test_crowd_dt_matched_then_ignored(self):
+        """DT that could match crowd but already matched non-crowd → TP stands."""
+        gt = [
+            {"bbox": [0, 0, 100, 100], "iscrowd": 1},     # crowd — IoU≈0.51 with DT
+            {"bbox": [50, 50, 100, 100], "iscrowd": 0},    # non-crowd — IoU≈0.64 with DT
+        ]
+        dt = [
+            {"bbox": [50, 50, 80, 80], "score": 0.9},  # overlaps both
+        ]
+        tp, fp, fn = _greedy_match(gt, dt, iou_threshold=0.5)
+        assert tp == 1  # Matched non-crowd (checked first)
+        assert fp == 0
+        assert fn == 0
+
+    def test_all_gt_crowd_no_fn(self):
+        """When all GT are crowd, there should be no FN.
+
+        DT matches a crowd GT → ignored (no TP/FP). No non-crowd GTs → no FN.
+        """
+        gt = [
+            {"bbox": [0, 0, 100, 100], "iscrowd": 1},
+            {"bbox": [300, 300, 100, 100], "iscrowd": 1},
+        ]
+        dt = [
+            {"bbox": [10, 10, 80, 80], "score": 0.9},  # IoU≈0.64 with first crowd
+        ]
+        tp, fp, fn = _greedy_match(gt, dt, iou_threshold=0.5)
+        assert tp == 0
+        assert fp == 0  # Ignored (matches crowd GT)
+        assert fn == 0  # No non-crowd GTs → no FN
+
 
 class TestComputePRF1:
     """Test compute_pr_f1 function."""
@@ -141,14 +216,18 @@ class TestComputePRF1:
         assert result.overall is not None
 
     def test_overall_matches_expectation(self, gt_path, dt_path):
-        """4 GT, 5 DT: one DT is far away → FP, rest match → TP=4, FP=1."""
+        """4 GT, 5 DT: one DT far away → FP, rest match → TP=4, FP=1.
+
+        Per-class: cat TP=2 FP=1 FN=0 → P=0.667 R=1.0, dog TP=2 FP=0 FN=0 → P=1.0 R=1.0.
+        Macro avg: P=(0.667+1.0)/2=0.833, R=(1.0+1.0)/2=1.0.
+        """
         result = compute_pr_f1(gt_path, dt_path, iou_threshold=0.5)
         assert result.overall.tp == 4
         assert result.overall.fp == 1
         assert result.overall.fn == 0
-        # P = 4/5 = 0.8, R = 4/4 = 1.0
-        assert result.overall.precision == pytest.approx(0.8)
+        assert result.overall.precision == pytest.approx(0.8333, abs=1e-3)
         assert result.overall.recall == pytest.approx(1.0)
+        assert result.overall.f1_score == pytest.approx(0.9090, abs=1e-3)
 
     def test_per_class(self, gt_path, dt_path):
         result = compute_pr_f1(gt_path, dt_path, iou_threshold=0.5)
@@ -181,11 +260,12 @@ class TestComputePRF1:
         """List-format DT should produce same results as dict-format.
 
         4 GT, 5 DT: one DT is far away → FP, rest match → TP=4, FP=1.
+        Macro avg precision = 0.833.
         """
         result = compute_pr_f1(gt_path, dt_list_path, iou_threshold=0.5)
         assert result.success is True
         assert result.overall.tp == 4
         assert result.overall.fp == 1
         assert result.overall.fn == 0
-        assert result.overall.precision == pytest.approx(0.8)
+        assert result.overall.precision == pytest.approx(0.8333, abs=1e-3)
         assert result.overall.recall == pytest.approx(1.0)

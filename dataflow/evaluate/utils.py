@@ -445,7 +445,7 @@ def format_per_class_table(
 def format_prf1_output(
     result: Any,
 ) -> str:
-    """Format PRF1Result as a readable summary line.
+    """Format PRF1Result as a readable per-class table + overall summary.
 
     Args:
         result: A PRF1Result instance.
@@ -456,10 +456,38 @@ def format_prf1_output(
     if not result.success or result.overall is None:
         return "P/R/F1 computation failed."
 
-    o = result.overall
-    return (
+    lines = [
         f"Precision / Recall / F1-Score (IoU={result.iou_threshold:.2f}, "
-        f"Conf={result.confidence_threshold:.2f}):\n"
+        f"Conf={result.confidence_threshold:.2f}):",
+    ]
+
+    # Per-class table
+    if result.per_class:
+        header = (
+            f"{'Class':<14s} {'GT':>5s} {'TP':>5s} {'FP':>5s} {'FN':>5s} "
+            f"{'P':>7s} {'R':>7s} {'F1':>7s}"
+        )
+        sep = "─" * (len(header) + 2)
+        lines.append(sep)
+        lines.append(header)
+        lines.append(sep)
+
+        for cid in sorted(result.per_class.keys()):
+            v = result.per_class[cid]
+            class_name = result.class_names.get(cid, str(cid))
+            gt_count = v.tp + v.fn  # GT count = TP + FN
+            lines.append(
+                f"{class_name:<14s} "
+                f"{gt_count:>5d} {v.tp:>5d} {v.fp:>5d} {v.fn:>5d} "
+                f"{v.precision:>7.4f} {v.recall:>7.4f} {v.f1_score:>7.4f}"
+            )
+        lines.append(sep)
+
+    # Overall (macro average)
+    o = result.overall
+    lines.append(
         f"  Overall:  P={o.precision:.3f}  R={o.recall:.3f}  "
         f"F1={o.f1_score:.3f}  TP={o.tp}  FP={o.fp}  FN={o.fn}"
     )
+
+    return "\n".join(lines)

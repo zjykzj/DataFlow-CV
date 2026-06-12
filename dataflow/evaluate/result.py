@@ -119,6 +119,7 @@ class PRF1Result:
     confidence_threshold: float = 0.0
     overall: Optional[PRF1Values] = None
     per_class: Dict[int, PRF1Values] = field(default_factory=dict)
+    class_names: Dict[int, str] = field(default_factory=dict)
     warnings: List[str] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
 

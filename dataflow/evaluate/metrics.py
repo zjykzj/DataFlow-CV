@@ -10,6 +10,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import numpy as np
+
 from .result import PRF1Result, PRF1Values
 from .utils import _load_coco, _load_dt, _validate_coco_available
 
@@ -78,6 +80,10 @@ def compute_pr_f1(
         cat_ids = coco_gt.getCatIds()
         img_ids = coco_gt.getImgIds()
 
+        # Load category names
+        cats = coco_gt.loadCats(cat_ids)
+        result.class_names = {c["id"]: c["name"] for c in cats}
+
         # Accumulate per-class TP/FP/FN
         per_class_tp: Dict[int, int] = {}
         per_class_fp: Dict[int, int] = {}
@@ -86,10 +92,6 @@ def compute_pr_f1(
             per_class_tp[cid] = 0
             per_class_fp[cid] = 0
             per_class_fn[cid] = 0
-
-        total_tp = 0
-        total_fp = 0
-        total_fn = 0
 
         # Match per (image, category)
         for img_id in img_ids:
@@ -116,9 +118,6 @@ def compute_pr_f1(
                 per_class_tp[cat_id] += tp
                 per_class_fp[cat_id] += fp
                 per_class_fn[cat_id] += fn
-                total_tp += tp
-                total_fp += fp
-                total_fn += fn
 
         # Compute per-class P/R/F1
         for cat_id in cat_ids:
@@ -139,9 +138,17 @@ def compute_pr_f1(
                 fn=fn,
             )
 
-        # Overall P/R/F1
-        p_overall = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0.0
-        r_overall = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0.0
+        # Overall P/R/F1 — macro averaging across all categories
+        precisions = []
+        recalls = []
+        for cat_id in cat_ids:
+            p_val = result.per_class[cat_id].precision
+            r_val = result.per_class[cat_id].recall
+            precisions.append(p_val)
+            recalls.append(r_val)
+
+        p_overall = float(np.mean(precisions)) if precisions else 0.0
+        r_overall = float(np.mean(recalls)) if recalls else 0.0
         f1_overall = (
             2.0 * p_overall * r_overall / (p_overall + r_overall)
             if (p_overall + r_overall) > 0
@@ -152,9 +159,9 @@ def compute_pr_f1(
             precision=p_overall,
             recall=r_overall,
             f1_score=f1_overall,
-            tp=total_tp,
-            fp=total_fp,
-            fn=total_fn,
+            tp=sum(v.tp for v in result.per_class.values()),
+            fp=sum(v.fp for v in result.per_class.values()),
+            fn=sum(v.fn for v in result.per_class.values()),
         )
 
         result.success = True
@@ -177,6 +184,13 @@ def _greedy_match(
 ) -> Tuple[int, int, int]:
     """Run greedy one-to-one matching for a single (image, category).
 
+    Crowd annotations (``iscrowd=1``) are handled per pycocotools behavior
+    (see ``spec_evaluate_fundamentals.md`` §7.4):
+
+    * Crowd GTs do **not** participate in matching and never generate FN.
+    * A DT that fails to match any non-crowd GT but matches a crowd GT
+      (IoU ≥ threshold) is **ignored** — it counts as neither TP nor FP.
+
     Args:
         gt_anns: Ground truth annotations (all same image + category).
         dt_anns: Detection annotations, sorted by score descending.
@@ -186,13 +200,17 @@ def _greedy_match(
     Returns:
         Tuple of ``(tp, fp, fn)`` counts.
     """
-    if not gt_anns:
-        # No GT → all DT are FP
+    # Split GT into crowd and non-crowd
+    crowd_gts = [g for g in gt_anns if g.get("iscrowd", 0) == 1]
+    non_crowd_gts = [g for g in gt_anns if g.get("iscrowd", 0) != 1]
+
+    if not non_crowd_gts and not crowd_gts:
+        # No GT at all → all DT are FP
         return 0, len(dt_anns), 0
 
     if not dt_anns:
-        # No DT → all GT are FN
-        return 0, 0, len(gt_anns)
+        # No DT → only non-crowd GT count as FN
+        return 0, 0, len(non_crowd_gts)
 
     matched_gt: set = set()
     tp = 0
@@ -202,7 +220,7 @@ def _greedy_match(
         best_iou = 0.0
         best_gt_idx = -1
 
-        for gt_idx, gt in enumerate(gt_anns):
+        for gt_idx, gt in enumerate(non_crowd_gts):
             if gt_idx in matched_gt:
                 continue
 
@@ -223,10 +241,19 @@ def _greedy_match(
         if best_iou >= iou_threshold and best_gt_idx >= 0:
             tp += 1
             matched_gt.add(best_gt_idx)
+        elif crowd_gts:
+            # Check if DT matches any crowd GT → ignore (not counted as FP)
+            crowd_match = any(
+                _compute_bbox_iou(crowd_gt.get("bbox", []), dt.get("bbox", [])) >= iou_threshold
+                for crowd_gt in crowd_gts
+            )
+            if not crowd_match:
+                fp += 1
+            # else: ignored (neither TP nor FP)
         else:
             fp += 1
 
-    fn = len(gt_anns) - len(matched_gt)
+    fn = len(non_crowd_gts) - len(matched_gt)
     return tp, fp, fn
 
 
