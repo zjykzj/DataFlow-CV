@@ -1,6 +1,6 @@
 # Evaluate Module Specification
 
-> **Version:** 1.0
+> **Version:** 1.1
 > **Status:** Draft
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models), pycocotools
@@ -246,10 +246,17 @@ def compute_pr_f1(
     iou_threshold: float = 0.5,
     confidence_threshold: float = 0.0,
     iou_type: str = "bbox",
+    method: str = "macro",
     verbose: bool = False,
     logger: Optional[logging.Logger] = None,
 ) -> PRF1Result:
 ```
+
+**Additional parameters** (compared to prior versions):
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `method` | str | ``"macro"`` | Aggregation method for overall P/R/F1: ``"macro"`` or ``"micro"`` |
 
 **Algorithm:**
 
@@ -264,12 +271,19 @@ def compute_pr_f1(
    b. Filter DT: score ≥ confidence_threshold, sorted by score DESCENDING
    c. Run greedy matching (spec_evaluate_fundamentals.md §3.2) with iou_threshold
    d. Accumulate TP, FP, FN
-4. Compute per-class P, R, F1 from per-class TP/FP/FN
-5. Compute overall P, R via macro averaging across all categories:
-     P_overall = (1/K) × Σ P_c
-     R_overall = (1/K) × Σ R_c
-   Then F1_overall = 2 × P_overall × R_overall / (P_overall + R_overall)
-   (Categories with zero TP/FP have P_c=0.0; zero TP/FN have R_c=0.0)
+4. Compute per-class P, R, F1 from per-class TP/FP/FN (identical for both methods)
+5. Compute overall P, R via the selected aggregation method:
+   a. If method="macro" (default):
+        P_overall = (1/K) × Σ P_c
+        R_overall = (1/K) × Σ R_c
+      Then F1_overall = 2 × P_overall × R_overall / (P_overall + R_overall)
+      (Categories with zero TP/FP have P_c=0.0; zero TP/FN have R_c=0.0)
+   b. If method="micro":
+        TP_total = Σ TP_c, FP_total = Σ FP_c, FN_total = Σ FN_c
+        P_overall = TP_total / (TP_total + FP_total)   (0.0 if denom=0)
+        R_overall = TP_total / (TP_total + FN_total)   (0.0 if denom=0)
+        F1_overall = 2 × P_overall × R_overall / (P_overall + R_overall)
+      (Overall tp/fp/fn in PRF1Values are the summed totals, consistent with P/R/F1)
 6. Return PRF1Result with per_class dict and overall PRF1Values
 ```
 

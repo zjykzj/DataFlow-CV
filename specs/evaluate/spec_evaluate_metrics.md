@@ -1,6 +1,6 @@
 # Evaluation Metrics Specification
 
-> **Version:** 1.0
+> **Version:** 1.1
 > **Status:** Draft
 > **Layer:** Evaluate
 > **Dependencies:** `spec_evaluate_fundamentals.md` (IoU, matching, TP/FP/FN)
@@ -42,7 +42,9 @@ This gives N `(R, P)` points for the PR curve (§4).
 
 ### 2.3 Overall Precision & Recall (Multi-Class)
 
-Overall P and R are computed via **macro averaging** across all K categories:
+Overall P and R support **two aggregation methods**, selectable via the `method` parameter.
+
+#### 2.3.1 Macro Averaging (Default)
 
 ```
 P_overall = (1/K) × Σ[c ∈ categories] P_c
@@ -53,7 +55,31 @@ Where `P_c = TP_c / (TP_c + FP_c)` and `R_c = TP_c / (TP_c + FN_c)` for each cat
 Categories with zero TP and zero FP (no detections) have `P_c = 0.0` by convention.
 Categories with zero TP and zero FN (no ground truth) have `R_c = 0.0` by convention.
 
-Each category contributes equally regardless of its GT count. This prevents categories with many annotations from dominating the overall metric.
+Each category contributes equally regardless of its GT count. This prevents categories with many annotations from dominating the overall metric. **This is the default behavior.**
+
+#### 2.3.2 Micro Averaging (Optional)
+
+```
+TP_total = Σ[c ∈ categories] TP_c
+FP_total = Σ[c ∈ categories] FP_c
+FN_total = Σ[c ∈ categories] FN_c
+
+P_overall = TP_total / (TP_total + FP_total)   (0.0 if denominator = 0)
+R_overall = TP_total / (TP_total + FN_total)   (0.0 if denominator = 0)
+```
+
+Here the overall P and R are computed from aggregated TP/FP/FN totals across all categories. Categories with many annotations contribute proportionally more to the final metric. This is equivalent to a sample-level evaluation where each detection is weighted equally regardless of its category.
+
+#### 2.3.3 Comparison
+
+| Property | Macro | Micro |
+|----------|-------|-------|
+| Weighting | Each category equal | Each sample (annotation) equal |
+| Dominated by | Rare classes (few samples, same weight) | Common classes (many samples, high weight) |
+| Use case | Category-balanced evaluation | Sample-level / throughput evaluation |
+| Sensitivity | Sensitive to per-class performance drops | Sensitive to overall annotation volume |
+
+Both methods are valid; the choice depends on the evaluation goal. Macro averaging is the default as it aligns with pycocotools-based evaluation scripts (e.g., `coco_pr_2.py`).
 
 ## 3. F1-Score
 
@@ -71,18 +97,39 @@ Range: `[0, 1]`. F1 = 1 only when both P and R are 1. F1 penalizes imbalance bet
 
 F1 is computed both:
 - **Per-class**: `F1_c = 2 × P_c × R_c / (P_c + R_c)`
-- **Overall (macro)**: `F1_overall = 2 × P_overall × R_overall / (P_overall + R_overall)`, where `P_overall` and `R_overall` are macro-averaged across categories (see §2.3).
+- **Overall**: `F1_overall = 2 × P_overall × R_overall / (P_overall + R_overall)`, where `P_overall` and `R_overall` are aggregated across categories per the selected method (macro or micro, see §2.3).
 
-**Note**: The overall F1 is derived from macro-averaged P and R, NOT from micro-averaged TP/FP/FN totals. This is consistent with pycocotools-based scripts (e.g., `coco_pr_2.py`) and gives equal weight to each category regardless of instance count.
+**Default (macro)**: The overall F1 is derived from macro-averaged P and R. This is consistent with pycocotools-based scripts (e.g., `coco_pr_2.py`) and gives equal weight to each category regardless of instance count.
+
+**Optional (micro)**: The overall F1 is derived from micro-averaged P and R (computed from summed TP/FP/FN totals). This gives more weight to categories with more annotations.
 
 ### 3.3 Single-Threshold F1 (PRF1 API)
 
 The `compute_pr_f1()` API computes F1 at a single IoU threshold and confidence threshold:
 
 ```
-Input:  GT, DT, iou_threshold, confidence_threshold
+Input:  GT, DT, iou_threshold, confidence_threshold, method
 Output: per-class {P, R, F1, TP, FP, FN} + overall {P, R, F1, TP, FP, FN}
 ```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `gt_source` | str/Path/Dict/DatasetAnnotations | (required) | Ground truth COCO data |
+| `dt_source` | str/Path/Dict/List/DatasetAnnotations | (required) | Detection/prediction COCO data |
+| `iou_threshold` | float | 0.5 | IoU threshold for matching |
+| `confidence_threshold` | float | 0.0 | Minimum detection score |
+| `iou_type` | str | "bbox" | IoU type: ``"bbox"`` or ``"segm"`` |
+| `method` | str | "macro" | Aggregation method: ``"macro"`` or ``"micro"`` |
+| `verbose` | bool | False | Enable per-class progress logging |
+| `logger` | Logger | None | Logger instance |
+
+The `method` parameter controls how `overall` P/R/F1 is computed from per-class results (see §2.3):
+- ``"macro"`` (default): Macro averaging — mean of per-class P and R.
+- ``"micro"``: Micro averaging — computed from summed TP/FP/FN across all categories.
+
+Per-class results (TP, FP, FN, P, R, F1) are identical between modes. Only `overall` differs.
 
 ### 3.4 Best F1 Across Confidence Thresholds
 
@@ -284,9 +331,9 @@ Scale-stratified metrics reveal a model's blind spots:
 
 | Metric | Parameters | Category Aggregation | IoU Thresholds |
 |--------|-----------|---------------------|----------------|
-| P | iou_thr, conf_thr | Overall or per-class | Single |
-| R | iou_thr, conf_thr | Overall or per-class | Single |
-| F1 | iou_thr, conf_thr | Overall or per-class | Single |
+| P | iou_thr, conf_thr, method | Overall or per-class | Single |
+| R | iou_thr, conf_thr, method | Overall or per-class | Single |
+| F1 | iou_thr, conf_thr, method | Overall or per-class | Single |
 | AP | — | Per-class | Single or averaged (10 thresholds) |
 | mAP50 | — | Mean over classes | Single (0.50) |
 | mAP75 | — | Mean over classes | Single (0.75) |
