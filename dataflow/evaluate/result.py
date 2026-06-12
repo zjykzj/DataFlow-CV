@@ -112,11 +112,15 @@ class PRF1Result:
     """Result of single-threshold P/R/F1 computation.
 
     Returned by compute_pr_f1(). Provides per-class and overall P/R/F1.
+
+    Attributes:
+        method: Aggregation method used — ``"macro"`` or ``"micro"``.
     """
 
     success: bool
     iou_threshold: float = 0.5
     confidence_threshold: float = 0.0
+    method: str = "macro"
     overall: Optional[PRF1Values] = None
     per_class: Dict[int, PRF1Values] = field(default_factory=dict)
     class_names: Dict[int, str] = field(default_factory=dict)

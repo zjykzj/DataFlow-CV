@@ -458,7 +458,8 @@ def format_prf1_output(
 
     lines = [
         f"Precision / Recall / F1-Score (IoU={result.iou_threshold:.2f}, "
-        f"Conf={result.confidence_threshold:.2f}):",
+        f"Conf={result.confidence_threshold:.2f}, "
+        f"Method={result.method}):",
     ]
 
     # Per-class table
@@ -483,7 +484,7 @@ def format_prf1_output(
             )
         lines.append(sep)
 
-    # Overall (macro average)
+    # Overall
     o = result.overall
     lines.append(
         f"  Overall:  P={o.precision:.3f}  R={o.recall:.3f}  "

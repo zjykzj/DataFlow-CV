@@ -269,3 +269,45 @@ class TestComputePRF1:
         assert result.overall.fn == 0
         assert result.overall.precision == pytest.approx(0.8333, abs=1e-3)
         assert result.overall.recall == pytest.approx(1.0)
+
+    def test_micro_method(self, gt_path, dt_path):
+        """Micro averaging computes overall P/R from summed TP/FP/FN.
+
+        Per-class: cat TP=2 FP=1 FN=0, dog TP=2 FP=0 FN=0.
+        Micro: P=4/5=0.8, R=4/4=1.0, F1=0.8889.
+        """
+        result = compute_pr_f1(gt_path, dt_path, iou_threshold=0.5, method="micro")
+        assert result.success is True
+        assert result.method == "micro"
+        # Overall uses micro averaging
+        assert result.overall.precision == pytest.approx(0.8, abs=1e-3)
+        assert result.overall.recall == pytest.approx(1.0)
+        assert result.overall.f1_score == pytest.approx(0.8889, abs=1e-3)
+        # TP/FP/FN totals are the same regardless of method
+        assert result.overall.tp == 4
+        assert result.overall.fp == 1
+        assert result.overall.fn == 0
+
+    def test_invalid_method_raises_value_error(self, gt_path, dt_path):
+        """Invalid method should raise ValueError."""
+        with pytest.raises(ValueError, match="macro.*micro"):
+            compute_pr_f1(gt_path, dt_path, method="invalid_method")
+
+    def test_method_field(self, gt_path, dt_path):
+        """Result.method should reflect the method parameter."""
+        macro_result = compute_pr_f1(gt_path, dt_path, method="macro")
+        assert macro_result.method == "macro"
+
+        micro_result = compute_pr_f1(gt_path, dt_path, method="micro")
+        assert micro_result.method == "micro"
+
+    def test_micro_list_dt(self, gt_path, dt_list_path):
+        """Micro averaging with list-format DT should work."""
+        result = compute_pr_f1(
+            gt_path, dt_list_path, iou_threshold=0.5, method="micro"
+        )
+        assert result.success is True
+        assert result.method == "micro"
+        assert result.overall.precision == pytest.approx(0.8, abs=1e-3)
+        assert result.overall.recall == pytest.approx(1.0)
+        assert result.overall.f1_score == pytest.approx(0.8889, abs=1e-3)

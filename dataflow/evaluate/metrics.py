@@ -26,6 +26,7 @@ def compute_pr_f1(
     iou_threshold: float = 0.5,
     confidence_threshold: float = 0.0,
     iou_type: str = "bbox",
+    method: str = "macro",
     verbose: bool = False,
     logger: Optional[logging.Logger] = None,
 ) -> PRF1Result:
@@ -47,11 +48,16 @@ def compute_pr_f1(
             all). Detections below this are filtered out.
         iou_type: ``'bbox'`` for detection, ``'segm'`` for segmentation.
             Currently only ``'bbox'`` is supported via manual matching.
+        method: Aggregation method for overall P/R/F1.
+            ``"macro"`` (default) — mean of per-class P and R.
+            ``"micro"`` — computed from summed TP/FP/FN across all
+            categories.
         verbose: If True, log per-class progress.
         logger: Optional logger instance.
 
     Returns:
         PRF1Result with per-class and overall P/R/F1.
+        ``result.method`` records the aggregation method used.
 
     Raises:
         ImportError: If pycocotools is not installed (needed to load COCO
@@ -62,6 +68,13 @@ def compute_pr_f1(
     """
     _validate_coco_available()
 
+    # Validate method parameter before any computation
+    if method not in ("macro", "micro"):
+        raise ValueError(
+            f"Invalid `method` parameter: '{method}'. "
+            "Expected 'macro' or 'micro'."
+        )
+
     if logger is None:
         logger = logging.getLogger(__name__)
 
@@ -69,6 +82,7 @@ def compute_pr_f1(
         success=False,
         iou_threshold=iou_threshold,
         confidence_threshold=confidence_threshold,
+        method=method,
     )
 
     try:
@@ -138,17 +152,36 @@ def compute_pr_f1(
                 fn=fn,
             )
 
-        # Overall P/R/F1 — macro averaging across all categories
-        precisions = []
-        recalls = []
-        for cat_id in cat_ids:
-            p_val = result.per_class[cat_id].precision
-            r_val = result.per_class[cat_id].recall
-            precisions.append(p_val)
-            recalls.append(r_val)
+        # Overall P/R/F1 — method-dependent aggregation
+        if method == "macro":
+            # Macro averaging: mean of per-class P and R
+            precisions = []
+            recalls = []
+            for cat_id in cat_ids:
+                p_val = result.per_class[cat_id].precision
+                r_val = result.per_class[cat_id].recall
+                precisions.append(p_val)
+                recalls.append(r_val)
 
-        p_overall = float(np.mean(precisions)) if precisions else 0.0
-        r_overall = float(np.mean(recalls)) if recalls else 0.0
+            p_overall = float(np.mean(precisions)) if precisions else 0.0
+            r_overall = float(np.mean(recalls)) if recalls else 0.0
+        else:
+            # Micro averaging: overall P/R from summed TP/FP/FN
+            total_tp = sum(v.tp for v in result.per_class.values())
+            total_fp = sum(v.fp for v in result.per_class.values())
+            total_fn = sum(v.fn for v in result.per_class.values())
+
+            p_overall = (
+                total_tp / (total_tp + total_fp)
+                if (total_tp + total_fp) > 0
+                else 0.0
+            )
+            r_overall = (
+                total_tp / (total_tp + total_fn)
+                if (total_tp + total_fn) > 0
+                else 0.0
+            )
+
         f1_overall = (
             2.0 * p_overall * r_overall / (p_overall + r_overall)
             if (p_overall + r_overall) > 0

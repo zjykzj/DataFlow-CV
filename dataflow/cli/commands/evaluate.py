@@ -49,6 +49,13 @@ def add_evaluate_options(func):
         help="Confidence threshold for P/R/F1 calculation",
     )
     @click.option(
+        "--prf1-method",
+        type=click.Choice(["macro", "micro"], case_sensitive=False),
+        default="macro",
+        show_default=True,
+        help="Aggregation method for overall P/R/F1",
+    )
+    @click.option(
         "--output",
         "-o",
         type=click.Path(path_type=Path),
@@ -98,7 +105,7 @@ def evaluate_group():
     "dt_json",
     type=click.Path(exists=True, path_type=Path),
 )
-def detection(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, output):
+def detection(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, prf1_method, output):
     """Evaluate object detection results (bbox IoU).
 
     GT_JSON: COCO format Ground Truth JSON file.
@@ -140,7 +147,7 @@ def detection(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, output)
 
     # Print results
     if result.success and result.metrics is not None:
-        _print_detection_result(result, verbose, prf1, prf1_iou, prf1_conf, gt_json, dt_json, logger)
+        _print_detection_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_method, gt_json, dt_json, logger)
 
         if output:
             _save_result_json(result, output)
@@ -171,7 +178,7 @@ def detection(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, output)
     "dt_json",
     type=click.Path(exists=True, path_type=Path),
 )
-def segmentation(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, output):
+def segmentation(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, prf1_method, output):
     """Evaluate instance segmentation results (mask IoU).
 
     GT_JSON: COCO format Ground Truth JSON file (annotations must include 'segmentation').
@@ -213,7 +220,7 @@ def segmentation(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, outp
 
     # Print results
     if result.success and result.metrics is not None:
-        _print_segmentation_result(result, verbose, prf1, prf1_iou, prf1_conf, gt_json, dt_json, logger)
+        _print_segmentation_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_method, gt_json, dt_json, logger)
 
         if output:
             _save_result_json(result, output)
@@ -234,7 +241,7 @@ def segmentation(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, outp
 # Output helpers
 # ---------------------------------------------------------------------------
 
-def _print_detection_result(result, verbose, prf1, prf1_iou, prf1_conf, gt_json, dt_json, logger):
+def _print_detection_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_method, gt_json, dt_json, logger):
     """Print detection evaluation results."""
     from dataflow.evaluate.utils import format_metric_table, format_per_class_table, format_prf1_output
 
@@ -262,12 +269,14 @@ def _print_detection_result(result, verbose, prf1, prf1_iou, prf1_conf, gt_json,
             str(gt_json), str(dt_json),
             iou_threshold=prf1_iou,
             confidence_threshold=prf1_conf,
-            iou_type="bbox", verbose=verbose, logger=logger,
+            iou_type="bbox",
+            method=prf1_method,
+            verbose=verbose, logger=logger,
         )
         click.echo(format_prf1_output(prf1_result))
 
 
-def _print_segmentation_result(result, verbose, prf1, prf1_iou, prf1_conf, gt_json, dt_json, logger):
+def _print_segmentation_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_method, gt_json, dt_json, logger):
     """Print segmentation evaluation results."""
     from dataflow.evaluate.utils import format_metric_table, format_per_class_table, format_prf1_output
 
@@ -297,7 +306,9 @@ def _print_segmentation_result(result, verbose, prf1, prf1_iou, prf1_conf, gt_js
                 str(gt_json), str(dt_json),
                 iou_threshold=prf1_iou,
                 confidence_threshold=prf1_conf,
-                iou_type="segm", verbose=verbose, logger=logger,
+                iou_type="segm",
+                method=prf1_method,
+                verbose=verbose, logger=logger,
             )
         except NotImplementedError:
             logger.warning("Mask IoU P/R/F1 not yet supported in manual matching. Falling back to bbox IoU.")
@@ -305,7 +316,9 @@ def _print_segmentation_result(result, verbose, prf1, prf1_iou, prf1_conf, gt_js
                 str(gt_json), str(dt_json),
                 iou_threshold=prf1_iou,
                 confidence_threshold=prf1_conf,
-                iou_type="bbox", verbose=verbose, logger=logger,
+                iou_type="bbox",
+                method=prf1_method,
+                verbose=verbose, logger=logger,
             )
         click.echo(format_prf1_output(prf1_result))
 
