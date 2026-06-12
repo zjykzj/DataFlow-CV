@@ -103,7 +103,7 @@ EOF
 )"
 ```
 
-The Co-Authored-By line is optional and can be omitted.
+The Co-Authored-By line is **mandatory** for all commits. The only exception is when the AI model actually powering this session is NOT DeepSeek-V4.0 — in that case, the engineer must confirm the correct model and update the Co-Authored-By line accordingly.
 
 Follow conventional commit style:
 - `feat`: New feature
