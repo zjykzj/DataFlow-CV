@@ -1,8 +1,8 @@
 # CLI Module Specification
 
-> **Version:** 1.0
+> **Version:** 1.1
 > **Layer:** Modules
-> **Dependencies:** Convert module + Visualize module (public APIs only)
+> **Dependencies:** Convert module + Visualize module + Evaluate module (public APIs only)
 
 ## 1. Module Overview
 
@@ -74,8 +74,8 @@ dataflow-cv
 │   └── coco     IMAGE_DIR COCO_FILE [--save DIR] [--verbose] [--display/--no-display]
 │
 └── evaluate
-    ├── detection     GT_JSON DT_JSON [--verbose] [--prf1] [--prf1-iou FLOAT] [--prf1-conf FLOAT] [--output PATH]
-    └── segmentation  GT_JSON DT_JSON [--verbose] [--prf1] [--prf1-iou FLOAT] [--prf1-conf FLOAT] [--output PATH]
+    ├── detection     GT_JSON DT_JSON [--verbose] [--prf1] [--prf1-iou FLOAT] [--prf1-conf FLOAT] [--prf1-method STR] [--output PATH]
+    └── segmentation  GT_JSON DT_JSON [--verbose] [--prf1] [--prf1-iou FLOAT] [--prf1-conf FLOAT] [--prf1-method STR] [--output PATH]
 ```
 
 ## 4. Convert Subcommands
@@ -281,6 +281,7 @@ Evaluate subcommands share these options:
 | `--prf1` | Flag | False | Additionally compute and display P/R/F1 at specified IoU threshold |
 | `--prf1-iou` | Float | 0.5 | IoU threshold for P/R/F1 calculation |
 | `--prf1-conf` | Float | 0.0 | Confidence threshold for P/R/F1 calculation |
+| `--prf1-method` | Choice | "macro" | Aggregation method for overall P/R/F1: ``"macro"`` or ``"micro"``. See `spec_evaluate_metrics.md` §2.3 |
 | `--output`, `-o` | Path | None | Save full `EvaluationResult` as JSON to this path |
 
 ### 6.2 Command Signatures
@@ -324,7 +325,7 @@ Evaluates instance segmentation results using mask IoU (`iouType='segm'`).
 8. If success:
    a. Print 12 COCO standard metrics table
    b. If verbose: print per-class breakdown table
-   c. If --prf1: call compute_pr_f1() and print results
+   c. If --prf1: call compute_pr_f1() (with method from --prf1-method) and print results
    d. If --output: write EvaluationResult as JSON to file
    e. Log file path (if verbose)
 9. If failure: raise RuntimeCLIError with first error message
@@ -370,10 +371,21 @@ Per-Class Breakdown (IoU: 0.50:0.95):
 
 **PRF1 output (with `--prf1`):**
 
+Default (macro) mode:
 ```
-Precision / Recall / F1-Score (IoU=0.50, Conf=0.00):
+Precision / Recall / F1-Score (IoU=0.50, Conf=0.00, Method=macro):
   Overall:  P=0.756  R=0.912  F1=0.826  TP=1250  FP=403  FN=120
 ```
+
+Micro mode (`--prf1-method micro`):
+```
+Precision / Recall / F1-Score (IoU=0.50, Conf=0.00, Method=micro):
+  Overall:  P=0.756  R=0.912  F1=0.826  TP=1250  FP=403  FN=120
+```
+
+In macro mode, overall P/R are means of per-class values. In micro mode, overall
+P/R are computed from summed TP/FP/FN totals. The TP/FP/FN shown are always the
+summed totals. Per-class P/R/F1 values are identical in both modes.
 
 ### 6.5 JSON Output (`--output`)
 
