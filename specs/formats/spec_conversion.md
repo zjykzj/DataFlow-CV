@@ -100,8 +100,9 @@ h_norm  = h_abs / img_height
 When converting YOLO **prediction** files to COCO **prediction** JSON (`--prediction` flag):
 
 1. Coordinate transform is **identical** to the label conversion path (§3.1 YOLO → COCO bbox, §3.2 YOLO → COCO segmentation)
-2. The only difference: `confidence` value from YOLO prediction lines is preserved as the COCO `score` field
-3. The converter passes `prediction=True` to `YoloHandler`, which enables 6-token (detection) and even-token (segmentation) format parsing
+2. The converter passes `prediction=True` to **both** `YoloHandler` (source) and `CocoAnnotationHandler` (target)
+3. **Output format**: Plain JSON list of annotation dicts (Variant B per `spec_coco_format.md` §10.1) — NOT a full COCO dict with `images`/`categories`. This is the standard prediction format used by Detectron2, MMDetection, and pycocotools' `loadRes()`. Images and categories are sourced from GT at evaluation time.
+4. YOLO confidence values are preserved as the COCO `score` field in every annotation
 
 **Data flow:**
 
@@ -113,8 +114,13 @@ YOLO pred (.txt):   class_id cx cy w h confidence  (6 tokens, detection)
   → DatasetAnnotations(format=YOLO, ObjectAnnotation.confidence = parsed_value)
   → Converter.convert_annotations(): denormalize coords (same as label mode)
   → DatasetAnnotations(format=COCO, ObjectAnnotation.confidence preserved)
-  → CocoHandler.write(): confidence → "score" in JSON output
-  → pred.json: {"bbox": [...], "score": 0.95}
+  → CocoHandler(prediction=True).write(): list of annotation dicts with "score" field
+  → pred.json: [{"image_id": 0, "category_id": 7, "bbox": [...], "score": 0.95}, ...]
+```
+
+**Annotation mode** (without `--prediction`) produces a full COCO dict:
+```
+  → pred.json: {"info": {...}, "images": [...], "annotations": [...], "categories": [...]}
 ```
 
 **Segmentation prediction output**: Polygon format is recommended (default `do_rle=False`). pycocotools `COCOeval` handles polygon→RLE conversion internally during mask IoU computation. See `spec_coco_format.md` §10.4 for rationale.

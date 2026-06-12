@@ -363,8 +363,10 @@ When `verbose=False`:
    - Transforms to COCO-native coordinates (absolute pixels, top-left)
    - Preserves `ObjectAnnotation.confidence` (used as COCO `score` in output)
    - Sets `result.format = AnnotationFormat.COCO`
-4. Creates `CocoAnnotationHandler` as target with `do_rle` setting
-5. COCO output: includes `"score"` field when `confidence < 1.0` (always true in prediction mode)
+4. Creates `CocoAnnotationHandler(prediction=prediction, do_rle=...)` as target
+5. COCO output depends on prediction mode:
+   - **Annotation mode** (`prediction=False`): Full COCO dict with `info`, `images`, `annotations`, `categories`. ``score`` is omitted unless ``confidence < 1.0``.
+   - **Prediction mode** (`prediction=True`): Plain JSON list of annotation dicts (Variant B per `spec_coco_format.md` §10.1). Each dict contains `image_id`, `category_id`, `bbox`, `area`, `score`, and optionally `segmentation`. No `images`/`categories`/`info` wrapper — these are sourced from GT at evaluation time via `loadRes()`.
 6. If `do_rle=True`, adds RLE accuracy warning to result
 
 **COCO → YOLO behavior (streaming — YOLO output is per-file):**
