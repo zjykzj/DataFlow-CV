@@ -98,7 +98,7 @@ git commit -m "$(cat <<'EOF'
 
 <body if needed>
 
-Co-Authored-By: DeepSeek-V4.0 <service@deepseek.com>
+Co-Authored-By: DeepSeek-V4.0 <noreply@deepseek.com>
 EOF
 )"
 ```
