@@ -20,6 +20,7 @@ from .result import (
 from .utils import (
     _extract_stats,
     _load_coco,
+    _load_dt,
     _validate_common_categories,
     _validate_coco_available,
     _validate_dt_scores,
@@ -81,8 +82,11 @@ class BaseEvaluator(ABC):
         Args:
             gt_source: Ground truth COCO data (file path, dict, or
                 DatasetAnnotations).
-            dt_source: Detection/prediction COCO data (file path, dict, or
-                DatasetAnnotations). Annotations must include ``score``.
+            dt_source: Detection/prediction COCO data (file path, dict,
+                list of annotation dicts, or DatasetAnnotations).
+                Annotations must include ``score``. List-format files
+                (plain JSON array) are loaded via ``loadRes()`` with
+                images and categories sourced from GT.
 
         Returns:
             EvaluationResult with 12 standard metrics and optional
@@ -97,7 +101,7 @@ class BaseEvaluator(ABC):
             # 2. Load GT and DT
             self._log_info("Loading ground truth annotations...")
             coco_gt = _load_coco(gt_source)
-            coco_dt = _load_coco(dt_source)
+            coco_dt = _load_dt(dt_source, coco_gt)
 
             # 3. Validate inputs
             valid, warnings = self.validate_inputs(coco_gt, coco_dt)

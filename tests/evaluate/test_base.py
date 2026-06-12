@@ -31,6 +31,11 @@ def dt_path():
     return TEST_DATA / "dt_coco.json"
 
 
+@pytest.fixture
+def dt_list_path():
+    return TEST_DATA / "dt_list.json"
+
+
 class TestBaseEvaluatorInit:
     """Test BaseEvaluator constructor."""
 
@@ -95,6 +100,17 @@ class TestEvaluate:
         assert result.gt_stats["images"] == 2
         assert result.gt_stats["annotations"] == 4
         assert result.dt_stats["annotations"] == 5
+
+    def test_successful_evaluation_with_list_dt(self, gt_path, dt_list_path):
+        """List-format DT (plain JSON array) should work."""
+        ev = ConcreteEvaluator(verbose=False)
+        result = ev.evaluate(gt_path, dt_list_path)
+        assert result.success is True
+        assert result.metrics is not None
+        assert result.metrics.ap50 > 0
+        # Same annotation count as dict-format DT
+        assert result.dt_stats["annotations"] == 5
+        assert result.dt_stats["images"] == 2
 
 
 class TestValidateInputs:

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from .result import PRF1Result, PRF1Values
-from .utils import _load_coco, _validate_coco_available
+from .utils import _load_coco, _load_dt, _validate_coco_available
 
 
 # ---------------------------------------------------------------------------
@@ -36,8 +36,10 @@ def compute_pr_f1(
     Args:
         gt_source: Ground truth COCO data (file path, dict, or
             DatasetAnnotations).
-        dt_source: Detection/prediction COCO data. Annotations must
-            include ``score``.
+        dt_source: Detection/prediction COCO data (file path, dict,
+            list of annotation dicts, or DatasetAnnotations).
+            Annotations must include ``score``. List-format files
+            (plain JSON array) are loaded via ``loadRes()``.
         iou_threshold: IoU threshold for matching. Default 0.5.
         confidence_threshold: Minimum detection score. Default 0.0 (keep
             all). Detections below this are filtered out.
@@ -70,7 +72,7 @@ def compute_pr_f1(
     try:
         # Load data
         coco_gt = _load_coco(gt_source)
-        coco_dt = _load_coco(dt_source)
+        coco_dt = _load_dt(dt_source, coco_gt)
 
         # Prepare category / image lookup
         cat_ids = coco_gt.getCatIds()

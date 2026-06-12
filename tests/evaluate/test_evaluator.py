@@ -19,6 +19,11 @@ def dt_path():
     return TEST_DATA / "dt_coco.json"
 
 
+@pytest.fixture
+def dt_list_path():
+    return TEST_DATA / "dt_list.json"
+
+
 class TestDetectionEvaluator:
     """Test DetectionEvaluator."""
 
@@ -58,6 +63,16 @@ class TestDetectionEvaluator:
     def test_strict_mode(self):
         ev = DetectionEvaluator(strict_mode=False)
         assert ev.strict_mode is False
+
+    def test_evaluate_with_list_dt(self, gt_path, dt_list_path):
+        """List-format DT should work with DetectionEvaluator."""
+        ev = DetectionEvaluator(verbose=False)
+        result = ev.evaluate(gt_path, dt_list_path)
+        assert result.success is True
+        assert result.metrics is not None
+        assert result.metrics.ap50 > 0
+        assert result.dt_stats["annotations"] == 5
+        assert result.dt_stats["images"] == 2
 
 
 class TestSegmentationEvaluator:

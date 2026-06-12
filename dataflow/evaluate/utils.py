@@ -7,7 +7,7 @@ and formatting helpers used by the Evaluate module.
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 # ---------------------------------------------------------------------------
 # pycocotools guard
@@ -75,6 +75,77 @@ def _load_coco(source: Union[str, Path, Dict, Any]) -> "COCO":
     raise ValueError(
         f"Unsupported source type: {type(source).__name__}. "
         "Expected str, Path, dict, or DatasetAnnotations."
+    )
+
+
+def _load_dt(
+    dt_source: Union[str, Path, Dict, List, Any],
+    coco_gt: "COCO",
+) -> "COCO":
+    """Load DT (detection/prediction) data, handling list-format JSON.
+
+    Unlike :func:`_load_coco` which is used for GT, this function handles
+    two DT-specific formats:
+
+    * **Plain JSON list** — a top-level array of annotation dicts. Loaded
+      via :meth:`coco_gt.loadRes`, which copies ``images`` and ``categories``
+      from GT and indexes the annotation list.
+    * **Full COCO dict** — same structure as GT plus ``score`` in each
+      annotation. Loaded via the same path as :func:`_load_coco`.
+
+    Args:
+        dt_source: One of:
+            - str/Path: File path to a COCO JSON dict or plain annotation list.
+            - List: In-memory list of annotation dicts (with ``bbox``, ``score``).
+            - Dict: In-memory COCO dict.
+            - DatasetAnnotations: A Label-module container with format=COCO.
+        coco_gt: The already-loaded GT :class:`pycocotools.COCO` instance.
+            Required for list-format DT so that ``loadRes`` can copy images
+            and categories.
+
+    Returns:
+        pycocotools.COCO instance.
+
+    Raises:
+        ImportError: If pycocotools is not installed.
+        FileNotFoundError: If ``dt_source`` is a path that does not exist.
+        ValueError: If the source type is unsupported or the file content
+            is neither a list nor a dict.
+    """
+    _validate_coco_available()
+
+    # --- List in memory ---
+    if isinstance(dt_source, list):
+        return coco_gt.loadRes(dt_source)
+
+    # --- File path ---
+    if isinstance(dt_source, (str, Path)):
+        dt_path = Path(dt_source)
+        if not dt_path.exists():
+            raise FileNotFoundError(f"DT file not found: {dt_path}")
+        with open(dt_path, "r", encoding="utf-8") as f:
+            dt_data = json.load(f)
+        if isinstance(dt_data, list):
+            return coco_gt.loadRes(str(dt_path))
+        if isinstance(dt_data, dict):
+            _validate_coco_dict(dt_data)
+            return _create_coco_from_dict(dt_data)
+        raise ValueError(
+            f"DT file must contain a JSON dict or list, got: {type(dt_data).__name__}"
+        )
+
+    # --- Dict ---
+    if isinstance(dt_source, dict):
+        _validate_coco_dict(dt_source)
+        return _create_coco_from_dict(dt_source)
+
+    # --- DatasetAnnotations ---
+    if hasattr(dt_source, "format") and hasattr(dt_source, "images"):
+        return _load_coco_from_dataset(dt_source)
+
+    raise ValueError(
+        f"Unsupported DT source type: {type(dt_source).__name__}. "
+        "Expected str, Path, dict, list, or DatasetAnnotations."
     )
 
 

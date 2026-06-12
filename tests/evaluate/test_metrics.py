@@ -24,6 +24,11 @@ def dt_path():
     return TEST_DATA / "dt_coco.json"
 
 
+@pytest.fixture
+def dt_list_path():
+    return TEST_DATA / "dt_list.json"
+
+
 class TestBboxIoU:
     """Test bbox IoU computation."""
 
@@ -171,3 +176,16 @@ class TestComputePRF1:
         assert result.success is True
         # All 5 DTs should match since IoU threshold is 0
         assert result.overall.tp >= 4
+
+    def test_with_list_dt(self, gt_path, dt_list_path):
+        """List-format DT should produce same results as dict-format.
+
+        4 GT, 5 DT: one DT is far away → FP, rest match → TP=4, FP=1.
+        """
+        result = compute_pr_f1(gt_path, dt_list_path, iou_threshold=0.5)
+        assert result.success is True
+        assert result.overall.tp == 4
+        assert result.overall.fp == 1
+        assert result.overall.fn == 0
+        assert result.overall.precision == pytest.approx(0.8)
+        assert result.overall.recall == pytest.approx(1.0)

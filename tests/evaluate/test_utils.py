@@ -11,6 +11,7 @@ from dataflow.evaluate.utils import (
     _create_coco_from_dict,
     _extract_stats,
     _load_coco,
+    _load_dt,
     _validate_coco_available,
     _validate_coco_dict,
     _validate_dt_scores,
@@ -47,6 +48,17 @@ def gt_dict():
 @pytest.fixture
 def dt_dict():
     with open(TEST_DATA / "dt_coco.json") as f:
+        return json.load(f)
+
+
+@pytest.fixture
+def dt_list_path():
+    return TEST_DATA / "dt_list.json"
+
+
+@pytest.fixture
+def dt_list():
+    with open(TEST_DATA / "dt_list.json") as f:
         return json.load(f)
 
 
@@ -98,6 +110,64 @@ class TestLoadCoco:
     def test_load_unsupported_type(self):
         with pytest.raises(ValueError, match="Unsupported"):
             _load_coco([1, 2, 3])
+
+
+class TestLoadDt:
+    """Test _load_dt input normalization (list-format DT support)."""
+
+    def test_load_from_list_path(self, gt_path, dt_list_path):
+        coco_gt = _load_coco(gt_path)
+        coco_dt = _load_dt(dt_list_path, coco_gt)
+        assert len(coco_dt.getAnnIds()) == 5
+        # DT inherits images and categories from GT
+        assert len(coco_dt.getImgIds()) == 2
+        assert len(coco_dt.getCatIds()) == 2
+
+    def test_load_from_list_in_memory(self, gt_path, dt_list):
+        coco_gt = _load_coco(gt_path)
+        coco_dt = _load_dt(dt_list, coco_gt)
+        assert len(coco_dt.getAnnIds()) == 5
+        assert len(coco_dt.getImgIds()) == 2
+
+    def test_load_from_dict_path(self, gt_path, dt_path):
+        """Dict-format DT should still work via _load_dt."""
+        coco_gt = _load_coco(gt_path)
+        coco_dt = _load_dt(dt_path, coco_gt)
+        assert len(coco_dt.getAnnIds()) == 5
+        assert len(coco_dt.getImgIds()) == 2
+
+    def test_load_from_dict_in_memory(self, gt_path, dt_dict):
+        coco_gt = _load_coco(gt_path)
+        coco_dt = _load_dt(dt_dict, coco_gt)
+        assert len(coco_dt.getAnnIds()) == 5
+
+    def test_nonexistent_file(self, gt_path):
+        coco_gt = _load_coco(gt_path)
+        with pytest.raises(FileNotFoundError, match="DT file not found"):
+            _load_dt("/nonexistent/dt.json", coco_gt)
+
+    def test_unsupported_type(self, gt_path):
+        coco_gt = _load_coco(gt_path)
+        with pytest.raises(ValueError, match="Unsupported DT source"):
+            _load_dt(42, coco_gt)
+
+    def test_list_copies_gt_categories(self, gt_path, dt_list_path):
+        coco_gt = _load_coco(gt_path)
+        coco_dt = _load_dt(dt_list_path, coco_gt)
+        gt_cats = {c["id"]: c["name"] for c in coco_gt.loadCats(coco_gt.getCatIds())}
+        dt_cats = {c["id"]: c["name"] for c in coco_dt.loadCats(coco_dt.getCatIds())}
+        assert dt_cats == gt_cats
+
+    def test_list_copies_gt_images(self, gt_path, dt_list_path):
+        coco_gt = _load_coco(gt_path)
+        coco_dt = _load_dt(dt_list_path, coco_gt)
+        assert coco_dt.getImgIds() == coco_gt.getImgIds()
+
+    def test_list_annotations_have_scores(self, gt_path, dt_list_path):
+        coco_gt = _load_coco(gt_path)
+        coco_dt = _load_dt(dt_list_path, coco_gt)
+        for ann in coco_dt.loadAnns(coco_dt.getAnnIds()):
+            assert "score" in ann
 
 
 class TestCreateCocoFromDict:
