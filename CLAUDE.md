@@ -250,7 +250,7 @@ Evaluation of object detection and instance segmentation results, wrapping pycoc
 
 - `DetectionEvaluator(verbose, strict_mode, logger)`: Detection evaluation using bbox IoU (`iouType='bbox'`). Input: GT COCO JSON + DT COCO JSON (with `score` field).
 - `SegmentationEvaluator(verbose, strict_mode, logger)`: Segmentation evaluation using mask IoU (`iouType='segm'`). Input: GT COCO JSON + DT COCO JSON (with `segmentation` and `score` fields).
-- `compute_pr_f1(gt, dt, iou_threshold, confidence_threshold, iou_type)`: Single-threshold P/R/F1 using manual greedy matching. Independent of full COCOeval pipeline for speed.
+- `compute_pr_f1(gt, dt, iou_threshold, confidence_threshold, iou_type, method)`: Single-threshold P/R/F1 using manual greedy matching. Supports macro (default) and micro averaging for overall P/R/F1. Supports both bbox IoU and mask IoU (via pycocotools `mask` module). Independent of full COCOeval pipeline for speed.
 - `EvaluationResult`: Structured container with 12 COCO metrics, per-class breakdown (verbose mode), and stats.
 
 **Key data models**: `EvaluationMetrics` (12 standard metrics), `PerClassMetrics` (per-category TP/FP/FN/AP/P/R/F1), `PRF1Result` (single-threshold P/R/F1).
@@ -281,7 +281,7 @@ COCO prediction files exist in **two variants** (see `spec_coco_format.md` §10)
 - `main.py`: Entry point `cli` group with global `--version`/`-v` flag
 - `commands/convert.py`: 6 subcommands — `yolo2coco`, `yolo2labelme`, `labelme2yolo`, `labelme2coco`, `coco2yolo`, `coco2labelme`. `yolo2coco` supports `--prediction` for model output.
 - `commands/visualize.py`: 3 subcommands — `yolo`, `labelme`, `coco`
-- `commands/evaluate.py`: 2 subcommands — `detection`, `segmentation`
+- `commands/evaluate.py`: 2 subcommands — `detection`, `segmentation`. Both support `--prf1` (P/R/F1), `--prf1-iou`, `--prf1-conf`, and `--prf1-method` (macro|micro) options.
 - `commands/utils.py`: Shared decorators (`add_common_options`, `add_visualize_options`), validators, and `FormattedCommand` (custom Click Command with aligned argument display in --help)
 - `commands/exceptions.py`: Exception hierarchy with distinct exit codes:
   - `ParameterError` (exit 1), `InputError` (exit 2), `OutputError` (exit 3), `RuntimeCLIError` (exit 4), `SystemError` (exit 5)
@@ -395,6 +395,8 @@ dataflow-cv evaluate detection --verbose --prf1 assets/test_data/evaluate/gt_coc
 20. **`CocoAnnotationHandler.prediction` parameter**: When `True`, `write()` outputs list format (Variant B). When `False` (default), outputs full COCO dict (Variant A). The parameter is propagated from `YoloAndCocoConverter(prediction=True)` → `create_target_handler()` → `CocoAnnotationHandler`.
 21. **Prediction `score` field in list format**: In list-format prediction output, `score` is always included (not gated by `confidence < 1.0`). No `id` field is written — pycocotools `loadRes()` auto-assigns IDs.
 22. **Prediction conversion is `yolo2coco` only**: Only `yolo2coco` supports `--prediction`. `labelme2coco` has no prediction mode — LabelMe format has no structural label vs prediction distinction (unlike YOLO's 5/odd token vs 6/even token difference), so there is no alternative prediction source format to convert from. When preparing evaluation data, if your predictions are not in YOLO format, they are likely already in COCO-compatible list format (e.g., Detectron2, MMDetection output).
+23. **P/R/F1 macro vs micro averaging**: `compute_pr_f1(method="macro")` (default) computes overall P/R as the mean of per-class values — each category has equal weight. `method="micro"` computes overall P/R from summed TP/FP/FN across all categories — categories with more annotations have more weight. Per-class results are identical in both modes. `result.method` records which was used. `result.overall.tp/fp/fn` are always the summed totals.
+24. **Mask IoU for segmentation PRF1**: `compute_pr_f1(iou_type='segm')` uses pycocotools `mask` module (`mask.frPyObjects()` + `mask.merge()` for polygon→RLE, `mask.iou()` for batched IoU computation). Both polygon and RLE input formats are supported. Image dimensions are fetched from `coco_gt.loadImgs()` for polygon→RLE conversion. Crowd annotations are handled via `mask.iou()`'s built-in `iscrowd` parameter.
 
 ## Test Structure
 

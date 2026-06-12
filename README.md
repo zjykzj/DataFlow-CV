@@ -33,7 +33,7 @@ graph LR
 | 🔄 **Format Conversion** | Convert between YOLO, LabelMe, and COCO in any direction — 6 conversion paths, plus prediction file support (outputs standard list-format COCO predictions) |
 | 🎯 **Detection & Segmentation** | Handle both object detection (bbox) and instance segmentation (polygon/RLE) annotations |
 | 🎨 **Visualization** | Render annotations with OpenCV — color-coded classes, semi-transparent masks, display & save modes |
-| 📊 **Evaluation** | COCO-standard 12-metric output (mAP, AP50, AP75, AR) via pycocotools, with per-class breakdowns |
+| 📊 **Evaluation** | COCO-standard 12-metric output (mAP, AP50, AP75, AR) via pycocotools, with per-class breakdowns and macro/micro P/R/F1 |
 | 💻 **Command-line Interface** | Intuitive CLI with `convert`, `visualize`, and `evaluate` subcommands — positional args, rich `--help` |
 | 🐍 **Python API** | Programmatic access for integration into larger ML pipelines |
 | 📝 **Verbose Logging** | File-based debug logging with timestamps — toggle with `--verbose` |
@@ -178,8 +178,11 @@ dataflow-cv evaluate detection anno.json pred.json
 # Verbose per-class breakdown
 dataflow-cv evaluate detection --verbose anno.json pred.json
 
-# With P/R/F1 at IoU=0.5
+# With P/R/F1 at IoU=0.5 (default: macro averaging)
 dataflow-cv evaluate detection --prf1 --prf1-iou 0.5 anno.json pred.json
+
+# With P/R/F1 using micro averaging
+dataflow-cv evaluate detection --prf1 --prf1-method micro anno.json pred.json
 
 # Instance segmentation evaluation (mask IoU)
 dataflow-cv evaluate segmentation anno.json pred.json
@@ -232,9 +235,17 @@ evaluator = DetectionEvaluator(verbose=True)
 result = evaluator.evaluate("anno.json", "pred.json")
 print(f"AP: {result.metrics.ap:.3f}, AP50: {result.metrics.ap50:.3f}")
 
-# Quick P/R/F1 at IoU=0.5
+# Quick P/R/F1 at IoU=0.5 (default: macro averaging, bbox IoU)
 prf1 = compute_pr_f1("anno.json", "pred.json", iou_threshold=0.5)
-print(f"F1: {prf1.overall.f1_score:.3f}")
+print(f"Macro F1: {prf1.overall.f1_score:.3f}")
+
+# Micro averaging P/R/F1 (samples weighted equally)
+prf1 = compute_pr_f1("anno.json", "pred.json", method="micro")
+print(f"Micro F1: {prf1.overall.f1_score:.3f}")
+
+# Segmentation P/R/F1 (mask IoU)
+prf1 = compute_pr_f1("anno_segm.json", "pred_segm.json", iou_type="segm")
+print(f"Segm F1: {prf1.overall.f1_score:.3f}")
 ```
 
 > 📂 See the `samples/` directory for complete examples: `samples/visualize/` (YOLO, LabelMe, COCO demos), `samples/convert/` (conversion examples).
@@ -260,7 +271,7 @@ print(f"F1: {prf1.overall.f1_score:.3f}")
 - **Headless Support**: Use `--no-display` for servers/Docker; pair with `--save` to output visualization images without a window.
 - **Keyboard Shortcuts**: During visualization — `q`/`ESC` to exit, `Enter`/`Space` to advance, any other key to continue.
 - **Color Management**: Each class ID gets a unique color from an HSV-based palette (up to 1000 classes) for consistent visualization.
-- **Evaluation Metrics**: COCO-standard 12-metric output with optional per-class breakdown and P/R/F1 computation.
+- **Evaluation Metrics**: COCO-standard 12-metric output with optional per-class breakdown. P/R/F1 supports both macro (default) and micro averaging, and both bbox and mask IoU.
 - **Prediction Files**: YOLO prediction files use 6 tokens (detection) or even tokens (segmentation) vs 5/odd for labels. `--prediction` outputs a plain JSON list of annotation dicts — the standard prediction exchange format compatible with pycocotools `loadRes()`.
 
 ---
@@ -271,7 +282,7 @@ For detailed developer guidance including advanced test commands, debugging, and
 
 ### 🧪 Testing
 
-**370 tests, 75% code coverage (3912 statements).**
+**405 tests, 76% code coverage (3986 statements).**
 
 ```bash
 pytest                                    # All tests
@@ -288,7 +299,7 @@ pytest tests/evaluate/test_evaluator.py     # Single module
 | `dataflow/label/` | 68% | models (87%), coco_handler (75%), labelme_handler (70%), yolo_handler (58%) |
 | `dataflow/convert/` | 87% | yolo_and_coco (90%), labelme_and_yolo (86%), coco_and_labelme (87%), rle (80%), base (83%), utils (92%) |
 | `dataflow/visualize/` | 81% | yolo_vis (100%), labelme_vis (100%), coco_vis (97%), base (74%) |
-| `dataflow/evaluate/` | 88% | evaluator (100%), metrics (96%), result (99%), base (91%), utils (69%) |
+| `dataflow/evaluate/` | 87% | evaluator (100%), metrics (93%), result (99%), base (91%), utils (68%) |
 | `dataflow/cli/` | 59% | main (96%), convert cmd (48%), evaluate cmd (24%), visualize cmd (84%), utils (86%) |
 | `dataflow/util/` | 93% | logging (98%), file_util (84%) |
 
