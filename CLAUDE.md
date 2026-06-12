@@ -175,7 +175,7 @@ Source Format → Handler.iter_images() → ImageAnnotation → _convert_single_
   - `write_one()`: Single-image write — writes one `ImageAnnotation` to target format. Used by Convert streaming path for per-file output (YOLO `.txt`, LabelMe `.json`). COCO handler raises `NotImplementedError` (always batch).
 - `YoloHandler(label_dir, class_file, image_dir, **kwargs)`: Reads/writes `.txt` files (one per image). Supports detection (`class_id x y w h`) and segmentation (`class_id x1 y1 x2 y2 ...`).
 - `LabelMeHandler(label_dir, class_file=None, **kwargs)`: Reads/writes per-image `.json` files.
-- `CocoHandler(annotation_file, do_rle=False, **kwargs)`: Reads/writes a single COCO JSON file. Supports polygon and RLE segmentation. `write_one()` raises `NotImplementedError` — COCO is always batch output.
+- `CocoHandler(annotation_file, do_rle=False, prediction=False, **kwargs)`: Reads/writes a single COCO JSON file. Supports polygon and RLE segmentation. `write_one()` raises `NotImplementedError` — COCO is always batch output. When `prediction=True`, `write()` outputs a plain JSON list of annotation dicts (prediction format, Variant B per `spec_coco_format.md` §10.1) instead of a full COCO dict.
 
 ### Converters (`dataflow/convert/`)
 
@@ -257,7 +257,7 @@ Evaluation of object detection and instance segmentation results, wrapping pycoc
 
 **Verbose mode**: When `verbose=True`, computes per-class metrics and outputs a per-class breakdown table. Uses `VerboseLoggingOperations` for file logging (same pattern as Convert and Visualize).
 
-**Input formats**: Accepts `str/Path` (COCO JSON file path), `dict` (COCO dict), or `DatasetAnnotations` (Label module). All normalized to `pycocotools.COCO` objects internally.
+**DT input formats**: Accepts `str/Path` (COCO JSON file — full dict or plain list), `list` (in-memory annotation dicts), `dict` (COCO dict), or `DatasetAnnotations` (Label module). List-format DT is loaded via `coco_gt.loadRes()`, which copies images and categories from GT. GT input always requires a full COCO dict.
 
 **pycocotools dependency**: pycocotools is a required runtime dependency for evaluation. Guard with `try/except ImportError` and raise a clear error message if not installed.
 
@@ -270,7 +270,11 @@ YOLO prediction files (model output) differ from YOLO label files (ground truth)
 | **Label** (GT) | `class_id cx cy w h` | `class_id x1 y1 ... xn yn` | Odd (>0) |
 | **Prediction** (DT) | `class_id cx cy w h confidence` | `class_id x1 y1 ... xn yn confidence` | Even (>0) |
 
-Use `yolo2coco --prediction` to convert prediction files. The confidence value is preserved as the COCO `score` field. For segmentation predictions, polygon format is used by default (pycocotools handles polygon→RLE internally during evaluation).
+Use `yolo2coco --prediction` to convert prediction files. **Output format**: plain JSON list of annotation dicts (Variant B per `spec_coco_format.md` §10.1) — each entry contains `image_id`, `category_id`, `bbox`, `area`, `score`, and optionally `segmentation`. The list format matches standard model inference output (Detectron2, MMDetection) and is loaded by pycocotools' `loadRes()`. For segmentation predictions, polygon format is used by default (pycocotools handles polygon→RLE internally during evaluation).
+
+COCO prediction files exist in **two variants** (see `spec_coco_format.md` §10):
+- **Variant A**: Full COCO dict (`images`, `annotations`, `categories`) — produced by `yolo2coco` (label/annotation mode)
+- **Variant B**: Plain JSON list of annotation dicts — produced by `yolo2coco --prediction` (prediction mode), also the most common output from model inference frameworks
 
 ### CLI Structure (`dataflow/cli/`)
 
@@ -387,10 +391,9 @@ dataflow-cv evaluate detection --verbose --prf1 assets/test_data/evaluate/gt_coc
 16. **`write_one()` is part of the handler contract**: `BaseAnnotationHandler` declares it as abstract. COCO handler raises `NotImplementedError`; YOLO/LabelMe handlers write per-file. New handlers must implement it.
 17. **RLE warning is conditional**: Only added when `do_rle=True` AND the source dataset actually contains segmentation data (`handler.is_seg`). Detection-only datasets with `--do-rle` no longer produce misleading warnings.
 18. **`_log_error` delegates to `logging_util.logging_error_or_raise()`**: All three base classes use the same shared utility. When modifying error behavior, update the utility, not individual base classes.
-
-## Bug Report
-
-A comprehensive code review identified bugs across the codebase, documented in `~/.claude/plans/bug-p0-p1-p2-glowing-hellman.md`. Most have been fixed; remaining issues are tracked in the plan file. Refer to the plan file when working on related code areas.
+19. **COCO prediction file formats**: Prediction files exist in two variants. Variant A (full COCO dict) is the annotation-like format from `yolo2coco`. Variant B (plain JSON list) is the standard model-inference format from `yolo2coco --prediction`, Detectron2, MMDetection, etc. The Evaluate module accepts both via `_load_dt()`; the Convert module produces Variant A for labels and Variant B for predictions. See `spec_coco_format.md` §10.
+20. **`CocoAnnotationHandler.prediction` parameter**: When `True`, `write()` outputs list format (Variant B). When `False` (default), outputs full COCO dict (Variant A). The parameter is propagated from `YoloAndCocoConverter(prediction=True)` → `create_target_handler()` → `CocoAnnotationHandler`.
+21. **Prediction `score` field in list format**: In list-format prediction output, `score` is always included (not gated by `confidence < 1.0`). No `id` field is written — pycocotools `loadRes()` auto-assigns IDs.
 
 ## Test Structure
 

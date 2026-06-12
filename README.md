@@ -30,7 +30,7 @@ graph LR
 
 | | | |
 |:---|:---|:---|
-| 🔄 **Format Conversion** | Convert between YOLO, LabelMe, and COCO in any direction — 6 conversion paths, plus prediction file support with confidence scores |
+| 🔄 **Format Conversion** | Convert between YOLO, LabelMe, and COCO in any direction — 6 conversion paths, plus prediction file support (outputs standard list-format COCO predictions) |
 | 🎯 **Detection & Segmentation** | Handle both object detection (bbox) and instance segmentation (polygon/RLE) annotations |
 | 🎨 **Visualization** | Render annotations with OpenCV — color-coded classes, semi-transparent masks, display & save modes |
 | 📊 **Evaluation** | COCO-standard 12-metric output (mAP, AP50, AP75, AR) via pycocotools, with per-class breakdowns |
@@ -103,7 +103,7 @@ dataflow-cv convert coco2yolo input.json yolo_labels/
 # COCO → LabelMe
 dataflow-cv convert coco2labelme input.json labelme_json/
 
-# YOLO predictions → COCO (with confidence scores)
+# YOLO predictions → COCO (output: plain JSON list — prediction format)
 dataflow-cv convert yolo2coco --prediction images/ yolo_preds/ classes.txt pred.json
 
 # Options
@@ -131,10 +131,10 @@ dataflow-cv visualize yolo --verbose --no-display images/ yolo_labels/ classes.t
 
 Evaluate object detection and instance segmentation model outputs using COCO-standard metrics. Two COCO-format JSON files are required:
 
-| File | Role | Source |
-|------|------|--------|
-| **`anno.json`** | Ground Truth (GT) — reference annotations | `yolo2coco` (label mode) |
-| **`pred.json`** | Detection (DT) — model predictions with `score` | `yolo2coco --prediction` |
+| File | Role | Format | Source |
+|------|------|--------|--------|
+| **`anno.json`** | Ground Truth (GT) — reference annotations | Full COCO dict (`images`, `annotations`, `categories`) | `yolo2coco` (label mode) |
+| **`pred.json`** | Detection (DT) — model predictions | Plain JSON list of annotation dicts (with `score`) | `yolo2coco --prediction`, Detectron2, MMDetection |
 
 ##### ① Preparing Evaluation Data
 
@@ -152,7 +152,7 @@ dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt anno.json
 dataflow-cv convert yolo2coco --prediction images/ yolo_preds/ classes.txt pred.json
 ```
 
-> ⚠️ **Important**: YOLO label files (GT) use **odd** token counts, while prediction files (DT) use **even** token counts with a trailing `confidence`. The `--prediction` flag is required for DT — it preserves confidence as the COCO `score` field. Mixed label/prediction files in the same directory are not supported.
+> ⚠️ **Important**: YOLO label files (GT) use **odd** token counts, while prediction files (DT) use **even** token counts with a trailing `confidence`. The `--prediction` flag is required for DT — it outputs a **plain JSON list** of annotation dicts (not a full COCO dict with `images`/`categories`). Mixed label/prediction files in the same directory are not supported.
 
 ##### ② Detection vs Segmentation — Format Requirements
 
@@ -259,7 +259,7 @@ print(f"F1: {prf1.overall.f1_score:.3f}")
 - **Keyboard Shortcuts**: During visualization — `q`/`ESC` to exit, `Enter`/`Space` to advance, any other key to continue.
 - **Color Management**: Each class ID gets a unique color from an HSV-based palette (up to 1000 classes) for consistent visualization.
 - **Evaluation Metrics**: COCO-standard 12-metric output with optional per-class breakdown and P/R/F1 computation.
-- **Prediction Files**: YOLO prediction files (6 tokens detection, even tokens segmentation) differ from label files (5/odd tokens). Use `--prediction` flag.
+- **Prediction Files**: YOLO prediction files use 6 tokens (detection) or even tokens (segmentation) vs 5/odd for labels. `--prediction` outputs a plain JSON list of annotation dicts — the standard prediction exchange format compatible with pycocotools `loadRes()`.
 
 ---
 
