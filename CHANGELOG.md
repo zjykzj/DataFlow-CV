@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-06-12
+
+### Added
+
+- **Macro/micro averaging for P/R/F1**: `compute_pr_f1()` now accepts a `method` parameter (default `"macro"`, optional `"micro"`) to control overall P/R/F1 aggregation. Macro averaging treats each category equally; micro averaging weights by annotation count. The `PRF1Result.method` field records which method was used, and `format_prf1_output()` displays it.
+  - CLI: `--prf1-method` option (Choice: `macro|micro`, default `macro`) on `evaluate detection` and `evaluate segmentation` subcommands.
+  - Per-class results are identical between modes; only `overall` differs. TP/FP/FN in `overall` are always summed totals.
+- **Mask IoU support for segmentation PRF1**: `compute_pr_f1(iou_type='segm')` now works via pycocotools `mask` module (`mask.frPyObjects()` + `mask.merge()` for polygon→RLE, `mask.iou()` for batched computation). Both polygon and RLE input formats are supported. The previous `NotImplementedError` and CLI bbox fallback have been removed.
+
+### Changed
+
+- Specs: `spec_evaluate_metrics.md` v1.1 (macro/micro formulas + comparison), `spec_evaluate.md` v1.2 (mask IoU algorithm), `spec_cli.md` v1.1 (`--prf1-method` option).
+- Test count: 397 → 405.
+
 ## [1.2.0] - 2026-06-11
 
 ### Added
