@@ -255,13 +255,22 @@ def compute_pr_f1(
 
 ```
 1. Load GT and DT → COCO objects (same normalization as evaluate())
-2. For each (image, category):
-   a. Filter GT: all annotations for this (image, category)
+2. Exclude crowd annotations (iscrowd=1) from GT matching pool.
+   Crowd annotations do NOT generate FN when unmatched, and DTs
+   matching crowd annotations are ignored (not counted as TP or FP).
+   This follows pycocotools behavior (spec_evaluate_fundamentals.md §7.4).
+3. For each (image, category):
+   a. Filter GT: all non-crowd annotations for this (image, category)
    b. Filter DT: score ≥ confidence_threshold, sorted by score DESCENDING
    c. Run greedy matching (spec_evaluate_fundamentals.md §3.2) with iou_threshold
    d. Accumulate TP, FP, FN
-3. Compute per-class and overall P, R, F1
-4. Return PRF1Result
+4. Compute per-class P, R, F1 from per-class TP/FP/FN
+5. Compute overall P, R via macro averaging across all categories:
+     P_overall = (1/K) × Σ P_c
+     R_overall = (1/K) × Σ R_c
+   Then F1_overall = 2 × P_overall × R_overall / (P_overall + R_overall)
+   (Categories with zero TP/FP have P_c=0.0; zero TP/FN have R_c=0.0)
+6. Return PRF1Result with per_class dict and overall PRF1Values
 ```
 
 **Note**: Unlike `evaluate()`, this uses manual matching (not COCOeval). This is intentional — for single-threshold F1, the full COCOeval pipeline (10 IoU thresholds × 101 recall thresholds) is unnecessary overhead.

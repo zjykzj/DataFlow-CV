@@ -42,16 +42,18 @@ This gives N `(R, P)` points for the PR curve (§4).
 
 ### 2.3 Overall Precision & Recall (Multi-Class)
 
-Overall P and R are computed by aggregating TP, FP, FN across all categories:
+Overall P and R are computed via **macro averaging** across all K categories:
 
 ```
-TP_overall = sum(TP_c for c in categories)
-FP_overall = sum(FP_c for c in categories)
-FN_overall = sum(FN_c for c in categories)
-
-P_overall = TP_overall / (TP_overall + FP_overall)
-R_overall = TP_overall / (TP_overall + FN_overall)
+P_overall = (1/K) × Σ[c ∈ categories] P_c
+R_overall = (1/K) × Σ[c ∈ categories] R_c
 ```
+
+Where `P_c = TP_c / (TP_c + FP_c)` and `R_c = TP_c / (TP_c + FN_c)` for each category.
+Categories with zero TP and zero FP (no detections) have `P_c = 0.0` by convention.
+Categories with zero TP and zero FN (no ground truth) have `R_c = 0.0` by convention.
+
+Each category contributes equally regardless of its GT count. This prevents categories with many annotations from dominating the overall metric.
 
 ## 3. F1-Score
 
@@ -69,7 +71,9 @@ Range: `[0, 1]`. F1 = 1 only when both P and R are 1. F1 penalizes imbalance bet
 
 F1 is computed both:
 - **Per-class**: `F1_c = 2 × P_c × R_c / (P_c + R_c)`
-- **Overall**: `F1_overall = 2 × P_overall × R_overall / (P_overall + R_overall)`
+- **Overall (macro)**: `F1_overall = 2 × P_overall × R_overall / (P_overall + R_overall)`, where `P_overall` and `R_overall` are macro-averaged across categories (see §2.3).
+
+**Note**: The overall F1 is derived from macro-averaged P and R, NOT from micro-averaged TP/FP/FN totals. This is consistent with pycocotools-based scripts (e.g., `coco_pr_2.py`) and gives equal weight to each category regardless of instance count.
 
 ### 3.3 Single-Threshold F1 (PRF1 API)
 
