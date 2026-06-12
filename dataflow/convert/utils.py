@@ -353,12 +353,15 @@ def resolve_image_paths(
         source_path = normalize_path(image_ann.image_path, source_dir)
 
         # Generate target path (preserve relative structure)
-        if source_path.is_relative_to(source_dir):
+        # Path.is_relative_to() is Python 3.9+; use relative_to()
+        # (available in 3.8) with try/except for compatibility.
+        try:
             relative_path = source_path.relative_to(source_dir)
-            target_path = target_dir / relative_path
-        else:
+        except ValueError:
             # Cannot determine relative path, use filename
             target_path = target_dir / Path(image_ann.image_path).name
+        else:
+            target_path = target_dir / relative_path
 
         # Update image annotation
         updated_ann = type(image_ann)(
