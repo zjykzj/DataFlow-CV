@@ -1,6 +1,6 @@
 # Evaluate Module Specification
 
-> **Version:** 1.1
+> **Version:** 1.2
 > **Status:** Draft
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models), pycocotools
@@ -269,7 +269,10 @@ def compute_pr_f1(
 3. For each (image, category):
    a. Filter GT: all non-crowd annotations for this (image, category)
    b. Filter DT: score ≥ confidence_threshold, sorted by score DESCENDING
-   c. Run greedy matching (spec_evaluate_fundamentals.md §3.2) with iou_threshold
+   c. Run greedy matching (spec_evaluate_fundamentals.md §3.2) with iou_threshold.
+      Matching uses the appropriate IoU function:
+        - iou_type='bbox' → _compute_bbox_iou()
+        - iou_type='segm' → _compute_mask_iou() (via pycocotools mask module)
    d. Accumulate TP, FP, FN
 4. Compute per-class P, R, F1 from per-class TP/FP/FN (identical for both methods)
 5. Compute overall P, R via the selected aggregation method:
@@ -287,7 +290,7 @@ def compute_pr_f1(
 6. Return PRF1Result with per_class dict and overall PRF1Values
 ```
 
-**Note**: Unlike `evaluate()`, this uses manual matching (not COCOeval). This is intentional — for single-threshold F1, the full COCOeval pipeline (10 IoU thresholds × 101 recall thresholds) is unnecessary overhead.
+**Note**: Unlike `evaluate()`, this uses manual matching (not COCOeval). This is intentional — for single-threshold F1, the full COCOeval pipeline (10 IoU thresholds × 101 recall thresholds) is unnecessary overhead. When `iou_type='segm'`, mask IoU is computed via pycocotools ``mask`` module (``mask.iou()``), not via full ``COCOeval`` — only the IoU utility is used, not the full evaluation pipeline.
 
 ### 4.3 Module-Level Convenience Functions
 
