@@ -119,6 +119,26 @@ Follow conventional commit style:
 
 The AI model used in this project is DeepSeek-V4.0, not Claude Opus.
 
+### Version Bump Commits
+
+When committing a version bump, the commit body **must** include the relevant
+section from `CHANGELOG.md` so that `git log` shows what changed in each
+release:
+
+```bash
+git commit -m "$(cat <<'EOF'
+chore: bump version to X.Y.Z
+
+<CHANGELOG.md [X.Y.Z] section content, omitting the ### headers>
+
+Co-Authored-By: DeepSeek-V4.0 <noreply@deepseek.com>
+EOF
+)"
+```
+
+This ensures `git log --oneline --no-decorator` provides enough context to
+understand each release's contents without opening `CHANGELOG.md`.
+
 ## Architecture
 
 ### Format Ordering Convention
