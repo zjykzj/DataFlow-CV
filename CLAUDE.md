@@ -394,6 +394,7 @@ dataflow-cv evaluate detection --verbose --prf1 assets/test_data/evaluate/gt_coc
 19. **COCO prediction file formats**: Prediction files exist in two variants. Variant A (full COCO dict) is the annotation-like format from `yolo2coco`. Variant B (plain JSON list) is the standard model-inference format from `yolo2coco --prediction`, Detectron2, MMDetection, etc. The Evaluate module accepts both via `_load_dt()`; the Convert module produces Variant A for labels and Variant B for predictions. See `spec_coco_format.md` §10.
 20. **`CocoAnnotationHandler.prediction` parameter**: When `True`, `write()` outputs list format (Variant B). When `False` (default), outputs full COCO dict (Variant A). The parameter is propagated from `YoloAndCocoConverter(prediction=True)` → `create_target_handler()` → `CocoAnnotationHandler`.
 21. **Prediction `score` field in list format**: In list-format prediction output, `score` is always included (not gated by `confidence < 1.0`). No `id` field is written — pycocotools `loadRes()` auto-assigns IDs.
+22. **Prediction conversion is `yolo2coco` only**: Only `yolo2coco` supports `--prediction`. `labelme2coco` has no prediction mode — LabelMe format has no structural label vs prediction distinction (unlike YOLO's 5/odd token vs 6/even token difference), so there is no alternative prediction source format to convert from. When preparing evaluation data, if your predictions are not in YOLO format, they are likely already in COCO-compatible list format (e.g., Detectron2, MMDetection output).
 
 ## Test Structure
 

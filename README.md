@@ -153,6 +153,8 @@ dataflow-cv convert yolo2coco --prediction images/ yolo_preds/ classes.txt pred.
 ```
 
 > ⚠️ **Important**: YOLO label files (GT) use **odd** token counts, while prediction files (DT) use **even** token counts with a trailing `confidence`. The `--prediction` flag is required for DT — it outputs a **plain JSON list** of annotation dicts (not a full COCO dict with `images`/`categories`). Mixed label/prediction files in the same directory are not supported.
+>
+> ℹ️ **Note**: The `--prediction` flag is **only available for `yolo2coco`**. `labelme2coco` does not support prediction conversion — LabelMe files (.json) have no label vs prediction format distinction, so there is no equivalent prediction source format to convert from.
 
 ##### ② Detection vs Segmentation — Format Requirements
 
