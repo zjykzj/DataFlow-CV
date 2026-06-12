@@ -195,6 +195,7 @@ class TestYoloAndCocoConverter:
                 logger=converter.logger,
                 strict_mode=True,
                 do_rle=False,
+                prediction=False,
             )
             assert handler == mock_handler
 
@@ -414,6 +415,86 @@ class TestYoloAndCocoConverter:
         converter_reverse = YoloAndCocoConverter(source_to_target=False, verbose=True)
         assert converter_reverse.verbose is True
         assert converter_reverse.log_file_path is not None
+
+
+    @pytest.fixture
+    def temp_dir(self):
+        """Create a temporary directory for test output."""
+        temp_dir = tempfile.mkdtemp()
+        yield Path(temp_dir)
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_yolo_to_coco_prediction_output_is_list(self, temp_dir):
+        """prediction=True should produce a plain JSON list."""
+        pred_data_dir = (
+            Path(__file__).parent.parent.parent
+            / "assets" / "test_data" / "det" / "yolo_pred"
+        )
+        label_dir = str(pred_data_dir / "labels")
+        class_file = str(pred_data_dir / "classes.txt")
+        image_dir = str(
+            Path(__file__).parent.parent.parent
+            / "assets" / "test_data" / "det" / "yolo" / "images"
+        )
+        output_file = str(temp_dir / "pred.json")
+
+        converter = YoloAndCocoConverter(
+            source_to_target=True, prediction=True, verbose=False, strict_mode=False
+        )
+        result = converter.convert(label_dir, output_file, image_dir=image_dir, class_file=class_file)
+
+        assert result.success is True, f"Conversion failed: {result.errors}"
+
+        import json
+        with open(output_file, "r") as f:
+            data = json.load(f)
+        assert isinstance(data, list), f"Expected list, got {type(data)}"
+        assert len(data) > 0
+        for ann in data:
+            assert "score" in ann, f"Annotation missing 'score': {ann}"
+            assert "image_id" in ann
+            assert "category_id" in ann
+            assert "bbox" in ann
+
+    def test_yolo_to_coco_annotation_still_dict(self, temp_dir):
+        """prediction=False should still produce a full COCO dict."""
+        pred_data_dir = (
+            Path(__file__).parent.parent.parent
+            / "assets" / "test_data" / "det" / "yolo_pred"
+        )
+        label_dir = str(pred_data_dir / "labels")
+        class_file = str(pred_data_dir / "classes.txt")
+        image_dir = str(
+            Path(__file__).parent.parent.parent
+            / "assets" / "test_data" / "det" / "yolo" / "images"
+        )
+        output_file = str(temp_dir / "anno.json")
+
+        # Re-read labels WITHOUT prediction mode (will fail with 6-token lines)
+        # So use standard 5-token test data for annotation mode
+        std_data_dir = (
+            Path(__file__).parent.parent.parent
+            / "assets" / "test_data" / "det" / "yolo"
+        )
+        converter = YoloAndCocoConverter(
+            source_to_target=True, prediction=False, verbose=False, strict_mode=False
+        )
+        result = converter.convert(
+            str(std_data_dir / "labels"),
+            output_file,
+            image_dir=str(std_data_dir / "images"),
+            class_file=str(std_data_dir / "classes.txt"),
+        )
+
+        assert result.success is True, f"Conversion failed: {result.errors}"
+
+        import json
+        with open(output_file, "r") as f:
+            data = json.load(f)
+        assert isinstance(data, dict), f"Expected dict, got {type(data)}"
+        assert "images" in data
+        assert "annotations" in data
+        assert "categories" in data
 
 
 if __name__ == "__main__":

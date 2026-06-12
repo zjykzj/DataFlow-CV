@@ -240,6 +240,38 @@ class TestYoloAnnotationHandler:
         with pytest.raises(ValueError, match="Invalid YOLO label format"):
             handler._detect_annotation_type(line_items)
 
+    def test_detect_annotation_type_detection_prediction(self, sample_detection_data):
+        """prediction=True: 6-token detection → has_conf=True."""
+        handler = YoloAnnotationHandler(
+            label_dir=str(sample_detection_data["label_dir"]),
+            class_file=str(sample_detection_data["class_file"]),
+            image_dir=str(sample_detection_data["image_dir"]),
+            prediction=True,
+            strict_mode=True,
+        )
+        # 6 items: class_id + 4 coords + confidence
+        line_items = ["0", "0.5", "0.5", "0.2", "0.2", "0.85"]
+        is_det, is_seg, has_conf = handler._detect_annotation_type(line_items)
+        assert is_det is True
+        assert is_seg is False
+        assert has_conf is True
+
+    def test_detect_annotation_type_segmentation_prediction(self, sample_segmentation_data):
+        """prediction=True: 8-token segmentation → has_conf=True."""
+        handler = YoloAnnotationHandler(
+            label_dir=str(sample_segmentation_data["label_dir"]),
+            class_file=str(sample_segmentation_data["class_file"]),
+            image_dir=str(sample_segmentation_data["image_dir"]),
+            prediction=True,
+            strict_mode=True,
+        )
+        # 8 items: class_id + 6 coords (3 points) + confidence
+        line_items = ["0", "0.1", "0.1", "0.2", "0.1", "0.15", "0.2", "0.92"]
+        is_det, is_seg, has_conf = handler._detect_annotation_type(line_items)
+        assert is_det is False
+        assert is_seg is True
+        assert has_conf is True
+
     # === _parse_class_id unit tests ===
 
     def test_parse_class_id_accepts_integer_string(self):
@@ -887,3 +919,28 @@ class TestYoloAnnotationHandler:
 
         line = handler._object_to_yolo_line(obj, 100, 100)
         assert line is None  # Should return None because class_name not found
+
+    def test_object_to_yolo_line_with_confidence(self, sample_detection_data):
+        """confidence=0.95 should produce a 6-token detection line."""
+        handler = YoloAnnotationHandler(
+            label_dir=str(sample_detection_data["label_dir"]),
+            class_file=str(sample_detection_data["class_file"]),
+            image_dir=str(sample_detection_data["image_dir"]),
+            strict_mode=True,
+        )
+
+        bbox = BoundingBox(x=0.5, y=0.5, width=0.2, height=0.2)
+        obj = ObjectAnnotation(
+            class_id=0,
+            class_name="person",
+            bbox=bbox,
+            segmentation=None,
+            confidence=0.95,
+        )
+
+        line = handler._object_to_yolo_line(obj, 100, 100)
+        assert line is not None
+
+        parts = line.split()
+        assert len(parts) == 6  # 5 coords + confidence
+        assert float(parts[5]) == pytest.approx(0.95, abs=1e-6)

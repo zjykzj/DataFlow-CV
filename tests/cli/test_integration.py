@@ -199,3 +199,44 @@ def test_cli_error_handling():
         # Should fail with error about missing arguments (label_dir and class_file are now required positional arguments)
         assert result.exit_code != 0, "Should fail with missing arguments"
         assert "Missing argument" in result.output or "required" in result.output
+
+
+def test_yolo2coco_prediction_integration():
+    """Integration test for yolo2coco --prediction with real test data."""
+    runner = CliRunner()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_path = Path(tmpdir)
+
+        pred_data_dir = Path("assets/test_data/det/yolo_pred").resolve()
+        images_dir = Path("assets/test_data/det/yolo/images").resolve()
+        output_file = tmpdir_path / "pred.json"
+
+        result = runner.invoke(
+            cli,
+            [
+                "convert",
+                "yolo2coco",
+                "--prediction",
+                str(images_dir),
+                str(pred_data_dir / "labels"),
+                str(pred_data_dir / "classes.txt"),
+                str(output_file),
+            ]
+        )
+
+        assert result.exit_code == 0, f"Command failed: {result.output}"
+
+        assert output_file.exists(), f"Output file not created: {output_file}"
+
+        with open(output_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        # Prediction mode: output must be a JSON list, not dict
+        assert isinstance(data, list), f"Expected list, got {type(data)}"
+        assert len(data) > 0, "No annotations in prediction output"
+        for ann in data:
+            assert "score" in ann, f"Annotation missing 'score': {ann}"
+            assert "image_id" in ann
+            assert "category_id" in ann
+            assert "bbox" in ann

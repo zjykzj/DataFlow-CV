@@ -622,5 +622,90 @@ class TestCocoAnnotationHandler:
         )  # Actually write method saves and restores, so remains True
 
 
+    # ------------------------------------------------------------------
+    # Prediction mode write tests
+    # ------------------------------------------------------------------
+
+    def test_write_prediction_list_format(self, sample_coco_data, temp_dir):
+        """prediction=True should output a plain JSON list (not a dict)."""
+        handler = CocoAnnotationHandler(
+            annotation_file=sample_coco_data, strict_mode=True
+        )
+        read_result = handler.read()
+        assert read_result.success is True
+
+        pred_handler = CocoAnnotationHandler(
+            annotation_file=str(temp_dir / "pred.json"), prediction=True
+        )
+        write_result = pred_handler.write(read_result.data, str(temp_dir / "pred.json"))
+        assert write_result.success is True
+
+        with open(temp_dir / "pred.json", "r") as f:
+            data = json.load(f)
+        assert isinstance(data, list), f"Expected list, got {type(data)}"
+        assert len(data) > 0
+
+    def test_write_prediction_has_score(self, sample_coco_data, temp_dir):
+        """Every annotation in prediction output must have a 'score' field."""
+        handler = CocoAnnotationHandler(
+            annotation_file=sample_coco_data, strict_mode=True
+        )
+        read_result = handler.read()
+        assert read_result.success is True
+
+        pred_handler = CocoAnnotationHandler(
+            annotation_file=str(temp_dir / "pred.json"), prediction=True
+        )
+        write_result = pred_handler.write(read_result.data, str(temp_dir / "pred.json"))
+        assert write_result.success is True
+
+        with open(temp_dir / "pred.json", "r") as f:
+            data = json.load(f)
+        for ann in data:
+            assert "score" in ann, f"Annotation missing 'score': {ann}"
+
+    def test_write_prediction_no_top_level_keys(self, sample_coco_data, temp_dir):
+        """Prediction list must not have 'images' or 'categories' top-level keys."""
+        handler = CocoAnnotationHandler(
+            annotation_file=sample_coco_data, strict_mode=True
+        )
+        read_result = handler.read()
+        assert read_result.success is True
+
+        pred_handler = CocoAnnotationHandler(
+            annotation_file=str(temp_dir / "pred.json"), prediction=True
+        )
+        pred_handler.write(read_result.data, str(temp_dir / "pred.json"))
+
+        with open(temp_dir / "pred.json", "r") as f:
+            data = json.load(f)
+        assert isinstance(data, list)
+        for ann in data:
+            assert "image_id" in ann
+            assert "category_id" in ann
+            assert "bbox" in ann
+
+    def test_write_annotation_still_dict(self, sample_coco_data, temp_dir):
+        """prediction=False (default) should still output a full COCO dict."""
+        handler = CocoAnnotationHandler(
+            annotation_file=sample_coco_data, strict_mode=True
+        )
+        read_result = handler.read()
+        assert read_result.success is True
+
+        ann_handler = CocoAnnotationHandler(
+            annotation_file=str(temp_dir / "anno.json"), prediction=False
+        )
+        write_result = ann_handler.write(read_result.data, str(temp_dir / "anno.json"))
+        assert write_result.success is True
+
+        with open(temp_dir / "anno.json", "r") as f:
+            data = json.load(f)
+        assert isinstance(data, dict), f"Expected dict, got {type(data)}"
+        assert "images" in data
+        assert "annotations" in data
+        assert "categories" in data
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -35,13 +35,17 @@ from .models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
 class CocoAnnotationHandler(BaseAnnotationHandler):
     """Handler for COCO annotation format."""
 
-    def __init__(self, annotation_file: str, do_rle: bool = False, **kwargs):
+    def __init__(self, annotation_file: str, do_rle: bool = False, prediction: bool = False, **kwargs):
         """
         Initialize COCO handler.
 
         Args:
             annotation_file: Path to COCO JSON annotation file
             do_rle: Whether to output RLE format when writing (default False)
+            prediction: Whether to output prediction format (plain JSON list
+                of annotation dicts) instead of full COCO dict. When True,
+                ``score`` is always included in each annotation.
+                Default False (annotation format).
             **kwargs: Additional arguments for BaseAnnotationHandler
         """
         super().__init__(**kwargs)
@@ -52,6 +56,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         self.annotations = []
         self.dataset_info = {}
         self.output_rle = do_rle  # Whether to output RLE format when writing
+        self.prediction = prediction  # Whether to output prediction (list) format
 
     def read(self) -> AnnotationResult:
         """
@@ -627,6 +632,11 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
             img_id_counter += 1
 
+        # Prediction mode: output plain list of annotation dicts
+        if self.prediction:
+            return coco_annotations
+
+        # Annotation mode: output full COCO dict
         result = {
             "info": info,
             "images": images,
@@ -748,7 +758,6 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             image_id_val = int(img.image_id) if img.image_id.isdigit() else img_id
 
             ann_dict = {
-                "id": ann_id,
                 "image_id": image_id_val,
                 "category_id": obj.class_id,
                 "segmentation": segmentation,
@@ -756,9 +765,14 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 "bbox": bbox,
                 "iscrowd": iscrowd,
             }
+            if not self.prediction:
+                ann_dict["id"] = ann_id
 
-            # Include score for prediction output (confidence < 1.0)
-            if obj.confidence < 1.0:
+            # Include score for prediction output
+            # In prediction mode, always include score (explicit contract).
+            # In annotation mode, only include when confidence < 1.0
+            # (data-driven, for round-trip compatibility).
+            if self.prediction or obj.confidence < 1.0:
                 ann_dict["score"] = obj.confidence
 
             return ann_dict

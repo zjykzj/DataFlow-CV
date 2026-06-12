@@ -28,8 +28,9 @@ def convert_group():
 @click.option(
     "--prediction",
     is_flag=True,
-    help="Treat input as prediction format (with confidence scores). "
-         "Output COCO JSON will include 'score' fields.",
+    help="Treat input as prediction format (YOLO: 6 tokens for detection, "
+         "even tokens for segmentation). Output COCO as plain JSON list of "
+         "annotation dicts (prediction format, Variant B).",
 )
 def yolo2coco(
     ctx,

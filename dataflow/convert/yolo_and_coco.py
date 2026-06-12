@@ -187,6 +187,7 @@ class YoloAndCocoConverter(BaseConverter):
                 logger=self.logger,
                 strict_mode=self.strict_mode,
                 do_rle=do_rle,
+                prediction=self.prediction,
             )
         else:  # COCO → YOLO
             # For YOLO target, we need to create appropriate directory structure
