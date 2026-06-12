@@ -29,6 +29,16 @@ def dt_list_path():
     return TEST_DATA / "dt_list.json"
 
 
+@pytest.fixture
+def gt_segm_path():
+    return TEST_DATA / "gt_coco_segm.json"
+
+
+@pytest.fixture
+def dt_segm_path():
+    return TEST_DATA / "dt_coco_segm.json"
+
+
 class TestBboxIoU:
     """Test bbox IoU computation."""
 
@@ -311,3 +321,49 @@ class TestComputePRF1:
         assert result.overall.precision == pytest.approx(0.8, abs=1e-3)
         assert result.overall.recall == pytest.approx(1.0)
         assert result.overall.f1_score == pytest.approx(0.8889, abs=1e-3)
+
+    def test_segm_basic(self, gt_segm_path, dt_segm_path):
+        """Segmentation PRF1 should work with polygon test data."""
+        result = compute_pr_f1(
+            gt_segm_path, dt_segm_path, iou_threshold=0.5, iou_type="segm",
+        )
+        assert result.success is True
+        assert result.overall is not None
+        # Polygon rectangles match bbox shapes → same results as bbox
+        assert result.overall.tp == 4
+        assert result.overall.fp == 1
+        assert result.overall.fn == 0
+
+    def test_segm_per_class(self, gt_segm_path, dt_segm_path):
+        """Segm PRF1 should populate per-class structure."""
+        result = compute_pr_f1(
+            gt_segm_path, dt_segm_path, iou_threshold=0.5, iou_type="segm",
+        )
+        assert result.success is True
+        assert len(result.per_class) == 2
+        for cid, values in result.per_class.items():
+            assert values.precision >= 0.0
+            assert values.recall >= 0.0
+            assert values.f1_score >= 0.0
+            assert values.tp >= 0
+            assert values.fp >= 0
+            assert values.fn >= 0
+
+    def test_segm_micro(self, gt_segm_path, dt_segm_path):
+        """Segm PRF1 with micro averaging should work."""
+        result = compute_pr_f1(
+            gt_segm_path, dt_segm_path, iou_threshold=0.5,
+            iou_type="segm", method="micro",
+        )
+        assert result.success is True
+        assert result.method == "micro"
+        assert result.overall.precision == pytest.approx(0.8, abs=1e-3)
+        assert result.overall.recall == pytest.approx(1.0)
+
+    def test_segm_class_names(self, gt_segm_path, dt_segm_path):
+        """Segm PRF1 should include class names."""
+        result = compute_pr_f1(
+            gt_segm_path, dt_segm_path, iou_threshold=0.5, iou_type="segm",
+        )
+        assert result.success is True
+        assert result.class_names == {1: "cat", 2: "dog"}

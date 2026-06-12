@@ -300,26 +300,14 @@ def _print_segmentation_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_
     if prf1:
         from dataflow.evaluate import compute_pr_f1
         click.echo()
-        # Manual mask IoU not yet supported — fallback to bbox
-        try:
-            prf1_result = compute_pr_f1(
-                str(gt_json), str(dt_json),
-                iou_threshold=prf1_iou,
-                confidence_threshold=prf1_conf,
-                iou_type="segm",
-                method=prf1_method,
-                verbose=verbose, logger=logger,
-            )
-        except NotImplementedError:
-            logger.warning("Mask IoU P/R/F1 not yet supported in manual matching. Falling back to bbox IoU.")
-            prf1_result = compute_pr_f1(
-                str(gt_json), str(dt_json),
-                iou_threshold=prf1_iou,
-                confidence_threshold=prf1_conf,
-                iou_type="bbox",
-                method=prf1_method,
-                verbose=verbose, logger=logger,
-            )
+        prf1_result = compute_pr_f1(
+            str(gt_json), str(dt_json),
+            iou_threshold=prf1_iou,
+            confidence_threshold=prf1_conf,
+            iou_type="segm",
+            method=prf1_method,
+            verbose=verbose, logger=logger,
+        )
         click.echo(format_prf1_output(prf1_result))
 
 

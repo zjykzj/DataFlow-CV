@@ -62,9 +62,9 @@ def compute_pr_f1(
     Raises:
         ImportError: If pycocotools is not installed (needed to load COCO
             data).
-        NotImplementedError: If ``iou_type='segm'`` (mask IoU requires
-            pycocotools decoding which is not yet implemented in the
-            manual matching path).
+        NotImplementedError: If ``iou_type='segm'`` and pycocotools is
+            not installed (mask IoU requires the pycocotools ``mask``
+            module).
     """
     _validate_coco_available()
 
@@ -109,6 +109,11 @@ def compute_pr_f1(
 
         # Match per (image, category)
         for img_id in img_ids:
+            # Fetch image dimensions (needed for mask IoU polygon→RLE)
+            img_info = coco_gt.loadImgs([img_id])[0]
+            img_h = img_info["height"]
+            img_w = img_info["width"]
+
             for cat_id in cat_ids:
                 # GT for this (image, category)
                 gt_anns = coco_gt.loadAnns(
@@ -127,7 +132,10 @@ def compute_pr_f1(
                 ]
                 dt_anns.sort(key=lambda x: x.get("score", 0.0), reverse=True)
 
-                tp, fp, fn = _greedy_match(gt_anns, dt_anns, iou_threshold, iou_type)
+                tp, fp, fn = _greedy_match(
+                    gt_anns, dt_anns, iou_threshold, iou_type,
+                    img_h, img_w,
+                )
 
                 per_class_tp[cat_id] += tp
                 per_class_fp[cat_id] += fp
@@ -206,6 +214,73 @@ def compute_pr_f1(
 
 
 # ---------------------------------------------------------------------------
+# Mask IoU helpers
+# ---------------------------------------------------------------------------
+
+def _polygon_to_rle(segmentation, h: int, w: int):
+    """Convert COCO segmentation (polygon or RLE) to RLE dict for mask IoU.
+
+    Handles three cases:
+    - Already RLE (dict with ``counts``): return unchanged.
+    - Polygon (list of coord lists): convert via ``mask.frPyObjects()``
+      + ``mask.merge()``.
+    - Empty / None: return ``None``.
+
+    Args:
+        segmentation: COCO segmentation field value.
+        h: Image height in pixels.
+        w: Image width in pixels.
+
+    Returns:
+        RLE dict or ``None``.
+    """
+    if segmentation is None or not segmentation:
+        return None
+    if isinstance(segmentation, dict) and "counts" in segmentation:
+        return segmentation
+    if isinstance(segmentation, list):
+        from pycocotools import mask as maskUtils
+
+        rles = maskUtils.frPyObjects(segmentation, h, w)
+        return maskUtils.merge(rles)
+    return None
+
+
+def _compute_mask_iou(
+    dt_anns: List[Dict],
+    gt_anns: List[Dict],
+    h: int,
+    w: int,
+):
+    """Compute mask IoU matrix between DT and GT annotations.
+
+    Uses pycocotools ``mask.iou()`` which handles crowd annotations
+    natively (crowd IoU = intersection / dt_area).
+
+    Args:
+        dt_anns: Detection annotations (with ``segmentation`` field).
+        gt_anns: Ground truth annotations (with ``segmentation`` +
+            ``iscrowd`` fields).
+        h: Image height in pixels.
+        w: Image width in pixels.
+
+    Returns:
+        ``np.ndarray`` of shape ``(len(dt), len(gt))`` with IoU values
+        in [0, 1]. Returns all-zeros matrix if either list is empty.
+    """
+    from pycocotools import mask as maskUtils
+
+    dt_rles = [_polygon_to_rle(d.get("segmentation"), h, w) for d in dt_anns]
+    gt_rles = [_polygon_to_rle(g.get("segmentation"), h, w) for g in gt_anns]
+    gt_iscrowd = [g.get("iscrowd", 0) for g in gt_anns]
+
+    if not dt_rles or not gt_rles:
+        return np.zeros((len(dt_anns), len(gt_anns)))
+
+    return maskUtils.iou(dt_rles, gt_rles, gt_iscrowd)
+
+
+# ---------------------------------------------------------------------------
 # Matching logic
 # ---------------------------------------------------------------------------
 
@@ -214,6 +289,8 @@ def _greedy_match(
     dt_anns: List[Dict],
     iou_threshold: float,
     iou_type: str = "bbox",
+    img_h: int = 0,
+    img_w: int = 0,
 ) -> Tuple[int, int, int]:
     """Run greedy one-to-one matching for a single (image, category).
 
@@ -229,6 +306,8 @@ def _greedy_match(
         dt_anns: Detection annotations, sorted by score descending.
         iou_threshold: Minimum IoU for a match.
         iou_type: ``'bbox'`` or ``'segm'``.
+        img_h: Image height in pixels (required for ``iou_type='segm'``).
+        img_w: Image width in pixels (required for ``iou_type='segm'``).
 
     Returns:
         Tuple of ``(tp, fp, fn)`` counts.
@@ -245,11 +324,21 @@ def _greedy_match(
         # No DT → only non-crowd GT count as FN
         return 0, 0, len(non_crowd_gts)
 
+    # Pre-compute IoU matrix for segm (avoids repeated RLE conversion)
+    iou_matrix = None
+    crowd_iou_matrix = None
+    if iou_type == "segm":
+        iou_matrix = _compute_mask_iou(dt_anns, non_crowd_gts, img_h, img_w)
+        if crowd_gts:
+            crowd_iou_matrix = _compute_mask_iou(
+                dt_anns, crowd_gts, img_h, img_w,
+            )
+
     matched_gt: set = set()
     tp = 0
     fp = 0
 
-    for dt in dt_anns:
+    for dt_idx, dt in enumerate(dt_anns):
         best_iou = 0.0
         best_gt_idx = -1
 
@@ -258,14 +347,11 @@ def _greedy_match(
                 continue
 
             if iou_type == "bbox":
-                iou = _compute_bbox_iou(gt.get("bbox", []), dt.get("bbox", []))
-            else:
-                # Mask IoU not yet supported in manual matching path
-                raise NotImplementedError(
-                    "Mask IoU (iou_type='segm') is not yet implemented "
-                    "in the manual matching path. Use the full evaluation "
-                    "pipeline with SegmentationEvaluator instead."
+                iou = _compute_bbox_iou(
+                    gt.get("bbox", []), dt.get("bbox", []),
                 )
+            else:
+                iou = iou_matrix[dt_idx][gt_idx]
 
             if iou > best_iou:
                 best_iou = iou
@@ -276,9 +362,9 @@ def _greedy_match(
             matched_gt.add(best_gt_idx)
         elif crowd_gts:
             # Check if DT matches any crowd GT → ignore (not counted as FP)
-            crowd_match = any(
-                _compute_bbox_iou(crowd_gt.get("bbox", []), dt.get("bbox", [])) >= iou_threshold
-                for crowd_gt in crowd_gts
+            crowd_match = _check_crowd_match(
+                dt_idx, dt.get("bbox", []), crowd_gts,
+                iou_threshold, iou_type, crowd_iou_matrix,
             )
             if not crowd_match:
                 fp += 1
@@ -288,6 +374,38 @@ def _greedy_match(
 
     fn = len(non_crowd_gts) - len(matched_gt)
     return tp, fp, fn
+
+
+def _check_crowd_match(
+    dt_idx: int,
+    dt_bbox: List[float],
+    crowd_gts: List[Dict],
+    iou_threshold: float,
+    iou_type: str,
+    crowd_iou_matrix=None,
+) -> bool:
+    """Check whether a DT matches any crowd GT.
+
+    Args:
+        dt_idx: Index of the DT in the IoU matrix (segm only).
+        dt_bbox: DT bbox ``[x, y, w, h]`` (bbox only).
+        crowd_gts: Crowd GT annotations.
+        iou_threshold: Minimum IoU for a match.
+        iou_type: ``'bbox'`` or ``'segm'``.
+        crowd_iou_matrix: Pre-computed IoU matrix for segm (optional).
+
+    Returns:
+        ``True`` if the DT matches at least one crowd GT.
+    """
+    if iou_type == "segm" and crowd_iou_matrix is not None:
+        return any(
+            crowd_iou_matrix[dt_idx][c_idx] >= iou_threshold
+            for c_idx in range(len(crowd_gts))
+        )
+    return any(
+        _compute_bbox_iou(crowd_gt.get("bbox", []), dt_bbox) >= iou_threshold
+        for crowd_gt in crowd_gts
+    )
 
 
 def _compute_bbox_iou(bbox_a: List[float], bbox_b: List[float]) -> float:
