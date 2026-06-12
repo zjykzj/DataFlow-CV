@@ -256,13 +256,19 @@ This format is common in model inference output from frameworks like Detectron2,
 
 ### 10.2 The `score` Field
 
-The only structural difference is in the `annotations` array:
+For **Variant A** (full COCO dict), the only structural difference from
+annotation JSON is in the ``annotations`` array:
 
 | Field | Annotation JSON | Prediction JSON |
 |-------|----------------|----------------|
 | `score` | **Not present** | **Required** — float in [0, 1] |
 
-Prediction annotations must include a `score` field representing the model's confidence:
+For **Variant B** (plain annotation list), each annotation dict in the
+array also requires ``score`` — there is no ``images`` or ``categories``
+wrapper at all (see §10.1).
+
+Prediction annotations must include a ``score`` field representing the
+model's confidence:
 
 ```json
 {
