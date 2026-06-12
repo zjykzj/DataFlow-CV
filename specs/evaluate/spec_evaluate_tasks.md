@@ -19,16 +19,22 @@ Object detection evaluation measures how well predicted bounding boxes match gro
 
 ### 2.2 Input Format
 
-Both GT and DT must be in COCO JSON format. This is the **de facto standard exchange format** for detection evaluation, regardless of the original annotation format (YOLO, LabelMe, etc.).
+Both GT and DT use COCO JSON as the **de facto standard exchange format** for detection evaluation, regardless of the original annotation format (YOLO, LabelMe, etc.).
 
 **GT JSON requirements:**
-- `images` array with `id`, `width`, `height`
-- `categories` array with `id`, `name`
-- `annotations` array with `id`, `image_id`, `category_id`, `bbox`
+- Must be a full COCO dict with `images`, `categories`, and `annotations` arrays
+- `images`: each entry has `id`, `width`, `height`
+- `categories`: each entry has `id`, `name`
+- `annotations`: each entry has `id`, `image_id`, `category_id`, `bbox`
 
-**DT JSON requirements:**
-- Same structure as GT, plus `score` field in each annotation
-- `score`: float ∈ [0, 1], higher = more confident detection
+**DT JSON requirements — two valid formats:**
+
+1. **Full COCO dict** (same structure as GT) — each annotation additionally includes `score` (float ∈ [0,1]). This is the output of Convert module tools (e.g., `yolo2coco --prediction`).
+
+2. **Plain annotation list** (JSON array) — a top-level `[{...}, {...}, ...]` array where each entry is an annotation dict with `image_id`, `category_id`, `bbox`, and `score`. No `images` or `categories` arrays. This is the most common output from model inference frameworks (Detectron2, MMDetection, custom scripts). At load time, `images` and `categories` are sourced from GT via `COCO.loadRes()`.
+
+**Common to both formats:**
+- `score`: float ∈ [0, 1], higher = more confident detection (required on every DT annotation)
 
 ### 2.3 Matching Method
 

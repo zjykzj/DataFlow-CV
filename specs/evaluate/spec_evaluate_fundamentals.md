@@ -150,7 +150,7 @@ Note the `TN` cell is empty — see §4.2.
 
 ### 5.1 Detection Confidence
 
-Every detection in DT must carry a `score` field (float, [0, 1]) representing the model's confidence:
+Every detection in DT must carry a `score` field (float, [0, 1]) representing the model's confidence. Each DT annotation is a standalone dict:
 
 ```json
 {
@@ -160,6 +160,10 @@ Every detection in DT must carry a `score` field (float, [0, 1]) representing th
   "score": 0.95
 }
 ```
+
+These annotation dicts can be packaged in **either** of two container formats:
+- **Full COCO dict** — standard `{"images": [...], "annotations": [...], "categories": [...]}` with the same structure as GT plus `score` in each annotation.
+- **Plain JSON list** — a top-level `[{...}, {...}, ...]` array of annotation dicts. This is the most common format from model inference frameworks.
 
 Ground truth annotations do NOT have a `score` field.
 
@@ -275,8 +279,8 @@ COCO format restricts each DT to exactly one `category_id`. A detection cannot c
 
 An evaluation session MUST verify before computing:
 
-1. GT JSON is a valid COCO annotation file (passes `CocoHandler` validation)
-2. DT JSON contains `score` field in every annotation
+1. GT JSON is a valid COCO annotation file (dict with `images`, `annotations`, `categories` keys; passes `CocoHandler` validation)
+2. DT JSON is either a valid COCO dict (same structure as GT) **or** a plain JSON list of annotation dicts — both formats contain `score` in every annotation
 3. DT JSON `image_id` values exist in GT JSON images
 4. DT JSON `category_id` values exist in GT JSON categories
 5. At least one category has both GT and DT annotations (otherwise all metrics are undefined)

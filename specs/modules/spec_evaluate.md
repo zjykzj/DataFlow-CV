@@ -159,7 +159,9 @@ class BaseEvaluator(ABC):
 
 ```
 1. _load_coco(gt_source)        → pycocotools.COCO (GT)
-2. _load_coco(dt_source)        → pycocotools.COCO (DT)
+2. _load_dt(coco_gt, dt_source) → pycocotools.COCO (DT)
+   ├─ dt is list or list-file   → coco_gt.loadRes()
+   └─ dt is dict / COCO file    → _load_coco()
 3. validate_inputs(gt, dt)      → (valid, warnings)
 4. _create_cocoeval(gt, dt)     → COCOeval instance
 5. cocoeval.evaluate()          → per-image evaluation
@@ -206,19 +208,32 @@ Full COCO evaluation. Computes all 12 standard metrics.
 def evaluate(
     self,
     gt_source: Union[str, Path, DatasetAnnotations, Dict],
-    dt_source: Union[str, Path, DatasetAnnotations, Dict],
+    dt_source: Union[str, Path, DatasetAnnotations, Dict, List],
 ) -> EvaluationResult:
 ```
 
-**Input normalization** (`utils.py`):
+**GT input normalization** (`utils.py`):
 
 | `gt_source` type | Processing |
 |-----------------|-----------|
-| `str` / `Path` | Treat as file path → load via `CocoAnnotationHandler.read()` or `pycocotools.COCO(path)` |
+| `str` / `Path` | Treat as file path → load via `pycocotools.COCO(path)` |
 | `DatasetAnnotations` | Convert to COCO dict (if format ≠ COCO, raise error) |
 | `Dict` | Use directly as COCO dict |
 
-Same processing applies to `dt_source`.
+**DT input normalization** (`utils.py`):
+
+| `dt_source` type | Processing |
+|-----------------|-----------|
+| `str` / `Path` → file contains dict | Load via `pycocotools.COCO(path)` (full COCO dict with `images`/`annotations`/`categories`) |
+| `str` / `Path` → file contains list | Load via `coco_gt.loadRes(path)` (plain annotation array — images/categories sourced from GT) |
+| `DatasetAnnotations` | Convert to COCO dict (if format ≠ COCO, raise error) |
+| `Dict` | Use directly as COCO dict |
+| `List` | Pass directly to `coco_gt.loadRes(list)` |
+
+DT loading is asymmetric from GT loading because prediction files are commonly
+JSON arrays (list of annotation dicts with `bbox`/`score`). pycocotools provides
+`loadRes()` specifically for this case — it copies `images` and `categories` from
+the GT dataset and indexes the annotation list.
 
 ### 4.2 `compute_pr_f1()` — Standalone Function (`metrics.py`)
 
@@ -280,9 +295,20 @@ Additional fields for segmentation evaluation:
 
 ### 5.2 DT COCO JSON Requirements
 
-Same structure as GT, plus:
+DT can be provided in **either** of two formats:
 
-- `annotations[].score`: float ∈ [0, 1] (**required** for every DT annotation)
+**Format A — Full COCO dict** (same structure as GT):
+- `images` array: each image has `id` (int), `file_name` (str), `width` (int), `height` (int)
+- `categories` array: each category has `id` (int), `name` (str)
+- `annotations` array: each annotation has `id` (int), `image_id` (int), `category_id` (int), `bbox` ([x, y, w, h]), **`score`** (float ∈ [0,1])
+
+**Format B — Plain annotation list** (JSON array):
+- A top-level JSON array of annotation objects, each containing `image_id`, `category_id`, `bbox`, and `score`
+- No `images` or `categories` arrays — these are sourced from GT at load time via `loadRes()`
+- This is the most common output format from model inference (Detectron2, MMDetection, custom training scripts, etc.)
+
+**Common requirement regardless of format:**
+- Every DT annotation must include `score`: float ∈ [0, 1]
 
 If any DT annotation is missing `score`, validation fails.
 
@@ -431,23 +457,44 @@ COCOeval.accumulate() fails → EvaluationResult(success=False, errors=[...])
 
 ### 10.1 `_load_coco(source) → COCO`
 
-Internal utility that normalizes all input types to a `pycocotools.COCO` instance:
+Internal utility that normalizes GT input types to a `pycocotools.COCO` instance.
+For DT with list format, loading is routed through `coco_gt.loadRes()` instead
+(see §4.1 DT input normalization).
 
 ```
 source is str/Path:
-  → Load file via CocoAnnotationHandler.read() to validate
-  → Extract COCO dict from DatasetAnnotations.dataset_info["raw"]
-  → Alternatively: direct pycocotools.COCO(path) (uses pycocotools' built-in loader)
+  → Load file via pycocotools.COCO(path)
+  → File must contain a valid COCO dict (images, annotations, categories)
 
 source is DatasetAnnotations:
   → Verify format == COCO
   → Reconstruct COCO dict from DatasetAnnotations fields
-  → pycocotools.COCO() with in-memory dict (via loadRes-like approach)
+  → pycocotools.COCO() with in-memory dict (via temporary JSON file round-trip)
 
 source is Dict:
   → Validate required keys ("images", "annotations", "categories")
-  → pycocotools.COCO() with in-memory dict
+  → pycocotools.COCO() with in-memory dict (via temporary JSON file round-trip)
 ```
+
+**DT list-format handling** (in `BaseEvaluator._load_dt()`):
+
+When `dt_source` is a `list` (in-memory) or a file path whose content is a JSON
+array (not a dict), loading is delegated to `coco_gt.loadRes()`:
+
+```
+dt_source is list:
+  → coco_gt.loadRes(list)
+
+dt_source is str/Path → file contains list:
+  → coco_gt.loadRes(str(path))
+
+dt_source is str/Path → file contains dict:
+  → _load_coco(path)   (standard path, same as GT)
+```
+
+`loadRes()` copies `images` and `categories` from the GT COCO object and indexes
+the provided annotation list. This is pycocotools' designated API for loading
+prediction results in list format.
 
 ### 10.2 DT Score Extraction
 
