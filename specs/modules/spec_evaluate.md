@@ -166,7 +166,7 @@ class BaseEvaluator(ABC):
 4. _create_cocoeval(gt, dt)     → COCOeval instance
 5. cocoeval.evaluate()          → per-image evaluation
 6. cocoeval.accumulate()        → accumulate into PR arrays
-7. cocoeval.summarize()         → compute 12 stats → self.stats
+7. cocoeval.summarize()         → compute 12 stats → self.stats (stdout suppressed)
 8. Extract metrics → EvaluationMetrics from cocoeval.stats
 9. If verbose: _compute_per_class() → per-class details
 10. Build EvaluationResult
