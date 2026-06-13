@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-06-13
+
+### Added
+
+- **Unified `LogManager`** (`dataflow/util/logging.py`): Single entry point replacing `LoggingOperations` and `VerboseLoggingOperations`. `LogConfig` (frozen dataclass with `name`, `verbose`, `log_dir`) passed to all module constructors via `log_config` parameter. Console handler always active (INFO, compact format); file handler (DEBUG, RotatingFileHandler 10MB×5) when `verbose=True`.
+- **Per-module log templates**: `dataflow/{convert,visualize,evaluate}/log_templates.py` with structured formatting functions (`format_convert_header`, `format_viz_progress`, `format_metric_table`, etc.).
+- **CLI `--log-dir` option**: Configurable log file output directory (default `./logs`) on `convert` and `visualize` commands.
+- **`tests/conftest.py`**: Shared session-scoped fixtures (`project_root`, `test_data_dir`, `test_data_det`, `test_data_seg`, `test_data_evaluate`).
+- **CLI evaluate tests** (`tests/cli/test_evaluate.py`): 16 tests covering `detection` and `segmentation` subcommands with all flags.
+- **`SegmentationEvaluator` success path tests**: 3 tests with real segmentation data (was only tested for failure on bbox-only data).
+- **Evaluate samples** (`samples/evaluate/`): `detection_demo.py` and `segmentation_demo.py` with `--prf1` support.
+
+### Changed
+
+- **Logging ownership**: All log output is produced by modules, not CLI. CLI passes `LogConfig` to module constructors and uses `click.echo()` for terminal UI. No duplicate log files.
+- **`_log_error` inlined per base class**: Each base class has its own implementation (no shared utility). Label: ERROR + raise in strict mode. Convert: same. Visualize: ERROR (never raises). Evaluate: ERROR + always raise.
+- **`--prf1` redesign**: Now computes P/R/F1 only (skips COCOeval entirely). mAP and P/R/F1 are mutually exclusive CLI paths. Run twice for both metrics.
+- **Result objects**: `log_file_path` field renamed to `log_path` in `ConversionResult`, `VisualizationResult`, `EvaluationResult`.
+- **README redesigned**: Header with format badges + 4-row feature table replacing Mermaid diagram; `Features` section removed (merged into header + Key Concepts); Installation simplified.
+- **Test count**: 405 → 418.
+
+### Removed
+
+- **`LoggingOperations` / `VerboseLoggingOperations`** (`dataflow/util/logging_util.py`): Replaced by `LogManager`.
+- **`FileOperations`** (`dataflow/util/file_util.py`): Removed — file I/O uses inline `pathlib.Path` methods directly.
+- **`logging_error_or_raise()`**: Inlined into each base class's `_log_error`.
+- **`samples/label/`**: Handler demos removed (not user entry points).
+- **`samples/util/`**: Demos for deleted classes removed.
+- **`pylint` / `docs` optional-deps / `package-data`**: Cleaned from `pyproject.toml`.
+
+### Fixed
+
+- **All 10 convert/visualize samples**: Broken by previous bulk script — rewritten with clean `LogConfig` pattern, no `sys.path` hacks.
+- **Duplicate log files**: Convert CLI path no longer creates a second logger internally.
+
 ## [1.3.0] - 2026-06-12
 
 ### Added
