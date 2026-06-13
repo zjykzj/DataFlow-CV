@@ -172,6 +172,25 @@ YOLO → LabelMe → COCO
 - Format-specific files where self-reference is natural (e.g., `spec_coco_format.md` comparison tables start with COCO)
 - Conversion direction descriptions that follow an actual pipeline sequence
 
+### Module Ordering Convention
+
+When Convert, Visualize, and Evaluate appear together in any listing (docs, tables, `--help` output, imports, etc.), they **must** follow this order:
+
+```
+Convert → Visualize → Evaluate
+```
+
+**Rationale**: Logical workflow progression — **Convert** transforms data into the format you need, **Visualize** lets you inspect it to verify correctness, and **Evaluate** computes metrics on model predictions against ground truth. This maps directly to the user's mental pipeline: prepare data → verify → measure.
+
+**Where this applies:**
+- README sections and the three-column feature table
+- CLI top-level command order in `--help` output (registration order = display order via `NaturalOrderGroup`)
+- Spec documents (Modules layer ordering, reading order)
+- Import order and docstring listings
+
+**Where this does NOT apply:**
+- Individual module specs where self-reference is natural (e.g., `spec_visualize.md` discusses its own pipeline without referencing Evaluate first)
+
 ### Data Flow Pipeline
 
 **Batch path (used by Convert→COCO, Evaluate):**
