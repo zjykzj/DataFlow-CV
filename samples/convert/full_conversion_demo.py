@@ -1,161 +1,69 @@
 #!/usr/bin/env python3
-"""
-Complete format conversion chain example
-
-Demonstrates how to convert LabelMe format to YOLO, then to COCO, then back to LabelMe,
-verifying lossless conversion (except for RLE precision loss).
-
-Usage:
-    python full_conversion_demo.py [--verbose]
-
-Examples:
-    python full_conversion_demo.py           # Normal mode
-    python full_conversion_demo.py --verbose # Verbose logging mode
-"""
+"""Full conversion chain demo: LabelMe → YOLO → COCO → LabelMe."""
 
 import argparse
-import shutil
-import sys
-import tempfile
 from pathlib import Path
 
-# Add project root directory to Python path
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
-
-from dataflow.convert import (LabelMeAndYoloConverter, YoloAndCocoConverter,
-                              CocoAndLabelMeConverter)
+from dataflow.convert import (
+    CocoAndLabelMeConverter,
+    LabelMeAndYoloConverter,
+    YoloAndCocoConverter,
+)
 from dataflow.util.logging import LogConfig, LogManager
+
+project_root = Path(__file__).parent.parent.parent
 
 
 def main():
-    """Main function"""
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(description="Complete format conversion chain example")
-    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging mode")
+    parser = argparse.ArgumentParser(description="Full conversion chain demo")
+    parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
-    # Configure logging
-    if args.verbose:
-        log_config = LogConfig(name="demo", verbose=True, log_dir=Path("logs"))
-    log_manager = LogManager(log_config)
-    logger = log_manager.logger
-    log_path = log_manager.log_path
-        )
-        logger.info("Verbose logging mode enabled")
-        logger.info(f"Verbose log saved to: {log_file_path}")
-    else:
-        log_config = LogConfig(name="demo", log_dir=Path("logs"))
-    log_manager = LogManager(log_config)
-    logger = log_manager.logger
-        logger = log_manager.logger
+    log_config = LogConfig(name="full_chain", verbose=args.verbose)
+    logger = LogManager(log_config).logger
 
-    # Create temporary working directory
-    temp_dir = Path(tempfile.mkdtemp(prefix="dataflow_convert_"))
-    logger.info(f"Created temporary working directory: {temp_dir}")
+    data_dir = project_root / "assets" / "test_data" / "det" / "labelme"
+    out = project_root / "samples" / "convert" / "output" / "full_chain"
+    out.mkdir(parents=True, exist_ok=True)
 
-    try:
-        # Example data paths
-        data_dir = project_root / "assets" / "test_data" / "det" / "labelme"
-        class_file = data_dir / "classes.txt"
+    if not data_dir.exists():
+        logger.error(f"Data not found: {data_dir}")
+        return
 
-        if not data_dir.exists():
-            logger.error(f"Data directory does not exist: {data_dir}")
-            return
+    # LabelMe → YOLO
+    logger.info("── LabelMe → YOLO")
+    r1 = LabelMeAndYoloConverter(source_to_target=True, log_config=log_config).convert(
+        source_path=str(data_dir),
+        target_path=str(out / "yolo"),
+        class_file=str(data_dir / "classes.txt"),
+    )
+    if not r1.success:
+        return logger.error(f"✗ {r1.errors[0]}")
+    logger.info(f"  ✓ {r1.num_images_converted} images")
 
-        logger.info("=" * 50)
-        logger.info("Complete format conversion chain example")
-        logger.info("=" * 50)
+    # YOLO → COCO
+    logger.info("── YOLO → COCO")
+    r2 = YoloAndCocoConverter(source_to_target=True, log_config=log_config).convert(
+        source_path=str(out / "yolo" / "labels"),
+        target_path=str(out / "coco.json"),
+        class_file=str(data_dir / "classes.txt"),
+        image_dir=str(data_dir),
+    )
+    if not r2.success:
+        return logger.error(f"✗ {r2.errors[0]}")
+    logger.info(f"  ✓ {r2.num_images_converted} images → coco.json")
 
-        # Step 1: LabelMe → YOLO
-        logger.info("\n1. LabelMe → YOLO conversion")
-        yolo_dir = temp_dir / "yolo_output"
+    # COCO → LabelMe
+    logger.info("── COCO → LabelMe")
+    r3 = CocoAndLabelMeConverter(source_to_target=True, log_config=log_config).convert(
+        source_path=str(out / "coco.json"),
+        target_path=str(out / "labelme"),
+    )
+    if not r3.success:
+        return logger.error(f"✗ {r3.errors[0]}")
+    logger.info(f"  ✓ {r3.num_images_converted} images → labelme/")
 
-        converter1 = LabelMeAndYoloConverter(
-            source_to_target=True, strict_mode=True, logger=logger
-        )
-
-        result1 = converter1.convert(
-            source_path=str(data_dir),
-            target_path=str(yolo_dir),
-            class_file=str(class_file),
-        )
-
-        if not result1.success:
-            logger.error("LabelMe→YOLO conversion failed")
-            return
-
-        # Step 2: YOLO → COCO
-        logger.info("\n2. YOLO → COCO conversion")
-        coco_file = temp_dir / "coco_output.json"
-
-        converter2 = YoloAndCocoConverter(
-            source_to_target=True, strict_mode=True, logger=logger
-        )
-
-        result2 = converter2.convert(
-            source_path=str(yolo_dir / "labels"),
-            target_path=str(coco_file),
-            class_file=str(yolo_dir / "classes.txt"),
-            image_dir=str(yolo_dir / "images"),
-            do_rle=False,  # No RLE to ensure lossless
-        )
-
-        if not result2.success:
-            logger.error("YOLO→COCO conversion failed")
-            return
-
-        # Step 3: COCO → LabelMe
-        logger.info("\n3. COCO → LabelMe conversion")
-        labelme_dir = temp_dir / "labelme_output"
-
-        converter3 = CocoAndLabelMeConverter(
-            source_to_target=True, strict_mode=True, logger=logger
-        )
-
-        result3 = converter3.convert(
-            source_path=str(coco_file), target_path=str(labelme_dir)
-        )
-
-        if not result3.success:
-            logger.error("COCO→LabelMe conversion failed")
-            return
-
-        # Verify results
-        logger.info("\nConversion chain completed!")
-        logger.info(f"Original LabelMe file count: {len(list(data_dir.glob('*.json')))}")
-        logger.info(f"Final LabelMe file count: {len(list(labelme_dir.glob('*.json')))}")
-
-        # Simple verification: file count consistency
-        original_count = len(list(data_dir.glob("*.json")))
-        final_count = len(list(labelme_dir.glob("*.json")))
-
-        if original_count == final_count:
-            logger.info("✓ File counts match, conversion chain complete")
-        else:
-            logger.warning(
-                f"⚠ File counts differ: original={original_count}, final={final_count}"
-            )
-
-        logger.info(f"\nTemporary working directory: {temp_dir}")
-        logger.info("(Will be automatically cleaned up after program ends)")
-
-        # Print log file paths from results if verbose mode
-        if args.verbose:
-            if result1.log_file_path:
-                logger.info(f"Verbose log file from LabelMe→YOLO conversion: {result1.log_file_path}")
-            if result2.log_file_path:
-                logger.info(f"Verbose log file from YOLO→COCO conversion: {result2.log_file_path}")
-            if result3.log_file_path:
-                logger.info(f"Verbose log file from COCO→LabelMe conversion: {result3.log_file_path}")
-
-    finally:
-        # Clean up temporary directory (may be kept for debugging in actual use)
-        if temp_dir.exists():
-            shutil.rmtree(temp_dir)
-            logger.info(f"Cleaned up temporary directory: {temp_dir}")
-
-    logger.info("\nExample completed!")
+    logger.info("Full chain complete ✓")
 
 
 if __name__ == "__main__":

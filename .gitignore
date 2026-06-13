@@ -666,3 +666,4 @@ cython_debug/
 # Worktrees for isolated development
 .worktrees/
 
+samples/**/output/

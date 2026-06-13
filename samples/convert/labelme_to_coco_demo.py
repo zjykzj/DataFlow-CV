@@ -1,134 +1,35 @@
 #!/usr/bin/env python3
-"""
-LabelMe to COCO format conversion example
-
-Demonstrates how to use CocoAndLabelMeConverter to convert LabelMe format annotations to COCO format.
-
-Usage:
-    python labelme_to_coco_demo.py [--verbose]
-
-Examples:
-    python labelme_to_coco_demo.py           # Normal mode
-    python labelme_to_coco_demo.py --verbose # Verbose logging mode
-"""
+"""LabelMe → COCO conversion demo."""
 
 import argparse
-import sys
 from pathlib import Path
-
-# Add project root directory to Python path
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 from dataflow.convert import CocoAndLabelMeConverter
 from dataflow.util.logging import LogConfig, LogManager
 
+project_root = Path(__file__).parent.parent.parent
+
 
 def main():
-    """Main function"""
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(description="LabelMe to COCO format conversion example")
-    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging mode")
+    parser = argparse.ArgumentParser(description="LabelMe → COCO conversion")
+    parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
-    # Configure logging
-    if args.verbose:
-        log_config = LogConfig(name="demo", verbose=True, log_dir=Path("logs"))
-    log_manager = LogManager(log_config)
-    logger = log_manager.logger
-    log_path = log_manager.log_path
-        )
-        logger.info("Verbose logging mode enabled")
-        logger.info(f"Verbose log saved to: {log_file_path}")
-    else:
-        log_config = LogConfig(name="demo", log_dir=Path("logs"))
-    log_manager = LogManager(log_config)
-    logger = log_manager.logger
-        logger = log_manager.logger
+    log_config = LogConfig(name="labelme2coco", verbose=args.verbose)
+    logger = LogManager(log_config).logger
 
-    # Example data paths
-    data_dir = project_root / "assets" / "test_data" / "det" / "labelme"
-    class_file = data_dir / "classes.txt"
-    output_dir = project_root / "samples" / "convert" / "output" / "labelme_to_coco"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    coco_file = output_dir / "annotations.json"
+    data_dir = project_root / "assets" / "test_data" / "det/labelme"
+    output_file = project_root / "samples/convert/output/labelme2coco.json"
+    output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    if not data_dir.exists():
-        logger.error(f"Data directory does not exist: {data_dir}")
-        logger.info("Please ensure sample data is prepared")
-        return
-
-    if not class_file.exists():
-        logger.error(f"Class file does not exist: {class_file}")
-        return
-
-    logger.info("=" * 50)
-    logger.info("LabelMe to COCO format conversion example")
-    logger.info("=" * 50)
-
-    # Create converter (LabelMe→COCO direction)
-    logger.info("Creating LabelMe→COCO converter")
-    converter = CocoAndLabelMeConverter(
-        source_to_target=False,  # LabelMe→COCO
-        log_config=LogConfig(name="demo", log_dir=Path("logs")),  # Verbose logging mode
-        strict_mode=True,
-        logger=logger,
-    )
-
-    # Perform conversion (no RLE, keep polygon format)
-    logger.info(f"Performing conversion (do_rle=False):")
-    logger.info(f"  Source directory: {data_dir}")
-    logger.info(f"  Target file: {coco_file}")
-    logger.info(f"  Class file: {class_file}")
-
+    converter = CocoAndLabelMeConverter(source_to_target=False, log_config=log_config)
     result = converter.convert(
         source_path=str(data_dir),
-        target_path=str(coco_file),
-        class_file=str(class_file),
-        do_rle=False,  # No RLE, output polygon point list
+        target_path=str(output_file),
+        class_file=str(data_dir / "classes.txt"),
     )
 
-    # Display results
-    logger.info("\nConversion results:")
-    logger.info(f"  Success: {result.success}")
-    logger.info(f"  Images converted: {result.num_images_converted}")
-    logger.info(f"  Objects converted: {result.num_objects_converted}")
-
-    if result.success:
-        logger.info(f"  Output file: {coco_file}")
-        logger.info(
-            f"  File size: {coco_file.stat().st_size if coco_file.exists() else 0} bytes"
-        )
-
-        # Display COCO dataset information
-        if "dataset_info" in result.metadata:
-            info = result.metadata["dataset_info"]
-            logger.info(f"  COCO dataset information:")
-            logger.info(f"    - Description: {info.get('description', 'N/A')}")
-            logger.info(f"    - Version: {info.get('version', 'N/A')}")
-            logger.info(f"    - Contributor: {info.get('contributor', 'N/A')}")
-            logger.info(f"    - Creation date: {info.get('year', 'N/A')}")
-
-        if "categories" in result.metadata:
-            categories = result.metadata["categories"]
-            logger.info(f"  Generated categories: {len(categories)}")
-            for cat_id, cat_name in categories.items():
-                logger.info(f"    - ID {cat_id}: {cat_name}")
-    else:
-        logger.error(f"  Error count: {len(result.errors)}")
-        for error in result.errors:
-            logger.error(f"    - {error}")
-
-    if result.warnings:
-        logger.warning(f"  Warning count: {len(result.warnings)}")
-        for warning in result.warnings:
-            logger.warning(f"    - {warning}")
-
-    # Print log file path from result if verbose mode
-    if args.verbose and result.log_file_path:
-        logger.info(f"Verbose log file from result: {result.log_file_path}")
-
-    logger.info("\nExample completed!")
+    logger.info(f"✓ {result.num_images_converted} images → {output_file}" if result.success else f"✗ {result.errors[0] if result.errors else 'Failed'}")
 
 
 if __name__ == "__main__":

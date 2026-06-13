@@ -1,121 +1,48 @@
 #!/usr/bin/env python3
-"""
-YOLO annotation visualization example
-
-Demonstrates how to use YOLOVisualizer to visualize YOLO format annotations.
-Supports automatic detection of object detection and instance segmentation formats.
-
-Usage:
-    python yolo_demo.py [--task {det,seg}] [--verbose]
-
-Examples:
-    python yolo_demo.py                     # Visualize object detection annotations (default)
-    python yolo_demo.py --task seg          # Visualize instance segmentation annotations
-    python yolo_demo.py --verbose           # Enable verbose logging mode
-    python yolo_demo.py --task seg --verbose # Instance segmentation + verbose logging
-"""
+"""YOLO visualization demo."""
 
 import argparse
-import sys
 from pathlib import Path
-
-# Add project root directory to Python path
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 from dataflow.util.logging import LogConfig, LogManager
 from dataflow.visualize import YOLOVisualizer
 
+project_root = Path(__file__).parent.parent.parent
+
 
 def main():
-    """Main function"""
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(description="YOLO annotation visualization example")
-    parser.add_argument(
-        "--task",
-        choices=["det", "seg"],
-        default="det",
-        help="Task type: det=object detection, seg=instance segmentation (default: det)",
-    )
-    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging mode")
+    parser = argparse.ArgumentParser(description="YOLO visualization")
+    parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
-    # Configure logging
-    if args.verbose:
-        log_config = LogConfig(name="demo", verbose=True, log_dir=Path("logs"))
-    log_manager = LogManager(log_config)
-    logger = log_manager.logger
-    log_path = log_manager.log_path
-        )
-        logger.info("Verbose logging mode enabled")
-        logger.info(f"Verbose log saved to: {log_file_path}")
-    else:
-        log_config = LogConfig(name="demo", log_dir=Path("logs"))
-    log_manager = LogManager(log_config)
-    logger = log_manager.logger
-        logger = log_manager.logger
-        log_file_path = None
+    log_config = LogConfig(name="viz_yolo", verbose=args.verbose)
+    logger = LogManager(log_config).logger
 
-    # Select data path based on task type
-    if args.task == "det":
-        task_name = "object detection"
-        data_dir = project_root / "assets" / "test_data" / "det" / "yolo"
-    else:  # args.task == "seg"
-        task_name = "instance segmentation"
-        data_dir = project_root / "assets" / "test_data" / "seg" / "yolo"
-
+    data_dir = project_root / "assets" / "test_data" / "det" / "yolo"
     image_dir = data_dir / "images"
-    label_dir = data_dir / "labels"
-    class_file = data_dir / "classes.txt"
+    label_dir = data_dir / "labels" if "yolo" != "coco" else data_dir
 
     if not data_dir.exists():
-        logger.error(f"Data directory does not exist: {data_dir}")
-        logger.info("Please ensure sample data is prepared")
+        logger.error(f"Data not found: {data_dir}")
         return
-
-    logger.info("=" * 50)
-    logger.info(f"YOLO {task_name}annotation visualization example")
-    logger.info("=" * 50)
-
-    # Create visualizer
-    logger.info(f"Creating YOLO visualizer:")
-    logger.info(f"  Task type: {task_name}")
-    logger.info(f"  Label directory: {label_dir}")
-    logger.info(f"  Image directory: {image_dir}")
-    logger.info(f"  Class file: {class_file}")
-
-    # Set different output directories based on task type to avoid conflicts
-    output_dir = data_dir / "visualized_output"
 
     visualizer = YOLOVisualizer(
         label_dir=str(label_dir),
         image_dir=str(image_dir),
-        class_file=str(class_file),
-        log_config=LogConfig(name="demo", log_dir=Path("logs")),  # Verbose logging mode
-        is_show=True,  # Display window
-        is_save=True,  # Also save
-        output_dir=output_dir,
-        strict_mode=True,
-        logger=logger,
-         if args.verbose else None,
+        class_file=str(data_dir / "classes.txt"),
+        is_show=True,
+        is_save=True,
+        output_dir=data_dir / "visualized_output",
+        log_config=log_config,
     )
 
-    # Perform visualization
-    logger.info("\nStarting visualization (press Enter for next image, press q to quit)...")
+    logger.info("Starting visualization (Enter=next, q=quit)...")
     result = visualizer.visualize()
 
-    # Print log file path from result if verbose mode
-    if args.verbose and result.log_file_path:
-        logger.info(f"Verbose log file from result: {result.log_file_path}")
-
     if result.success:
-        logger.info(f"Visualization completed: {result.message}")
-        logger.info(f"Results saved to: {output_dir}")
+        logger.info(f"✓ {result.data.get('processed_count', 0)} images processed")
     else:
-        logger.error(f"Visualization failed: {result.message}")
-        if result.errors:
-            for error in result.errors:
-                logger.error(f"  - {error}")
+        logger.error(f"✗ {result.message or result.errors}")
 
 
 if __name__ == "__main__":
