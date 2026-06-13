@@ -1,9 +1,9 @@
 # Convert Module Specification
 
-> **Version:** 4.0
-> **Status:** Draft — added shared coordinate transforms, `_ensure_categories_for_streaming()` contract, `NotImplementedError` for base `convert_annotations()`
+> **Version:** 5.0
+> **Status:** Draft — unified logging via `LogManager`, removed `verbose`/`logger` params in favor of `log_config`
 > **Layer:** Modules
-> **Dependencies:** Label module (handlers + models)
+> **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
 
 ## 1. Module Overview
 
@@ -101,7 +101,7 @@ validate_inputs()
 ```python
 class BaseConverter(ABC):
     def __init__(self, source_format: str, target_format: str,
-                 strict_mode=True, verbose=False, logger=None): ...
+                 strict_mode=True, log_config=None): ...
 
     # Template methods — orchestrate the pipeline
     def convert(self, source_path, target_path, **kwargs) -> ConversionResult: ...
@@ -194,7 +194,7 @@ Return type for all converter operations:
 | `errors` | List[str] | Error messages |
 | `metadata` | Dict[str, Any] | Additional conversion metadata (includes precision note) |
 | `verbose_log` | List[str] | Detailed processing log (verbose mode only) |
-| `log_file_path` | Optional[str] | Log file path (verbose mode only) |
+| `log_path` | Optional[str] | Log file path (verbose mode only) |
 
 ### 2.5 State Management Contract
 
@@ -324,23 +324,66 @@ COCO JSON reading logic (`_read_coco_categories()`) is a shared helper in
 `convert/utils.py` to avoid duplication between `YoloAndCocoConverter` and
 `CocoAndLabelMeConverter`.
 
-### 2.8 Verbose Logging Contract
+### 2.8 Logging Contract
+
+See [`spec_logging.md`](spec_logging.md) for the full `LogManager` contract. Convert-specific:
+
+**Constructor**: `BaseConverter.__init__(source_format, target_format, strict_mode=True, log_config=None)`
+
+- If `log_config` is None, a default `LogConfig(name=f"convert.{source_format}_to_{target_format}")` is created
+- The converter creates a `LogManager` from the config and propagates `self.logger` to handlers via `logger=self.logger`
+
+**Log pipeline** (all handled internally by the converter):
+
+```
+══════════════════════════════════════
+Convert: YOLO → COCO
+  Source:  yolo_labels/
+  Target:  output.json
+  Mode:    label, strict
+  Options: do_rle=True
+
+── Phase: Read ──
+  500 images, 3 categories, 3240 objects
+
+── Phase: Convert ──
+  YOLO (normalized center) → COCO (absolute px)
+  500 images, 3240 objects converted
+
+── Phase: Write ──
+  COCO JSON: output.json (3240 annotations)
+
+── Result ──
+  Status:   ✓ Success
+  Images:   500
+  Objects:  3,240
+  Duration: 2.15s
+  Warnings: 1 (RLE accuracy loss)
+
+  Log saved to: logs/convert_yolo_to_coco_20240613_100000.log
+══════════════════════════════════════
+```
+
+**Log templates** are in `dataflow/convert/log_templates.py`:
+- `format_convert_header()` — header with paths, mode, options
+- `format_convert_phase()` — phase marker with statistics
+- `format_convert_result()` — final result block
 
 When `verbose=True`:
-- Logger is configured with file output via `VerboseLoggingOperations`
-- `log_file_path` is recorded in `ConversionResult`
-- Detailed processing steps are logged at DEBUG level
-- Conversion duration is recorded
+- Console output shows the full log pipeline (header → phases → result)
+- File output additionally captures DEBUG-level details (per-image processing, handler internals)
+- `log_path` is recorded in `ConversionResult`
 
 When `verbose=False`:
-- Console-only logging at INFO level
-- `log_file_path` is `None`
+- Console output shows a compact summary (result block only)
+- No file output
+- `log_path` is `None`
 
 ## 3. Concrete Converters
 
 ### 3.1 `YoloAndCocoConverter`
 
-**Constructor:** `YoloAndCocoConverter(source_to_target: bool, prediction: bool = False, verbose=False, **kwargs)`
+**Constructor:** `YoloAndCocoConverter(source_to_target: bool, prediction: bool = False, log_config=None, **kwargs)`
 
 - `source_to_target=True` → YOLO → COCO
 - `source_to_target=False` → COCO → YOLO
@@ -387,7 +430,7 @@ When `verbose=False`:
 
 ### 3.2 `LabelMeAndYoloConverter`
 
-**Constructor:** `LabelMeAndYoloConverter(source_to_target: bool, verbose=False, **kwargs)`
+**Constructor:** `LabelMeAndYoloConverter(source_to_target: bool, log_config=None, **kwargs)`
 
 - `source_to_target=True` → LabelMe → YOLO
 - `source_to_target=False` → YOLO → LabelMe
@@ -419,7 +462,7 @@ When `verbose=False`:
 
 ### 3.3 `CocoAndLabelMeConverter`
 
-**Constructor:** `CocoAndLabelMeConverter(source_to_target: bool, verbose=False, **kwargs)`
+**Constructor:** `CocoAndLabelMeConverter(source_to_target: bool, log_config=None, **kwargs)`
 
 - `source_to_target=True` → COCO → LabelMe
 - `source_to_target=False` → LabelMe → COCO
@@ -465,7 +508,7 @@ Standalone utility class for polygon ↔ RLE conversion. Not a subclass of `Base
 ### 4.1 Constructor
 
 ```python
-RLEConverter(logger: Optional[logging.Logger] = None)
+RLEConverter(logger: Optional[logging.Logger] = None)  # Receives logger from converter's LogManager
 ```
 
 ### 4.2 Public API
@@ -526,7 +569,8 @@ Convert module imports FROM:
 ├── dataflow.label.yolo_handler  (YoloAnnotationHandler)
 ├── dataflow.label.coco_handler  (CocoAnnotationHandler)
 ├── dataflow.label.labelme_handler (LabelMeAnnotationHandler)
-└── dataflow.util                (FileOperations, logging)
+├── dataflow.util                (FileOperations)
+└── dataflow.util.logging        (LogConfig, LogManager)
 
 Convert module does NOT import FROM:
 ├── dataflow.visualize.*         (FORBIDDEN — zero cross-dependency)
@@ -572,6 +616,16 @@ the error are on disk. This is different from the batch path which is all-or-not
 are processed. If the stream is interrupted, already-written files remain on disk.
 
 ## 8. Change History
+
+### v4 → v5: Unified Logging via LogManager
+
+| Aspect | v4 | v5 |
+|--------|----|----|
+| Constructor params | `verbose=False, logger=None` | `log_config: Optional[LogConfig] = None` |
+| Logger creation | `VerboseLoggingOperations` in `__init__` | `LogManager(log_config)` — single unified class |
+| `ConversionResult.log_file_path` | Present | Renamed to `log_path` |
+| Log templates | None (ad-hoc `self.logger.info(...)` calls) | `log_templates.py` — structured formatting functions |
+| CLI interaction | CLI creates logger, converter may create a second one | CLI passes `LogConfig`, converter handles all logging |
 
 ### v3 → v4: Shared Transforms + Interface Hardening
 

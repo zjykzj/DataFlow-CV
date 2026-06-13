@@ -1,9 +1,9 @@
 # Visualize Module Specification
 
-> **Version:** 3.0
-> **Status:** Draft — redesigned pipeline to streaming (handler.iter_images() + per-image conversion)
+> **Version:** 4.0
+> **Status:** Draft — unified logging via `LogManager`, removed `verbose`/`logger`/`log_file_path` params
 > **Layer:** Modules
-> **Dependencies:** Label module (handlers + models)
+> **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
 
 ## 1. Module Overview
 
@@ -138,7 +138,7 @@ HSV-based color palette generator that ensures consistent, unique colors per cla
 | `data` | Optional[Any] | Result data (`{"processed_count": N, "interrupted": bool}`) |
 | `message` | str | Status message |
 | `errors` | List[str] | Error messages |
-| `log_file_path` | Optional[str] | Log file path (verbose mode) |
+| `log_path` | Optional[str] | Log file path (verbose mode) |
 
 ### 3.3 `BaseVisualizer`
 
@@ -153,10 +153,7 @@ Abstract base class implementing the template method pattern.
 | `output_dir` | Optional[Path] | No | None | Save directory (required if `is_save=True`) |
 | `is_show` | bool | No | True | Display visualization window |
 | `is_save` | bool | No | False | Save rendered images |
-
-| `verbose` | bool | No | False | Verbose file logging |
-| `logger` | Optional[Logger] | No | None | Logger instance |
-| `log_file_path` | Optional[str] | No | None | Pre-configured log file path |
+| `log_config` | Optional[LogConfig] | No | None | Logging configuration (see `spec_logging.md`) |
 
 **Drawing configuration (`self.config`):**
 
@@ -323,7 +320,7 @@ and percentage.
 
 ### 5.1 `YOLOVisualizer`
 
-**Constructor:** `YOLOVisualizer(label_dir, image_dir, class_file, verbose=False, **kwargs)`
+**Constructor:** `YOLOVisualizer(label_dir, image_dir, class_file, log_config=None, **kwargs)`
 
 - Creates `YoloAnnotationHandler` internally via `_create_handler()`
 - `class_file` is required (passed to handler)
@@ -356,7 +353,7 @@ For each `ObjectAnnotation` in `image_ann.objects`:
 
 ### 5.2 `COCOVisualizer`
 
-**Constructor:** `COCOVisualizer(annotation_file, image_dir, verbose=False, **kwargs)`
+**Constructor:** `COCOVisualizer(annotation_file, image_dir, log_config=None, **kwargs)`
 
 - Creates `CocoAnnotationHandler` internally via `_create_handler()`
 - `annotation_file` is the COCO JSON file path
@@ -383,7 +380,7 @@ For each `ObjectAnnotation` in `image_ann.objects`:
 
 ### 5.3 `LabelMeVisualizer`
 
-**Constructor:** `LabelMeVisualizer(label_dir, image_dir, class_file=None, verbose=False, **kwargs)`
+**Constructor:** `LabelMeVisualizer(label_dir, image_dir, class_file=None, log_config=None, **kwargs)`
 
 - Creates `LabelMeAnnotationHandler` internally via `_create_handler()`
 - `class_file` is optional
@@ -416,6 +413,7 @@ Visualize module imports FROM:
 ├── dataflow.label.coco_handler   (CocoAnnotationHandler)
 ├── dataflow.label.labelme_handler (LabelMeAnnotationHandler)
 ├── dataflow.util                 (FileOperations)
+├── dataflow.util.logging         (LogConfig, LogManager)
 ├── cv2                           (OpenCV rendering)
 └── numpy                         (Array operations)
 
@@ -455,18 +453,64 @@ images in the dataset.
   catches it and returns a result with `processed_count` reflecting images successfully shown
   before the failure.
 
-## 8. Verbose Logging Contract
+## 8. Logging Contract
+
+See [`spec_logging.md`](spec_logging.md) for the full `LogManager` contract. Visualize-specific:
+
+**Constructor**: `BaseVisualizer.__init__(..., log_config=None)`
+
+- If `log_config` is None, a default `LogConfig(name=f"visualize.{class_name}")` is created
+- The visualizer creates a `LogManager` from the config
+- A child logger is created for progress output: `self._log_manager.child("progress")`
+
+**Log pipeline** (all handled internally by the visualizer):
+
+```
+══════════════════════════════════════
+Visualize: YOLO
+  Labels:  yolo_labels/
+  Images:  images/
+  Display: yes
+  Save:    yes → output/
+
+── Progress ──
+  001  image_001.jpg  (5 objects)  ✓
+  002  image_002.jpg  (3 objects)  ✓
+  ...
+
+── Result ──
+  Status:   ✓ Success
+  Images:   500 / 500 (0 failed)
+  Objects:  3,240
+  Duration: 50.12s
+
+  Log saved to: logs/visualize_yolo_20240613_100000.log
+══════════════════════════════════════
+```
+
+**Log templates** are in `dataflow/visualize/log_templates.py`:
+- `format_viz_header()` — header with paths, display/save modes
+- `format_viz_progress()` — single-line progress (counter-based for streaming)
+- `format_viz_result()` — final result block
 
 When `verbose=True`:
-- Each image processing step is logged at DEBUG level
-- Color assignments are logged (class_id → BGR)
-- Drawing operations include coordinate verification logs
-- Progress is reported as a counter (`Processing image N`) rather than a percentage
-  (total image count is unknown until iteration completes in streaming mode)
-- Summary statistics are logged at completion (success, failed, success rate, duration,
-  total objects — all accumulated incrementally during iteration)
-- Log file path is recorded in `VisualizationResult.log_file_path`
+- Console: header + progress (every 10 images, counter-based since total is unknown in streaming)
+- File: DEBUG-level per-image details (color assignments, coordinate conversions, drawing operations)
+- `log_path` is recorded in `VisualizationResult.log_path`
 
 When `verbose=False`:
-- Only INFO-level console output
-- No file logging
+- Console: progress (every 10 images, INFO level) + result block
+- No file output
+- `log_path` is `None`
+
+## 9. Change History
+
+### v3 → v4: Unified Logging via LogManager
+
+| Aspect | v3 | v4 |
+|--------|----|----|
+| Constructor params | `verbose=False, logger=None, log_file_path=None` | `log_config: Optional[LogConfig] = None` |
+| Logger creation | 3-way branch: external `log_file_path` → verboselogging → default | `LogManager(log_config)` — single unified class |
+| `VisualizationResult.log_file_path` | Present | Renamed to `log_path` |
+| Log templates | None (ad-hoc `self.logger.info(...)` calls) | `log_templates.py` — structured formatting functions |
+| CLI interaction | CLI creates logger + passes to visualizer | CLI passes `LogConfig`, visualizer handles all logging |

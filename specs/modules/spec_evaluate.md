@@ -1,9 +1,9 @@
 # Evaluate Module Specification
 
-> **Version:** 1.2
-> **Status:** Draft
+> **Version:** 2.0
+> **Status:** Draft — unified logging via `LogManager`, removed `verbose`/`logger` params
 > **Layer:** Modules
-> **Dependencies:** Label module (handlers + models), pycocotools
+> **Dependencies:** Label module (handlers + models) + Logging module (LogManager), pycocotools
 
 ## 1. Module Overview
 
@@ -103,7 +103,7 @@ class EvaluationResult:
     dt_stats: Dict[str, int]                   # Same structure as gt_stats
     warnings: List[str]                        # Accumulated non-fatal warnings
     errors: List[str]                          # Error messages (non-empty if success=False)
-    log_file_path: Optional[str]               # Verbose log file path (None if not verbose)
+    log_path: Optional[str]                    # Log file path (verbose mode only, None otherwise)
 ```
 
 ### 2.4 `PRF1Result`
@@ -139,7 +139,7 @@ Abstract base class implementing the template method pattern:
 
 ```python
 class BaseEvaluator(ABC):
-    def __init__(self, verbose=False, logger=None): ...
+    def __init__(self, log_config=None): ...
 
     # Template method — orchestrates the evaluation pipeline
     def evaluate(self, gt_source, dt_source) -> EvaluationResult: ...
@@ -176,7 +176,10 @@ class BaseEvaluator(ABC):
 
 ```python
 class DetectionEvaluator(BaseEvaluator):
-    """Object detection evaluation using bbox IoU."""
+    """Object detection evaluation using bbox IoU.
+
+    Constructor: ``DetectionEvaluator(log_config=None)``
+    """
     def _create_cocoeval(self, gt_coco, dt_coco) -> COCOeval:
         return COCOeval(gt_coco, dt_coco, iouType='bbox')
 ```
@@ -185,7 +188,10 @@ class DetectionEvaluator(BaseEvaluator):
 
 ```python
 class SegmentationEvaluator(BaseEvaluator):
-    """Instance segmentation evaluation using mask IoU."""
+    """Instance segmentation evaluation using mask IoU.
+
+    Constructor: ``SegmentationEvaluator(log_config=None)``
+    """
     def _create_cocoeval(self, gt_coco, dt_coco) -> COCOeval:
         return COCOeval(gt_coco, dt_coco, iouType='segm')
 ```
@@ -194,8 +200,7 @@ class SegmentationEvaluator(BaseEvaluator):
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `verbose` | bool | No | False | If True, compute per-class metrics + file logging. |
-| `logger` | Optional[Logger] | No | None | Logger instance. Created internally if not provided. |
+| `log_config` | Optional[LogConfig] | No | None | Logging configuration. If None, default `LogConfig(name="evaluate")` is used. Per-class metrics are computed only when `verbose=True` in the config. |
 
 ## 4. Public API
 
@@ -246,8 +251,7 @@ def compute_pr_f1(
     confidence_threshold: float = 0.0,
     iou_type: str = "bbox",
     method: str = "macro",
-    verbose: bool = False,
-    logger: Optional[logging.Logger] = None,
+    log_config: Optional[LogConfig] = None,
 ) -> PRF1Result:
 ```
 
@@ -349,50 +353,75 @@ The `validate_inputs()` method checks:
 6. At least one category has both GT and DT annotations
 7. If `iouType='segm'`, segmentation data is present on GT and DT annotations that will be matched
 
-## 6. Verbose Mode Contract
+## 6. Logging Contract
 
-### 6.1 Console Output
+See [`spec_logging.md`](spec_logging.md) for the full `LogManager` contract. Evaluate-specific:
 
-When `verbose=True`, the evaluator outputs:
+**Constructor**: `BaseEvaluator.__init__(log_config=None)`
 
-**1. Summary header:**
+- If `log_config` is None, a default `LogConfig(name="evaluate")` is created
+- The evaluator creates a `LogManager` from the config
+- Per-class metrics are computed only when `log_config.verbose=True`
+
+**Log pipeline** (all handled internally by the evaluator):
+
 ```
-Evaluation: detection (bbox)
-Ground Truth: 500 images, 3250 annotations, 10 categories
-Detections:   500 images, 4100 detections, 10 categories
+══════════════════════════════════════
+Evaluate: Detection (bbox IoU)
+  GT: gt.json  500 images, 3240 annotations, 3 categories
+  DT: dt.json  500 images, 3150 detections, 3 categories
+
+── Load ──
+  GT loaded: 500 images, 3240 annotations
+  DT loaded: 3150 predictions
+
+── Validate ──
+  Categories match: 3/3
+
+── Compute ──
+  COCOeval (bbox) completed
+┌──────────────┬──────────┐
+│ AP           │   0.452  │
+│ AP@0.50      │   0.678  │
+│ ...          │   ...    │
+└──────────────┴──────────┘
+
+── Per-Class (3 categories) ──
+┌────────────┬──────┬──────┬───────┬──────┬──────┬──────┐
+│ Class      │ GT   │ DT   │ AP    │ P    │ R    │ F1   │
+├────────────┼──────┼──────┼───────┼──────┼──────┼──────┤
+│ cat        │ 1200 │ 1180 │ 0.523 │ 0.72 │ 0.65 │ 0.68 │
+│ dog        │ 1100 │ 1050 │ 0.445 │ 0.61 │ 0.55 │ 0.58 │
+└────────────┴──────┴──────┴───────┴──────┴──────┴──────┘
+
+── Result ──
+  Status:   ✓ Success
+  Duration: 2.35s
+
+  Log saved to: logs/evaluate_detection_20240613_100000.log
+══════════════════════════════════════
 ```
 
-**2. 12 COCO standard metrics (always printed):**
-```
-Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.352
-Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.568
-...
-```
-
-**3. Per-class breakdown table (verbose only):**
-```
-Per-Class Breakdown (IoU: 0.50:0.95):
-───────────────────────────────────────────────────────────────────────────
- Class          GT    DT     TP    FP    FN     AP     AP50   AP75   P      R      F1
- person         520   610   487   123    33   0.432  0.689  0.451  0.798  0.937  0.862
- car            380   450   342   108    38   0.401  0.634  0.422  0.760  0.900  0.824
- bicycle        150   180   128    52    22   0.321  0.521  0.338  0.711  0.853  0.775
- ...
-───────────────────────────────────────────────────────────────────────────
-```
-
-### 6.2 File Logging
+**Log templates** are in `dataflow/evaluate/log_templates.py`:
+- `format_eval_header()` — header with GT/DT statistics
+- `format_eval_phase()` — phase marker (Load, Validate, Compute)
+- `format_metric_table()` — 12 COCO standard metrics as formatted table
+- `format_per_class_table()` — per-class breakdown as formatted table
+- `format_prf1_output()` — P/R/F1 results block
+- `format_eval_result()` — final result block
 
 When `verbose=True`:
-- Logger is configured with file output via `VerboseLoggingOperations`
-- Log file path is recorded in `EvaluationResult.log_file_path`
-- Detailed processing steps logged at DEBUG level: input loading, validation, COCOeval stages, per-class computation
-- Evaluation duration is recorded
+- Console: full log pipeline (header → phases → metric table → per-class table → result)
+- File: DEBUG-level details (COCOeval internals, per-class computation steps)
+- Per-class metrics computed and stored in `EvaluationResult.per_class`
+- `log_path` is recorded in `EvaluationResult`
 
 When `verbose=False`:
-- Console-only INFO logging
-- Per-class metrics are NOT computed (Performance optimization)
+- Console: metric table + result block (compact summary)
+- Per-class metrics are NOT computed (performance optimization)
 - `EvaluationResult.per_class` is `None`
+- No file output
+- `log_path` is `None`
 
 ## 7. Dependency Contract
 
@@ -400,7 +429,8 @@ When `verbose=False`:
 Evaluate module imports FROM:
 ├── dataflow.label.models             (DatasetAnnotations, AnnotationFormat)
 ├── dataflow.label.coco_handler       (CocoAnnotationHandler — for loading COCO files)
-├── dataflow.util                     (FileOperations, logging)
+├── dataflow.util                     (FileOperations)
+├── dataflow.util.logging             (LogConfig, LogManager)
 ├── pycocotools.coco                  (COCO)
 ├── pycocotools.cocoeval              (COCOeval)
 └── numpy                             (Array operations for per-class extraction)
@@ -423,8 +453,9 @@ Evaluate module does NOT import FROM:
        │                     │                  │
        ▼                     ▼                  ▼
 ┌──────────────┐    ┌──────────────────┐    ┌──────────────┐
-│   Convert    │    │    Visualize     │    │   Evaluate   │  ← NEW
+│   Convert    │    │    Visualize     │    │   Evaluate   │
 │  (pipeline)  │    │  (rendering)     │    │  (metrics)   │
+│  LogManager  │    │  LogManager      │    │  LogManager  │
 └──────┬───────┘    └───────┬──────────┘    └──────┬───────┘
        │                    │                      │
        │    ZERO CROSS-     │    ZERO CROSS-       │
@@ -527,27 +558,24 @@ When loading DT from `DatasetAnnotations`:
 - DT must carry `confidence` field on each `ObjectAnnotation`
 - This field maps to COCO `score` during conversion
 
-## 11. Verbose Logging Contract
-
-Follows the project's established verbose logging pattern (see `spec_convert.md` §2.7, `spec_visualize.md` §8):
-
-When `verbose=True`:
-- Logger is created via `VerboseLoggingOperations.get_verbose_logger()` (console + file)
-- Console uses `DEFAULT_FORMAT` (timestamps)
-- File logs include filename and line numbers (DEBUG level)
-- Per-class metrics are computed and stored in `EvaluationResult.per_class`
-- `log_file_path` is recorded in `EvaluationResult`
-
-When `verbose=False`:
-- Console-only via `LoggingOperations.get_logger()` (INFO level)
-- Per-class metrics are **skipped** to avoid unnecessary computation
-- `EvaluationResult.per_class` is `None`
-
-## 12. Summary of Public API
+## 11. Summary of Public API
 
 | API | Location | Purpose |
 |-----|----------|---------|
-| `DetectionEvaluator(verbose, logger)` | `evaluator.py` | Detection evaluation (bbox IoU) |
-| `SegmentationEvaluator(verbose, logger)` | `evaluator.py` | Segmentation evaluation (mask IoU) |
+| `DetectionEvaluator(log_config)` | `evaluator.py` | Detection evaluation (bbox IoU) |
+| `SegmentationEvaluator(log_config)` | `evaluator.py` | Segmentation evaluation (mask IoU) |
 | `evaluator.evaluate(gt, dt) → EvaluationResult` | `base.py` | Run full COCO evaluation |
-| `compute_pr_f1(gt, dt, iou_thr, conf_thr, iou_type) → PRF1Result` | `metrics.py` | Single-threshold P/R/F1 |
+| `compute_pr_f1(gt, dt, iou_thr, conf_thr, iou_type, log_config=...) → PRF1Result` | `metrics.py` | Single-threshold P/R/F1 |
+
+## 12. Change History
+
+### v1.2 → v2.0: Unified Logging via LogManager
+
+| Aspect | v1.2 | v2.0 |
+|--------|------|------|
+| Constructor params | `verbose=False, logger=None` | `log_config: Optional[LogConfig] = None` |
+| `compute_pr_f1()` params | `verbose=False, logger=None` | `log_config: Optional[LogConfig] = None` |
+| Logger creation | `VerboseLoggingOperations` / `LoggingOperations` | `LogManager(log_config)` — single unified class |
+| `EvaluationResult.log_file_path` | Present | Renamed to `log_path` |
+| Log templates | `format_metric_table` / `format_per_class_table` in `utils.py` | `log_templates.py` — all formatting in one place |
+| CLI interaction | CLI creates logger + passes to evaluator | CLI passes `LogConfig`, evaluator handles all logging |

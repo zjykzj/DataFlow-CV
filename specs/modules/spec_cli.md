@@ -1,8 +1,8 @@
 # CLI Module Specification
 
-> **Version:** 1.1
+> **Version:** 2.0
 > **Layer:** Modules
-> **Dependencies:** Convert module + Visualize module + Evaluate module (public APIs only)
+> **Dependencies:** Convert module + Visualize module + Evaluate module (public APIs only) + Logging module (LogConfig only)
 
 ## 1. Module Overview
 
@@ -13,7 +13,7 @@ The CLI module (`dataflow/cli/`) provides a command-line interface built on Clic
 - **CLI → Convert**: Calls `Converter.convert()` only. Does NOT import label handlers.
 - **CLI → Visualize**: Calls `Visualizer.visualize()` only. Does NOT import label handlers.
 - **CLI → Evaluate**: Calls `Evaluator.evaluate()` only. Does NOT import label handlers or pycocotools directly.
-- **CLI responsibility**: Parameter parsing, validation, logging configuration, error formatting. Zero business logic.
+- **CLI responsibility**: Parameter parsing, validation, constructing `LogConfig`, error formatting, terminal UI via `click.echo()`. Zero business logic. Zero log output — all logging is owned by modules.
 
 ### 1.2 File Map
 
@@ -48,7 +48,7 @@ dataflow-cv [OPTIONS] COMMAND [ARGS]...
 - `ctx.obj["verbose"]` = `False`
 - `ctx.obj["log_dir"]` = `Path("./logs")`
 - `ctx.obj["strict"]` = `True`
-- Default logger configured via `LoggingOperations`
+- No logger is created — logging is owned by modules
 
 ### 2.2 Help Configuration
 
@@ -88,11 +88,11 @@ Adds to every convert subcommand:
 |--------|------|---------|-------------|
 | `--verbose` | Flag | False | Enable verbose log output (file logging to `logs/`) |
 | `--no-strict` | Flag | False | Disable strict mode (skip invalid annotations) |
+| `--log-dir` | Path | `./logs` | Log file output directory |
 
 **Behavior on apply:**
-1. Sets `ctx.obj["verbose"]` and `ctx.obj["strict"]` (= `not no_strict`)
-2. Reconfigures logger: verbose → `VerboseLoggingOperations.get_verbose_logger()`, else → `LoggingOperations.get_logger()`
-3. Stores `log_file_path` in `ctx.obj`
+1. Sets `ctx.obj["verbose"]` and `ctx.obj["strict"]` (= `not no_strict`) and `ctx.obj["log_dir"]`
+2. Does NOT create a logger — modules handle logging internally via `LogConfig`
 
 ### 4.2 Command Signatures
 
@@ -182,13 +182,14 @@ dataflow-cv convert labelme2coco [OPTIONS] LABELME_DIR CLASS_FILE OUTPUT_FILE
 ### 4.3 Convert Command Flow (All 6 Commands)
 
 ```
-1. Extract ctx.obj (logger, verbose, strict)
-2. Log start message
+1. Extract ctx.obj (verbose, strict, log_dir)
+2. Construct LogConfig(name=f"dataflow.{cmd}", verbose=verbose, log_dir=log_dir)
 3. Call validate_convert_params() — format-specific checks
-4. Instantiate converter class
-5. Call converter.convert()
-6. If verbose: log file path
-7. If success: log summary
+4. Instantiate converter class with log_config=log_config, strict_mode=strict
+5. Call converter.convert() → ConversionResult
+   (converter handles ALL logging internally)
+6. If success: click.echo(f"✓ {result.get_summary()}")
+7. If verbose and result.log_path: click.echo(f"Log saved to: {result.log_path}")
 8. If failure: raise RuntimeCLIError with first error message
 ```
 
@@ -202,10 +203,11 @@ Adds to every visualize subcommand:
 |--------|------|---------|-------------|
 | `--verbose` | Flag | False | Enable verbose log output |
 | `--display`/`--no-display` | Flag | `--display` | Show/hide visualization window |
+| `--log-dir` | Path | `./logs` | Log file output directory |
 
 **Behavior on apply:**
-1. Sets `ctx.obj["verbose"]`, `ctx.obj["is_show"]` (= display)
-2. Reconfigures logger same as `add_common_options`
+1. Sets `ctx.obj["verbose"]`, `ctx.obj["is_show"]` (= display), `ctx.obj["log_dir"]`
+2. Does NOT create a logger — visualizer handles logging internally via `LogConfig`
 
 ### 5.2 Command Signatures
 
@@ -258,13 +260,14 @@ dataflow-cv visualize labelme [OPTIONS] IMAGE_DIR LABEL_DIR
 ### 5.3 Visualize Command Flow (All 3 Commands)
 
 ```
-1. Extract ctx.obj (logger, verbose, is_show, log_file_path)
-2. Log start message
+1. Extract ctx.obj (verbose, is_show, log_dir)
+2. Construct LogConfig(name=f"dataflow.{cmd}", verbose=verbose, log_dir=log_dir)
 3. Call validate_visualize_params() — checks paths exist, creates output dir
-4. Instantiate visualizer class (with logger + log_file_path from context)
-5. Call visualizer.visualize()
-6. If verbose: log file path
-7. If success: log processed count
+4. Instantiate visualizer class with log_config=log_config
+5. Call visualizer.visualize() → VisualizationResult
+   (visualizer handles ALL logging internally)
+6. If success: click.echo(f"✓ processed {result.data.get('processed_count', 0)} images")
+7. If verbose and result.log_path: click.echo(f"Log saved to: {result.log_path}")
 8. If failure: raise RuntimeCLIError with error message
 ```
 
@@ -314,19 +317,20 @@ Evaluates instance segmentation results using mask IoU (`iouType='segm'`).
 ### 6.3 Evaluate Command Flow (Both Commands)
 
 ```
-1. Extract ctx.obj (logger, verbose, strict, log_file_path)
-2. Log start message with GT_JSON, DT_JSON paths
+1. Extract ctx.obj (verbose, log_dir)
+2. Construct LogConfig(name=f"dataflow.{cmd}", verbose=verbose, log_dir=log_dir)
 3. Validate: GT_JSON exists and is valid COCO JSON
 4. Validate: DT_JSON exists and is valid COCO JSON
 5. Validate: pycocotools is installed (raise SystemError if not)
-6. Instantiate DetectionEvaluator or SegmentationEvaluator (with logger + verbose)
+6. Instantiate DetectionEvaluator or SegmentationEvaluator (with log_config=log_config)
 7. Call evaluator.evaluate(GT_JSON, DT_JSON) → EvaluationResult
+   (evaluator handles ALL logging internally)
 8. If success:
-   a. Print 12 COCO standard metrics table
-   b. If verbose: print per-class breakdown table
-   c. If --prf1: call compute_pr_f1() (with method from --prf1-method) and print results
+   a. Print 12 COCO standard metrics table (click.echo)
+   b. If verbose: print per-class breakdown table (click.echo)
+   c. If --prf1: call compute_pr_f1() and print results (click.echo)
    d. If --output: write EvaluationResult as JSON to file
-   e. Log file path (if verbose)
+   e. If verbose and result.log_path: click.echo(f"Log saved to: {result.log_path}")
 9. If failure: raise RuntimeCLIError with first error message
 ```
 
@@ -434,14 +438,7 @@ CLIError (base, exit_code configurable)
 - `ParameterError`, `OutputError`, `SystemError` are defined but used sparingly
 - `SystemError` is used when pycocotools is not installed for evaluate commands
 
-### 6.1 Usage in Commands
 
-- `validate_convert_params()` raises `InputError` for missing/invalid inputs
-- `validate_path_exists()` raises `InputError` for non-existent paths
-- Post-conversion/visualization failures raise `RuntimeCLIError`
-- `ParameterError`, `OutputError`, `SystemError` are defined but used sparingly
-
-## 8. Parameter Validation
 
 ### 8.1 `validate_convert_params(source_format, target_format, input_path, output_path, image_dir, class_file)`
 
@@ -476,7 +473,7 @@ CLI module imports FROM:
 ├── dataflow.visualize.labelme_visualizer (LabelMeVisualizer)
 ├── dataflow.evaluate.evaluator          (DetectionEvaluator, SegmentationEvaluator)
 ├── dataflow.evaluate.metrics            (compute_pr_f1)
-├── dataflow.util.logging_util           (LoggingOperations, VerboseLoggingOperations)
+├── dataflow.util.logging                (LogConfig — for constructing config passed to modules)
 ├── dataflow.cli.exceptions              (InputError, RuntimeCLIError, SystemError)
 └── click                                (Framework)
 
@@ -487,6 +484,7 @@ CLI module does NOT import FROM:
 ├── dataflow.visualize.base              (FORBIDDEN — internal to Visualize; only concrete classes)
 ├── dataflow.evaluate.base               (FORBIDDEN — internal to Evaluate; only concrete classes)
 ├── dataflow.evaluate.result             (FORBIDDEN — internal to Evaluate)
+├── dataflow.util.logging_util           (REMOVED — no longer needed; LogConfig replaces both classes)
 └── pycocotools                          (FORBIDDEN — Evaluate dependency; CLI must not import directly)
 ```
 
@@ -497,21 +495,27 @@ The CLI contract can be verified by checking that:
 2. `dataflow/cli/commands/visualize.py` only imports from `dataflow.visualize.*` (not `dataflow.label.*`)
 3. `dataflow/cli/commands/evaluate.py` only imports from `dataflow.evaluate.*` (not `dataflow.label.*` or `pycocotools`)
 4. No CLI file imports cross-module internals (e.g., convert commands don't import from visualize or evaluate internals)
+5. No CLI file imports `LoggingOperations` or `VerboseLoggingOperations` — only `LogConfig`
 
-## 10. Verbose Logging Contract
+## 10. Logging Contract
 
-When `--verbose` is specified on any command:
-1. Logger is created via `VerboseLoggingOperations.get_verbose_logger()`
-2. Log file is written to `logs/` directory with timestamped filename
-3. Console output uses `DEFAULT_FORMAT` (timestamps)
-4. File output includes filename and line numbers (DEBUG level)
-5. `log_file_path` is stored in `ctx.obj` and passed to the converter/visualizer
-6. On completion, the log file path is printed to the user
+Logging is **module-owned** — CLI does not write log messages. See [`spec_logging.md`](spec_logging.md) for the full contract.
 
-When `--verbose` is NOT specified:
-1. Console-only logging via `LoggingOperations.get_logger()` (INFO level)
-2. No log files created
-3. `log_file_path` is `None`
+**CLI responsibilities:**
+1. Parse `--verbose` and `--log-dir` from command-line options
+2. Construct a `LogConfig(name=f"dataflow.{command_name}", verbose=verbose, log_dir=log_dir)`
+3. Pass `log_config` to the module constructor (Converter / Visualizer / Evaluator)
+4. After the operation completes, if the result includes `log_path`, print it via `click.echo()`
+
+**Module responsibilities:**
+1. Create `LogManager` from the provided `LogConfig` (or a default)
+2. Handle ALL log output — start, progress, phases, results, errors, warnings
+3. Record `log_path` in the result object for CLI to report
+
+**Output destinations:**
+- **Console**: Always active (INFO level, compact format). Module writes structured log messages.
+- **File**: Active only when `verbose=True` (DEBUG level, detailed format). Path: `{log_dir}/log_{timestamp}.log`.
+- **Terminal UI**: `click.echo()` from CLI — only the final summary and log file path.
 
 ## 11. FormattedCommand
 
@@ -520,3 +524,18 @@ Custom `click.Command` subclass that formats Arguments in the help output to mat
 - Uses `formatter.write_dl()` for aligned argument display
 - Maps argument parameter names to human-readable help text via `_get_argument_help()`
 - Preserves standard Click formatting for usage, description, options, and epilog
+
+## 12. Change History
+
+### v1.1 → v2.0: Module-Owned Logging
+
+| Aspect | v1.1 | v2.0 |
+|--------|------|------|
+| CLI logging | CLI creates `LoggingOperations`/`VerboseLoggingOperations` and writes log messages | CLI creates `LogConfig` only, passes to modules — zero log output |
+| `add_common_options` | Creates logger, stores in `ctx.obj["logger"]` | Sets `verbose`/`strict`/`log_dir` in `ctx.obj`, no logger |
+| `add_visualize_options` | Creates logger, stores in `ctx.obj` | Sets `verbose`/`is_show`/`log_dir` in `ctx.obj`, no logger |
+| Command flow | Logs "Starting...", "Completed...", "Log saved to..." | `click.echo()` for terminal output only |
+| Dependency imports | `LoggingOperations`, `VerboseLoggingOperations` | `LogConfig` only |
+| Converter instantiation | `Converter(verbose=verbose)` — no logger passed | `Converter(log_config=log_config)` |
+| Visualizer instantiation | `Visualizer(verbose=verbose, logger=logger, log_file_path=...)` | `Visualizer(log_config=log_config)` |
+| New CLI option | — | `--log-dir` (default `./logs`) |

@@ -1,9 +1,9 @@
 # Label Module Specification
 
-> **Version:** 4.0
-> **Status:** Draft — added `write_one()` to abstract handler interface
+> **Version:** 4.1
+> **Status:** Draft — logger receives from caller's LogManager via `logger=` parameter
 > **Layer:** Modules
-> **Dependencies:** None (foundation module)
+> **Dependencies:** None (foundation module; logging via stdlib `logging.Logger` only)
 
 ## 1. Module Overview
 
@@ -245,7 +245,7 @@ def iter_images(self) -> Iterator[ImageAnnotation]:
 
 **Constructor parameters:**
 - `strict_mode` (default `True`): Validation errors immediately abort processing
-- `logger`: Optional `logging.Logger` instance
+- `logger`: Optional `logging.Logger` instance — received from the calling module's `LogManager` (e.g., `log_manager.logger` or `log_manager.child("handler")`). See [`spec_logging.md`](spec_logging.md).
 
 **Provided validation utilities:**
 
@@ -530,6 +530,13 @@ A valid read operation must satisfy ALL of:
 | `compare_annotation_dirs(dir_a, dir_b, format)` | Format-aware comparison (text diff for YOLO, JSON diff for LabelMe) |
 
 ## 8. Change History
+
+### v4 → v4.1: Logger from Caller's LogManager
+
+| Aspect | v4 | v4.1 |
+|--------|----|----|
+| Logger source | Any `logging.Logger` | Logger from caller's `LogManager` (via `log_manager.logger` or `.child("handler")`) |
+| Documentation | Logger parameter documented as "optional Logger instance" | Logger parameter documented with provenance — received from `LogManager` |
 
 ### v3 → v4: `write_one()` Streaming Write
 
