@@ -41,13 +41,14 @@ specs/
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                           CLI                                 │
-│  (calls Convert, Visualize & Evaluate public APIs)            │
+│  (passes LogConfig to modules; click.echo() for terminal UI)  │
 └──────┬─────────────────────┬──────────────────┬──────────────┘
        │                     │                  │
        ▼                     ▼                  ▼
 ┌──────────────┐    ┌──────────────────┐    ┌──────────────┐
 │   Convert    │    │    Visualize     │    │   Evaluate   │
 │  (pipeline)  │    │  (rendering)     │    │  (metrics)   │
+│  LogManager  │    │  LogManager      │    │  LogManager  │
 └──────┬───────┘    └───────┬──────────┘    └──────┬───────┘
        │                    │                      │
        │    ZERO CROSS-     │    ZERO CROSS-       │
@@ -56,7 +57,14 @@ specs/
        ▼                    ▼                      ▼
 ┌──────────────────────────────────────────────────────────────┐
 │                         Label                                 │
-│  Data Models + Handlers (read/write/validate)                 │
+│  Data Models + Handlers (receive logger from caller)          │
+└──────────────────────────────────────────────────────────────┘
+       │                    │                      │
+       └────────────────────┼──────────────────────┘
+                            ▼
+┌──────────────────────────────────────────────────────────────┐
+│                    util/logging.py                             │
+│  LogManager + format helpers (shared infrastructure)           │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -68,6 +76,7 @@ specs/
 5. **Visualize → Label**: Visualizers import handlers and models only through public interfaces.
 6. **Evaluate → Label**: Evaluators import COCO handler and models only through public interfaces.
 7. **CLI → Convert/Visualize/Evaluate**: CLI commands only call converter/visualizer/evaluator public APIs. CLI must NOT import label handlers or pycocotools directly.
+8. **Logging ownership**: All log output is produced by modules, not CLI. CLI passes `LogConfig` to module constructors and uses `click.echo()` for terminal UI.
 
 ### Specs vs CLAUDE.md
 
@@ -188,7 +197,7 @@ Source Format → Handler.iter_images() → ImageAnnotation → _convert_single_
 
 ### Annotation Handlers (`dataflow/label/`)
 
-- `BaseAnnotationHandler`: Abstract base with `read()`, `write()`, `write_one()`, `validate()`, `iter_images()` methods. Takes `strict_mode` (default True) and `verbose` (default False) kwargs.
+- `BaseAnnotationHandler`: Abstract base with `read()`, `write()`, `write_one()`, `validate()`, `iter_images()` methods. Takes `strict_mode` (default True) and `logger` (received from caller's `LogManager`).
   - `read()`: Batch load — returns `DatasetAnnotations` (all data in memory). Used by Convert (batch path), Evaluate.
   - `iter_images()`: Streaming iterator — yields `ImageAnnotation` one at a time. Used by Visualize, Convert (streaming path). Lower memory, faster first-image latency.
   - `write()`: Batch write — writes entire `DatasetAnnotations` to target format (e.g., COCO JSON).
@@ -268,14 +277,14 @@ visualize()
 
 Evaluation of object detection and instance segmentation results, wrapping pycocotools' `COCOeval`.
 
-- `DetectionEvaluator(verbose, strict_mode, logger)`: Detection evaluation using bbox IoU (`iouType='bbox'`). Input: GT COCO JSON + DT COCO JSON (with `score` field).
-- `SegmentationEvaluator(verbose, strict_mode, logger)`: Segmentation evaluation using mask IoU (`iouType='segm'`). Input: GT COCO JSON + DT COCO JSON (with `segmentation` and `score` fields).
+- `DetectionEvaluator(log_config=None)`: Detection evaluation using bbox IoU (`iouType='bbox'`). Input: GT COCO JSON + DT COCO JSON (with `score` field).
+- `SegmentationEvaluator(log_config=None)`: Segmentation evaluation using mask IoU (`iouType='segm'`). Input: GT COCO JSON + DT COCO JSON (with `segmentation` and `score` fields).
 - `compute_pr_f1(gt, dt, iou_threshold, confidence_threshold, iou_type, method)`: Single-threshold P/R/F1 using manual greedy matching. Supports macro (default) and micro averaging for overall P/R/F1. Supports both bbox IoU and mask IoU (via pycocotools `mask` module). Independent of full COCOeval pipeline for speed.
 - `EvaluationResult`: Structured container with 12 COCO metrics, per-class breakdown (verbose mode), and stats.
 
 **Key data models**: `EvaluationMetrics` (12 standard metrics), `PerClassMetrics` (per-category TP/FP/FN/AP/P/R/F1), `PRF1Result` (single-threshold P/R/F1).
 
-**Verbose mode**: When `verbose=True`, computes per-class metrics and outputs a per-class breakdown table. Uses `VerboseLoggingOperations` for file logging (same pattern as Convert and Visualize).
+**Verbose mode**: When `log_config.verbose=True`, computes per-class metrics and outputs a per-class breakdown table. Uses `LogManager` for file logging (same pattern as Convert and Visualize).
 
 **DT input formats**: Accepts `str/Path` (COCO JSON file — full dict or plain list), `list` (in-memory annotation dicts), `dict` (COCO dict), or `DatasetAnnotations` (Label module). List-format DT is loaded via `coco_gt.loadRes()`, which copies images and categories from GT. GT input always requires a full COCO dict.
 
@@ -301,7 +310,7 @@ COCO prediction files exist in **two variants** (see `spec_coco_format.md` §10)
 - `main.py`: Entry point `cli` group with global `--version`/`-v` flag
 - `commands/convert.py`: 6 subcommands — `yolo2coco`, `yolo2labelme`, `labelme2yolo`, `labelme2coco`, `coco2yolo`, `coco2labelme`. `yolo2coco` supports `--prediction` for model output.
 - `commands/visualize.py`: 3 subcommands — `yolo`, `labelme`, `coco`
-- `commands/evaluate.py`: 2 subcommands — `detection`, `segmentation`. Both support `--prf1` (P/R/F1), `--prf1-iou`, `--prf1-conf`, and `--prf1-method` (macro|micro) options.
+- `commands/evaluate.py`: 2 subcommands — `detection`, `segmentation`. Both support `--prf1` (P/R/F1 only — skips COCOeval, mutually exclusive with mAP), `--prf1-iou`, `--prf1-conf`, and `--prf1-method` (macro|micro) options.
 - `commands/utils.py`: Shared decorators (`add_common_options`, `add_visualize_options`), validators, and `FormattedCommand` (custom Click Command with aligned argument display in --help)
 - `commands/exceptions.py`: Exception hierarchy with distinct exit codes:
   - `ParameterError` (exit 1), `InputError` (exit 2), `OutputError` (exit 3), `RuntimeCLIError` (exit 4), `SystemError` (exit 5)
@@ -311,8 +320,8 @@ Common CLI options: `--verbose` (enable file logging), `--no-strict` (disable st
 
 ### Utilities (`dataflow/util/`)
 
-- `logging_util.py`: `LoggingOperations` (console logging) and `VerboseLoggingOperations` (console + file logging). `get_verbose_logger()` returns `(logger, log_file_path)` tuple. Also provides `logging_error_or_raise()` (shared error-handling utility used by all base classes) and `detect_image_error()` (identifies image-related errors that should always be warnings).
-- `file_util.py`: `FileOperations` for file I/O (read/write lines, copy, glob). `read_lines()` uses `rstrip()` to preserve leading whitespace.
+- `logging.py`: Unified `LogManager(LogConfig)` replaces the old `LoggingOperations` + `VerboseLoggingOperations` classes. `LogConfig` is a frozen dataclass with `name`, `verbose`, `log_dir` fields. `LogManager` provides `logger` (console + optional file handler), `log_path`, and `child(suffix)` for sub-components. Also provides format helpers (`format_divider`, `format_section`, `format_kv`, `format_result_block`, `format_table`) and `detect_image_error()`.
+- File I/O is handled directly with `pathlib.Path` methods — the old `FileOperations` wrapper class was removed.
 
 ## Critical Implementation Details
 
@@ -410,24 +419,27 @@ dataflow-cv evaluate detection --verbose --prf1 assets/test_data/evaluate/gt_coc
 15. **Shared coordinate transforms are in `convert/utils.py`**: `yolo_to_absolute_pixel()` and `absolute_pixel_to_yolo()` are the canonical implementations. New YOLO-involving converters must use these, not reimplement the math.
 16. **`write_one()` is part of the handler contract**: `BaseAnnotationHandler` declares it as abstract. COCO handler raises `NotImplementedError`; YOLO/LabelMe handlers write per-file. New handlers must implement it.
 17. **RLE warning is conditional**: Only added when `do_rle=True` AND the source dataset actually contains segmentation data (`handler.is_seg`). Detection-only datasets with `--do-rle` no longer produce misleading warnings.
-18. **`_log_error` delegates to `logging_util.logging_error_or_raise()`**: All three base classes use the same shared utility. When modifying error behavior, update the utility, not individual base classes.
+18. **`_log_error` is inline per base class**: Each base class implements its own `_log_error()` directly (no shared utility). Label: ERROR + raise in strict mode. Convert: ERROR + raise in strict mode. Visualize: ERROR (never raises — read-only). Evaluate: ERROR + always raise.
 19. **COCO prediction file formats**: Prediction files exist in two variants. Variant A (full COCO dict) is the annotation-like format from `yolo2coco`. Variant B (plain JSON list) is the standard model-inference format from `yolo2coco --prediction`, Detectron2, MMDetection, etc. The Evaluate module accepts both via `_load_dt()`; the Convert module produces Variant A for labels and Variant B for predictions. See `spec_coco_format.md` §10.
 20. **`CocoAnnotationHandler.prediction` parameter**: When `True`, `write()` outputs list format (Variant B). When `False` (default), outputs full COCO dict (Variant A). The parameter is propagated from `YoloAndCocoConverter(prediction=True)` → `create_target_handler()` → `CocoAnnotationHandler`.
 21. **Prediction `score` field in list format**: In list-format prediction output, `score` is always included (not gated by `confidence < 1.0`). No `id` field is written — pycocotools `loadRes()` auto-assigns IDs.
 22. **Prediction conversion is `yolo2coco` only**: Only `yolo2coco` supports `--prediction`. `labelme2coco` has no prediction mode — LabelMe format has no structural label vs prediction distinction (unlike YOLO's 5/odd token vs 6/even token difference), so there is no alternative prediction source format to convert from. When preparing evaluation data, if your predictions are not in YOLO format, they are likely already in COCO-compatible list format (e.g., Detectron2, MMDetection output).
 23. **P/R/F1 macro vs micro averaging**: `compute_pr_f1(method="macro")` (default) computes overall P/R as the mean of per-class values — each category has equal weight. `method="micro"` computes overall P/R from summed TP/FP/FN across all categories — categories with more annotations have more weight. Per-class results are identical in both modes. `result.method` records which was used. `result.overall.tp/fp/fn` are always the summed totals.
 24. **Mask IoU for segmentation PRF1**: `compute_pr_f1(iou_type='segm')` uses pycocotools `mask` module (`mask.frPyObjects()` + `mask.merge()` for polygon→RLE, `mask.iou()` for batched IoU computation). Both polygon and RLE input formats are supported. Image dimensions are fetched from `coco_gt.loadImgs()` for polygon→RLE conversion. Crowd annotations are handled via `mask.iou()`'s built-in `iscrowd` parameter.
+25. **`--prf1` skips mAP**: The `--prf1` CLI flag computes P/R/F1 only — COCOeval is not invoked. mAP and P/R/F1 are mutually exclusive paths. To get both metrics, run the command twice (once without `--prf1` for mAP, once with `--prf1` for P/R/F1).
+26. **`LogConfig` is the single entry point for logging**: All modules accept `log_config: Optional[LogConfig] = None` instead of `verbose`/`logger`/`log_file_path`. `LogConfig` is a frozen dataclass with `name`, `verbose`, `log_dir`. `LogManager(log_config)` creates the configured logger. The old `LoggingOperations`, `VerboseLoggingOperations`, and `FileOperations` classes have been removed.
 
 ## Test Structure
 
 ```
 tests/
-├── label/          # Handler unit tests (read/write/validate per format)
-├── convert/        # Converter unit tests + integration tests
-├── visualize/      # Visualizer unit tests
-├── evaluate/       # Evaluator unit tests + metric computation tests
-├── util/           # Utility unit tests
-└── cli/            # CLI integration tests (convert, visualize, evaluate)
+├── conftest.py      # Shared fixtures (project_root, test_data_dir, etc.)
+├── label/           # Handler unit tests (read/write/validate per format)
+├── convert/         # Converter unit tests + integration tests
+├── visualize/       # Visualizer unit tests
+├── evaluate/        # Evaluator unit tests + metric computation tests
+├── util/            # Utility unit tests (LogManager, format helpers)
+└── cli/             # CLI tests (convert, visualize, evaluate — 418 tests total)
 ```
 
 Test data lives in `assets/test_data/`, organized by format (det/seg) and annotation type. Evaluate test data lives under `assets/test_data/evaluate/`.

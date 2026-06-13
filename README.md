@@ -36,7 +36,7 @@ graph LR
 | 📊 **Evaluation** | COCO-standard 12-metric output (mAP, AP50, AP75, AR) via pycocotools, with per-class breakdowns and macro/micro P/R/F1 |
 | 💻 **Command-line Interface** | Intuitive CLI with `convert`, `visualize`, and `evaluate` subcommands — positional args, rich `--help` |
 | 🐍 **Python API** | Programmatic access for integration into larger ML pipelines |
-| 📝 **Verbose Logging** | File-based debug logging with timestamps — toggle with `--verbose` |
+| 📝 **Module-Owned Logging** | Unified `LogManager` — console + file logging with structured templates per module |
 | 🖥️ **Headless Mode** | Server/Docker-friendly: `--no-display` + `--save` for off-screen rendering |
 | 🛡️ **Flexible Error Handling** | Strict mode (abort on error) or lenient mode (skip & continue with warnings) via `--no-strict` |
 
@@ -178,11 +178,11 @@ dataflow-cv evaluate detection anno.json pred.json
 # Verbose per-class breakdown
 dataflow-cv evaluate detection --verbose anno.json pred.json
 
-# With P/R/F1 at IoU=0.5 (default: macro averaging)
-dataflow-cv evaluate detection --prf1 --prf1-iou 0.5 anno.json pred.json
+# P/R/F1 only (skips mAP computation) — default: macro averaging
+dataflow-cv evaluate detection --prf1 anno.json pred.json
 
-# With P/R/F1 using micro averaging
-dataflow-cv evaluate detection --prf1 --prf1-method micro anno.json pred.json
+# P/R/F1 with custom IoU threshold and micro averaging
+dataflow-cv evaluate detection --prf1 --prf1-iou 0.75 --prf1-method micro anno.json pred.json
 
 # Instance segmentation evaluation (mask IoU)
 dataflow-cv evaluate segmentation anno.json pred.json
@@ -197,19 +197,22 @@ dataflow-cv evaluate detection --output results.json anno.json pred.json
 # Complete pipeline: YOLO → COCO → Evaluation
 dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt anno.json
 dataflow-cv convert yolo2coco --prediction images/ yolo_preds/ classes.txt pred.json
-dataflow-cv evaluate detection --verbose --prf1 anno.json pred.json
+dataflow-cv evaluate detection --verbose anno.json pred.json           # mAP
+dataflow-cv evaluate detection --prf1 anno.json pred.json             # P/R/F1
 ```
 
 ### 🐍 Python API
 
 ```python
+from dataflow.util.logging import LogConfig
 from dataflow.convert import YoloAndCocoConverter
 from dataflow.visualize import YOLOVisualizer
 from dataflow.evaluate import DetectionEvaluator, compute_pr_f1
 
 # ── Convert ──────────────────────────────────────────
 # YOLO labels → COCO (label mode)
-converter = YoloAndCocoConverter(source_to_target=True, verbose=True, strict_mode=True)
+log_cfg = LogConfig(name="convert", verbose=True)
+converter = YoloAndCocoConverter(source_to_target=True, log_config=log_cfg, strict_mode=True)
 result = converter.convert(
     source_path="yolo_labels/", target_path="anno.json",
     class_file="classes.txt", image_dir="images/",
@@ -226,12 +229,12 @@ result = converter.convert(
 visualizer = YOLOVisualizer(
     label_dir="yolo_labels/", image_dir="images/",
     class_file="classes.txt", is_show=True, is_save=True,
-    output_dir="visualized/", verbose=True, strict_mode=True,
+    output_dir="visualized/", log_config=log_cfg,
 )
 result = visualizer.visualize()
 
 # ── Evaluate ─────────────────────────────────────────
-evaluator = DetectionEvaluator(verbose=True)
+evaluator = DetectionEvaluator(log_config=LogConfig(name="eval", verbose=True))
 result = evaluator.evaluate("anno.json", "pred.json")
 print(f"AP: {result.metrics.ap:.3f}, AP50: {result.metrics.ap50:.3f}")
 
@@ -267,11 +270,11 @@ print(f"Segm F1: {prf1.overall.f1_score:.3f}")
 - **Format-Native Coordinates**: Coordinates stored in each format's native representation — YOLO normalized [0,1] center-based, LabelMe/COCO absolute pixels top-left. Check `DatasetAnnotations.format` to determine semantics.
 - **Explicit Coordinate Transforms**: Converters handle all coordinate transformations between formats — no hidden normalization.
 - **Strict Mode**: Validation errors raise exceptions by default. Disable with `--no-strict` (CLI) or `strict_mode=False` (API).
-- **Verbose Logging**: Detailed debug logs saved to files when `--verbose` is used. The CLI prints the log file path after each operation.
+- **Module-Owned Logging**: Modules handle all logging internally via `LogManager`. `--verbose` enables file logging (DEBUG level) alongside console output. The CLI uses `click.echo()` for terminal UI, not loggers.
 - **Headless Support**: Use `--no-display` for servers/Docker; pair with `--save` to output visualization images without a window.
 - **Keyboard Shortcuts**: During visualization — `q`/`ESC` to exit, `Enter`/`Space` to advance, any other key to continue.
 - **Color Management**: Each class ID gets a unique color from an HSV-based palette (up to 1000 classes) for consistent visualization.
-- **Evaluation Metrics**: COCO-standard 12-metric output with optional per-class breakdown. P/R/F1 supports both macro (default) and micro averaging, and both bbox and mask IoU.
+- **Evaluation Metrics**: mAP (COCOeval, 12 metrics) and P/R/F1 (single-threshold, per-class TP/FP/FN) are separate CLI paths — `--prf1` computes P/R/F1 only, skipping COCOeval. P/R/F1 supports macro/micro averaging and bbox/mask IoU. Run twice for both metrics.
 - **Prediction Files**: YOLO prediction files use 6 tokens (detection) or even tokens (segmentation) vs 5/odd for labels. `--prediction` outputs a plain JSON list of annotation dicts — the standard prediction exchange format compatible with pycocotools `loadRes()`.
 
 ---
@@ -282,7 +285,7 @@ For detailed developer guidance including advanced test commands, debugging, and
 
 ### 🧪 Testing
 
-**405 tests, 76% code coverage (3986 statements).**
+**418 tests, 76% code coverage (3986 statements).**
 
 ```bash
 pytest                                    # All tests
@@ -301,7 +304,7 @@ pytest tests/evaluate/test_evaluator.py     # Single module
 | `dataflow/visualize/` | 81% | yolo_vis (100%), labelme_vis (100%), coco_vis (97%), base (74%) |
 | `dataflow/evaluate/` | 87% | evaluator (100%), metrics (93%), result (99%), base (91%), utils (68%) |
 | `dataflow/cli/` | 59% | main (96%), convert cmd (48%), evaluate cmd (24%), visualize cmd (84%), utils (86%) |
-| `dataflow/util/` | 93% | logging (98%), file_util (84%) |
+| `dataflow/util/` | 93% | logging (98%) |
 
 </details>
 
@@ -332,12 +335,12 @@ pre-commit run --all-files    # Manual run against all files
 ```
 dataflow/
 ├── label/           # Annotation handlers + data models
-├── convert/         # Format converters + RLE utility
-├── visualize/       # OpenCV-based rendering
-├── evaluate/        # pycocotools-based metrics
-├── util/            # Logging & file utilities
+├── convert/         # Format converters, RLE utility, log templates
+├── visualize/       # OpenCV-based rendering, log templates
+├── evaluate/        # pycocotools-based metrics, log templates
+├── util/            # Unified logging (LogManager + format helpers)
 └── cli/             # CLI entry point, commands, validation
-tests/               # Unit & integration tests
+tests/               # Unit & integration tests (418 tests, conftest fixtures)
 samples/             # Python API usage examples
 assets/              # Test data (det/seg by format)
 specs/               # Canonical specifications (evaluate/ + formats/ + modules/)
