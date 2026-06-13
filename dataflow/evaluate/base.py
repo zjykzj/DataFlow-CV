@@ -6,7 +6,9 @@ logging / validation logic used by all concrete evaluators.
 """
 
 import logging
+import os
 from abc import ABC, abstractmethod
+from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -113,7 +115,11 @@ class BaseEvaluator(ABC):
 
             coco_eval.evaluate()
             coco_eval.accumulate()
-            coco_eval.summarize()
+            # summarize() populates coco_eval.stats (needed for
+            # _extract_metrics) but also prints to stdout. Suppress
+            # the print — the CLI handles output formatting.
+            with open(os.devnull, "w") as f, redirect_stdout(f):
+                coco_eval.summarize()
 
             # 5. Extract 12 standard metrics
             metrics = self._extract_metrics(coco_eval)
