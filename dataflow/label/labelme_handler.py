@@ -13,7 +13,6 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
-from dataflow.util.file_util import FileOperations
 
 from .base import AnnotationResult, BaseAnnotationHandler, ImageError
 from .models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
@@ -35,7 +34,6 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
         super().__init__(**kwargs)
         self.label_dir = Path(label_dir)
         self.class_file = Path(class_file) if class_file else None
-        self.file_ops = FileOperations(logger=self.logger)
         self.categories = self._load_categories()
 
     def _load_categories(self) -> Dict[int, str]:
@@ -44,7 +42,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
 
         if self.class_file and self.class_file.exists():
             try:
-                lines = self.file_ops.read_lines(self.class_file)
+                lines = Path(self.class_file).read_text(encoding="utf-8").splitlines()
                 for i, line in enumerate(lines):
                     if line.strip():  # Skip empty lines
                         categories[i] = line.strip()
@@ -69,9 +67,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             return result
 
         try:
-            json_files = self.file_ops.find_files(
-                self.label_dir, "*.json", recursive=False
-            )
+            json_files = list(Path(self.label_dir).glob("*.json"))
             if not json_files:
                 result.add_error(f"No JSON files found in {self.label_dir}")
                 return result
@@ -161,9 +157,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 f"Label directory does not exist: {self.label_dir}"
             )
 
-        json_files = self.file_ops.find_files(
-            self.label_dir, "*.json", recursive=False
-        )
+        json_files = list(Path(self.label_dir).glob("*.json"))
         if not json_files:
             raise ValueError(
                 f"No JSON files found in {self.label_dir}"
@@ -406,7 +400,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
         output_path = Path(output_dir)
 
         try:
-            self.file_ops.ensure_dir(output_path)
+            Path(output_path).mkdir(parents=True, exist_ok=True)
 
             written_count = 0
             for image_ann in annotations.images:

@@ -189,7 +189,6 @@ class TestBaseConverter:
         assert converter.target_format == "yolo"
         assert converter.strict_mode is False
         assert converter.logger is not None
-        assert converter.file_ops is not None
 
     def test_validate_inputs_source_not_exist(self):
         """Test validation when source path doesn't exist."""

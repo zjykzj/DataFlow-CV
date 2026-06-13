@@ -14,7 +14,6 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 from ..label.base import AnnotationResult, BaseAnnotationHandler
 from ..label.models import (AnnotationFormat, DatasetAnnotations,
                               ImageAnnotation)
-from ..util.file_util import FileOperations
 
 
 @dataclass
@@ -117,8 +116,6 @@ class BaseConverter(ABC):
             )
         self._log_manager = LogManager(log_config)
         self.logger = self._log_manager.logger
-
-        self.file_ops = FileOperations(logger=self.logger)
 
         # Initialize conversion stats for batch convert()
         self.conversion_stats: Dict[str, Any] = {}

@@ -13,8 +13,6 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 import cv2
 import numpy as np
 
-from dataflow.util.file_util import FileOperations
-
 from .base import AnnotationResult, BaseAnnotationHandler, ImageError
 from .models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
                      ImageAnnotation, ObjectAnnotation, Segmentation)
@@ -43,7 +41,6 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
         self.class_file = Path(class_file)
         self.image_dir = Path(image_dir)
         self.prediction = prediction
-        self.file_ops = FileOperations(logger=self.logger)
         self.categories = self._load_categories()
 
     def _load_categories(self) -> Dict[int, str]:
@@ -55,7 +52,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
             return categories
 
         try:
-            lines = self.file_ops.read_lines(self.class_file)
+            lines = Path(self.class_file).read_text(encoding="utf-8").splitlines()
             for i, line in enumerate(lines):
                 if line.strip():  # Skip empty lines
                     categories[i] = line.strip()
@@ -179,9 +176,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
         try:
             # Find all TXT files in label directory
-            txt_files = self.file_ops.find_files(
-                self.label_dir, "*.txt", recursive=False
-            )
+            txt_files = list(self.label_dir.glob("*.txt"))
             if not txt_files:
                 result.add_error(f"No TXT files found in {self.label_dir}")
                 return result
@@ -265,9 +260,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                 f"No categories loaded from {self.class_file}"
             )
 
-        txt_files = self.file_ops.find_files(
-            self.label_dir, "*.txt", recursive=False
-        )
+        txt_files = list(self.label_dir.glob("*.txt"))
         if not txt_files:
             raise ValueError(
                 f"No TXT files found in {self.label_dir}"
@@ -340,7 +333,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                 )
 
             # Read label file
-            lines = self.file_ops.read_lines(txt_file)
+            lines = Path(txt_file).read_text(encoding="utf-8").splitlines()
             objects: List[ObjectAnnotation] = []
 
             for line_num, line in enumerate(lines, 1):
@@ -594,7 +587,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
         output_path = Path(output_dir)
 
         try:
-            self.file_ops.ensure_dir(output_path)
+            output_path.mkdir(parents=True, exist_ok=True)
 
             written_count = 0
             for image_ann in annotations.images:
@@ -647,21 +640,9 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                 else:
                     self._log_warning(f"Skipping object {obj.class_name}")
 
-            if lines:
-                success = self.file_ops.write_lines(output_file, lines)
-                if success:
-                    result.success = True
-                    result.message = f"Written {output_file} with {len(lines)} objects"
-                else:
-                    result.add_error(f"Failed to write to {output_file}")
-            else:
-                # Write empty file if no objects
-                success = self.file_ops.write_lines(output_file, [])
-                if success:
-                    result.success = True
-                    result.message = f"Written empty file {output_file}"
-                else:
-                    result.add_error(f"Failed to write empty file {output_file}")
+            output_file.write_text("\n".join(lines), encoding="utf-8")
+            result.success = True
+            result.message = f"Written {output_file} with {len(lines)} objects"
 
         except Exception as e:
             result.add_error(f"Error writing image {image_ann.image_id}: {e}")
@@ -746,7 +727,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                 return False
 
             # Read file
-            lines = self.file_ops.read_lines(file_path)
+            lines = Path(file_path).read_text(encoding="utf-8").splitlines()
             for line_num, line in enumerate(lines, 1):
                 line = line.strip()
                 if not line:  # Skip empty lines

@@ -16,7 +16,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import cv2
 import numpy as np
 
-from dataflow.util import FileOperations
 from dataflow.label.base import BaseAnnotationHandler
 from dataflow.label.models import ImageAnnotation
 
@@ -185,8 +184,6 @@ class BaseVisualizer(ABC):
         self._log_manager = LogManager(log_config)
         self.logger = self._log_manager.logger
 
-        self.file_ops = FileOperations(logger=self.logger)
-
         self.config = {
             "bbox_thickness": 2,
             "seg_thickness": 1,
@@ -265,7 +262,7 @@ class BaseVisualizer(ABC):
                     result.add_error(error_msg)
                     result.message = error_msg
                     return result
-                self.file_ops.ensure_dir(self.output_dir)
+                self.output_dir.mkdir(parents=True, exist_ok=True)
 
             # 2. Create handler and obtain streaming iterator
             handler = self._create_handler()

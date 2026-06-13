@@ -25,7 +25,6 @@ except ImportError:
 import cv2
 import numpy as np
 
-from dataflow.util.file_util import FileOperations
 
 from .base import AnnotationResult, BaseAnnotationHandler
 from .models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
@@ -50,7 +49,6 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         """
         super().__init__(**kwargs)
         self.annotation_file = Path(annotation_file)
-        self.file_ops = FileOperations(logger=self.logger)
         self.categories = {}
         self.images = {}
         self.annotations = []
