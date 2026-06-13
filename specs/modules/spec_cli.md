@@ -280,7 +280,7 @@ Evaluate subcommands share these options:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `--verbose` | Flag | False | Enable verbose output: per-class metrics table + file logging |
-| `--prf1` | Flag | False | Additionally compute and display P/R/F1 at specified IoU threshold |
+| `--prf1` | Flag | False | Compute P/R/F1 instead of mAP. When set, COCOeval is skipped entirely — only single-threshold P/R/F1 is computed via manual greedy matching. Mutually exclusive with the mAP path (no flag). |
 | `--prf1-iou` | Float | 0.5 | IoU threshold for P/R/F1 calculation |
 | `--prf1-conf` | Float | 0.0 | Confidence threshold for P/R/F1 calculation |
 | `--prf1-method` | Choice | "macro" | Aggregation method for overall P/R/F1: ``"macro"`` or ``"micro"``. See `spec_evaluate_metrics.md` §2.3 |
@@ -316,23 +316,42 @@ Evaluates instance segmentation results using mask IoU (`iouType='segm'`).
 
 ### 6.3 Evaluate Command Flow (Both Commands)
 
+Two mutually exclusive paths, selected by `--prf1`:
+
+**Path A — mAP (default, no `--prf1`):**
+
 ```
 1. Extract ctx.obj (verbose, log_dir)
 2. Construct LogConfig(name=f"dataflow.{cmd}", verbose=verbose, log_dir=log_dir)
-3. Validate: GT_JSON exists and is valid COCO JSON
-4. Validate: DT_JSON exists and is valid COCO JSON
-5. Validate: pycocotools is installed (raise SystemError if not)
-6. Instantiate DetectionEvaluator or SegmentationEvaluator (with log_config=log_config)
-7. Call evaluator.evaluate(GT_JSON, DT_JSON) → EvaluationResult
-   (evaluator handles ALL logging internally)
-8. If success:
+3. Validate: GT_JSON, DT_JSON exist; pycocotools installed
+4. Instantiate DetectionEvaluator or SegmentationEvaluator (with log_config=log_config)
+5. Call evaluator.evaluate(GT_JSON, DT_JSON) → EvaluationResult
+   (runs full COCOeval: 10 IoU × 101 recall thresholds)
+6. If success:
    a. Print 12 COCO standard metrics table (click.echo)
    b. If verbose: print per-class breakdown table (click.echo)
-   c. If --prf1: call compute_pr_f1() and print results (click.echo)
-   d. If --output: write EvaluationResult as JSON to file
-   e. If verbose and result.log_path: click.echo(f"Log saved to: {result.log_path}")
-9. If failure: raise RuntimeCLIError with first error message
+   c. If --output: write EvaluationResult as JSON to file
+   d. If result.log_path: click.echo(f"Log saved to: {result.log_path}")
+7. If failure: raise RuntimeCLIError with first error message
 ```
+
+**Path B — P/R/F1 (`--prf1`):**
+
+```
+1. Same validation steps (1-3)
+2. Call compute_pr_f1(GT_JSON, DT_JSON, iou_threshold=prf1_iou,
+     confidence_threshold=prf1_conf, iou_type=..., method=prf1_method)
+   (single IoU threshold, manual greedy matching — COCOeval NOT invoked)
+3. If success:
+   a. Print P/R/F1 per-class table + overall summary (click.echo)
+   b. If result.log_path: click.echo(f"Log saved to: {result.log_path}")
+4. If failure: raise RuntimeCLIError
+```
+
+**Key design rule**: `--prf1` and the mAP path are mutually exclusive. If the user
+wants both metrics, they run the command twice — once without `--prf1` for mAP,
+once with `--prf1` for P/R/F1. This avoids forcing expensive COCOeval computation
+on users who only need single-threshold P/R/F1.```
 
 ### 6.4 Output Format
 
@@ -372,11 +391,19 @@ Per-Class Breakdown (IoU: 0.50:0.95):
 ───────────────────────────────────────────────────────────────────────────
 ```
 
-**PRF1 output (with `--prf1`):**
+### 6.5 P/R/F1 Output (with `--prf1`)
+
+When `--prf1` is specified, mAP is **not** computed. Only P/R/F1 is output.
 
 Default (macro) mode:
 ```
 Precision / Recall / F1-Score (IoU=0.50, Conf=0.00, Method=macro):
+────────────────────────────────────────────────────────────────
+Class             GT    TP    FP    FN       P       R      F1
+────────────────────────────────────────────────────────────────
+person            520   487   123    33  0.7980  0.9370  0.8620
+car               380   342   108    38  0.7600  0.9000  0.8240
+────────────────────────────────────────────────────────────────
   Overall:  P=0.756  R=0.912  F1=0.826  TP=1250  FP=403  FN=120
 ```
 
@@ -526,6 +553,19 @@ Custom `click.Command` subclass that formats Arguments in the help output to mat
 - Preserves standard Click formatting for usage, description, options, and epilog
 
 ## 12. Change History
+
+### v2.0 → v2.1: --prf1 Computes P/R/F1 Only
+
+| Aspect | v2.0 | v2.1 |
+|--------|------|------|
+| `--prf1` behavior | Additionally compute P/R/F1 on top of mAP | Compute P/R/F1 instead of mAP |
+| mAP path | Always runs COCOeval (10×101 IoU/recall) | Only runs when `--prf1` NOT set |
+| P/R/F1 path | Appended to mAP output | Standalone — skips COCOeval entirely |
+| Both metrics | One command | Two separate commands (run twice) |
+
+**Rationale**: mAP and P/R/F1 answer different questions. Forcing COCOeval on
+users who only want single-threshold P/R/F1 was wasteful. The two paths are now
+mutually exclusive — run the command twice if both metrics are needed.
 
 ### v1.1 → v2.0: Module-Owned Logging
 
