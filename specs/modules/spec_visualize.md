@@ -1,7 +1,7 @@
 # Visualize Module Specification
 
-> **Version:** 4.0
-> **Status:** Draft — unified logging via `LogManager`, removed `verbose`/`logger`/`log_file_path` params
+> **Version:** 4.3
+> **Status:** Draft — industry-standard label positioning (top-left, class-color background, inside-bbox edge flip)
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
 
@@ -275,7 +275,7 @@ For each `RenderAnnotation`, drawing proceeds in this order:
 
 ```
 1. Determine label position:
-   ├── bbox exists → label_pos = bbox top-center (cx, y1 - text_padding)
+   ├── bbox exists → label_pos = bbox top-left (x1, y1 - 2)
    └── bbox is None, polygon exists → label_pos = polygon[0] (fallback)
 
 2. Draw bbox (if present):
@@ -289,7 +289,9 @@ For each `RenderAnnotation`, drawing proceeds in this order:
    └── Decode mask → semi-transparent overlay
 
 5. Draw label (if position determined):
-   └── _draw_text() with edge clamping (see below)
+   └── Class-color background rectangle (matches bbox/polygon color)
+       White text, top-left aligned with bbox
+       Edge case: if label would extend above image top → flip inside bbox
 ```
 
 **Bbox from polygon fallback**: In `_convert_to_render_data()`, if a `RenderAnnotation`
@@ -306,9 +308,11 @@ if polygon and bbox is None:
 This ensures label positioning is always based on a bounding box rather than an
 arbitrary polygon vertex, giving consistent placement across all annotation types.
 
-**Label position**: `(cx, y1 - text_padding)` where `cx = x1 + (x2 - x1) // 2`
-(top-center of bbox). If bbox is None but polygon exists (no bbox computed),
-falls back to polygon's first point.
+**Label position**: `(x1, y1 - 2)` (above bbox, top-left aligned).
+Background rectangle uses the same class color as the bbox/polygon, providing
+visual association between label and annotation. Text is white for contrast.
+If bbox is None but polygon exists (no bbox computed), falls back to polygon's
+first point.
 
 #### `_draw_bbox(image, bbox, color, class_name)`
 
@@ -330,13 +334,13 @@ falls back to polygon's first point.
 
 Requires pycocotools — logs error and returns without drawing if unavailable.
 
-#### `_draw_text(image, text, position, color)`
+#### `_draw_text(image, text, position, color, bbox)`
 
 1. Calculate text bounding box via `cv2.getTextSize()`
 2. If text extends above image top edge (`y1 - text_padding - text_height < 0`):
-   - Flip label below bbox: `position = (cx, y2 + text_padding + text_height)`
-3. Draw black background rectangle (clamped to image boundaries)
-4. Draw white text with `cv2.putText()` (anti-aliased)
+   - Flip label **inside** bbox: `position = (x1, y1 + text_height + text_padding)`
+3. Draw **class-color** background rectangle (from `color` parameter, clamped to image boundaries)
+4. Draw **white** text with `cv2.putText()` (anti-aliased)
 
 ### 4.4 Keyboard Interaction (Display Mode)
 
@@ -580,6 +584,15 @@ When `verbose=False`:
 | `VisualizationResult.log_file_path` | Present | Renamed to `log_path` |
 | Log templates | None (ad-hoc `self.logger.info(...)` calls) | `log_templates.py` — structured formatting functions |
 | CLI interaction | CLI creates logger + passes to visualizer | CLI passes `LogConfig`, visualizer handles all logging |
+
+### v4.2 → v4.3: Industry-Standard Label Positioning
+
+| Aspect | v4.2 | v4.3 |
+|--------|------|------|
+| Label horizontal alignment | Top-center `(cx, y1-5)` | Top-left `(x1, y1-2)` — matches Ultralytics, Supervision, Detectron2 |
+| Label background | Black `(0,0,0)` | Class color — visual association with bbox/polygon |
+| Edge handling | Flip below bbox | Flip **inside** bbox at top-left — matches Ultralytics YOLOv8 fallback |
+| Rationale | — | No major CV tool uses top-center or black background; left-aligned with class color is industry consensus |
 
 ### v4.1 → v4.2: Consistent Label Positioning
 
