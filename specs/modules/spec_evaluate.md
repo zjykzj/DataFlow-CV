@@ -429,7 +429,6 @@ When `verbose=False`:
 Evaluate module imports FROM:
 ├── dataflow.label.models             (DatasetAnnotations, AnnotationFormat)
 ├── dataflow.label.coco_handler       (CocoAnnotationHandler — for loading COCO files)
-├── dataflow.util                     (FileOperations)
 ├── dataflow.util.logging             (LogConfig, LogManager)
 ├── pycocotools.coco                  (COCO)
 ├── pycocotools.cocoeval              (COCOeval)
@@ -568,6 +567,12 @@ When loading DT from `DatasetAnnotations`:
 | `compute_pr_f1(gt, dt, iou_thr, conf_thr, iou_type, log_config=...) → PRF1Result` | `metrics.py` | Single-threshold P/R/F1 |
 
 ## 12. Change History
+
+### v2.0 → v2.1: Remove FileOperations from Dependency Contract
+
+| Aspect | v2.0 | v2.1 |
+|--------|------|------|
+| `dataflow.util` dependency | Listed `FileOperations` | Removed — Evaluate never actually imported it |
 
 ### v1.2 → v2.0: Unified Logging via LogManager
 

@@ -412,7 +412,6 @@ Visualize module imports FROM:
 ├── dataflow.label.yolo_handler   (YoloAnnotationHandler)
 ├── dataflow.label.coco_handler   (CocoAnnotationHandler)
 ├── dataflow.label.labelme_handler (LabelMeAnnotationHandler)
-├── dataflow.util                 (FileOperations)
 ├── dataflow.util.logging         (LogConfig, LogManager)
 ├── cv2                           (OpenCV rendering)
 └── numpy                         (Array operations)
@@ -504,6 +503,13 @@ When `verbose=False`:
 - `log_path` is `None`
 
 ## 9. Change History
+
+### v4 → v4.1: Remove FileOperations
+
+| Aspect | v4 | v4.1 |
+|--------|----|----|
+| File I/O | `FileOperations` wrapper class | Inline stdlib `Path` calls |
+| `dataflow.util` dependency | `FileOperations` | Removed |
 
 ### v3 → v4: Unified Logging via LogManager
 

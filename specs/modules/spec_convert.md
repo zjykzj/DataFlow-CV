@@ -569,8 +569,7 @@ Convert module imports FROM:
 ├── dataflow.label.yolo_handler  (YoloAnnotationHandler)
 ├── dataflow.label.coco_handler  (CocoAnnotationHandler)
 ├── dataflow.label.labelme_handler (LabelMeAnnotationHandler)
-├── dataflow.util                (FileOperations)
-└── dataflow.util.logging        (LogConfig, LogManager)
+├── dataflow.util.logging        (LogConfig, LogManager)
 
 Convert module does NOT import FROM:
 ├── dataflow.visualize.*         (FORBIDDEN — zero cross-dependency)
@@ -616,6 +615,15 @@ the error are on disk. This is different from the batch path which is all-or-not
 are processed. If the stream is interrupted, already-written files remain on disk.
 
 ## 8. Change History
+
+### v5 → v5.1: Remove FileOperations
+
+| Aspect | v5 | v5.1 |
+|--------|----|----|
+| File I/O | `FileOperations` wrapper class | Inline stdlib `Path` calls (read_text, write_text, rglob, mkdir) |
+| `dataflow.util` dependency | `FileOperations` | Removed — no longer imported |
+
+**Rationale**: `FileOperations` added indirection without value — each method was a 1-3 line stdlib wrapper with INFO-level log noise. File I/O is handled directly with `pathlib.Path` methods.
 
 ### v4 → v5: Unified Logging via LogManager
 
