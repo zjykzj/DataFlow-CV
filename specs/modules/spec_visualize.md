@@ -153,7 +153,7 @@ Abstract base class implementing the template method pattern.
 | `output_dir` | Optional[Path] | No | None | Save directory (required if `is_save=True`) |
 | `is_show` | bool | No | True | Display visualization window |
 | `is_save` | bool | No | False | Save rendered images |
-| `strict_mode` | bool | No | True | Strict validation mode |
+
 | `verbose` | bool | No | False | Verbose file logging |
 | `logger` | Optional[Logger] | No | None | Logger instance |
 | `log_file_path` | Optional[str] | No | None | Pre-configured log file path |
@@ -335,7 +335,7 @@ def _create_handler(self) -> YoloAnnotationHandler:
         label_dir=str(self.label_dir),
         class_file=str(self.class_file),
         image_dir=str(self.image_dir),
-        strict_mode=self.strict_mode,
+        strict_mode=False,
         logger=self.logger,
     )
 ```
@@ -366,7 +366,7 @@ For each `ObjectAnnotation` in `image_ann.objects`:
 def _create_handler(self) -> CocoAnnotationHandler:
     return CocoAnnotationHandler(
         annotation_file=str(self.annotation_file),
-        strict_mode=self.strict_mode,
+        strict_mode=False,
         logger=self.logger,
     )
 ```
@@ -391,7 +391,7 @@ For each `ObjectAnnotation` in `image_ann.objects`:
 **`_create_handler()`:**
 ```python
 def _create_handler(self) -> LabelMeAnnotationHandler:
-    kwargs = dict(strict_mode=self.strict_mode, logger=self.logger)
+    kwargs = dict(strict_mode=False, logger=self.logger)
     if self.class_file:
         kwargs["class_file"] = str(self.class_file)
     return LabelMeAnnotationHandler(
@@ -426,25 +426,34 @@ Visualize module does NOT import FROM:
 
 ## 7. Error Handling Contract
 
-| Error Type | Strict Mode | Non-Strict Mode |
-|------------|-------------|-----------------|
-| Annotation parse error (handler) | `ValueError` raised from `iter_images()`, stops iteration | Logged and skipped inside handler, continues to next image |
-| Image file not found | Log warning, skip image, continue | Log warning, skip image, continue |
-| Image failed to load (cv2.imread) | Log warning, skip image, continue | Log warning, skip image, continue |
-| Display window error | Log warning, continue without display | Log warning, continue without display |
-| RLE decode failed (no pycocotools) | Log error, skip RLE mask drawing | Log error, skip RLE mask drawing |
-| Annotation load failed (handler constructor) | `ValueError` raised before iteration begins | `ValueError` raised before iteration begins |
+Visualization is a **read-only** operation — no annotation data is produced. Errors are always
+logged with the reason and the offending file/line, then processing continues to the next file.
+This ensures a single bad annotation file never prevents the user from inspecting all other
+images in the dataset.
+
+| Error Type | Behavior |
+|------------|----------|
+| Annotation parse error (per-line) | Log warning with line number + reason, skip the line, continue parsing the same file |
+| Annotation parse error (per-file, handler yields nothing) | Log warning, skip the file, continue to next |
+| Image file not found | Log warning, skip image, continue (`failed_images++`) |
+| Image failed to load (cv2.imread) | Log warning, skip image, continue (`failed_images++`) |
+| Display window error | Log warning, continue without display |
+| RLE decode failed (no pycocotools) | Log error, skip RLE mask drawing, continue |
+| Handler construction error (missing directory, no categories) | `ValueError` raised before iteration begins — these are structural errors that make the entire dataset unusable |
 
 **Key rules:**
-- **Image loading errors** never abort the entire visualization — individual image
-  failures are counted in `summary_data["failed_images"]` but processing continues.
-- **Handler structural errors** (missing directory, no categories) raise immediately
-  before any images are processed, regardless of `strict_mode`.
-- **Streaming strict mode**: When `iter_images()` raises `ValueError` mid-iteration,
-  the visualizer catches it, records the error, and returns a partial result with
-  `processed_count` reflecting images successfully shown before the failure.
-- **Non-strict mode**: All parse/skip decisions happen inside the handler's
-  `iter_images()`. The visualizer only sees valid `ImageAnnotation` objects.
+- **Per-line parse errors**: Handle inside the handler — log a warning with the specific
+  line number and reason, skip that line, continue with the next line in the same file.
+- **Per-file errors**: If the entire file cannot be processed (no paired image, all lines
+  invalid), log a warning and skip to the next file. Counted in `failed_images`.
+- **Image loading errors**: Always downgraded to warnings. Individual image failures are
+  counted in `summary_data["failed_images"]` but processing continues.
+- **Structural errors**: Raised immediately before any images are processed — these indicate
+  a fundamentally broken dataset (wrong paths, empty class file) that cannot produce useful
+  visualizations.
+- **Partial results**: When `iter_images()` raises `ValueError` mid-iteration, the visualizer
+  catches it and returns a result with `processed_count` reflecting images successfully shown
+  before the failure.
 
 ## 8. Verbose Logging Contract
 

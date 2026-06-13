@@ -204,9 +204,8 @@ Adds to every visualize subcommand:
 | `--display`/`--no-display` | Flag | `--display` | Show/hide visualization window |
 
 **Behavior on apply:**
-1. Sets `ctx.obj["verbose"]`, `ctx.obj["is_show"]` (= display), `ctx.obj["strict"]` (= True, always)
+1. Sets `ctx.obj["verbose"]`, `ctx.obj["is_show"]` (= display)
 2. Reconfigures logger same as `add_common_options`
-3. Visualize commands do NOT support `--no-strict` (strict is always True)
 
 ### 5.2 Command Signatures
 
@@ -259,7 +258,7 @@ dataflow-cv visualize labelme [OPTIONS] IMAGE_DIR LABEL_DIR
 ### 5.3 Visualize Command Flow (All 3 Commands)
 
 ```
-1. Extract ctx.obj (logger, verbose, strict, is_show, log_file_path)
+1. Extract ctx.obj (logger, verbose, is_show, log_file_path)
 2. Log start message
 3. Call validate_visualize_params() — checks paths exist, creates output dir
 4. Instantiate visualizer class (with logger + log_file_path from context)
