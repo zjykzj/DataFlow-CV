@@ -101,3 +101,41 @@ class TestSegmentationEvaluator:
         # Segmentation eval without segmentation data should fail
         assert result.success is False
         assert len(result.errors) > 0
+
+
+class TestSegmentationEvaluatorSuccess:
+    """Test SegmentationEvaluator with real segmentation data."""
+
+    @pytest.fixture
+    def gt_segm_path(self):
+        return TEST_DATA / "gt_coco_segm.json"
+
+    @pytest.fixture
+    def dt_segm_path(self):
+        return TEST_DATA / "dt_coco_segm.json"
+
+    def test_evaluate_segmentation(self, gt_segm_path, dt_segm_path):
+        """SegmentationEvaluator with real segm data should succeed."""
+        ev = SegmentationEvaluator()
+        result = ev.evaluate(gt_segm_path, dt_segm_path)
+        assert result.success is True
+        assert result.iou_type == "segm"
+        assert result.metrics is not None
+        assert result.metrics.ap >= 0
+
+    def test_evaluate_segmentation_verbose(self, gt_segm_path, dt_segm_path):
+        """Verbose segmentation eval should produce per-class breakdown."""
+        from dataflow.util.logging import LogConfig
+        log_config = LogConfig(name="test_segm_verbose", verbose=True)
+        ev = SegmentationEvaluator(log_config=log_config)
+        result = ev.evaluate(gt_segm_path, dt_segm_path)
+        assert result.success is True
+        assert result.per_class is not None
+        assert len(result.per_class) > 0
+
+    def test_evaluate_segmentation_stats(self, gt_segm_path, dt_segm_path):
+        """Segmentation eval should report correct stats."""
+        ev = SegmentationEvaluator()
+        result = ev.evaluate(gt_segm_path, dt_segm_path)
+        assert result.gt_stats["annotations"] > 0
+        assert result.dt_stats["annotations"] > 0
