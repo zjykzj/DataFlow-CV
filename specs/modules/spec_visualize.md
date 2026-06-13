@@ -84,6 +84,18 @@ The conversion from `ImageAnnotation` (format-native coords) → `RenderData`:
 
 **All coordinates are truncated to integers via `int()` for OpenCV drawing compatibility.**
 
+**Bbox from polygon fallback**: When `obj.bbox` is `None` but `obj.segmentation` exists (e.g.,
+YOLO segmentation format stores polygon points without a separate bbox), the visualizer
+**must** compute the bbox from the polygon's axis-aligned bounds:
+
+```python
+xs = [p[0] for p in polygon_points_absolute]
+ys = [p[1] for p in polygon_points_absolute]
+bbox = (int(min(xs)), int(min(ys)), int(max(xs)), int(max(ys)))
+```
+
+This ensures every `RenderAnnotation` has a bbox for consistent label positioning (§4.3).
+
 This conversion is lossy (integer truncation), but since it's used only for display (not for
 saving annotations), precision loss in the rendering pipeline is acceptable.
 
@@ -257,18 +269,58 @@ def visualize(self) -> VisualizationResult:
 
 ### 4.3 Drawing Methods
 
+#### Per-Annotation Drawing Flow
+
+For each `RenderAnnotation`, drawing proceeds in this order:
+
+```
+1. Determine label position:
+   ├── bbox exists → label_pos = bbox top-center (cx, y1 - text_padding)
+   └── bbox is None, polygon exists → label_pos = polygon[0] (fallback)
+
+2. Draw bbox (if present):
+   └── cv2.rectangle(image, (x1,y1), (x2,y2), color, thickness)
+
+3. Draw polygon (if present):
+   ├── cv2.fillPoly() semi-transparent fill (alpha from config)
+   └── cv2.polylines() outline
+
+4. Draw RLE mask (if present):
+   └── Decode mask → semi-transparent overlay
+
+5. Draw label (if position determined):
+   └── _draw_text() with edge clamping (see below)
+```
+
+**Bbox from polygon fallback**: In `_convert_to_render_data()`, if a `RenderAnnotation`
+has a polygon but no bbox (e.g., YOLO segmentation format stores polygon points only),
+the visualizer **must** compute the bbox from the polygon's min/max x,y:
+
+```python
+if polygon and bbox is None:
+    xs = [p[0] for p in polygon]
+    ys = [p[1] for p in polygon]
+    bbox = (min(xs), min(ys), max(xs), max(ys))
+```
+
+This ensures label positioning is always based on a bounding box rather than an
+arbitrary polygon vertex, giving consistent placement across all annotation types.
+
+**Label position**: `(cx, y1 - text_padding)` where `cx = x1 + (x2 - x1) // 2`
+(top-center of bbox). If bbox is None but polygon exists (no bbox computed),
+falls back to polygon's first point.
+
 #### `_draw_bbox(image, bbox, color, class_name)`
 
 - `bbox`: `(x1, y1, x2, y2)` in absolute pixels (from `RenderAnnotation` — already in absolute coords)
 - Draw rectangle with `cv2.rectangle()`
-- Draw class label above the rectangle with `_draw_text()`
 
 #### `_draw_polygon(image, polygon, color, class_name)`
 
 - `polygon`: `[(x1, y1), (x2, y2), ...]` in absolute pixels (from `RenderAnnotation`)
 - Draw semi-transparent fill with `cv2.fillPoly()` + `cv2.addWeighted()` (alpha from config)
 - Draw polygon outline with `cv2.polylines()`
-- Draw class label near first point
+- Label is drawn by the per-annotation flow (not inside `_draw_polygon`) — positioned above the bbox
 
 #### `_draw_rle_mask(image, rle, color)`
 
@@ -280,9 +332,11 @@ Requires pycocotools — logs error and returns without drawing if unavailable.
 
 #### `_draw_text(image, text, position, color)`
 
-1. Calculate text bounding box
-2. Draw black background rectangle (clamped to image boundaries)
-3. Draw white text with `cv2.putText()` (anti-aliased)
+1. Calculate text bounding box via `cv2.getTextSize()`
+2. If text extends above image top edge (`y1 - text_padding - text_height < 0`):
+   - Flip label below bbox: `position = (cx, y2 + text_padding + text_height)`
+3. Draw black background rectangle (clamped to image boundaries)
+4. Draw white text with `cv2.putText()` (anti-aliased)
 
 ### 4.4 Keyboard Interaction (Display Mode)
 
@@ -349,7 +403,9 @@ For each `ObjectAnnotation` in `image_ann.objects`:
    - `x2 = int(cx_abs + half_w)`, `y2 = int(cy_abs + half_h)`
 2. If `obj.segmentation`: convert each normalized point `(x, y)` to
    absolute pixel `(int(x * width), int(y * height))`
-3. Return `RenderData(annotations=[...], image_width, image_height)`
+3. **Bbox from polygon fallback**: If polygon exists but bbox is None, compute
+   bbox from polygon's axis-aligned bounds: `(min(xs), min(ys), max(xs), max(ys))`
+4. Return `RenderData(annotations=[...], image_width, image_height)`
 
 ### 5.2 `COCOVisualizer`
 
@@ -376,7 +432,9 @@ For each `ObjectAnnotation` in `image_ann.objects`:
    - `x2 = int(x + w)`, `y2 = int(y + h)`
 2. If `obj.segmentation`: use absolute pixel polygon points as-is, truncate to int
 3. If `obj.segmentation.rle`: preserve RLE dict as-is in `RenderAnnotation.rle`
-4. Return `RenderData(annotations=[...], image_width, image_height)`
+4. **Bbox from polygon fallback**: If polygon exists but bbox is None, compute
+   bbox from polygon's axis-aligned bounds: `(min(xs), min(ys), max(xs), max(ys))`
+5. Return `RenderData(annotations=[...], image_width, image_height)`
 
 ### 5.3 `LabelMeVisualizer`
 
@@ -402,7 +460,9 @@ For each `ObjectAnnotation` in `image_ann.objects`:
 1. If `obj.bbox`: LabelMe-native (absolute pixel top-left `[x,y,w,h]`) →
    `x1 = int(x)`, `y1 = int(y)`, `x2 = int(x + w)`, `y2 = int(y + h)`
 2. If `obj.segmentation`: use absolute pixel polygon points as-is, truncate to int
-3. Return `RenderData(annotations=[...], image_width, image_height)`
+3. **Bbox from polygon fallback**: If polygon exists but bbox is None, compute
+   bbox from polygon's axis-aligned bounds: `(min(xs), min(ys), max(xs), max(ys))`
+4. Return `RenderData(annotations=[...], image_width, image_height)`
 
 ## 6. Dependency Contract
 
@@ -520,3 +580,12 @@ When `verbose=False`:
 | `VisualizationResult.log_file_path` | Present | Renamed to `log_path` |
 | Log templates | None (ad-hoc `self.logger.info(...)` calls) | `log_templates.py` — structured formatting functions |
 | CLI interaction | CLI creates logger + passes to visualizer | CLI passes `LogConfig`, visualizer handles all logging |
+
+### v4.1 → v4.2: Consistent Label Positioning
+
+| Aspect | v4.1 | v4.2 |
+|--------|------|------|
+| Label position | Bbox top-left `(x1, y1-5)`; polygon label at first point | Bbox top-center `(cx, y1-5)` |
+| Bbox from polygon | Not computed — polygon-only annotations had no bbox | Computed from polygon axis-aligned bounds in `_convert_to_render_data()` |
+| Edge handling | Clamp text background to image bounds | Flip label below bbox when text extends above image top |
+| Spec §4.3 | No per-annotation drawing flow documented | Explicit per-annotation flow with label positioning rules |
