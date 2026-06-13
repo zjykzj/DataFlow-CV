@@ -50,7 +50,7 @@ class YOLOVisualizer(BaseVisualizer):
             label_dir=str(self.label_dir),
             class_file=str(self.class_file),
             image_dir=str(self.image_dir),
-            strict_mode=self.strict_mode,
+            strict_mode=False,
             logger=self.logger,
         )
 

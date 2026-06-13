@@ -41,14 +41,13 @@ class TestLabelMeVisualizer:
             class_file=TEST_DATA_DET / "classes.txt",
             is_show=False,
             is_save=False,
-            strict_mode=True,
+
         )
         assert visualizer.label_dir == TEST_DATA_DET
         assert visualizer.image_dir == TEST_DATA_DET
         assert visualizer.class_file == TEST_DATA_DET / "classes.txt"
         assert visualizer.is_show is False
         assert visualizer.is_save is False
-        assert visualizer.strict_mode is True
         # Handler is created lazily via _create_handler()
         handler = visualizer._create_handler()
         assert handler is not None
@@ -106,7 +105,7 @@ class TestLabelMeVisualizer:
             class_file=TEST_DATA_DET / "classes.txt",
             is_show=False,
             is_save=False,
-            strict_mode=True,
+
         )
 
         result = visualizer.visualize()
@@ -125,7 +124,7 @@ class TestLabelMeVisualizer:
             is_show=False,
             is_save=True,
             output_dir=temp_dir,
-            strict_mode=True,
+
         )
 
         result = visualizer.visualize()
@@ -144,7 +143,7 @@ class TestLabelMeVisualizer:
                 image_dir="/invalid/path",
                 is_show=False,
                 is_save=False,
-                strict_mode=True,
+    
             )
             handler = visualizer._create_handler()
             list(handler.iter_images())
@@ -156,7 +155,7 @@ class TestLabelMeVisualizer:
             class_file=None,
             is_show=False,
             is_save=False,
-            strict_mode=False,
+
         )
 
         render_data_map = _load_all(visualizer)

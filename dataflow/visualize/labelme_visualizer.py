@@ -40,7 +40,7 @@ class LabelMeVisualizer(BaseVisualizer):
     def _create_handler(self) -> LabelMeAnnotationHandler:
         """Create a LabelMe handler for streaming iteration."""
         kwargs: Dict[str, Any] = dict(
-            strict_mode=self.strict_mode,
+            strict_mode=False,
             logger=self.logger,
         )
         if self.class_file:

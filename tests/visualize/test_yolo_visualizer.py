@@ -43,14 +43,13 @@ class TestYOLOVisualizer:
             class_file=TEST_DATA_DET / "classes.txt",
             is_show=False,
             is_save=False,
-            strict_mode=True,
+
         )
         assert visualizer.label_dir == TEST_DATA_DET / "labels"
         assert visualizer.image_dir == TEST_DATA_DET / "images"
         assert visualizer.class_file == TEST_DATA_DET / "classes.txt"
         assert visualizer.is_show is False
         assert visualizer.is_save is False
-        assert visualizer.strict_mode is True
         # Handler is created lazily via _create_handler()
         handler = visualizer._create_handler()
         assert handler is not None
@@ -113,7 +112,7 @@ class TestYOLOVisualizer:
             class_file=TEST_DATA_DET / "classes.txt",
             is_show=False,
             is_save=False,
-            strict_mode=True,
+
         )
 
         result = visualizer.visualize()
@@ -133,7 +132,7 @@ class TestYOLOVisualizer:
             is_show=False,
             is_save=True,
             output_dir=temp_dir,
-            strict_mode=True,
+
         )
 
         result = visualizer.visualize()
@@ -154,7 +153,7 @@ class TestYOLOVisualizer:
                 class_file="/invalid/path",
                 is_show=False,
                 is_save=False,
-                strict_mode=True,
+    
             )
             handler = visualizer._create_handler()
             list(handler.iter_images())
@@ -168,7 +167,7 @@ class TestYOLOVisualizer:
                 class_file="/nonexistent/classes.txt",
                 is_show=False,
                 is_save=False,
-                strict_mode=True,
+    
             )
             handler = visualizer._create_handler()
             list(handler.iter_images())

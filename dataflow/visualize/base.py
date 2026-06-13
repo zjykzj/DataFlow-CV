@@ -167,7 +167,6 @@ class BaseVisualizer(ABC):
         output_dir: Optional[Union[str, Path]] = None,
         is_show: bool = True,
         is_save: bool = False,
-        strict_mode: bool = True,
         verbose: bool = False,
         logger: Optional[logging.Logger] = None,
         log_file_path: Optional[str] = None,
@@ -177,7 +176,6 @@ class BaseVisualizer(ABC):
         self.output_dir = Path(output_dir) if output_dir else None
         self.is_show = is_show
         self.is_save = is_save
-        self.strict_mode = strict_mode
         self.verbose = verbose
 
         if log_file_path is not None:
@@ -621,22 +619,18 @@ class BaseVisualizer(ABC):
         self.logger.info(message)
 
     def _log_error(self, message: str) -> None:
-        """Log error message and raise exception (strict mode).
+        """Log error message.
 
-        Image-related errors are always downgraded to warnings
-        regardless of ``strict_mode``.
+        Image-related errors are always downgraded to warnings — visualization
+        is a read-only operation and a single bad file should never prevent
+        inspecting the rest of the dataset.
         """
-        from dataflow.util.logging_util import (
-            detect_image_error,
-            logging_error_or_raise,
-        )
+        from dataflow.util.logging_util import detect_image_error
 
-        logging_error_or_raise(
-            message,
-            self.logger,
-            self.strict_mode,
-            is_image_error=detect_image_error(message),
-        )
+        if detect_image_error(message):
+            self.logger.warning(message)
+        else:
+            self.logger.error(message)
 
     def _log_warning(self, message: str) -> None:
         """Log warning message."""

@@ -91,14 +91,12 @@ class TestBaseVisualizer:
             output_dir="/tmp/output",
             is_show=False,
             is_save=False,
-            strict_mode=True,
         )
         assert visualizer.label_dir == Path("/tmp/labels")
         assert visualizer.image_dir == Path("/tmp/images")
         assert visualizer.output_dir == Path("/tmp/output")
         assert visualizer.is_show is False
         assert visualizer.is_save is False
-        assert visualizer.strict_mode is True
 
     def test_config_defaults(self):
         """Test default configuration values."""
@@ -139,18 +137,19 @@ class TestBaseVisualizer:
         assert result.data["processed_count"] == 0
 
     def test_log_methods(self):
-        """Test logging methods."""
+        """Test logging methods.
+
+        _log_error always logs (never raises) — visualization is read-only,
+        so a single bad file should never abort the entire dataset inspection.
+        """
         visualizer = MockVisualizer("/tmp/labels", "/tmp/images")
         visualizer._log_info("Test info")
         visualizer._log_warning("Test warning")
-        visualizer.strict_mode = True
-        with pytest.raises(ValueError):
-            visualizer._log_error("Test error")
-        visualizer.strict_mode = False
+        # _log_error should not raise — it always logs
         try:
             visualizer._log_error("Test error")
         except ValueError:
-            pytest.fail("_log_error should not raise exception in non-strict mode")
+            pytest.fail("_log_error should not raise exception")
 
     @patch("cv2.imshow")
     @patch("cv2.waitKey")
@@ -180,7 +179,7 @@ class TestBaseVisualizer:
             image_dir="/tmp/images",
             is_show=True,
             is_save=False,
-            strict_mode=True,
+
         )
 
         # Create render data
@@ -263,7 +262,7 @@ class TestBaseVisualizer:
             output_dir=output_dir,
             is_show=False,
             is_save=True,
-            strict_mode=True,
+
         )
 
         render_data = RenderData(annotations=[], image_width=800, image_height=600)

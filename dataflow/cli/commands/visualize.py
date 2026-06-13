@@ -31,9 +31,6 @@ def add_visualize_options(func):
         # Use default log directory
         log_dir = Path("./logs")
         ctx.obj["log_dir"] = log_dir
-        # Strict mode is always True (no option)
-        ctx.obj["strict"] = True
-
         # Reconfigure logging (based on verbose flag)
         if verbose:
             # get_verbose_logger() now returns tuple (logger, log_file_path)
@@ -83,7 +80,6 @@ def yolo(
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
-    strict = ctx.obj["strict"]
 
     logger.info(f"Starting visualization of YOLO labels: image_dir={image_dir}, label_dir={label_dir}")
 
@@ -98,7 +94,6 @@ def yolo(
         output_dir=save,
         is_show=ctx.obj["is_show"],
         is_save=save is not None,
-        strict_mode=strict,
         verbose=verbose,
         logger=logger,
         log_file_path=ctx.obj["log_file_path"],
@@ -141,7 +136,6 @@ def labelme(
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
-    strict = ctx.obj["strict"]
 
     logger.info(f"Starting visualization of LabelMe labels: {label_dir}")
 
@@ -155,7 +149,6 @@ def labelme(
         output_dir=save,
         is_show=ctx.obj["is_show"],
         is_save=save is not None,
-        strict_mode=strict,
         verbose=verbose,
         logger=logger,
         log_file_path=ctx.obj["log_file_path"],
@@ -198,7 +191,6 @@ def coco(
 
     logger = ctx.obj["logger"]
     verbose = ctx.obj["verbose"]
-    strict = ctx.obj["strict"]
 
     logger.info(f"Starting visualization of COCO labels: {coco_file}")
 
@@ -212,7 +204,6 @@ def coco(
         output_dir=save,
         is_show=ctx.obj["is_show"],
         is_save=save is not None,
-        strict_mode=strict,
         verbose=verbose,
         logger=logger,
         log_file_path=ctx.obj["log_file_path"],

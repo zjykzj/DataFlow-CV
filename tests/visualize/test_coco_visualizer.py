@@ -45,13 +45,12 @@ class TestCOCOVisualizer:
             image_dir=TEST_DATA_DET / "images",
             is_show=False,
             is_save=False,
-            strict_mode=True,
+
         )
         assert visualizer.annotation_file == annotation_file
         assert visualizer.image_dir == TEST_DATA_DET / "images"
         assert visualizer.is_show is False
         assert visualizer.is_save is False
-        assert visualizer.strict_mode is True
         # Handler is created lazily via _create_handler()
         handler = visualizer._create_handler()
         assert handler is not None
@@ -117,7 +116,7 @@ class TestCOCOVisualizer:
             image_dir=TEST_DATA_DET / "images",
             is_show=False,
             is_save=False,
-            strict_mode=True,
+
         )
 
         result = visualizer.visualize()
@@ -139,7 +138,7 @@ class TestCOCOVisualizer:
             is_show=False,
             is_save=True,
             output_dir=temp_dir,
-            strict_mode=True,
+
         )
 
         result = visualizer.visualize()
@@ -158,7 +157,7 @@ class TestCOCOVisualizer:
                 image_dir="/invalid/images",
                 is_show=False,
                 is_save=False,
-                strict_mode=True,
+    
             )
             handler = visualizer._create_handler()
             list(handler.iter_images())
@@ -172,7 +171,7 @@ class TestCOCOVisualizer:
             image_dir=temp_dir,
             is_show=False,
             is_save=False,
-            strict_mode=False,
+
         )
 
         with pytest.raises(ValueError):

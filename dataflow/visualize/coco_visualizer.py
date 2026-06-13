@@ -46,7 +46,7 @@ class COCOVisualizer(BaseVisualizer):
         """Create a COCO handler for streaming iteration."""
         return CocoAnnotationHandler(
             annotation_file=str(self.annotation_file),
-            strict_mode=self.strict_mode,
+            strict_mode=False,
             logger=self.logger,
         )
 
