@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-06-13
+
+### Added
+
+- **Industry-standard label positioning** in visualization: labels are placed above bbox top-left (not top-center), background uses class color (not black), and edge case flips label inside bbox (matching Ultralytics YOLOv8, Supervision, Detectron2 conventions).
+- **Bbox from polygon fallback**: When YOLO segmentation annotations lack an explicit bbox, the visualizer computes axis-aligned bounds from polygon points for consistent label placement.
+- **`NaturalOrderGroup`** in CLI: command registration order is preserved in `--help` output (`convert → visualize → evaluate` instead of alphabetical).
+
+### Changed
+
+- **CLAUDE.md**: Added Module Ordering Convention (Convert → Visualize → Evaluate) mirroring the existing Format Ordering Convention.
+- **README**: Simplified Evaluation section (merged sections ①+④, removed field-requirement table, added showcase images).
+- **Specs** (`spec_visualize.md`): Updated to v4.3 with per-annotation drawing flow, label positioning rules, and change history.
+
+### Fixed
+
+- **CLI `--help` order**: Top-level commands now display as `convert → visualize → evaluate` matching docs.
+- **Broken COCO demo**: Removed invalid `label_dir` parameter passed to `COCOVisualizer`.
+- **Dead code**: Removed unused `calculate_text_position` from `visualize/utils.py`.
+
 ## [1.4.0] - 2026-06-13
 
 ### Added
