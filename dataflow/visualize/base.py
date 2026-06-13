@@ -448,11 +448,15 @@ class BaseVisualizer(ABC):
             f"class_name={render_ann.class_name}, color={color}"
         )
 
-        # Determine label position (prefer bbox, fall back to polygon first point)
+        # Determine label position (top-center of bbox;
+        # fall back to polygon first point only if no bbox could be computed)
         label_pos = None
+        label_bbox = None
         if render_ann.bbox is not None:
             x1, y1, x2, y2 = render_ann.bbox
-            label_pos = (x1, y1 - self.config["text_padding"])
+            label_bbox = (x1, y1, x2, y2)
+            cx = x1 + (x2 - x1) // 2
+            label_pos = (cx, y1 - self.config["text_padding"])
 
         if render_ann.bbox is not None:
             self._draw_bbox(image, render_ann.bbox, color)
@@ -466,7 +470,9 @@ class BaseVisualizer(ABC):
             self._draw_rle_mask(image, render_ann.rle, color)
 
         if label_pos is not None:
-            self._draw_text(image, render_ann.class_name, label_pos, color)
+            self._draw_text(
+                image, render_ann.class_name, label_pos, color, bbox=label_bbox
+            )
 
     def _draw_bbox(
         self,
@@ -546,11 +552,13 @@ class BaseVisualizer(ABC):
         text: str,
         position: Tuple[int, int],
         color: Tuple[int, int, int],
+        bbox: Optional[Tuple[int, int, int, int]] = None,
     ) -> None:
         """Draw text label.
 
         Args:
-            position: (x, y) baseline position for the text.
+            position: (x, y) baseline position for the text (top-center of bbox).
+            bbox: Optional bbox (x1, y1, x2, y2) for edge-flip logic.
         """
         x, y = int(position[0]), int(position[1])
 
@@ -567,21 +575,27 @@ class BaseVisualizer(ABC):
 
         img_height, img_width = image.shape[:2]
 
+        # Edge flip: if text extends above image top, flip below bbox
+        text_top = y - text_height + baseline
+        if bbox is not None and text_top < 0:
+            _, _, _, y2 = bbox
+            y = y2 + self.config["text_padding"] + text_height
+
         # Background rectangle: covers from text top (y - text_height + baseline)
         # to text bottom (y + baseline)
         x1 = x
         y1 = y - text_height + baseline
         x2 = x + text_width
-        y2 = y + baseline
+        y2_rect = y + baseline
 
         x1 = max(0, min(x1, img_width - 1))
         y1 = max(0, min(y1, img_height - 1))
         x2 = max(0, min(x2, img_width - 1))
-        y2 = max(0, min(y2, img_height - 1))
+        y2_rect = max(0, min(y2_rect, img_height - 1))
 
-        if x1 < x2 and y1 < y2:
+        if x1 < x2 and y1 < y2_rect:
             try:
-                cv2.rectangle(image, (x1, y1), (x2, y2), (0, 0, 0), -1)
+                cv2.rectangle(image, (x1, y1), (x2, y2_rect), (0, 0, 0), -1)
             except Exception as e:
                 self.logger.warning(f"Failed to draw text background: {e}")
 

@@ -84,6 +84,12 @@ class COCOVisualizer(BaseVisualizer):
                         for x, y in obj.segmentation.points
                     ]
 
+            # Bbox from polygon fallback: compute axis-aligned bounds
+            if render_ann.bbox is None and render_ann.polygon:
+                xs = [p[0] for p in render_ann.polygon]
+                ys = [p[1] for p in render_ann.polygon]
+                render_ann.bbox = (min(xs), min(ys), max(xs), max(ys))
+
             render_annotations.append(render_ann)
 
         return RenderData(
