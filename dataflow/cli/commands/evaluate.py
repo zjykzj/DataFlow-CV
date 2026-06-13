@@ -134,27 +134,45 @@ def detection(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, prf1_me
             "Install with: pip install pycocotools"
         )
 
-    # Run evaluation
-    evaluator = DetectionEvaluator(log_config=log_config)
-    result = evaluator.evaluate(str(gt_json), str(dt_json))
+    if prf1:
+        # Path B: P/R/F1 only — skip COCOeval entirely
+        from dataflow.evaluate.utils import format_prf1_output
 
-    # Print results
-    if result.success and result.metrics is not None:
-        _print_detection_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_method, gt_json, dt_json)
-
-        if output:
-            _save_result_json(result, output)
-            click.echo(f"Evaluation result saved to: {output}")
-
-        if result.log_path:
-            click.echo(f"Log saved to: {result.log_path}")
-
-        for w in result.warnings:
-            click.echo(f"Warning: {w}")
+        prf1_result = compute_pr_f1(
+            str(gt_json), str(dt_json),
+            iou_threshold=prf1_iou,
+            confidence_threshold=prf1_conf,
+            iou_type="bbox",
+            method=prf1_method,
+        )
+        if prf1_result.success:
+            click.echo()
+            click.echo(format_prf1_output(prf1_result))
+        else:
+            error_msg = prf1_result.errors[0] if prf1_result.errors else "P/R/F1 computation failed"
+            click.echo(f"P/R/F1 failed: {error_msg}", err=True)
+            raise RuntimeCLIError(f"P/R/F1 failed: {error_msg}")
     else:
-        error_msg = result.errors[0] if result.errors else "Evaluation failed"
-        click.echo(f"Evaluation failed: {error_msg}", err=True)
-        raise RuntimeCLIError(f"Evaluation failed: {error_msg}")
+        # Path A: mAP via COCOeval
+        evaluator = DetectionEvaluator(log_config=log_config)
+        result = evaluator.evaluate(str(gt_json), str(dt_json))
+
+        if result.success and result.metrics is not None:
+            _print_detection_result(result, verbose)
+
+            if output:
+                _save_result_json(result, output)
+                click.echo(f"Evaluation result saved to: {output}")
+
+            if result.log_path:
+                click.echo(f"Log saved to: {result.log_path}")
+
+            for w in result.warnings:
+                click.echo(f"Warning: {w}")
+        else:
+            error_msg = result.errors[0] if result.errors else "Evaluation failed"
+            click.echo(f"Evaluation failed: {error_msg}", err=True)
+            raise RuntimeCLIError(f"Evaluation failed: {error_msg}")
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +196,7 @@ def segmentation(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, prf1
 
     DT_JSON: COCO format Prediction JSON file (annotations must include 'segmentation' and 'score').
     """
-    from dataflow.evaluate import SegmentationEvaluator
+    from dataflow.evaluate import SegmentationEvaluator, compute_pr_f1
 
     # Build log config
     log_config = LogConfig(
@@ -200,36 +218,54 @@ def segmentation(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, prf1
             "Install with: pip install pycocotools"
         )
 
-    # Run evaluation
-    evaluator = SegmentationEvaluator(log_config=log_config)
-    result = evaluator.evaluate(str(gt_json), str(dt_json))
+    if prf1:
+        # Path B: P/R/F1 only — skip COCOeval entirely
+        from dataflow.evaluate.utils import format_prf1_output
 
-    # Print results
-    if result.success and result.metrics is not None:
-        _print_segmentation_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_method, gt_json, dt_json)
-
-        if output:
-            _save_result_json(result, output)
-            click.echo(f"Evaluation result saved to: {output}")
-
-        if result.log_path:
-            click.echo(f"Log saved to: {result.log_path}")
-
-        for w in result.warnings:
-            click.echo(f"Warning: {w}")
+        prf1_result = compute_pr_f1(
+            str(gt_json), str(dt_json),
+            iou_threshold=prf1_iou,
+            confidence_threshold=prf1_conf,
+            iou_type="segm",
+            method=prf1_method,
+        )
+        if prf1_result.success:
+            click.echo()
+            click.echo(format_prf1_output(prf1_result))
+        else:
+            error_msg = prf1_result.errors[0] if prf1_result.errors else "P/R/F1 computation failed"
+            click.echo(f"P/R/F1 failed: {error_msg}", err=True)
+            raise RuntimeCLIError(f"P/R/F1 failed: {error_msg}")
     else:
-        error_msg = result.errors[0] if result.errors else "Evaluation failed"
-        click.echo(f"Evaluation failed: {error_msg}", err=True)
-        raise RuntimeCLIError(f"Evaluation failed: {error_msg}")
+        # Path A: mAP via COCOeval
+        evaluator = SegmentationEvaluator(log_config=log_config)
+        result = evaluator.evaluate(str(gt_json), str(dt_json))
+
+        if result.success and result.metrics is not None:
+            _print_segmentation_result(result, verbose)
+
+            if output:
+                _save_result_json(result, output)
+                click.echo(f"Evaluation result saved to: {output}")
+
+            if result.log_path:
+                click.echo(f"Log saved to: {result.log_path}")
+
+            for w in result.warnings:
+                click.echo(f"Warning: {w}")
+        else:
+            error_msg = result.errors[0] if result.errors else "Evaluation failed"
+            click.echo(f"Evaluation failed: {error_msg}", err=True)
+            raise RuntimeCLIError(f"Evaluation failed: {error_msg}")
 
 
 # ---------------------------------------------------------------------------
 # Output helpers
 # ---------------------------------------------------------------------------
 
-def _print_detection_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_method, gt_json, dt_json):
-    """Print detection evaluation results."""
-    from dataflow.evaluate.utils import format_metric_table, format_per_class_table, format_prf1_output
+def _print_detection_result(result, verbose):
+    """Print detection evaluation results (mAP path)."""
+    from dataflow.evaluate.utils import format_metric_table, format_per_class_table
 
     click.echo()
     click.echo(
@@ -248,22 +284,10 @@ def _print_detection_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_met
         click.echo()
         click.echo(format_per_class_table(result.per_class))
 
-    if prf1:
-        from dataflow.evaluate import compute_pr_f1
-        click.echo()
-        prf1_result = compute_pr_f1(
-            str(gt_json), str(dt_json),
-            iou_threshold=prf1_iou,
-            confidence_threshold=prf1_conf,
-            iou_type="bbox",
-            method=prf1_method,
-        )
-        click.echo(format_prf1_output(prf1_result))
 
-
-def _print_segmentation_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_method, gt_json, dt_json):
-    """Print segmentation evaluation results."""
-    from dataflow.evaluate.utils import format_metric_table, format_per_class_table, format_prf1_output
+def _print_segmentation_result(result, verbose):
+    """Print segmentation evaluation results (mAP path)."""
+    from dataflow.evaluate.utils import format_metric_table, format_per_class_table
 
     click.echo()
     click.echo(
@@ -281,18 +305,6 @@ def _print_segmentation_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_
     if verbose and result.per_class:
         click.echo()
         click.echo(format_per_class_table(result.per_class))
-
-    if prf1:
-        from dataflow.evaluate import compute_pr_f1
-        click.echo()
-        prf1_result = compute_pr_f1(
-            str(gt_json), str(dt_json),
-            iou_threshold=prf1_iou,
-            confidence_threshold=prf1_conf,
-            iou_type="segm",
-            method=prf1_method,
-        )
-        click.echo(format_prf1_output(prf1_result))
 
 
 def _save_result_json(result: Any, output_path: Path) -> None:
