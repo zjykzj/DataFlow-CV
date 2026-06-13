@@ -25,7 +25,7 @@ class YoloAndCocoConverter(BaseConverter):
         self,
         source_to_target: bool,
         prediction: bool = False,
-        verbose: bool = False,
+        log_config=None,
         **kwargs,
     ):
         """
@@ -36,7 +36,7 @@ class YoloAndCocoConverter(BaseConverter):
             prediction: If True, read YOLO files in prediction format
                 (with confidence scores). Only meaningful for YOLO→COCO.
                 Default False (label format).
-            verbose: Whether to enable verbose logging (new)
+            log_config: Optional ``LogConfig`` instance for logging configuration.
             **kwargs: Arguments passed to BaseConverter
         """
         if source_to_target:
@@ -46,7 +46,7 @@ class YoloAndCocoConverter(BaseConverter):
             source_format = "coco"
             target_format = "yolo"
 
-        super().__init__(source_format, target_format, verbose=verbose, **kwargs)
+        super().__init__(source_format, target_format, log_config=log_config, **kwargs)
         self.source_to_target = source_to_target
         self.prediction = prediction
 

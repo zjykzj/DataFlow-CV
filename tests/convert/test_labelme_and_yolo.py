@@ -367,25 +367,26 @@ class TestLabelMeAndYoloConverter:
 
     def test_converter_verbose_param(self):
         """Test converter verbose parameter."""
+        from dataflow.util.logging import LogConfig
+
         # Test verbose=False (default)
         converter_no_verbose = LabelMeAndYoloConverter(
-            source_to_target=True, verbose=False
+            source_to_target=True
         )
-        assert converter_no_verbose.verbose is False
-        assert converter_no_verbose.log_file_path is None
+        assert converter_no_verbose._log_manager.log_path is None
 
         # Test verbose=True
-        converter_verbose = LabelMeAndYoloConverter(source_to_target=True, verbose=True)
-        assert converter_verbose.verbose is True
-        assert hasattr(converter_verbose, "log_file_path")
-        assert converter_verbose.log_file_path is not None
+        log_config = LogConfig(name="test_v", verbose=True)
+        converter_verbose = LabelMeAndYoloConverter(source_to_target=True, log_config=log_config)
+        assert hasattr(converter_verbose, "_log_manager")
+        assert converter_verbose._log_manager.log_path is not None
 
         # Test verbose parameter in YOLO→LabelMe direction
+        log_config2 = LogConfig(name="test_v2", verbose=True)
         converter_reverse = LabelMeAndYoloConverter(
-            source_to_target=False, verbose=True
+            source_to_target=False, log_config=log_config2
         )
-        assert converter_reverse.verbose is True
-        assert converter_reverse.log_file_path is not None
+        assert converter_reverse._log_manager.log_path is not None
 
     def test_conversion_result_verbose_log(self):
         """Test ConversionResult verbose logging."""

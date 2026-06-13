@@ -20,22 +20,15 @@ class DetectionEvaluator(BaseEvaluator):
 
     Example usage::
 
-        evaluator = DetectionEvaluator(verbose=True)
+        evaluator = DetectionEvaluator(
+            log_config=LogConfig(name="eval", verbose=True)
+        )
         result = evaluator.evaluate("gt.json", "dt.json")
         print(result.get_summary())
     """
 
-    def __init__(
-        self,
-        verbose: bool = False,
-        logger: Optional[logging.Logger] = None,
-        log_file_path: Optional[str] = None,
-    ):
-        super().__init__(
-            verbose=verbose,
-            logger=logger,
-            log_file_path=log_file_path,
-        )
+    def __init__(self, log_config=None):
+        super().__init__(log_config=log_config)
 
     def _iou_type(self) -> str:
         return "bbox"
@@ -59,22 +52,15 @@ class SegmentationEvaluator(BaseEvaluator):
 
     Example usage::
 
-        evaluator = SegmentationEvaluator(verbose=True)
+        evaluator = SegmentationEvaluator(
+            log_config=LogConfig(name="eval", verbose=True)
+        )
         result = evaluator.evaluate("gt_segm.json", "dt_segm.json")
         print(result.get_summary())
     """
 
-    def __init__(
-        self,
-        verbose: bool = False,
-        logger: Optional[logging.Logger] = None,
-        log_file_path: Optional[str] = None,
-    ):
-        super().__init__(
-            verbose=verbose,
-            logger=logger,
-            log_file_path=log_file_path,
-        )
+    def __init__(self, log_config=None):
+        super().__init__(log_config=log_config)
 
     def _iou_type(self) -> str:
         return "segm"

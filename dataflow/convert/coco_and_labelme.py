@@ -22,13 +22,13 @@ from .rle_converter import RLEConverter
 class CocoAndLabelMeConverter(BaseConverter):
     """Converter for bidirectional conversion between COCO and LabelMe formats."""
 
-    def __init__(self, source_to_target: bool, verbose: bool = False, **kwargs):
+    def __init__(self, source_to_target: bool, log_config=None, **kwargs):
         """
         Initialize converter.
 
         Args:
             source_to_target: True for COCO→LabelMe, False for LabelMe→COCO
-            verbose: Whether to enable verbose logging (new)
+            log_config: Optional ``LogConfig`` instance for logging configuration.
             **kwargs: Arguments passed to BaseConverter
         """
         if source_to_target:
@@ -38,12 +38,11 @@ class CocoAndLabelMeConverter(BaseConverter):
             source_format = "labelme"
             target_format = "coco"
 
-        super().__init__(source_format, target_format, verbose=verbose, **kwargs)
+        super().__init__(source_format, target_format, log_config=log_config, **kwargs)
         self.source_to_target = source_to_target
 
-        if verbose:
-            direction = "COCO→LabelMe" if source_to_target else "LabelMe→COCO"
-            self.logger.debug(f"Initialized converter, direction: {direction}")
+        direction = "COCO→LabelMe" if source_to_target else "LabelMe→COCO"
+        self.logger.debug(f"Initialized converter, direction: {direction}")
 
     def _post_batch_convert(
         self,

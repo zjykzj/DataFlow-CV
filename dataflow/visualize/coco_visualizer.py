@@ -21,7 +21,7 @@ class COCOVisualizer(BaseVisualizer):
         self,
         annotation_file: Union[str, Path],
         image_dir: Union[str, Path],
-        verbose: bool = False,
+        log_config=None,
         **kwargs,
     ):
         """
@@ -30,17 +30,16 @@ class COCOVisualizer(BaseVisualizer):
         Args:
             annotation_file: COCO JSON annotation file path
             image_dir: Image directory
-            verbose: Whether to enable verbose logging
+            log_config: Optional ``LogConfig`` instance for logging configuration.
             **kwargs: Additional arguments for BaseVisualizer
         """
-        super().__init__(annotation_file, image_dir, verbose=verbose, **kwargs)
+        super().__init__(annotation_file, image_dir, log_config=log_config, **kwargs)
         self.annotation_file = Path(annotation_file)
 
-        if verbose:
-            self.logger.debug(
-                f"COCO visualizer initialization complete, "
-                f"annotation file: {annotation_file}"
-            )
+        self.logger.debug(
+            f"COCO visualizer initialization complete, "
+            f"annotation file: {annotation_file}"
+        )
 
     def _create_handler(self) -> CocoAnnotationHandler:
         """Create a COCO handler for streaming iteration."""

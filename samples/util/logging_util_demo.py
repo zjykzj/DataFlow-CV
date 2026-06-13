@@ -23,7 +23,9 @@ def main():
     print("=" * 60)
 
     # Create LoggingOperations instance
-    log_ops = LoggingOperations()
+    log_config = LogConfig(name="demo", log_dir=Path("logs"))
+    log_manager = LogManager(log_config)
+    logger = log_manager.logger
 
     # 1. Basic logger with console output
     print("\n1. Basic Console Logger")
@@ -66,9 +68,9 @@ def main():
     print("\n4. Multiple Independent Loggers")
     print("-" * 40)
 
-    app_logger = log_ops.get_logger("demo.app", level="INFO")
-    db_logger = log_ops.get_logger("demo.db", level="DEBUG")
-    api_logger = log_ops.get_logger("demo.api", level="WARNING")
+    app_logger = log_manager.logger
+    db_logger = log_manager.logger
+    api_logger = log_manager.logger
 
     app_logger.info("Application started")
     db_logger.debug("Database query executed")
@@ -81,7 +83,7 @@ def main():
     print("\n5. Dynamic Log Level Change")
     print("-" * 40)
 
-    dynamic_logger = log_ops.get_logger("demo.dynamic", level="ERROR")
+    dynamic_logger = log_manager.logger
     dynamic_logger.info("This won't appear (level is ERROR)")
     dynamic_logger.error("This ERROR will appear")
 
@@ -114,14 +116,14 @@ def main():
     print(f"Generated log file path: {timestamped_log}")
 
     # Create logger with timestamped file
-    daily_logger = log_ops.get_logger("demo.daily", log_file=timestamped_log)
+    daily_logger = log_manager.logger
     daily_logger.info("Log entry in timestamped file")
 
     # 8. Log message formatting
     print("\n8. Log Message Formatting")
     print("-" * 40)
 
-    formatted_logger = log_ops.get_logger("demo.formatted")
+    formatted_logger = log_manager.logger
     formatted_logger.info("Simple message")
     formatted_logger.info("Message with %s formatting", "string")
     formatted_logger.info("Message with number: %d", 42)
@@ -131,7 +133,7 @@ def main():
     print("\n9. Error and Exception Logging")
     print("-" * 40)
 
-    error_logger = log_ops.get_logger("demo.error")
+    error_logger = log_manager.logger
 
     try:
         result = 10 / 0
@@ -147,12 +149,12 @@ def main():
 
     start = time.time()
     for i in range(100):
-        logger = log_ops.get_logger(f"demo.performance.{i}")
+        logger = log_manager.logger
     uncached_time = time.time() - start
 
     start = time.time()
     for i in range(100):
-        logger = log_ops.get_logger("demo.cached")  # Same name
+        logger = log_manager.logger  # Same name
     cached_time = time.time() - start
 
     print(f"Time for 100 different loggers: {uncached_time:.4f}s")

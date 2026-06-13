@@ -14,7 +14,7 @@ import click
 
 from dataflow.cli.commands.utils import FormattedCommand, validate_path_exists
 from dataflow.cli.exceptions import RuntimeCLIError, SystemError
-from dataflow.util.logging_util import LoggingOperations, VerboseLoggingOperations
+from dataflow.util.logging import LogConfig
 
 
 # ---------------------------------------------------------------------------
@@ -114,14 +114,12 @@ def detection(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, prf1_me
     """
     from dataflow.evaluate import DetectionEvaluator, compute_pr_f1
 
-    # Setup logging
-    if verbose:
-        logger, log_file_path = VerboseLoggingOperations().get_verbose_logger(
-            name="evaluate.detection", verbose=True, log_dir=Path("./logs")
-        )
-    else:
-        logger = LoggingOperations().get_logger("evaluate.detection")
-        log_file_path = None
+    # Build log config
+    log_config = LogConfig(
+        name="evaluate.detection",
+        verbose=verbose,
+        log_dir=Path("./logs"),
+    )
 
     # Validate inputs
     validate_path_exists(gt_json, "GT JSON")
@@ -136,31 +134,26 @@ def detection(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, prf1_me
             "Install with: pip install pycocotools"
         )
 
-    logger.info(f"GT: {gt_json}")
-    logger.info(f"DT: {dt_json}")
-
     # Run evaluation
-    evaluator = DetectionEvaluator(
-        verbose=verbose, logger=logger, log_file_path=log_file_path
-    )
+    evaluator = DetectionEvaluator(log_config=log_config)
     result = evaluator.evaluate(str(gt_json), str(dt_json))
 
     # Print results
     if result.success and result.metrics is not None:
-        _print_detection_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_method, gt_json, dt_json, logger)
+        _print_detection_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_method, gt_json, dt_json)
 
         if output:
             _save_result_json(result, output)
-            logger.info(f"Evaluation result saved to: {output}")
+            click.echo(f"Evaluation result saved to: {output}")
 
-        if verbose and result.log_file_path:
-            logger.info(f"Verbose log saved to: {result.log_file_path}")
+        if result.log_path:
+            click.echo(f"Log saved to: {result.log_path}")
 
         for w in result.warnings:
-            logger.warning(w)
+            click.echo(f"Warning: {w}")
     else:
         error_msg = result.errors[0] if result.errors else "Evaluation failed"
-        logger.error(f"Evaluation failed: {error_msg}")
+        click.echo(f"Evaluation failed: {error_msg}", err=True)
         raise RuntimeCLIError(f"Evaluation failed: {error_msg}")
 
 
@@ -187,14 +180,12 @@ def segmentation(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, prf1
     """
     from dataflow.evaluate import SegmentationEvaluator
 
-    # Setup logging
-    if verbose:
-        logger, log_file_path = VerboseLoggingOperations().get_verbose_logger(
-            name="evaluate.segmentation", verbose=True, log_dir=Path("./logs")
-        )
-    else:
-        logger = LoggingOperations().get_logger("evaluate.segmentation")
-        log_file_path = None
+    # Build log config
+    log_config = LogConfig(
+        name="evaluate.segmentation",
+        verbose=verbose,
+        log_dir=Path("./logs"),
+    )
 
     # Validate inputs
     validate_path_exists(gt_json, "GT JSON")
@@ -209,31 +200,26 @@ def segmentation(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, prf1
             "Install with: pip install pycocotools"
         )
 
-    logger.info(f"GT: {gt_json}")
-    logger.info(f"DT: {dt_json}")
-
     # Run evaluation
-    evaluator = SegmentationEvaluator(
-        verbose=verbose, logger=logger, log_file_path=log_file_path
-    )
+    evaluator = SegmentationEvaluator(log_config=log_config)
     result = evaluator.evaluate(str(gt_json), str(dt_json))
 
     # Print results
     if result.success and result.metrics is not None:
-        _print_segmentation_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_method, gt_json, dt_json, logger)
+        _print_segmentation_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_method, gt_json, dt_json)
 
         if output:
             _save_result_json(result, output)
-            logger.info(f"Evaluation result saved to: {output}")
+            click.echo(f"Evaluation result saved to: {output}")
 
-        if verbose and result.log_file_path:
-            logger.info(f"Verbose log saved to: {result.log_file_path}")
+        if result.log_path:
+            click.echo(f"Log saved to: {result.log_path}")
 
         for w in result.warnings:
-            logger.warning(w)
+            click.echo(f"Warning: {w}")
     else:
         error_msg = result.errors[0] if result.errors else "Evaluation failed"
-        logger.error(f"Evaluation failed: {error_msg}")
+        click.echo(f"Evaluation failed: {error_msg}", err=True)
         raise RuntimeCLIError(f"Evaluation failed: {error_msg}")
 
 
@@ -241,7 +227,7 @@ def segmentation(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, prf1
 # Output helpers
 # ---------------------------------------------------------------------------
 
-def _print_detection_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_method, gt_json, dt_json, logger):
+def _print_detection_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_method, gt_json, dt_json):
     """Print detection evaluation results."""
     from dataflow.evaluate.utils import format_metric_table, format_per_class_table, format_prf1_output
 
@@ -271,12 +257,11 @@ def _print_detection_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_met
             confidence_threshold=prf1_conf,
             iou_type="bbox",
             method=prf1_method,
-            verbose=verbose, logger=logger,
         )
         click.echo(format_prf1_output(prf1_result))
 
 
-def _print_segmentation_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_method, gt_json, dt_json, logger):
+def _print_segmentation_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_method, gt_json, dt_json):
     """Print segmentation evaluation results."""
     from dataflow.evaluate.utils import format_metric_table, format_per_class_table, format_prf1_output
 
@@ -306,7 +291,6 @@ def _print_segmentation_result(result, verbose, prf1, prf1_iou, prf1_conf, prf1_
             confidence_threshold=prf1_conf,
             iou_type="segm",
             method=prf1_method,
-            verbose=verbose, logger=logger,
         )
         click.echo(format_prf1_output(prf1_result))
 

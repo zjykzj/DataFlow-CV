@@ -14,13 +14,15 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from dataflow.label import YoloAnnotationHandler
-from dataflow.util import LoggingOperations
+from dataflow.util.logging import LogConfig, LogManager
 
 
 def demo_detection():
     """Object detection data demonstration"""
-    log_ops = LoggingOperations()
-    logger = log_ops.get_logger("yolo_demo_det", level="INFO")
+    log_config = LogConfig(name="demo", log_dir=Path("logs"))
+    log_manager = LogManager(log_config)
+    logger = log_manager.logger
+    logger = log_manager.logger
 
     logger.info("YOLO object detection annotation processing example")
     logger.info("=" * 50)
@@ -104,8 +106,10 @@ def demo_detection():
 
 def demo_segmentation():
     """Instance segmentation data demonstration"""
-    log_ops = LoggingOperations()
-    logger = log_ops.get_logger("yolo_demo_seg", level="INFO")
+    log_config = LogConfig(name="demo", log_dir=Path("logs"))
+    log_manager = LogManager(log_config)
+    logger = log_manager.logger
+    logger = log_manager.logger
 
     logger.info("YOLO instance segmentation annotation processing example")
     logger.info("=" * 50)
@@ -189,8 +193,10 @@ def demo_segmentation():
 
 def main():
     """Main function"""
-    log_ops = LoggingOperations()
-    logger = log_ops.get_logger("yolo_demo", level="INFO")
+    log_config = LogConfig(name="demo", log_dir=Path("logs"))
+    log_manager = LogManager(log_config)
+    logger = log_manager.logger
+    logger = log_manager.logger
 
     logger.info("=" * 60)
     logger.info("YOLO annotation format processing example")

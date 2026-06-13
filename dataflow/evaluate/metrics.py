@@ -27,7 +27,7 @@ def compute_pr_f1(
     confidence_threshold: float = 0.0,
     iou_type: str = "bbox",
     method: str = "macro",
-    verbose: bool = False,
+    log_config: Optional[Any] = None,
     logger: Optional[logging.Logger] = None,
 ) -> PRF1Result:
     """Compute Precision / Recall / F1-score at a single IoU threshold.
@@ -52,8 +52,9 @@ def compute_pr_f1(
             ``"macro"`` (default) — mean of per-class P and R.
             ``"micro"`` — computed from summed TP/FP/FN across all
             categories.
-        verbose: If True, log per-class progress.
-        logger: Optional logger instance.
+        log_config: Optional ``LogConfig`` for logging configuration.
+        logger: Optional logger instance (backward-compatible, may be
+            removed in the future).
 
     Returns:
         PRF1Result with per-class and overall P/R/F1.
@@ -75,7 +76,11 @@ def compute_pr_f1(
             "Expected 'macro' or 'micro'."
         )
 
-    if logger is None:
+    # Logger setup (prefer log_config, fallback to legacy logger param)
+    if log_config is not None:
+        from dataflow.util.logging import LogManager
+        logger = LogManager(log_config).logger
+    elif logger is None:
         logger = logging.getLogger(__name__)
 
     result = PRF1Result(

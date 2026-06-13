@@ -20,8 +20,10 @@ from dataflow.util.logging_util import LoggingOperations
 def main():
     """Main demonstration function."""
     # Setup logging
-    log_ops = LoggingOperations()
-    logger = log_ops.get_logger("file_util_demo", level="INFO")
+    log_config = LogConfig(name="demo", log_dir=Path("logs"))
+    log_manager = LogManager(log_config)
+    logger = log_manager.logger
+    logger = log_manager.logger
 
     logger.info("=" * 50)
     logger.info("FileOperations Demonstration")

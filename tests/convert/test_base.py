@@ -184,12 +184,11 @@ class TestBaseConverter:
             source_format="labelme",
             target_format="yolo",
             strict_mode=False,
-            logger=logging.getLogger("test"),
         )
         assert converter.source_format == "labelme"
         assert converter.target_format == "yolo"
         assert converter.strict_mode is False
-        assert converter.logger.name == "test"
+        assert converter.logger is not None
         assert converter.file_ops is not None
 
     def test_validate_inputs_source_not_exist(self):

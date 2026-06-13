@@ -32,11 +32,13 @@ class TestDetectionEvaluator:
         assert ev._iou_type() == "bbox"
 
     def test_verbose_init(self):
-        ev = DetectionEvaluator(verbose=True)
-        assert ev.verbose is True
+        from dataflow.util.logging import LogConfig
+        log_config = LogConfig(name="test_det", verbose=True)
+        ev = DetectionEvaluator(log_config=log_config)
+        assert ev._log_manager.log_path is not None
 
     def test_evaluate(self, gt_path, dt_path):
-        ev = DetectionEvaluator(verbose=False)
+        ev = DetectionEvaluator()
         result = ev.evaluate(gt_path, dt_path)
         assert result.success is True
         assert result.iou_type == "bbox"
@@ -44,7 +46,9 @@ class TestDetectionEvaluator:
         assert result.metrics.ap50 > 0
 
     def test_evaluate_verbose(self, gt_path, dt_path):
-        ev = DetectionEvaluator(verbose=True)
+        from dataflow.util.logging import LogConfig
+        log_config = LogConfig(name="test_det_v", verbose=True)
+        ev = DetectionEvaluator(log_config=log_config)
         result = ev.evaluate(gt_path, dt_path)
         assert result.success is True
         assert result.per_class is not None
@@ -54,7 +58,9 @@ class TestDetectionEvaluator:
         assert 2 in cat_ids
 
     def test_evaluate_per_class_names(self, gt_path, dt_path):
-        ev = DetectionEvaluator(verbose=True)
+        from dataflow.util.logging import LogConfig
+        log_config = LogConfig(name="test_det_names", verbose=True)
+        ev = DetectionEvaluator(log_config=log_config)
         result = ev.evaluate(gt_path, dt_path)
         names = {m.class_name for m in result.per_class.values()}
         assert "cat" in names
@@ -62,7 +68,7 @@ class TestDetectionEvaluator:
 
     def test_evaluate_with_list_dt(self, gt_path, dt_list_path):
         """List-format DT should work with DetectionEvaluator."""
-        ev = DetectionEvaluator(verbose=False)
+        ev = DetectionEvaluator()
         result = ev.evaluate(gt_path, dt_list_path)
         assert result.success is True
         assert result.metrics is not None
@@ -79,8 +85,10 @@ class TestSegmentationEvaluator:
         assert ev._iou_type() == "segm"
 
     def test_verbose_init(self):
-        ev = SegmentationEvaluator(verbose=True)
-        assert ev.verbose is True
+        from dataflow.util.logging import LogConfig
+        log_config = LogConfig(name="test_segm", verbose=True)
+        ev = SegmentationEvaluator(log_config=log_config)
+        assert ev._log_manager.log_path is not None
 
     def test_evaluate_bbox_data_fails(self, gt_path, dt_path):
         """Segmentation eval on bbox-only data should fail gracefully.
@@ -88,7 +96,7 @@ class TestSegmentationEvaluator:
         pycocotools requires segmentation data for iouType='segm'.
         The evaluator returns a failed result rather than crashing.
         """
-        ev = SegmentationEvaluator(verbose=False)
+        ev = SegmentationEvaluator()
         result = ev.evaluate(gt_path, dt_path)
         # Segmentation eval without segmentation data should fail
         assert result.success is False

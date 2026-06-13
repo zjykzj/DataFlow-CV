@@ -23,7 +23,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from dataflow.util import LoggingOperations, VerboseLoggingOperations
+from dataflow.util.logging import LogConfig, LogManager
 from dataflow.visualize import YOLOVisualizer
 
 
@@ -42,17 +42,18 @@ def main():
 
     # Configure logging
     if args.verbose:
-        log_ops = VerboseLoggingOperations()
-        logger, log_file_path = log_ops.get_verbose_logger(
-            name="yolo_visualize_demo",
-            verbose=True,
-            log_dir=str(project_root / "logs")
+        log_config = LogConfig(name="demo", verbose=True, log_dir=Path("logs"))
+    log_manager = LogManager(log_config)
+    logger = log_manager.logger
+    log_path = log_manager.log_path
         )
         logger.info("Verbose logging mode enabled")
         logger.info(f"Verbose log saved to: {log_file_path}")
     else:
-        log_ops = LoggingOperations()
-        logger = log_ops.get_logger("yolo_visualize_demo", level="INFO")
+        log_config = LogConfig(name="demo", log_dir=Path("logs"))
+    log_manager = LogManager(log_config)
+    logger = log_manager.logger
+        logger = log_manager.logger
         log_file_path = None
 
     # Select data path based on task type
@@ -90,13 +91,13 @@ def main():
         label_dir=str(label_dir),
         image_dir=str(image_dir),
         class_file=str(class_file),
-        verbose=args.verbose,  # Verbose logging mode
+        log_config=LogConfig(name="demo", log_dir=Path("logs")),  # Verbose logging mode
         is_show=True,  # Display window
         is_save=True,  # Also save
         output_dir=output_dir,
         strict_mode=True,
         logger=logger,
-        log_file_path=log_file_path if args.verbose else None,
+         if args.verbose else None,
     )
 
     # Perform visualization

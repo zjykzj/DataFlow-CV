@@ -25,7 +25,7 @@ sys.path.insert(0, str(project_root))
 
 from dataflow.convert import (LabelMeAndYoloConverter, YoloAndCocoConverter,
                               CocoAndLabelMeConverter)
-from dataflow.util import LoggingOperations, VerboseLoggingOperations
+from dataflow.util.logging import LogConfig, LogManager
 
 
 def main():
@@ -37,17 +37,18 @@ def main():
 
     # Configure logging
     if args.verbose:
-        log_ops = VerboseLoggingOperations()
-        logger, log_file_path = log_ops.get_verbose_logger(
-            name="full_conversion_demo",
-            verbose=True,
-            log_dir=str(project_root / "logs")
+        log_config = LogConfig(name="demo", verbose=True, log_dir=Path("logs"))
+    log_manager = LogManager(log_config)
+    logger = log_manager.logger
+    log_path = log_manager.log_path
         )
         logger.info("Verbose logging mode enabled")
         logger.info(f"Verbose log saved to: {log_file_path}")
     else:
-        log_ops = LoggingOperations()
-        logger = log_ops.get_logger("full_conversion_demo", level="INFO")
+        log_config = LogConfig(name="demo", log_dir=Path("logs"))
+    log_manager = LogManager(log_config)
+    logger = log_manager.logger
+        logger = log_manager.logger
 
     # Create temporary working directory
     temp_dir = Path(tempfile.mkdtemp(prefix="dataflow_convert_"))

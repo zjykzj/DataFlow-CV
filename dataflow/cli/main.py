@@ -3,8 +3,6 @@
 import click
 from pathlib import Path
 
-from dataflow.util.logging_util import LoggingOperations, VerboseLoggingOperations
-
 
 def print_version(ctx, param, value):
     """Callback function: display version information"""
@@ -37,11 +35,7 @@ def cli(ctx):
     ctx.obj["verbose"] = False
     ctx.obj["log_dir"] = Path("./logs")
     ctx.obj["strict"] = True
-
-    # Configure default logging (non-verbose mode)
-    logger = LoggingOperations().get_logger("dataflow.cli")
-    ctx.obj["logger"] = logger
-    logger.debug("CLI context initialization completed")
+    # No logger creation — logging is module-owned
 
 
 # Register subcommand groups

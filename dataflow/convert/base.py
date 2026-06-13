@@ -32,7 +32,7 @@ class ConversionResult:
     errors: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     verbose_log: List[str] = field(default_factory=list)  # New: detailed log entries
-    log_file_path: Optional[str] = None  # Log file path when verbose=True
+    log_path: Optional[str] = None  # Log file path when verbose=True
 
     def add_warning(self, warning: str):
         """Add a warning message."""
@@ -91,8 +91,7 @@ class BaseConverter(ABC):
         source_format: str,
         target_format: str,
         strict_mode: bool = True,
-        verbose: bool = False,  # New: verbose parameter
-        logger: Optional[logging.Logger] = None,
+        log_config: Optional[Any] = None,
     ):
         """
         Initialize base converter.
@@ -101,25 +100,23 @@ class BaseConverter(ABC):
             source_format: Source annotation format name
             target_format: Target annotation format name
             strict_mode: Whether to stop on errors (default True)
-            verbose: Whether to enable verbose logging mode (new)
-            logger: Optional logger instance
+            log_config: Optional ``LogConfig`` instance. If None, a
+                default ``LogConfig(name=f"convert.{source}_to_{target}")``
+                is used.
         """
         self.source_format = source_format
         self.target_format = target_format
         self.strict_mode = strict_mode
-        self.verbose = verbose
 
-        # Configure logger based on verbose
-        if verbose and logger is None:
-            from ..util.logging_util import VerboseLoggingOperations
+        # Configure logger via unified LogManager
+        from ..util.logging import LogConfig, LogManager
 
-            logging_ops = VerboseLoggingOperations()
-            self.logger, self.log_file_path = logging_ops.get_verbose_logger(
-                name=f"convert.{source_format}_to_{target_format}", verbose=verbose
+        if log_config is None:
+            log_config = LogConfig(
+                name=f"convert.{source_format}_to_{target_format}"
             )
-        else:
-            self.logger = logger or logging.getLogger(__name__)
-            self.log_file_path = None
+        self._log_manager = LogManager(log_config)
+        self.logger = self._log_manager.logger
 
         self.file_ops = FileOperations(logger=self.logger)
 
@@ -265,7 +262,7 @@ class BaseConverter(ABC):
             result.num_objects_converted = num_objects
         except Exception as e:
             result.add_error(f"Unexpected error: {e}")
-            if self.verbose:
+            if self._log_manager.log_path is not None:
                 self.logger.exception("Streaming conversion failed")
 
         return result
@@ -314,7 +311,7 @@ class BaseConverter(ABC):
                 source_path=source_path,
                 target_path=target_path,
                 errors=["Input validation failed"],
-                log_file_path=self.log_file_path,
+                log_path=self._log_manager.log_path,
             )
 
         # 2. Read data using source handler
@@ -326,12 +323,12 @@ class BaseConverter(ABC):
                 source_path=source_path,
                 target_path=target_path,
                 errors=read_result.errors,
-                log_file_path=self.log_file_path,
+                log_path=self._log_manager.log_path,
             )
 
         # 3. Convert data
         annotations = read_result.data
-        if self.verbose:
+        if self._log_manager.log_path is not None:
             self.logger.info(
                 f"Read annotations for {annotations.num_images} images"
             )
@@ -339,7 +336,7 @@ class BaseConverter(ABC):
 
         converted_annotations = self.convert_annotations(annotations, kwargs)
 
-        if self.verbose:
+        if self._log_manager.log_path is not None:
             self.logger.debug(
                 f"Conversion completed, object count: "
                 f"{converted_annotations.num_objects}"
@@ -362,10 +359,10 @@ class BaseConverter(ABC):
             target_path=target_path,
             annotations=converted_annotations,
             write_result=write_result,
-            log_file_path=self.log_file_path,
+            log_path=self._log_manager.log_path,
         )
 
-        if self.verbose:
+        if self._log_manager.log_path is not None:
             result.add_verbose_log(
                 f"Images processed: {annotations.num_images}"
             )
@@ -499,7 +496,7 @@ class BaseConverter(ABC):
         annotations: Optional[DatasetAnnotations] = None,
         write_result: Optional[AnnotationResult] = None,
         errors: Optional[List[str]] = None,
-        log_file_path: Optional[str] = None,
+        log_path: Optional[str] = None,
     ) -> ConversionResult:
         """
         Create a ConversionResult instance with appropriate data.
@@ -511,7 +508,7 @@ class BaseConverter(ABC):
             annotations: Converted annotations (optional)
             write_result: Result from handler.write() (optional)
             errors: List of error messages (optional)
-            log_file_path: Log file path for verbose mode (optional)
+            log_path: Log file path for verbose mode (optional)
 
         Returns:
             ConversionResult instance
@@ -522,7 +519,7 @@ class BaseConverter(ABC):
             target_format=self.target_format,
             source_path=source_path,
             target_path=target_path,
-            log_file_path=log_file_path,
+            log_path=log_path,
         )
 
         if errors:
@@ -549,6 +546,6 @@ class BaseConverter(ABC):
 
     def _log_error(self, message: str):
         """Log error message, raise exception in strict mode."""
-        from dataflow.util.logging_util import logging_error_or_raise
-
-        logging_error_or_raise(message, self.logger, self.strict_mode)
+        self.logger.error(message)
+        if self.strict_mode:
+            raise ValueError(message)

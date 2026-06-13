@@ -69,7 +69,7 @@ class EvaluationResult:
     dt_stats: Dict[str, int] = field(default_factory=dict)
     warnings: List[str] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
-    log_file_path: Optional[str] = None
+    log_path: Optional[str] = None
 
     def add_warning(self, warning: str) -> None:
         """Add a non-fatal warning message."""

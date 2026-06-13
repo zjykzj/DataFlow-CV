@@ -13,14 +13,16 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from dataflow.label import LabelMeAnnotationHandler
-from dataflow.util import LoggingOperations
+from dataflow.util.logging import LogConfig, LogManager
 
 
 def main():
     """Main function"""
     # Configure logging
-    log_ops = LoggingOperations()
-    logger = log_ops.get_logger("labelme_demo", level="INFO")
+    log_config = LogConfig(name="demo", log_dir=Path("logs"))
+    log_manager = LogManager(log_config)
+    logger = log_manager.logger
+    logger = log_manager.logger
 
     # Example data path (using LabelMe test data for object detection)
     data_dir = project_root / "assets" / "test_data" / "det" / "labelme"

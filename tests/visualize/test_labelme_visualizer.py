@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from dataflow.util.logging import LogConfig
 from dataflow.visualize import LabelMeVisualizer
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -169,10 +170,10 @@ class TestLabelMeVisualizer:
             class_file=TEST_DATA_DET / "classes.txt",
             is_show=False,
             is_save=False,
-            verbose=False,
+            log_config=LogConfig(name="test", verbose=False),
         )
-        assert visualizer_no_verbose.verbose is False
-        assert visualizer_no_verbose.progress_logger is None
+        assert visualizer_no_verbose._log_manager.log_path is None
+        assert visualizer_no_verbose._log_manager is not None
 
         visualizer_verbose = LabelMeVisualizer(
             label_dir=TEST_DATA_DET,
@@ -180,10 +181,10 @@ class TestLabelMeVisualizer:
             class_file=TEST_DATA_DET / "classes.txt",
             is_show=False,
             is_save=False,
-            verbose=True,
+            log_config=LogConfig(name="test", verbose=True),
         )
-        assert visualizer_verbose.verbose is True
-        assert visualizer_verbose.progress_logger is not None
+        assert visualizer_verbose._log_manager.log_path is not None
+        assert visualizer_verbose._log_manager is not None
 
     def test_visualize_with_verbose(self, temp_dir):
         visualizer = LabelMeVisualizer(
@@ -193,7 +194,7 @@ class TestLabelMeVisualizer:
             is_show=False,
             is_save=True,
             output_dir=temp_dir,
-            verbose=True,
+            log_config=LogConfig(name="test", verbose=True),
         )
 
         result = visualizer.visualize()

@@ -14,13 +14,15 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from dataflow.label import CocoAnnotationHandler
-from dataflow.util import LoggingOperations
+from dataflow.util.logging import LogConfig, LogManager
 
 
 def demo_standard_format():
     """Standard COCO format (polygon) demonstration"""
-    log_ops = LoggingOperations()
-    logger = log_ops.get_logger("coco_demo_std", level="INFO")
+    log_config = LogConfig(name="demo", log_dir=Path("logs"))
+    log_manager = LogManager(log_config)
+    logger = log_manager.logger
+    logger = log_manager.logger
 
     logger.info("COCO standard format (polygon) annotation processing example")
     logger.info("=" * 50)
@@ -115,8 +117,10 @@ def demo_standard_format():
 
 def demo_rle_format():
     """RLE format COCO annotation demonstration"""
-    log_ops = LoggingOperations()
-    logger = log_ops.get_logger("coco_demo_rle", level="INFO")
+    log_config = LogConfig(name="demo", log_dir=Path("logs"))
+    log_manager = LogManager(log_config)
+    logger = log_manager.logger
+    logger = log_manager.logger
 
     logger.info("COCO RLE format annotation processing example")
     logger.info("=" * 50)
@@ -209,8 +213,10 @@ def demo_rle_format():
 
 def demo_format_conversion():
     """Format conversion demonstration: polygon <-> RLE"""
-    log_ops = LoggingOperations()
-    logger = log_ops.get_logger("coco_demo_conv", level="INFO")
+    log_config = LogConfig(name="demo", log_dir=Path("logs"))
+    log_manager = LogManager(log_config)
+    logger = log_manager.logger
+    logger = log_manager.logger
 
     logger.info("COCO format conversion demonstration")
     logger.info("=" * 50)
@@ -276,8 +282,10 @@ def demo_format_conversion():
 
 def main():
     """Main function"""
-    log_ops = LoggingOperations()
-    logger = log_ops.get_logger("coco_demo", level="INFO")
+    log_config = LogConfig(name="demo", log_dir=Path("logs"))
+    log_manager = LogManager(log_config)
+    logger = log_manager.logger
+    logger = log_manager.logger
 
     logger.info("=" * 60)
     logger.info("COCO annotation format processing example")

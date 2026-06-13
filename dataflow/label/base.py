@@ -144,9 +144,9 @@ class BaseAnnotationHandler(ABC):
 
     def _log_error(self, message: str):
         """Log error message and raise exception in strict mode."""
-        from dataflow.util.logging_util import logging_error_or_raise
-
-        logging_error_or_raise(message, self.logger, self.strict_mode)
+        self.logger.error(message)
+        if self.strict_mode:
+            raise ValueError(message)
 
     def _log_warning(self, message: str):
         """Log warning message."""

@@ -21,7 +21,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from dataflow.convert import LabelMeAndYoloConverter
-from dataflow.util import LoggingOperations, VerboseLoggingOperations
+from dataflow.util.logging import LogConfig, LogManager
 
 
 def main():
@@ -33,17 +33,18 @@ def main():
 
     # Configure logging
     if args.verbose:
-        log_ops = VerboseLoggingOperations()
-        logger, log_file_path = log_ops.get_verbose_logger(
-            name="yolo_to_labelme_demo",
-            verbose=True,
-            log_dir=str(project_root / "logs")
+        log_config = LogConfig(name="demo", verbose=True, log_dir=Path("logs"))
+    log_manager = LogManager(log_config)
+    logger = log_manager.logger
+    log_path = log_manager.log_path
         )
         logger.info("Verbose logging mode enabled")
         logger.info(f"Verbose log saved to: {log_file_path}")
     else:
-        log_ops = LoggingOperations()
-        logger = log_ops.get_logger("yolo_to_labelme_demo", level="INFO")
+        log_config = LogConfig(name="demo", log_dir=Path("logs"))
+    log_manager = LogManager(log_config)
+    logger = log_manager.logger
+        logger = log_manager.logger
 
     # Example data paths
     data_dir = project_root / "assets" / "test_data" / "det" / "yolo"
@@ -72,7 +73,7 @@ def main():
     logger.info("Creating YOLO→LabelMe converter")
     converter = LabelMeAndYoloConverter(
         source_to_target=False,  # YOLO→LabelMe
-        verbose=args.verbose,  # Verbose logging mode
+        log_config=LogConfig(name="demo", log_dir=Path("logs")),  # Verbose logging mode
         strict_mode=True,
         logger=logger,
     )

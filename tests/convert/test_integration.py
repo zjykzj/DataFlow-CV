@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from dataflow.util.logging import LogConfig
 from dataflow.convert import (LabelMeAndYoloConverter, YoloAndCocoConverter,
                               CocoAndLabelMeConverter)
 
@@ -307,12 +308,15 @@ class TestIntegrationConversions:
 
     def test_labelme_to_yolo_verbose(self, test_data_dir, temp_output_dir):
         """Test LabelMe→YOLO conversion verbose mode"""
+        from dataflow.util.logging import LogConfig
+
         # Prepare test data paths
         source_dir = test_data_dir / "det" / "labelme"
         class_file = source_dir / "classes.txt"
 
-        # Create converter（verbose=True）
-        converter = LabelMeAndYoloConverter(source_to_target=True, verbose=True)
+        # Create converter（log_config=LogConfig(name="test", verbose=True)）
+        log_config = LogConfig(name="test_integration", verbose=True)
+        converter = LabelMeAndYoloConverter(source_to_target=True, log_config=log_config)
 
         # Perform conversion
         result = converter.convert(
@@ -331,9 +335,9 @@ class TestIntegrationConversions:
         assert hasattr(result, "verbose_log"), "ConversionResult missing verbose_log attribute"
         # verbose_log may be empty, but attribute should exist
 
-        # Verify converter has verbose attribute set
-        assert converter.verbose is True
-        assert hasattr(converter, "log_file_path"), "converter missing log_file_path attribute"
+        # Verify converter has log manager
+        assert hasattr(converter, "_log_manager"), "converter missing _log_manager attribute"
+        assert converter._log_manager.log_path is not None
 
         # Verify output files exist
         label_files = list(temp_output_dir.glob("*.txt"))
@@ -352,7 +356,8 @@ class TestIntegrationConversions:
         output_file = temp_output_dir / "coco.json"
 
         # Create converter（verbose=True）
-        converter = YoloAndCocoConverter(source_to_target=True, verbose=True)
+        log_config = LogConfig(name="test_y2c", verbose=True)
+        converter = YoloAndCocoConverter(source_to_target=True, log_config=log_config)
 
         # Perform conversion
         result = converter.convert(
@@ -370,8 +375,8 @@ class TestIntegrationConversions:
         assert result.num_images_converted > 0
 
         # Verify verbose-related functionality
-        assert converter.verbose is True
-        assert hasattr(converter, "log_file_path")
+        assert converter._log_manager.log_path is not None
+        assert hasattr(converter, "_log_manager")
 
         # Verify output files
         assert output_file.exists()
@@ -386,7 +391,7 @@ class TestIntegrationConversions:
         source_file = test_data_dir / "det" / "coco" / "annotations.json"
 
         # Create converter（verbose=True）
-        converter = CocoAndLabelMeConverter(source_to_target=True, verbose=True)
+        converter = CocoAndLabelMeConverter(source_to_target=True, log_config=LogConfig(name="test", verbose=True))
 
         # Perform conversion
         result = converter.convert(
@@ -400,8 +405,8 @@ class TestIntegrationConversions:
         assert result.num_images_converted > 0
 
         # Verify verbose-related functionality
-        assert converter.verbose is True
-        assert hasattr(converter, "log_file_path")
+        assert converter._log_manager.log_path is not None
+        assert hasattr(converter, "_log_manager")
 
         # Verify output files
         json_files = list(temp_output_dir.glob("*.json"))
@@ -410,8 +415,6 @@ class TestIntegrationConversions:
     def test_verbose_log_file_creation(self, test_data_dir, temp_output_dir):
         """Test log file creation in verbose mode"""
         import logging
-
-        from dataflow.util.logging_util import VerboseLoggingOperations
 
         # Prepare test data paths
         source_dir = test_data_dir / "det" / "labelme"
@@ -422,7 +425,7 @@ class TestIntegrationConversions:
         log_dir.mkdir(parents=True, exist_ok=True)
 
         # Create converter（verbose=True）
-        converter = LabelMeAndYoloConverter(source_to_target=True, verbose=True)
+        converter = LabelMeAndYoloConverter(source_to_target=True, log_config=LogConfig(name="test", verbose=True))
 
         # Perform conversion
         result = converter.convert(
@@ -441,12 +444,13 @@ class TestIntegrationConversions:
                 h
                 for h in converter.logger.handlers
                 if isinstance(h, logging.FileHandler)
+                or type(h).__name__ == "RotatingFileHandler"
             ]
             # When verbose=True, file handler may be created, but implementation may vary
             # We at least verify verbose mode is set correctly
             pass
 
-        assert converter.verbose is True
+        assert converter._log_manager.log_path is not None
 
     def test_verbose_mode_consistency(self, test_data_dir, temp_output_dir):
         """Test verbose mode consistency: results should be same for verbose=False and verbose=True"""
@@ -460,7 +464,7 @@ class TestIntegrationConversions:
 
         # 1. No verbose mode conversion
         converter_no_verbose = LabelMeAndYoloConverter(
-            source_to_target=True, verbose=False
+            source_to_target=True, log_config=LogConfig(name="test", verbose=False)
         )
         result_no_verbose = converter_no_verbose.convert(
             source_path=str(source_dir),
@@ -469,7 +473,7 @@ class TestIntegrationConversions:
         )
 
         # 2. With verbose mode conversion
-        converter_verbose = LabelMeAndYoloConverter(source_to_target=True, verbose=True)
+        converter_verbose = LabelMeAndYoloConverter(source_to_target=True, log_config=LogConfig(name="test", verbose=True))
         result_verbose = converter_verbose.convert(
             source_path=str(source_dir),
             target_path=str(output_dir_verbose),

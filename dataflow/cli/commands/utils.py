@@ -5,8 +5,6 @@ from typing import Optional, Tuple
 import click
 from functools import wraps
 
-from dataflow.util.logging_util import LoggingOperations, VerboseLoggingOperations
-
 
 def add_common_options(func):
     """Decorator: add common options to subcommands"""
@@ -20,31 +18,22 @@ def add_common_options(func):
         is_flag=True,
         help="Disable strict mode (skip invalid annotations instead of aborting)",
     )
+    @click.option(
+        "--log-dir",
+        type=click.Path(path_type=Path),
+        default="./logs",
+        show_default=True,
+        help="Log file output directory",
+    )
     @click.pass_context
     @wraps(func)
-    def wrapper(ctx, verbose, no_strict, *args, **kwargs):
+    def wrapper(ctx, verbose, no_strict, log_dir, *args, **kwargs):
         # Update options in context object
         ctx.obj["verbose"] = verbose
         # strict_mode default True; --no-strict sets it to False
         ctx.obj["strict"] = not no_strict
-
-        # Reconfigure logging (based on verbose flag)
-        if verbose:
-            # Use default log directory ./logs
-            # get_verbose_logger() now returns tuple (logger, log_file_path)
-            logger, log_file_path = VerboseLoggingOperations().get_verbose_logger(
-                name=ctx.command.name,
-                verbose=True,
-                log_dir=Path("./logs"),
-            )
-            ctx.obj["log_file_path"] = log_file_path
-        else:
-            logger = LoggingOperations().get_logger(ctx.command.name)
-            ctx.obj["log_file_path"] = None
-        ctx.obj["logger"] = logger
-
-        logger.debug(f"Subcommand context updated: verbose={verbose}")
-        # Call original function, passing ctx as first argument
+        ctx.obj["log_dir"] = Path(log_dir)
+        # No logger creation — logging is module-owned
         return func(ctx, *args, **kwargs)
     return wrapper
 

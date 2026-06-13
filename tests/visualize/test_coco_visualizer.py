@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from dataflow.util.logging import LogConfig
 from dataflow.visualize import COCOVisualizer
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -188,20 +189,20 @@ class TestCOCOVisualizer:
             image_dir=TEST_DATA_DET / "images",
             is_show=False,
             is_save=False,
-            verbose=False,
+            log_config=LogConfig(name="test", verbose=False),
         )
-        assert visualizer_no_verbose.verbose is False
-        assert visualizer_no_verbose.progress_logger is None
+        assert visualizer_no_verbose._log_manager.log_path is None
+        assert visualizer_no_verbose._log_manager is not None
 
         visualizer_verbose = COCOVisualizer(
             annotation_file=annotation_file,
             image_dir=TEST_DATA_DET / "images",
             is_show=False,
             is_save=False,
-            verbose=True,
+            log_config=LogConfig(name="test", verbose=True),
         )
-        assert visualizer_verbose.verbose is True
-        assert visualizer_verbose.progress_logger is not None
+        assert visualizer_verbose._log_manager.log_path is not None
+        assert visualizer_verbose._log_manager is not None
 
     def test_visualize_with_verbose(self, temp_dir):
         annotation_file = TEST_DATA_DET / "annotations.json"
@@ -214,7 +215,7 @@ class TestCOCOVisualizer:
             is_show=False,
             is_save=True,
             output_dir=temp_dir,
-            verbose=True,
+            log_config=LogConfig(name="test", verbose=True),
         )
 
         result = visualizer.visualize()

@@ -19,13 +19,13 @@ from .base import BaseConverter
 class LabelMeAndYoloConverter(BaseConverter):
     """Converter for bidirectional conversion between LabelMe and YOLO formats."""
 
-    def __init__(self, source_to_target: bool, verbose: bool = False, **kwargs):
+    def __init__(self, source_to_target: bool, log_config=None, **kwargs):
         """
         Initialize converter.
 
         Args:
             source_to_target: True for LabelMe→YOLO, False for YOLO→LabelMe
-            verbose: Whether to enable verbose logging (new)
+            log_config: Optional ``LogConfig`` instance for logging configuration.
             **kwargs: Arguments passed to BaseConverter
         """
         if source_to_target:
@@ -35,12 +35,11 @@ class LabelMeAndYoloConverter(BaseConverter):
             source_format = "yolo"
             target_format = "labelme"
 
-        super().__init__(source_format, target_format, verbose=verbose, **kwargs)
+        super().__init__(source_format, target_format, log_config=log_config, **kwargs)
         self.source_to_target = source_to_target
 
-        if verbose:
-            direction = "LabelMe→YOLO" if source_to_target else "YOLO→LabelMe"
-            self.logger.debug(f"Initialized converter, direction: {direction}")
+        direction = "LabelMe→YOLO" if source_to_target else "YOLO→LabelMe"
+        self.logger.debug(f"Initialized converter, direction: {direction}")
 
     def validate_inputs(self, source_path: str, target_path: str, kwargs: Dict) -> bool:
         """

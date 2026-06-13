@@ -52,7 +52,7 @@ class VisualizationResult:
     data: Optional[Any] = None
     message: str = ""
     errors: List[str] = field(default_factory=list)
-    log_file_path: Optional[str] = None  # Log file path when verbose=True
+    log_path: Optional[str] = None  # Log file path when verbose=True
 
     def add_error(self, error: str) -> None:
         """Add an error message to the result."""
@@ -167,33 +167,23 @@ class BaseVisualizer(ABC):
         output_dir: Optional[Union[str, Path]] = None,
         is_show: bool = True,
         is_save: bool = False,
-        verbose: bool = False,
-        logger: Optional[logging.Logger] = None,
-        log_file_path: Optional[str] = None,
+        log_config: Optional[Any] = None,
     ):
         self.label_dir = Path(label_dir)
         self.image_dir = Path(image_dir)
         self.output_dir = Path(output_dir) if output_dir else None
         self.is_show = is_show
         self.is_save = is_save
-        self.verbose = verbose
 
-        if log_file_path is not None:
-            self.log_file_path = log_file_path
-            self.logger = logger or logging.getLogger(__name__)
-            self.progress_logger = None
-        elif verbose and logger is None:
-            from dataflow.util.logging_util import VerboseLoggingOperations
+        # Configure logger via unified LogManager
+        from dataflow.util.logging import LogConfig, LogManager
 
-            logging_ops = VerboseLoggingOperations()
-            self.logger, self.log_file_path = logging_ops.get_verbose_logger(
-                name=f"visualize.{self.__class__.__name__.lower()}", verbose=verbose
+        if log_config is None:
+            log_config = LogConfig(
+                name=f"visualize.{self.__class__.__name__.lower()}"
             )
-            self.progress_logger = logging_ops.create_progress_logger()
-        else:
-            self.logger = logger or logging.getLogger(__name__)
-            self.progress_logger = None
-            self.log_file_path = None
+        self._log_manager = LogManager(log_config)
+        self.logger = self._log_manager.logger
 
         self.file_ops = FileOperations(logger=self.logger)
 
@@ -207,7 +197,7 @@ class BaseVisualizer(ABC):
             "font": cv2.FONT_HERSHEY_SIMPLEX,
         }
 
-        self.color_manager = ColorManager(debug=verbose)
+        self.color_manager = ColorManager(debug=log_config.verbose if log_config else False)
 
         self.summary_data = {
             "total_images": 0,
@@ -254,13 +244,13 @@ class BaseVisualizer(ABC):
         start_time = datetime.datetime.now()
         self.summary_data["start_time"] = start_time
 
-        if self.verbose:
+        if self._log_manager.log_path is not None:
             self.logger.debug(
                 f"Starting visualization pipeline: {self.label_dir}"
             )
 
         result = VisualizationResult(
-            success=False, log_file_path=self.log_file_path
+            success=False, log_path=self._log_manager.log_path
         )
 
         processed_count = 0
@@ -287,13 +277,13 @@ class BaseVisualizer(ABC):
             for image_ann in image_iter:
                 image_index += 1
 
-                if self.progress_logger and image_index % 10 == 0:
+                if image_index % 10 == 0:
                     self._log_progress(
                         image_index,
                         message=f"Processing {image_ann.image_path}",
                     )
 
-                if self.verbose:
+                if self._log_manager.log_path is not None:
                     self.logger.debug(
                         f"Processing image: {image_ann.image_path}"
                     )
@@ -341,7 +331,7 @@ class BaseVisualizer(ABC):
                 result.data = {"processed_count": processed_count}
 
             self.summary_data["end_time"] = datetime.datetime.now()
-            if self.verbose:
+            if self._log_manager.log_path is not None:
                 self._log_visualization_summary(result)
 
         except ValueError as e:
@@ -369,7 +359,7 @@ class BaseVisualizer(ABC):
             error_msg = str(e)
             result.add_error(error_msg)
             result.message = error_msg
-            if self.verbose:
+            if self._log_manager.log_path is not None:
                 self.logger.exception("Visualization failed")
         finally:
             if self.is_show:
@@ -625,7 +615,7 @@ class BaseVisualizer(ABC):
         is a read-only operation and a single bad file should never prevent
         inspecting the rest of the dataset.
         """
-        from dataflow.util.logging_util import detect_image_error
+        from dataflow.util.logging import detect_image_error
 
         if detect_image_error(message):
             self.logger.warning(message)
@@ -638,30 +628,19 @@ class BaseVisualizer(ABC):
 
     def _log_visualization_summary(self, result: VisualizationResult):
         """Log visualization summary."""
+        from dataflow.visualize.log_templates import format_viz_result
+
         duration = self.summary_data["end_time"] - self.summary_data["start_time"]
 
-        summary_data = {
-            "Module Name": self.__class__.__name__,
-            "Runtime": f"{duration.total_seconds():.2f} seconds",
-            "Input Label Directory": str(self.label_dir),
-            "Input Image Directory": str(self.image_dir),
-            "Output Directory": str(self.output_dir) if self.output_dir else "None",
-            "Image Statistics": {
-                "Total": self.summary_data["total_images"],
-                "Success": self.summary_data["processed_images"],
-                "Failed": self.summary_data["failed_images"],
-                "Success Rate": f"{(self.summary_data['processed_images']/self.summary_data['total_images']*100):.1f}%",
-            },
-            "Total Objects": self.summary_data["total_objects"],
-            "Operation Status": "Success" if result.success else "Failed",
+        stats = {
+            "total": self.summary_data["total_images"],
+            "success": self.summary_data["processed_images"],
+            "failed": self.summary_data["failed_images"],
+            "objects": self.summary_data["total_objects"],
+            "duration": f"{duration.total_seconds():.2f}s",
+            "log_path": result.log_path,
         }
-
-        from dataflow.util.logging_util import VerboseLoggingOperations
-
-        logging_ops = VerboseLoggingOperations()
-        logging_ops.log_summary(
-            self.logger, "Visualization Operation Summary", summary_data
-        )
+        self.logger.info(format_viz_result(stats))
 
     def _log_progress(self, current: int, message: str = ""):
         """Log progress information (counter-based for streaming).
@@ -669,12 +648,11 @@ class BaseVisualizer(ABC):
         Uses a counter format since the total image count is unknown
         until the iterator exhausts.
         """
-        if self.progress_logger:
-            failed = self.summary_data.get("failed_images", 0)
-            tail = f" - {message}" if message else ""
-            self.progress_logger.info(
-                f"Processed {current} images, {failed} failed{tail}"
-            )
+        failed = self.summary_data.get("failed_images", 0)
+        tail = f" - {message}" if message else ""
+        self.logger.info(
+            f"Processed {current} images, {failed} failed{tail}"
+        )
 
     def _create_progress_bar(self, current: int, total: int, width: int = 40) -> str:
         """Create text progress bar (retained for compatibility).

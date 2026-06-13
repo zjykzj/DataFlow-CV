@@ -39,33 +39,23 @@ class BaseEvaluator(ABC):
 
     def __init__(
         self,
-        verbose: bool = False,
-        logger: Optional[logging.Logger] = None,
-        log_file_path: Optional[str] = None,
+        log_config: Optional[Any] = None,
     ):
         """Initialize the evaluator.
 
         Args:
-            verbose: If True, compute per-class metrics and enable file
-                logging.
-            logger: Optional logger instance. Created automatically if
-                not provided.
-            log_file_path: Pre-configured log file path (used by CLI).
+            log_config: Optional ``LogConfig`` instance. If None, a
+                default ``LogConfig(name="evaluate")`` is used.
+                Per-class metrics are computed only when
+                ``log_config.verbose=True``.
         """
-        self.verbose = verbose
-        self.log_file_path = log_file_path or None
+        # Configure logger via unified LogManager
+        from ..util.logging import LogConfig, LogManager
 
-        # Configure logger based on verbose mode
-        if verbose and logger is None:
-            from ..util.logging_util import VerboseLoggingOperations
-
-            logging_ops = VerboseLoggingOperations()
-            self.logger, log_path = logging_ops.get_verbose_logger(
-                name="evaluate", verbose=verbose
-            )
-            self.log_file_path = log_path or self.log_file_path
-        else:
-            self.logger = logger or logging.getLogger(__name__)
+        if log_config is None:
+            log_config = LogConfig(name="evaluate")
+        self._log_manager = LogManager(log_config)
+        self.logger = self._log_manager.logger
 
     # ------------------------------------------------------------------
     # Template method
@@ -132,14 +122,14 @@ class BaseEvaluator(ABC):
             result.dt_stats = dt_stats
 
             # 7. Per-class (verbose only)
-            if self.verbose:
+            if self._log_manager.log_path is not None:
                 self._log_info("Computing per-class metrics...")
                 result.per_class = self._compute_per_class(
                     coco_eval, coco_gt, coco_dt
                 )
 
             result.success = True
-            result.log_file_path = self.log_file_path
+            result.log_path = self._log_manager.log_path
             self._log_info(
                 f"Evaluation complete: {result.get_summary()}"
             )

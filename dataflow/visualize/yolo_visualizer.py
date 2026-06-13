@@ -22,7 +22,7 @@ class YOLOVisualizer(BaseVisualizer):
         label_dir: Union[str, Path],
         image_dir: Union[str, Path],
         class_file: Union[str, Path],
-        verbose: bool = False,
+        log_config=None,
         **kwargs,
     ):
         """
@@ -32,17 +32,16 @@ class YOLOVisualizer(BaseVisualizer):
             label_dir: YOLO label directory (contains TXT files)
             image_dir: Image directory
             class_file: Class file path (required)
-            verbose: Whether to enable verbose logging
+            log_config: Optional ``LogConfig`` instance for logging configuration.
             **kwargs: Additional arguments for BaseVisualizer
         """
-        super().__init__(label_dir, image_dir, verbose=verbose, **kwargs)
+        super().__init__(label_dir, image_dir, log_config=log_config, **kwargs)
         self.class_file = Path(class_file)
 
-        if verbose:
-            self.logger.debug(
-                f"YOLO visualizer initialization complete, "
-                f"class file: {class_file}"
-            )
+        self.logger.debug(
+            f"YOLO visualizer initialization complete, "
+            f"class file: {class_file}"
+        )
 
     def _create_handler(self) -> YoloAnnotationHandler:
         """Create a YOLO handler for streaming iteration."""

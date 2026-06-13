@@ -6,6 +6,7 @@ import pytest
 
 from dataflow.evaluate.base import BaseEvaluator
 from dataflow.evaluate.result import EvaluationResult, EvaluationMetrics
+from dataflow.util.logging import LogConfig
 
 TEST_DATA = Path(__file__).parent.parent.parent / "assets" / "test_data" / "evaluate"
 
@@ -41,25 +42,25 @@ class TestBaseEvaluatorInit:
 
     def test_default_init(self):
         ev = ConcreteEvaluator()
-        assert ev.verbose is False
+        assert ev._log_manager.log_path is None
 
     def test_verbose(self):
-        ev = ConcreteEvaluator(verbose=True)
-        assert ev.verbose is True
-        assert ev.log_file_path is not None
+        log_config = LogConfig(name="test_eval", verbose=True)
+        ev = ConcreteEvaluator(log_config=log_config)
+        assert ev._log_manager.log_path is not None
 
-    def test_custom_logger(self):
-        import logging
-        logger = logging.getLogger("test_eval")
-        ev = ConcreteEvaluator(logger=logger)
-        assert ev.logger is logger
+    def test_custom_log_config(self):
+        log_config = LogConfig(name="test_eval_custom", verbose=False)
+        ev = ConcreteEvaluator(log_config=log_config)
+        assert ev.logger is not None
+        assert ev._log_manager.log_path is None
 
 
 class TestEvaluate:
     """Test the evaluate() template method."""
 
     def test_successful_evaluation(self, gt_path, dt_path):
-        ev = ConcreteEvaluator(verbose=False)
+        ev = ConcreteEvaluator()
         result = ev.evaluate(gt_path, dt_path)
         assert result.success is True
         assert result.metrics is not None
@@ -67,7 +68,7 @@ class TestEvaluate:
         assert result.iou_type == "bbox"
 
     def test_metrics_reasonable(self, gt_path, dt_path):
-        ev = ConcreteEvaluator(verbose=False)
+        ev = ConcreteEvaluator()
         result = ev.evaluate(gt_path, dt_path)
         m = result.metrics
         # All 4 GT are well-matched
@@ -76,21 +77,23 @@ class TestEvaluate:
         assert m.ar_max_100 >= 0.0
 
     def test_verbose_evaluation(self, gt_path, dt_path):
-        ev = ConcreteEvaluator(verbose=True)
+        log_config = LogConfig(name="test_eval", verbose=True)
+        ev = ConcreteEvaluator(log_config=log_config)
         result = ev.evaluate(gt_path, dt_path)
         assert result.success is True
         assert result.per_class is not None
         assert len(result.per_class) > 0
+        assert result.log_path is not None
 
     def test_nonexistent_file(self):
-        ev = ConcreteEvaluator(verbose=False)
+        ev = ConcreteEvaluator()
         result = ev.evaluate("/nonexistent.json", "/nonexistent.json")
         assert result.success is False
         assert len(result.errors) > 0
         assert "not found" in result.errors[0].lower()
 
     def test_stats_populated(self, gt_path, dt_path):
-        ev = ConcreteEvaluator(verbose=False)
+        ev = ConcreteEvaluator()
         result = ev.evaluate(gt_path, dt_path)
         assert result.gt_stats["images"] == 2
         assert result.gt_stats["annotations"] == 4
@@ -98,7 +101,7 @@ class TestEvaluate:
 
     def test_successful_evaluation_with_list_dt(self, gt_path, dt_list_path):
         """List-format DT (plain JSON array) should work."""
-        ev = ConcreteEvaluator(verbose=False)
+        ev = ConcreteEvaluator()
         result = ev.evaluate(gt_path, dt_list_path)
         assert result.success is True
         assert result.metrics is not None

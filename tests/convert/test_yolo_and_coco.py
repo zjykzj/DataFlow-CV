@@ -398,23 +398,24 @@ class TestYoloAndCocoConverter:
 
     def test_converter_verbose_param(self):
         """Test converter verbose parameter."""
+        from dataflow.util.logging import LogConfig
+
         # Test verbose=False (default)
         converter_no_verbose = YoloAndCocoConverter(
-            source_to_target=True, verbose=False
+            source_to_target=True
         )
-        assert converter_no_verbose.verbose is False
-        assert converter_no_verbose.log_file_path is None
+        assert converter_no_verbose._log_manager.log_path is None
 
         # Test verbose=True
-        converter_verbose = YoloAndCocoConverter(source_to_target=True, verbose=True)
-        assert converter_verbose.verbose is True
-        assert hasattr(converter_verbose, "log_file_path")
-        assert converter_verbose.log_file_path is not None
+        log_config = LogConfig(name="test_v", verbose=True)
+        converter_verbose = YoloAndCocoConverter(source_to_target=True, log_config=log_config)
+        assert hasattr(converter_verbose, "_log_manager")
+        assert converter_verbose._log_manager.log_path is not None
 
         # Test verbose parameter in COCO→YOLO direction
-        converter_reverse = YoloAndCocoConverter(source_to_target=False, verbose=True)
-        assert converter_reverse.verbose is True
-        assert converter_reverse.log_file_path is not None
+        log_config2 = LogConfig(name="test_v2", verbose=True)
+        converter_reverse = YoloAndCocoConverter(source_to_target=False, log_config=log_config2)
+        assert converter_reverse._log_manager.log_path is not None
 
 
     @pytest.fixture
@@ -439,7 +440,7 @@ class TestYoloAndCocoConverter:
         output_file = str(temp_dir / "pred.json")
 
         converter = YoloAndCocoConverter(
-            source_to_target=True, prediction=True, verbose=False, strict_mode=False
+            source_to_target=True, prediction=True, strict_mode=False
         )
         result = converter.convert(label_dir, output_file, image_dir=image_dir, class_file=class_file)
 
@@ -477,7 +478,7 @@ class TestYoloAndCocoConverter:
             / "assets" / "test_data" / "det" / "yolo"
         )
         converter = YoloAndCocoConverter(
-            source_to_target=True, prediction=False, verbose=False, strict_mode=False
+            source_to_target=True, prediction=False, strict_mode=False
         )
         result = converter.convert(
             str(std_data_dir / "labels"),

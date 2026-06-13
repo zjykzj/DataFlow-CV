@@ -7,7 +7,7 @@ from functools import wraps
 
 from dataflow.cli.commands.utils import FormattedCommand, validate_visualize_params
 from dataflow.cli.exceptions import RuntimeCLIError
-from dataflow.util.logging_util import LoggingOperations, VerboseLoggingOperations
+from dataflow.util.logging import LogConfig
 
 
 def add_visualize_options(func):
@@ -22,31 +22,21 @@ def add_visualize_options(func):
         default=True,
         help="Show visualization window (--no-display for headless servers)",
     )
+    @click.option(
+        "--log-dir",
+        type=click.Path(path_type=Path),
+        default="./logs",
+        show_default=True,
+        help="Log file output directory",
+    )
     @click.pass_context
     @wraps(func)
-    def wrapper(ctx, verbose, display, *args, **kwargs):
+    def wrapper(ctx, verbose, display, log_dir, *args, **kwargs):
         # Update options in context object
         ctx.obj["verbose"] = verbose
         ctx.obj["is_show"] = display
-        # Use default log directory
-        log_dir = Path("./logs")
-        ctx.obj["log_dir"] = log_dir
-        # Reconfigure logging (based on verbose flag)
-        if verbose:
-            # get_verbose_logger() now returns tuple (logger, log_file_path)
-            logger, log_file_path = VerboseLoggingOperations().get_verbose_logger(
-                name=ctx.command.name,
-                verbose=True,
-                log_dir=log_dir,
-            )
-            ctx.obj["log_file_path"] = log_file_path
-        else:
-            logger = LoggingOperations().get_logger(ctx.command.name)
-            ctx.obj["log_file_path"] = None
-        ctx.obj["logger"] = logger
-
-        logger.debug(f"Subcommand context updated: verbose={verbose}, log_dir={log_dir}")
-        # Call original function, passing ctx as first argument
+        ctx.obj["log_dir"] = Path(log_dir)
+        # No logger creation — logging is module-owned
         return func(ctx, *args, **kwargs)
     return wrapper
 
@@ -78,13 +68,15 @@ def yolo(
     """Visualize YOLO format labels"""
     from dataflow.visualize.yolo_visualizer import YOLOVisualizer
 
-    logger = ctx.obj["logger"]
-    verbose = ctx.obj["verbose"]
-
-    logger.info(f"Starting visualization of YOLO labels: image_dir={image_dir}, label_dir={label_dir}")
-
     # Parameter validation
     validate_visualize_params(label_dir, image_dir, save)
+
+    # Build log config
+    log_config = LogConfig(
+        name=f"visualize.yolo",
+        verbose=ctx.obj["verbose"],
+        log_dir=ctx.obj["log_dir"],
+    )
 
     # Call existing API
     visualizer = YOLOVisualizer(
@@ -94,24 +86,22 @@ def yolo(
         output_dir=save,
         is_show=ctx.obj["is_show"],
         is_save=save is not None,
-        verbose=verbose,
-        logger=logger,
-        log_file_path=ctx.obj["log_file_path"],
+        log_config=log_config,
     )
     result = visualizer.visualize()
 
-    # Print log file path if verbose mode is enabled
-    if verbose and result.log_file_path:
-        logger.info(f"Verbose log saved to: {result.log_file_path}")
+    # Print terminal output
+    if result.log_path:
+        click.echo(f"Log saved to: {result.log_path}")
 
     if result.success:
-        logger.info(f"Visualization completed: processed {result.data.get('processed_count', 0)} images")
+        click.echo(f"Visualization completed: processed {result.data.get('processed_count', 0)} images")
     else:
         # Use result.message if available, otherwise fall back to errors list
         error_msg = result.message
         if not error_msg and result.errors:
             error_msg = result.errors[0] if result.errors else "Unknown error"
-        logger.error(f"Visualization failed: {error_msg}")
+        click.echo(f"Visualization failed: {error_msg}", err=True)
         raise RuntimeCLIError(f"Visualization failed: {error_msg}")
 
 
@@ -134,13 +124,15 @@ def labelme(
     """Visualize LabelMe format labels"""
     from dataflow.visualize.labelme_visualizer import LabelMeVisualizer
 
-    logger = ctx.obj["logger"]
-    verbose = ctx.obj["verbose"]
-
-    logger.info(f"Starting visualization of LabelMe labels: {label_dir}")
-
     # Parameter validation
     validate_visualize_params(label_dir, image_dir, save)
+
+    # Build log config
+    log_config = LogConfig(
+        name=f"visualize.labelme",
+        verbose=ctx.obj["verbose"],
+        log_dir=ctx.obj["log_dir"],
+    )
 
     # Call existing API
     visualizer = LabelMeVisualizer(
@@ -149,24 +141,21 @@ def labelme(
         output_dir=save,
         is_show=ctx.obj["is_show"],
         is_save=save is not None,
-        verbose=verbose,
-        logger=logger,
-        log_file_path=ctx.obj["log_file_path"],
+        log_config=log_config,
     )
     result = visualizer.visualize()
 
-    # Print log file path if verbose mode is enabled
-    if verbose and result.log_file_path:
-        logger.info(f"Verbose log saved to: {result.log_file_path}")
+    # Print terminal output
+    if result.log_path:
+        click.echo(f"Log saved to: {result.log_path}")
 
     if result.success:
-        logger.info(f"Visualization completed: processed {result.data.get('processed_count', 0)} images")
+        click.echo(f"Visualization completed: processed {result.data.get('processed_count', 0)} images")
     else:
-        # Use result.message if available, otherwise fall back to errors list
         error_msg = result.message
         if not error_msg and result.errors:
             error_msg = result.errors[0] if result.errors else "Unknown error"
-        logger.error(f"Visualization failed: {error_msg}")
+        click.echo(f"Visualization failed: {error_msg}", err=True)
         raise RuntimeCLIError(f"Visualization failed: {error_msg}")
 
 
@@ -189,13 +178,15 @@ def coco(
     """Visualize COCO format labels"""
     from dataflow.visualize.coco_visualizer import COCOVisualizer
 
-    logger = ctx.obj["logger"]
-    verbose = ctx.obj["verbose"]
-
-    logger.info(f"Starting visualization of COCO labels: {coco_file}")
-
     # Parameter validation
     validate_visualize_params(coco_file, image_dir, save)
+
+    # Build log config
+    log_config = LogConfig(
+        name=f"visualize.coco",
+        verbose=ctx.obj["verbose"],
+        log_dir=ctx.obj["log_dir"],
+    )
 
     # Call existing API
     visualizer = COCOVisualizer(
@@ -204,22 +195,19 @@ def coco(
         output_dir=save,
         is_show=ctx.obj["is_show"],
         is_save=save is not None,
-        verbose=verbose,
-        logger=logger,
-        log_file_path=ctx.obj["log_file_path"],
+        log_config=log_config,
     )
     result = visualizer.visualize()
 
-    # Print log file path if verbose mode is enabled
-    if verbose and result.log_file_path:
-        logger.info(f"Verbose log saved to: {result.log_file_path}")
+    # Print terminal output
+    if result.log_path:
+        click.echo(f"Log saved to: {result.log_path}")
 
     if result.success:
-        logger.info(f"Visualization completed: processed {result.data.get('processed_count', 0)} images")
+        click.echo(f"Visualization completed: processed {result.data.get('processed_count', 0)} images")
     else:
-        # Use result.message if available, otherwise fall back to errors list
         error_msg = result.message
         if not error_msg and result.errors:
             error_msg = result.errors[0] if result.errors else "Unknown error"
-        logger.error(f"Visualization failed: {error_msg}")
+        click.echo(f"Visualization failed: {error_msg}", err=True)
         raise RuntimeCLIError(f"Visualization failed: {error_msg}")
