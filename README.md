@@ -99,77 +99,50 @@ dataflow-cv visualize yolo --verbose --no-display images/ yolo_labels/ classes.t
 
 #### 📊 Evaluation
 
-Evaluate object detection and instance segmentation model outputs using COCO-standard metrics. Two COCO-format JSON files are required:
+Evaluate object detection and instance segmentation models with COCO-standard metrics. Two COCO-format JSON files are required:
 
-| File | Role | Format | Source |
-|------|------|--------|--------|
-| **`anno.json`** | Ground Truth (GT) — reference annotations | Full COCO dict (`images`, `annotations`, `categories`) | `yolo2coco` (label mode) |
-| **`pred.json`** | Detection (DT) — model predictions | Plain JSON list of annotation dicts (with `score`) | `yolo2coco --prediction`, Detectron2, MMDetection |
+| File | Role | Format | How to create |
+|------|------|--------|---------------|
+| **`anno.json`** | Ground Truth (GT) | Full COCO dict (`images`, `annotations`, `categories`) | `yolo2coco` (label mode) |
+| **`pred.json`** | Detection (DT) | Plain JSON list (with `score`) | `yolo2coco --prediction` |
 
-##### ① Preparing Evaluation Data
-
-If your annotations and predictions are in YOLO format, convert them to COCO JSON first:
+##### ① Prepare Data
 
 ```bash
-# Step 1: YOLO ground truth labels → COCO GT (anno.json)
-#   Label format:   class_id cx cy w h               ← 5 tokens (detection)
-#                   class_id x1 y1 ... xn yn          ← odd tokens (segmentation)
+# GT: YOLO labels → COCO
 dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt anno.json
 
-# Step 2: YOLO predictions → COCO DT (pred.json)
-#   Prediction fmt: class_id cx cy w h confidence     ← 6 tokens (detection)
-#                   class_id x1 y1 ... xn yn confidence ← even tokens (segmentation)
+# DT: YOLO predictions → COCO (add --prediction for model output)
 dataflow-cv convert yolo2coco --prediction images/ yolo_preds/ classes.txt pred.json
 ```
 
-> ⚠️ **Important**: YOLO label files (GT) use **odd** token counts, while prediction files (DT) use **even** token counts with a trailing `confidence`. The `--prediction` flag is required for DT — it outputs a **plain JSON list** of annotation dicts (not a full COCO dict with `images`/`categories`). Mixed label/prediction files in the same directory are not supported.
->
-> ℹ️ **Note**: The `--prediction` flag is **only available for `yolo2coco`**. `labelme2coco` does not support prediction conversion — LabelMe files (.json) have no label vs prediction format distinction, so there is no equivalent prediction source format to convert from.
+> ⚠️ `--prediction` is required for YOLO prediction files — they have an extra `confidence` token per line. The flag outputs a **plain JSON list** (not a full COCO dict), which is the standard DT format for `loadRes()`. Only `yolo2coco` supports `--prediction`; `labelme2coco` does not need it (LabelMe has no label vs prediction distinction).
 
-##### ② Detection vs Segmentation — Format Requirements
-
-| Field | Detection GT | Detection DT | Segmentation GT | Segmentation DT |
-|-------|:-----------:|:-----------:|:---------------:|:---------------:|
-| `bbox` | ✅ Required | ✅ Required | ✅ Required (for area) | ✅ Required (for area) |
-| `score` | — | ✅ **Required** | — | ✅ **Required** |
-| `segmentation` | ❌ Not required | ❌ Not required | ✅ **Required** | ✅ **Required** |
-| `area` | ⚪ Recommended | ⚪ Recommended | ✅ **Required** | ✅ **Required** |
-| `iscrowd` | ⚪ Optional | — | ⚪ Optional | — |
-
-- **Object Detection** (`iouType='bbox'`): Bounding box overlap evaluation. Only `bbox` + `score` mandatory in DT.
-- **Instance Segmentation** (`iouType='segm'`): Mask overlap evaluation. GT and DT must include `segmentation` (polygon or RLE), `area`, and `bbox`.
-
-##### ③ CLI Commands
+##### ② Run Evaluation
 
 ```bash
-# Object detection evaluation (bbox IoU)
+# Object detection (bbox IoU)
 dataflow-cv evaluate detection anno.json pred.json
-
-# Verbose per-class breakdown
-dataflow-cv evaluate detection --verbose anno.json pred.json
-
-# P/R/F1 only (skips mAP computation) — default: macro averaging
-dataflow-cv evaluate detection --prf1 anno.json pred.json
-
-# P/R/F1 with custom IoU threshold and micro averaging
+dataflow-cv evaluate detection --verbose anno.json pred.json           # per-class breakdown
+dataflow-cv evaluate detection --prf1 anno.json pred.json              # P/R/F1 only (skip mAP)
 dataflow-cv evaluate detection --prf1 --prf1-iou 0.75 --prf1-method micro anno.json pred.json
 
-# Instance segmentation evaluation (mask IoU)
+# Instance segmentation (mask IoU)
 dataflow-cv evaluate segmentation anno.json pred.json
+dataflow-cv evaluate segmentation --verbose anno.json pred.json
 
 # Save results as JSON
 dataflow-cv evaluate detection --output results.json anno.json pred.json
 ```
 
-##### ④ End-to-End Workflow
+##### ③ Detection vs Segmentation
 
-```bash
-# Complete pipeline: YOLO → COCO → Evaluation
-dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt anno.json
-dataflow-cv convert yolo2coco --prediction images/ yolo_preds/ classes.txt pred.json
-dataflow-cv evaluate detection --verbose anno.json pred.json           # mAP
-dataflow-cv evaluate detection --prf1 anno.json pred.json             # P/R/F1
-```
+Two evaluation modes, distinguished by how overlap is measured:
+
+- **Object Detection** — bounding box IoU. GT and DT require `bbox`; DT additionally requires `score`.
+- **Instance Segmentation** — mask IoU. GT and DT require `bbox`, `segmentation` (polygon or RLE), and `area`; DT additionally requires `score`.
+
+`yolo2coco` (label mode) and `yolo2coco --prediction` (prediction mode) automatically populate all required fields for both modes — no manual editing needed.
 
 ### 🐍 Python API
 
