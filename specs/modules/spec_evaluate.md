@@ -139,7 +139,7 @@ Abstract base class implementing the template method pattern:
 
 ```python
 class BaseEvaluator(ABC):
-    def __init__(self, strict_mode=True, verbose=False, logger=None): ...
+    def __init__(self, verbose=False, logger=None): ...
 
     # Template method — orchestrates the evaluation pipeline
     def evaluate(self, gt_source, dt_source) -> EvaluationResult: ...
@@ -194,7 +194,6 @@ class SegmentationEvaluator(BaseEvaluator):
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `strict_mode` | bool | No | True | If True, validation errors abort immediately. If False, skip invalid annotations with warnings. |
 | `verbose` | bool | No | False | If True, compute per-class metrics + file logging. |
 | `logger` | Optional[Logger] | No | None | Logger instance. Created internally if not provided. |
 
@@ -548,7 +547,7 @@ When `verbose=False`:
 
 | API | Location | Purpose |
 |-----|----------|---------|
-| `DetectionEvaluator(verbose, strict_mode, logger)` | `evaluator.py` | Detection evaluation (bbox IoU) |
-| `SegmentationEvaluator(verbose, strict_mode, logger)` | `evaluator.py` | Segmentation evaluation (mask IoU) |
+| `DetectionEvaluator(verbose, logger)` | `evaluator.py` | Detection evaluation (bbox IoU) |
+| `SegmentationEvaluator(verbose, logger)` | `evaluator.py` | Segmentation evaluation (mask IoU) |
 | `evaluator.evaluate(gt, dt) → EvaluationResult` | `base.py` | Run full COCO evaluation |
 | `compute_pr_f1(gt, dt, iou_thr, conf_thr, iou_type) → PRF1Result` | `metrics.py` | Single-threshold P/R/F1 |
