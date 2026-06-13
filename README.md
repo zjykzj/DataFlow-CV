@@ -11,65 +11,35 @@
   <img src="https://img.shields.io/badge/Linux-Supported-fcc624?logo=linux" alt="Linux">
   <img src="https://img.shields.io/badge/Windows-Supported-00a2e8?logo=windows" alt="Windows">
   <img src="https://img.shields.io/badge/macOS-Supported-999999?logo=apple" alt="macOS">
+  <img src="https://img.shields.io/badge/YOLO-.txt-00a86b?style=flat-square" alt="YOLO">
+  <img src="https://img.shields.io/badge/LabelMe-.json-f39c12?style=flat-square" alt="LabelMe">
+  <img src="https://img.shields.io/badge/COCO-.json-e74c3c?style=flat-square" alt="COCO">
 </p>
 
-A computer vision dataset processing library for seamless format conversion, visualization, and evaluation between YOLO, LabelMe, and COCO annotation formats. Designed for researchers and developers working with multi-format annotation pipelines.
-
-```mermaid
-graph LR
-    A[YOLO<br/>.txt] -->|convert| D[DataFlow-CV]
-    B[LabelMe<br/>.json] -->|convert| D
-    C[COCO<br/>.json] -->|convert| D
-    D -->|visualize| E[🎨 Rendered<br/>Images]
-    D -->|evaluate| F[📊 mAP / AR<br/>Metrics]
-```
-
----
-
-## ✨ Features
+A computer vision dataset processing library — convert, visualize, and evaluate annotations across YOLO, LabelMe, and COCO formats.
 
 | | | |
 |:---|:---|:---|
-| 🔄 **Format Conversion** | Convert between YOLO, LabelMe, and COCO in any direction — 6 conversion paths, plus prediction file support (outputs standard list-format COCO predictions) |
-| 🎯 **Detection & Segmentation** | Handle both object detection (bbox) and instance segmentation (polygon/RLE) annotations |
-| 🎨 **Visualization** | Render annotations with OpenCV — color-coded classes, semi-transparent masks, display & save modes |
-| 📊 **Evaluation** | COCO-standard 12-metric output (mAP, AP50, AP75, AR) via pycocotools, with per-class breakdowns and macro/micro P/R/F1 |
-| 💻 **Command-line Interface** | Intuitive CLI with `convert`, `visualize`, and `evaluate` subcommands — positional args, rich `--help` |
-| 🐍 **Python API** | Programmatic access for integration into larger ML pipelines |
-| 📝 **Module-Owned Logging** | Unified `LogManager` — console + file logging with structured templates per module |
-| 🖥️ **Headless Mode** | Server/Docker-friendly: `--no-display` + `--save` for off-screen rendering |
-| 🛡️ **Flexible Error Handling** | Strict mode (abort on error) or lenient mode (skip & continue with warnings) via `--no-strict` |
+| 🔄 **Convert** | 6 directions: YOLO ↔ LabelMe ↔ COCO, plus model predictions | `dataflow-cv convert yolo2coco ...` |
+| 🎨 **Visualize** | OpenCV rendering with color-coded classes, display & save modes | `dataflow-cv visualize yolo ...` |
+| 📊 **Evaluate** | COCO mAP via pycocotools, single-threshold P/R/F1 per class | `dataflow-cv evaluate detection ...` |
+| 💻 **CLI + API** | Click-based CLI with rich `--help`; Python API for pipelines | `from dataflow.convert import ...` |
 
 ---
 
 ## 📦 Installation
 
-### From PyPI
-
 ```bash
-pip install dataflow-cv
+pip install dataflow-cv               # from PyPI
+pip install pycocotools               # optional: COCO RLE + evaluation
 ```
 
-### From Source
+Or from source:
 
 ```bash
 git clone https://github.com/zjykzj/DataFlow-CV.git
-cd DataFlow-CV
-
-# Regular installation
-pip install .
-
-# Editable installation (for development)
-pip install -e .
+cd DataFlow-CV && pip install .
 ```
-
-> 💡 **Tip**: When installed in editable mode, use `python -m dataflow.cli` instead of the `dataflow-cv` command.
-
-### Optional Dependencies
-
-| Dependency | Purpose | Install |
-|-----------|---------|---------|
-| `pycocotools` | COCO RLE segmentation + evaluation | `pip install pycocotools` |
 
 ---
 
@@ -267,15 +237,13 @@ print(f"Segm F1: {prf1.overall.f1_score:.3f}")
 
 ### 💡 Key Concepts
 
-- **Format-Native Coordinates**: Coordinates stored in each format's native representation — YOLO normalized [0,1] center-based, LabelMe/COCO absolute pixels top-left. Check `DatasetAnnotations.format` to determine semantics.
-- **Explicit Coordinate Transforms**: Converters handle all coordinate transformations between formats — no hidden normalization.
-- **Strict Mode**: Validation errors raise exceptions by default. Disable with `--no-strict` (CLI) or `strict_mode=False` (API).
-- **Module-Owned Logging**: Modules handle all logging internally via `LogManager`. `--verbose` enables file logging (DEBUG level) alongside console output. The CLI uses `click.echo()` for terminal UI, not loggers.
-- **Headless Support**: Use `--no-display` for servers/Docker; pair with `--save` to output visualization images without a window.
-- **Keyboard Shortcuts**: During visualization — `q`/`ESC` to exit, `Enter`/`Space` to advance, any other key to continue.
-- **Color Management**: Each class ID gets a unique color from an HSV-based palette (up to 1000 classes) for consistent visualization.
-- **Evaluation Metrics**: mAP (COCOeval, 12 metrics) and P/R/F1 (single-threshold, per-class TP/FP/FN) are separate CLI paths — `--prf1` computes P/R/F1 only, skipping COCOeval. P/R/F1 supports macro/micro averaging and bbox/mask IoU. Run twice for both metrics.
-- **Prediction Files**: YOLO prediction files use 6 tokens (detection) or even tokens (segmentation) vs 5/odd for labels. `--prediction` outputs a plain JSON list of annotation dicts — the standard prediction exchange format compatible with pycocotools `loadRes()`.
+- **Format-Native Coordinates**: YOLO uses normalized [0,1] center-based coordinates; LabelMe and COCO use absolute pixel top-left. There is no hidden internal normalization — check `DatasetAnnotations.format` to interpret coordinate semantics.
+- **Strict Mode** (default): Validation errors raise exceptions immediately. Disable with `--no-strict` (CLI) or `strict_mode=False` (API) to skip invalid annotations and continue.
+- **Verbose Logging**: `--verbose` enables per-module file logging via `LogManager` — console shows INFO-level progress, log files capture DEBUG details. All logging is owned by modules; the CLI uses `click.echo()` for terminal output.
+- **Headless Support**: Use `--no-display` for servers/Docker — pair with `--save` to render visualization images without a GUI window.
+- **Keyboard Shortcuts** (visualization): `q` / `ESC` to exit, `Enter` / `Space` to advance, any other key to continue.
+- **Evaluation**: `--prf1` computes P/R/F1 only (single-threshold, per-class TP/FP/FN) — skips the full COCOeval mAP pipeline for speed. Supports macro/micro averaging and bbox/mask IoU. Run without `--prf1` for standard COCO mAP. For both metrics, run twice.
+- **Prediction Files**: YOLO predictions use 6 tokens (detection) or even tokens (segmentation) vs 5/odd for labels. Use `--prediction` with `yolo2coco` — outputs a plain JSON list of annotation dicts compatible with pycocotools `loadRes()`.
 
 ---
 
