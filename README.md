@@ -221,7 +221,7 @@ prf1 = compute_pr_f1("anno_segm.json", "pred_segm.json", iou_type="segm")
 print(f"Segm F1: {prf1.overall.f1_score:.3f}")
 ```
 
-> 📂 See the `samples/` directory for complete examples: `samples/visualize/` (YOLO, LabelMe, COCO demos), `samples/convert/` (conversion examples).
+> 📂 See the `samples/` directory for complete examples: `samples/convert/` (6 conversion directions), `samples/visualize/` (YOLO, LabelMe, COCO), `samples/evaluate/` (detection & segmentation), `samples/cli/` (CLI workflows).
 
 ---
 
