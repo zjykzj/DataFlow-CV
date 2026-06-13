@@ -75,33 +75,3 @@ def create_color_map(num_classes: int) -> List[Tuple[int, int, int]]:
     return colors
 
 
-def calculate_text_position(
-    bbox_top_left: Tuple[int, int],
-    text_size: Tuple[int, int],
-    image_height: int,
-    image_width: int,
-) -> Tuple[int, int]:
-    """
-    Calculate text position ensuring it stays within image boundaries.
-
-    Args:
-        bbox_top_left: Top-left corner of bounding box
-        text_size: (width, height) of text
-        image_height: Image height
-        image_width: Image width
-
-    Returns:
-        Adjusted (x, y) position for text
-    """
-    x, y = bbox_top_left
-    text_width, text_height = text_size
-
-    # Adjust y position to avoid going above image
-    if y - text_height < 0:
-        y = text_height
-
-    # Adjust x position to avoid going beyond right edge
-    if x + text_width > image_width:
-        x = image_width - text_width - 5
-
-    return (x, y)

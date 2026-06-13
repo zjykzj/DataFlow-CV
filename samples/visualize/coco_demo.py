@@ -20,16 +20,14 @@ def main():
 
     data_dir = project_root / "assets" / "test_data" / "det" / "coco"
     image_dir = data_dir / "images"
-    label_dir = data_dir / "labels" if "coco" != "coco" else data_dir
 
     if not data_dir.exists():
         logger.error(f"Data not found: {data_dir}")
         return
 
     visualizer = COCOVisualizer(
-        label_dir=str(label_dir),
-        image_dir=str(image_dir),
         annotation_file=str(data_dir / "annotations.json"),
+        image_dir=str(image_dir),
         is_show=True,
         is_save=True,
         output_dir=data_dir / "visualized_output",
