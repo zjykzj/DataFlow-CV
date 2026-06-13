@@ -4,6 +4,13 @@ import click
 from pathlib import Path
 
 
+class NaturalOrderGroup(click.Group):
+    """Click Group that preserves command registration order in --help output."""
+
+    def list_commands(self, ctx):
+        return list(self.commands.keys())
+
+
 def print_version(ctx, param, value):
     """Callback function: display version information"""
     if not value or ctx.resilient_parsing:
@@ -13,7 +20,7 @@ def print_version(ctx, param, value):
     ctx.exit()
 
 
-@click.group(context_settings={
+@click.group(cls=NaturalOrderGroup, context_settings={
     "help_option_names": ["-h", "--help"],
     "max_content_width": 100,
     "show_default": True,
