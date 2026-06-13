@@ -97,6 +97,11 @@ dataflow-cv visualize coco images/ coco_annotations.json --save visualized/
 dataflow-cv visualize yolo --verbose --no-display images/ yolo_labels/ classes.txt --save visualized/
 ```
 
+<p align="center">
+  <img src="assets/showcase/seg_demo_1.jpg" width="45%" alt="Segmentation visualization demo 1">
+  <img src="assets/showcase/seg_demo_2.jpg" width="45%" alt="Segmentation visualization demo 2">
+</p>
+
 #### 📊 Evaluation
 
 Evaluate object detection and instance segmentation models with COCO-standard metrics. Two COCO-format JSON files are required:
