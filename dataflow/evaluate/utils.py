@@ -311,13 +311,16 @@ def _extract_stats(
 
 
 def _validate_dt_scores(
-    coco_dt: "COCO", strict_mode: bool = True
+    coco_dt: "COCO",
 ) -> Tuple[bool, List[str]]:
     """Verify that all DT annotations have a ``score`` field.
 
+    Raises ValueError if any annotation is missing the score field.
+    pycocotools COCOeval requires scores for sorting — evaluation
+    cannot produce correct results without them.
+
     Returns:
-        Tuple of (valid, warnings).  If ``strict_mode`` and scores are
-        missing, raises ValueError.
+        ``(True, [])`` when all annotations have valid scores.
     """
     ann_ids = coco_dt.getAnnIds()
     missing = []
@@ -328,14 +331,10 @@ def _validate_dt_scores(
                 missing.append(ann["id"])
 
     if missing:
-        msg = (
+        raise ValueError(
             f"{len(missing)} DT annotation(s) missing 'score' field"
+            f": IDs={missing[:10]}{'...' if len(missing) > 10 else ''}"
         )
-        if strict_mode:
-            raise ValueError(
-                f"{msg}: IDs={missing[:10]}{'...' if len(missing) > 10 else ''}"
-            )
-        return False, [msg]
 
     return True, []
 

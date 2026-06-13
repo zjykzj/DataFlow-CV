@@ -205,11 +205,11 @@ class TestValidateDtScores:
 
     def test_all_have_scores(self, dt_path):
         coco_dt = _load_coco(dt_path)
-        valid, warnings = _validate_dt_scores(coco_dt, strict_mode=False)
+        valid, warnings = _validate_dt_scores(coco_dt)
         assert valid is True
         assert warnings == []
 
-    def test_missing_scores_strict(self):
+    def test_missing_scores(self):
         data = {
             "images": [{"id": 1, "file_name": "a.jpg", "width": 100, "height": 100}],
             "annotations": [{"id": 1, "image_id": 1, "category_id": 1, "bbox": [0, 0, 10, 10]}],
@@ -217,19 +217,7 @@ class TestValidateDtScores:
         }
         coco = _load_coco(data)
         with pytest.raises(ValueError, match="missing 'score'"):
-            _validate_dt_scores(coco, strict_mode=True)
-
-    def test_missing_scores_non_strict(self):
-        data = {
-            "images": [{"id": 1, "file_name": "a.jpg", "width": 100, "height": 100}],
-            "annotations": [{"id": 1, "image_id": 1, "category_id": 1, "bbox": [0, 0, 10, 10]}],
-            "categories": [{"id": 1, "name": "cat"}],
-        }
-        coco = _load_coco(data)
-        valid, warnings = _validate_dt_scores(coco, strict_mode=False)
-        assert valid is False
-        assert len(warnings) == 1
-        assert "missing 'score'" in warnings[0]
+            _validate_dt_scores(coco)
 
 
 class TestFormatMetricTable:

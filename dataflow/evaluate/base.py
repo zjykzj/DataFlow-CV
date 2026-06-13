@@ -37,7 +37,6 @@ class BaseEvaluator(ABC):
 
     def __init__(
         self,
-        strict_mode: bool = True,
         verbose: bool = False,
         logger: Optional[logging.Logger] = None,
         log_file_path: Optional[str] = None,
@@ -45,14 +44,12 @@ class BaseEvaluator(ABC):
         """Initialize the evaluator.
 
         Args:
-            strict_mode: If True, validation errors abort immediately.
             verbose: If True, compute per-class metrics and enable file
                 logging.
             logger: Optional logger instance. Created automatically if
                 not provided.
             log_file_path: Pre-configured log file path (used by CLI).
         """
-        self.strict_mode = strict_mode
         self.verbose = verbose
         self.log_file_path = log_file_path or None
 
@@ -200,7 +197,7 @@ class BaseEvaluator(ABC):
 
         # Validate DT scores
         try:
-            _validate_dt_scores(coco_dt, strict_mode=self.strict_mode)
+            _validate_dt_scores(coco_dt)
         except ValueError as e:
             errors.append(str(e))
 
@@ -208,13 +205,9 @@ class BaseEvaluator(ABC):
         warnings.extend(_validate_common_categories(coco_gt, coco_dt))
 
         if errors:
-            if self.strict_mode:
-                for err in errors:
-                    self._log_error(err)
-                return False, warnings
-            else:
-                # In non-strict mode, treat errors as warnings
-                warnings.extend(errors)
+            for err in errors:
+                self._log_error(err)
+            return False, warnings
 
         return True, warnings
 
@@ -357,7 +350,6 @@ class BaseEvaluator(ABC):
         self.logger.warning(message)
 
     def _log_error(self, message: str) -> None:
-        """Log an error and raise ValueError in strict mode."""
+        """Log an error and raise ValueError."""
         self.logger.error(message)
-        if self.strict_mode:
-            raise ValueError(message)
+        raise ValueError(message)

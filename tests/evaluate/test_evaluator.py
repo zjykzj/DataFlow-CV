@@ -60,10 +60,6 @@ class TestDetectionEvaluator:
         assert "cat" in names
         assert "dog" in names
 
-    def test_strict_mode(self):
-        ev = DetectionEvaluator(strict_mode=False)
-        assert ev.strict_mode is False
-
     def test_evaluate_with_list_dt(self, gt_path, dt_list_path):
         """List-format DT should work with DetectionEvaluator."""
         ev = DetectionEvaluator(verbose=False)

@@ -27,13 +27,11 @@ class DetectionEvaluator(BaseEvaluator):
 
     def __init__(
         self,
-        strict_mode: bool = True,
         verbose: bool = False,
         logger: Optional[logging.Logger] = None,
         log_file_path: Optional[str] = None,
     ):
         super().__init__(
-            strict_mode=strict_mode,
             verbose=verbose,
             logger=logger,
             log_file_path=log_file_path,
@@ -68,13 +66,11 @@ class SegmentationEvaluator(BaseEvaluator):
 
     def __init__(
         self,
-        strict_mode: bool = True,
         verbose: bool = False,
         logger: Optional[logging.Logger] = None,
         log_file_path: Optional[str] = None,
     ):
         super().__init__(
-            strict_mode=strict_mode,
             verbose=verbose,
             logger=logger,
             log_file_path=log_file_path,

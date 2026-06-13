@@ -41,12 +41,7 @@ class TestBaseEvaluatorInit:
 
     def test_default_init(self):
         ev = ConcreteEvaluator()
-        assert ev.strict_mode is True
         assert ev.verbose is False
-
-    def test_non_strict(self):
-        ev = ConcreteEvaluator(strict_mode=False)
-        assert ev.strict_mode is False
 
     def test_verbose(self):
         ev = ConcreteEvaluator(verbose=True)
@@ -139,17 +134,9 @@ class TestValidateInputs:
         coco_gt = _load_coco(empty_gt)
         coco_dt = _load_coco(dt_data)
 
-        # Strict mode: should raise
-        ev_strict = ConcreteEvaluator(strict_mode=True)
+        ev = ConcreteEvaluator()
         with pytest.raises(ValueError):
-            ev_strict.validate_inputs(coco_gt, coco_dt)
-
-        # Non-strict mode: errors become warnings, still returns valid=True
-        # (but evaluation will fail later in COCOeval)
-        ev_nonstrict = ConcreteEvaluator(strict_mode=False)
-        valid, warnings = ev_nonstrict.validate_inputs(coco_gt, coco_dt)
-        assert valid is True  # Non-strict downgrades errors to warnings
-        assert len(warnings) > 0  # The errors appear as warnings
+            ev.validate_inputs(coco_gt, coco_dt)
 
 
 class TestExtractMetrics:
