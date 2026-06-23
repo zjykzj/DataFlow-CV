@@ -238,7 +238,6 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             if not image_path.exists():
                 if image_height is None or image_width is None:
                     raise ImageError(f"Image file not found and no dimensions in JSON: {image_path}")
-                self._log_warning(f"Image file not found, using dimensions from JSON: {image_path}")
 
             if image_height is None or image_width is None:
                 dims_read = False

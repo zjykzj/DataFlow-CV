@@ -1,6 +1,6 @@
 # Label Module Specification
 
-> **Version:** 4.1
+> **Version:** 4.2
 > **Status:** Draft — logger receives from caller's LogManager via `logger=` parameter
 > **Layer:** Modules
 > **Dependencies:** None (foundation module; logging via stdlib `logging.Logger` only)
@@ -443,7 +443,7 @@ Implementation steps:
    d. Yield `ImageAnnotation(image_id, image_path, width, height, objects)`
 4. Strict mode: raise `ValueError` on first parse error in any file
 5. Non-strict mode: log warning, skip invalid files/shapes, continue
-6. Image errors (missing file, unreadable `imagePath`) always skip regardless of strict_mode
+6. Image errors: if `imagePath` is inaccessible but JSON contains valid `imageWidth`/`imageHeight`, the image is not needed — read succeeds silently. If JSON lacks dimensions AND the image is inaccessible, skip with warning (or abort in strict mode if dimensions are entirely unavailable)
 7. Category discovery: auto-extract from `shape.label` if `class_file` not provided
 
 **`write(annotations, output_dir)`**: Writes one `.json` per image.
@@ -466,7 +466,8 @@ from `shape.label` values during reading.
 | Invalid class_id (not in categories) | Abort immediately | Skip annotation, log warning, continue |
 | Invalid coordinate (out of valid range for format) | Abort immediately | Skip annotation, log warning, continue |
 | Invalid bbox (zero area, overflow) | Abort immediately | Skip annotation, log warning, continue |
-| Image file not found | **Always skip with warning** | **Always skip with warning** |
+| Image file not found (YOLO, COCO) | **Always skip with warning** | **Always skip with warning** |
+| Image file not found (LabelMe) | JSON has `imageWidth`/`imageHeight` → read succeeds silently. JSON lacks dimensions → abort immediately | JSON has `imageWidth`/`imageHeight` → read succeeds silently. JSON lacks dimensions → skip with warning |
 | Image unreadable / corrupt | **Always skip with warning** | **Always skip with warning** |
 | Invalid image dimensions | **Always skip with warning** | **Always skip with warning** |
 
@@ -479,12 +480,15 @@ from `shape.label` values during reading.
 | No annotation files found | Raise `ValueError` immediately (no images yielded) | Raise `ValueError` immediately (no images yielded) |
 | Invalid annotation format (per-file) | Raise `ValueError` immediately, stop iteration | Skip file, log warning, continue to next |
 | Invalid class_id / coordinate / bbox (per-line) | Raise `ValueError` immediately, stop iteration | Skip line, log warning, continue |
-| Image file not found | **Always skip with warning** | **Always skip with warning** |
+| Image file not found (YOLO, COCO) | **Always skip with warning** | **Always skip with warning** |
+| Image file not found (LabelMe) | JSON has `imageWidth`/`imageHeight` → yield succeeds silently. JSON lacks dimensions → raise `ValueError`, stop iteration | JSON has `imageWidth`/`imageHeight` → yield succeeds silently. JSON lacks dimensions → skip with warning |
 | Image unreadable / corrupt | **Always skip with warning** | **Always skip with warning** |
 | Invalid image dimensions | **Always skip with warning** | **Always skip with warning** |
 
 **Key rule**: Image-related errors never cause an abort — they are always downgraded to
-warnings regardless of `strict_mode`.
+warnings regardless of `strict_mode`. **Exception — LabelMe**: When the JSON file contains
+valid `imageWidth`/`imageHeight`, the image file itself is not required. Absence of the image
+in this case is not an error at all and produces no warning.
 
 **Upfront validation**: Both `read()` and `iter_images()` perform upfront validation of
 directory existence and category availability. These structural errors always raise
@@ -530,6 +534,19 @@ A valid read operation must satisfy ALL of:
 | `compare_annotation_dirs(dir_a, dir_b, format)` | Format-aware comparison (text diff for YOLO, JSON diff for LabelMe) |
 
 ## 8. Change History
+
+### v4.1 → v4.2: LabelMe Image-File-Not-Found Clarification
+
+| Aspect | v4.1 | v4.2 |
+|--------|------|------|
+| LabelMe image file not found + JSON has dimensions | Logged as WARNING, continued | Silently succeeds — image is not needed |
+| LabelMe image file not found + JSON lacks dimensions | Same as other formats (skip with warning) | Unchanged |
+| Spec error table | Single "Image file not found" row for all formats | Format-specific rows for LabelMe vs YOLO/COCO |
+
+**Rationale**: LabelMe JSON files carry `imageWidth`/`imageHeight`, making the image
+file redundant for annotation reading. Warning about a missing image in this case is
+noise — the data is complete. The warning only makes sense when dimensions CANNOT be
+obtained from any source.
 
 ### v4 → v4.1: Logger from Caller's LogManager
 
