@@ -372,8 +372,8 @@ Visualizers convert annotations per-image to `RenderAnnotation` (absolute pixel 
 
 - **Strict mode** (default): Validation errors immediately raise exceptions / return error results.
 - **Non-strict mode**: Errors are collected as warnings; processing continues where possible. CLI now supports `--no-strict`.
-- **Image errors**: Missing/unreadable images are always treated as warnings regardless of strict mode.
-- **Coordinate validation**: Format-aware — YOLO coords checked in [0,1], LabelMe/COCO coords checked finite and non-negative.
+- **Image errors**: Missing/unreadable images are always treated as warnings regardless of strict mode. **Exception — LabelMe**: When JSON contains valid `imageWidth`/`imageHeight`, the image file is not required and its absence produces no warning (dimensions are read from JSON).
+- **Coordinate validation**: Format-aware — YOLO coords checked in [0,1]; LabelMe/COCO coords are **clamped to image boundaries before validation** (`_clamp_abs_bbox()` / `_clamp_abs_points()` in base handler). Clamping emits a WARNING but is independent of strict_mode — it is data normalization, not error handling. Only non-finite values or zero-area bboxes after clamping are rejected.
 
 ## Development Commands
 
@@ -447,6 +447,7 @@ dataflow-cv evaluate detection --verbose --prf1 assets/test_data/evaluate/gt_coc
 24. **Mask IoU for segmentation PRF1**: `compute_pr_f1(iou_type='segm')` uses pycocotools `mask` module (`mask.frPyObjects()` + `mask.merge()` for polygon→RLE, `mask.iou()` for batched IoU computation). Both polygon and RLE input formats are supported. Image dimensions are fetched from `coco_gt.loadImgs()` for polygon→RLE conversion. Crowd annotations are handled via `mask.iou()`'s built-in `iscrowd` parameter.
 25. **`--prf1` skips mAP**: The `--prf1` CLI flag computes P/R/F1 only — COCOeval is not invoked. mAP and P/R/F1 are mutually exclusive paths. To get both metrics, run the command twice (once without `--prf1` for mAP, once with `--prf1` for P/R/F1).
 26. **`LogConfig` is the single entry point for logging**: All modules accept `log_config: Optional[LogConfig] = None` instead of `verbose`/`logger`/`log_file_path`. `LogConfig` is a frozen dataclass with `name`, `verbose`, `log_dir`. `LogManager(log_config)` creates the configured logger. The old `LoggingOperations`, `VerboseLoggingOperations`, and `FileOperations` classes have been removed.
+27. **Coordinate clamping for absolute-pixel formats**: LabelMe and COCO handlers clamp bbox and polygon coordinates to `[0, width] × [0, height]` before validation via `_clamp_abs_bbox()` / `_clamp_abs_points()` (defined in `BaseAnnotationHandler`). This tolerates minor FP imprecision at image edges. Clamping emits a WARNING but is independent of `strict_mode` — it is data normalization, not error handling. Only values that cannot be fixed (NaN, zero-area bbox after clamping) are rejected during validation.
 
 ## Test Structure
 
