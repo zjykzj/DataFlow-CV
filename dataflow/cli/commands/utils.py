@@ -1,9 +1,16 @@
 """CLI utility functions."""
 
+import inspect
 from pathlib import Path
 from typing import Optional, Tuple
 import click
 from functools import wraps
+
+# Click 8.2+ requires ctx in make_metavar(); older versions don't accept it.
+# We detect at import time so the code works with both.
+_MAKE_METAVAR_NEEDS_CTX = (
+    "ctx" in inspect.signature(click.Argument.make_metavar).parameters
+)
 
 
 def add_common_options(func):
@@ -148,7 +155,11 @@ class FormattedCommand(click.Command):
             # write_dl会自动对齐，与Options使用相同的机制
             rows = []
             for param in args:
-                param_name = param.make_metavar(ctx)
+                param_name = (
+                    param.make_metavar(ctx)
+                    if _MAKE_METAVAR_NEEDS_CTX
+                    else param.make_metavar()
+                )
                 help_text = self._get_argument_help(param.name) if hasattr(param, 'name') else ""
                 rows.append((param_name, help_text))
 
