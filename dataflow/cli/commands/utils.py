@@ -148,7 +148,7 @@ class FormattedCommand(click.Command):
             # write_dl会自动对齐，与Options使用相同的机制
             rows = []
             for param in args:
-                param_name = param.make_metavar()
+                param_name = param.make_metavar(ctx)
                 help_text = self._get_argument_help(param.name) if hasattr(param, 'name') else ""
                 rows.append((param_name, help_text))
 
