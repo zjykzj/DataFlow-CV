@@ -214,6 +214,82 @@ class BaseAnnotationHandler(ABC):
             return False
         return True
 
+    def _clamp_abs_bbox(
+        self,
+        x: float,
+        y: float,
+        w: float,
+        h: float,
+        img_width: int,
+        img_height: int,
+    ) -> tuple:
+        """Clamp absolute-pixel bbox to image boundaries.
+
+        Tolerates minor floating-point imprecision at image edges (e.g.,
+        x=-0.39 → 0). Emits a WARNING if any coordinate value is modified.
+        Returns (x, y, w, h) clamped to [0, img_width] × [0, img_height].
+        """
+        x_orig, y_orig, w_orig, h_orig = x, y, w, h
+        right_orig = x_orig + w_orig
+        bottom_orig = y_orig + h_orig
+
+        # Clamp top-left to [0, img_width] × [0, img_height]
+        x = max(0.0, min(float(img_width), x))
+        y = max(0.0, min(float(img_height), y))
+
+        # Clamp width/height so bottom-right stays within image
+        w = max(0.0, min(float(img_width) - x, w))
+        h = max(0.0, min(float(img_height) - y, h))
+
+        right_new = x + w
+        bottom_new = y + h
+
+        changed = (
+            abs(x - x_orig) > 1e-9
+            or abs(y - y_orig) > 1e-9
+            or abs(right_new - right_orig) > 1e-9
+            or abs(bottom_new - bottom_orig) > 1e-9
+        )
+
+        if changed:
+            self._log_warning(
+                f"Clamped bbox to image boundaries: "
+                f"({x_orig:.2f}, {y_orig:.2f}, {w_orig:.2f}, {h_orig:.2f}) "
+                f"→ ({x:.2f}, {y:.2f}, {w:.2f}, {h:.2f})"
+            )
+
+        return x, y, w, h
+
+    def _clamp_abs_points(
+        self,
+        points: list,
+        img_width: int,
+        img_height: int,
+    ) -> list:
+        """Clamp absolute-pixel polygon points to image boundaries.
+
+        Each point (x, y) is clamped to [0, img_width] × [0, img_height].
+        Emits a single WARNING if any point coordinate is modified.
+        Returns list of clamped (x, y) tuples.
+        """
+        clamped_points = []
+        changed = False
+
+        for x, y in points:
+            cx = max(0.0, min(float(img_width), float(x)))
+            cy = max(0.0, min(float(img_height), float(y)))
+            clamped_points.append((cx, cy))
+            if abs(cx - x) > 1e-9 or abs(cy - y) > 1e-9:
+                changed = True
+
+        if changed:
+            self._log_warning(
+                f"Clamped polygon points to image boundaries "
+                f"[0, {img_width}] × [0, {img_height}]"
+            )
+
+        return clamped_points
+
     def _validate_bbox(
         self, bbox, format: AnnotationFormat = AnnotationFormat.YOLO
     ) -> bool:

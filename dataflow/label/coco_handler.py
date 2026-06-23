@@ -296,6 +296,10 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                     bbox_data = ann["bbox"]
                     if len(bbox_data) == 4:
                         x, y, w, h = bbox_data
+                        # Clamp to image boundaries (tolerates FP imprecision at edges)
+                        x, y, w, h = self._clamp_abs_bbox(
+                            x, y, w, h, img_width, img_height
+                        )
                         bbox = BoundingBox(x=x, y=y, width=w, height=h)
                         if not self._validate_bbox(bbox, format=AnnotationFormat.COCO):
                             self._log_warning(
@@ -349,6 +353,10 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                         # Polygon format (list of lists)
                         points = self._parse_polygon_segmentation(seg_data)
                         if points:
+                            # Clamp to image boundaries (tolerates FP imprecision at edges)
+                            points = self._clamp_abs_points(
+                                points, img_width, img_height
+                            )
                             segmentation = Segmentation(points=points, rle=None)
                         else:
                             self._log_warning(

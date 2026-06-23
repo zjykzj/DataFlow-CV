@@ -356,6 +356,11 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 w = abs(x2 - x1)
                 h = abs(y2 - y1)
 
+                # Clamp to image boundaries (tolerates FP imprecision at edges)
+                x_min, y_min, w, h = self._clamp_abs_bbox(
+                    x_min, y_min, w, h, img_width, img_height
+                )
+
                 bbox = BoundingBox(x=x_min, y=y_min, width=w, height=h)
                 if not self._validate_bbox(bbox, format=AnnotationFormat.LABELME):
                     result.add_error(f"Invalid bbox for rectangle: {points}")
@@ -364,6 +369,10 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             elif shape_type == "polygon" and len(points) >= 3:
                 # Store polygon points in absolute pixels (native LabelMe format)
                 abs_points = [(x, y) for x, y in points]
+                # Clamp to image boundaries (tolerates FP imprecision at edges)
+                abs_points = self._clamp_abs_points(
+                    abs_points, img_width, img_height
+                )
                 if not self._validate_segmentation_points(abs_points, format=AnnotationFormat.LABELME):
                     result.add_error(f"Invalid polygon points: {points}")
                     return result

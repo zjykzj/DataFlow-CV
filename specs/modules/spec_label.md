@@ -1,6 +1,6 @@
 # Label Module Specification
 
-> **Version:** 4.2
+> **Version:** 4.3
 > **Status:** Draft — logger receives from caller's LogManager via `logger=` parameter
 > **Layer:** Modules
 > **Dependencies:** None (foundation module; logging via stdlib `logging.Logger` only)
@@ -387,8 +387,11 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
 | `do_rle` | No | Whether to output RLE format (default False) |
 
 **`read()`**: Returns `DatasetAnnotations(format=COCO)` with:
-- `BoundingBox`: `(x_tl, y_tl, w_abs, h_abs)` in absolute pixels (native COCO format)
-- `Segmentation.points`: `(x, y)` in absolute pixels (from COCO segmentation polygons)
+- `BoundingBox`: `(x_tl, y_tl, w_abs, h_abs)` in absolute pixels (native COCO format).
+  Coordinates are **clamped to image boundaries** `[0, width] × [0, height]` before
+  validation — a WARNING is emitted if clamping changes any coordinate value.
+- `Segmentation.points`: `(x, y)` in absolute pixels (from COCO segmentation polygons).
+  Each point is similarly clamped to image boundaries.
 - `Segmentation.rle`: Preserved RLE data when segmentation is RLE-encoded
 - No coordinate normalization — COCO native coordinates are absolute pixels
 
@@ -427,8 +430,11 @@ Implementation steps:
 
 **`read()`**: Returns `DatasetAnnotations(format=LABELME)` with:
 - `BoundingBox`: `(x_tl, y_tl, w_abs, h_abs)` derived from rectangle corner points
-  (`x = min(x1,x2)`, `y = min(y1,y2)`, `w = |x2-x1|`, `h = |y2-y1|`), in absolute pixels
-- `Segmentation.points`: `(x, y)` in absolute pixels from polygon shapes
+  (`x = min(x1,x2)`, `y = min(y1,y2)`, `w = |x2-x1|`, `h = |y2-y1|`), in absolute pixels.
+  Coordinates are **clamped to image boundaries** `[0, width] × [0, height]` before
+  validation — a WARNING is emitted if clamping changes any coordinate value.
+- `Segmentation.points`: `(x, y)` in absolute pixels from polygon shapes. Each point is
+  similarly clamped to image boundaries with a WARNING if modified.
 - Shape types: `rectangle` → BoundingBox; `polygon` (≥ 3 points) → Segmentation
 - Other shape types (circle, line, point) → parse error
 
@@ -464,8 +470,9 @@ from `shape.label` values during reading.
 |------------|-------------|-----------------|
 | Invalid annotation format (wrong token count, bad JSON) | Abort immediately | Skip annotation, log warning, continue |
 | Invalid class_id (not in categories) | Abort immediately | Skip annotation, log warning, continue |
-| Invalid coordinate (out of valid range for format) | Abort immediately | Skip annotation, log warning, continue |
-| Invalid bbox (zero area, overflow) | Abort immediately | Skip annotation, log warning, continue |
+| Invalid coordinate — YOLO (not finite or outside [0,1]) | Abort immediately | Skip annotation, log warning, continue |
+| Invalid coordinate — COCO/LabelMe (outside image boundary) | **Clamp to `[0, width] × [0, height]` + WARNING**, then validate. Abort only if clamp produces zero-area bbox | Same as strict (clamping is independent of strict_mode) |
+| Invalid bbox (zero area, NaN, overflow) | Abort immediately | Skip annotation, log warning, continue |
 | Image file not found (YOLO, COCO) | **Always skip with warning** | **Always skip with warning** |
 | Image file not found (LabelMe) | JSON has `imageWidth`/`imageHeight` → read succeeds silently. JSON lacks dimensions → abort immediately | JSON has `imageWidth`/`imageHeight` → read succeeds silently. JSON lacks dimensions → skip with warning |
 | Image unreadable / corrupt | **Always skip with warning** | **Always skip with warning** |
@@ -479,7 +486,9 @@ from `shape.label` values during reading.
 | No categories loaded | Raise `ValueError` immediately (no images yielded) | Raise `ValueError` immediately (no images yielded) |
 | No annotation files found | Raise `ValueError` immediately (no images yielded) | Raise `ValueError` immediately (no images yielded) |
 | Invalid annotation format (per-file) | Raise `ValueError` immediately, stop iteration | Skip file, log warning, continue to next |
-| Invalid class_id / coordinate / bbox (per-line) | Raise `ValueError` immediately, stop iteration | Skip line, log warning, continue |
+| Invalid coordinate — YOLO (not finite or outside [0,1]) | Raise `ValueError` immediately, stop iteration | Skip line, log warning, continue |
+| Invalid coordinate — COCO/LabelMe (outside image boundary) | **Clamp to `[0, width] × [0, height]` + WARNING**, then validate. Stop iteration only if clamp produces zero-area bbox | Same as strict (clamping is independent of strict_mode) |
+| Invalid class_id / bbox (other) | Raise `ValueError` immediately, stop iteration | Skip line, log warning, continue |
 | Image file not found (YOLO, COCO) | **Always skip with warning** | **Always skip with warning** |
 | Image file not found (LabelMe) | JSON has `imageWidth`/`imageHeight` → yield succeeds silently. JSON lacks dimensions → raise `ValueError`, stop iteration | JSON has `imageWidth`/`imageHeight` → yield succeeds silently. JSON lacks dimensions → skip with warning |
 | Image unreadable / corrupt | **Always skip with warning** | **Always skip with warning** |
@@ -502,8 +511,12 @@ and discarding partial results if needed.
 
 **Coordinate validity depends on format:**
 - **YOLO**: coordinates must be finite floats in [0, 1]
-- **COCO**: coordinates must be finite positive numbers (absolute pixels)
-- **LabelMe**: coordinates must be finite positive numbers (absolute pixels)
+- **COCO / LabelMe**: coordinates are in absolute pixels. Before validation, they are
+  **clamped to image boundaries** `[0, width] × [0, height]`. This tolerates minor
+  floating-point imprecision at image edges (e.g., `x = -0.39` → `0`). A WARNING is
+  emitted when clamping modifies a value. Clamping is applied regardless of `strict_mode`
+  — it is data normalization, not error handling. After clamping, if the bbox has zero
+  area or non-finite values, it is rejected as an invalid bbox.
 
 ## 6. Format-Aware Validation Constraints
 
@@ -516,9 +529,9 @@ A valid read operation must satisfy ALL of:
 5. Each annotation line/shape has a valid class_id
 6. All coordinates are finite floats in the **format-native range**:
    - YOLO: [0, 1]
-   - COCO: positive absolute pixels
-   - LabelMe: positive absolute pixels
-7. Detection annotations have valid bbox (w > 0, h > 0, no boundary overflow)
+   - COCO/LabelMe: absolute pixels (coordinates outside image boundaries are
+     **clamped** before validation — see §5 coordinate validity note)
+7. Detection annotations have valid bbox (w > 0, h > 0, finite)
 8. Segmentation annotations have at least 3 polygon vertices
 9. COCO RLE annotations have valid `size` and `counts` fields
 10. Image dimensions are positive integers
@@ -534,6 +547,20 @@ A valid read operation must satisfy ALL of:
 | `compare_annotation_dirs(dir_a, dir_b, format)` | Format-aware comparison (text diff for YOLO, JSON diff for LabelMe) |
 
 ## 8. Change History
+
+### v4.2 → v4.3: Coordinate Clamping for Absolute-Pixel Formats
+
+| Aspect | v4.2 | v4.3 |
+|--------|------|------|
+| COCO/LabelMe coordinate slightly out-of-bounds (e.g., `x = -0.39`) | Rejected as "invalid coordinate" in strict mode, skipped in non-strict | **Clamped to `[0, width] × [0, height]`** + WARNING, then validated |
+| Clamping vs strict_mode | — | Clamping is independent of strict_mode (data normalization, not error handling) |
+| Zero-area bbox after clamping | — | Still rejected (clamping can't fix truly invalid data) |
+| YOLO coordinates | Unchanged | Unchanged (normalized [0,1] coordinates have different semantics) |
+
+**Rationale**: Slightly-out-of-bounds coordinates in absolute-pixel formats are almost
+always caused by floating-point imprecision at image edges in annotation tools, not by
+genuinely misplaced annotations. Clamping preserves the data with a warning instead of
+rejecting it outright.
 
 ### v4.1 → v4.2: LabelMe Image-File-Not-Found Clarification
 
