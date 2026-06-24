@@ -284,6 +284,146 @@ class TestBaseAnnotationHandler:
         points = [(0.1, 0.1), (0.2, 0.1)]
         assert handler._validate_segmentation_points(points) is False
 
+    # ── _clamp_normalized_bbox ──────────────────────────────────────
+
+    def test_clamp_normalized_bbox_no_change(self, handler):
+        """Valid bbox passes through unchanged."""
+        cx, cy, w, h = handler._clamp_normalized_bbox(0.5, 0.5, 0.2, 0.2)
+        assert cx == pytest.approx(0.5)
+        assert cy == pytest.approx(0.5)
+        assert w == pytest.approx(0.2)
+        assert h == pytest.approx(0.2)
+
+    def test_clamp_normalized_bbox_right_overflow(self, handler):
+        """Right edge overflow is clamped to 1.0."""
+        # cx=0.979211, w=0.0415783 → right edge = 1.00000015
+        cx, cy, w, h = handler._clamp_normalized_bbox(
+            0.979211, 0.5, 0.0415783, 0.2
+        )
+        # Right edge clamped from 1.00000015 to 1.0
+        assert cx == pytest.approx(0.979210925)
+        assert w == pytest.approx(0.04157815)
+
+    def test_clamp_normalized_bbox_left_overflow(self, handler):
+        """Left edge underflow is clamped to 0.0."""
+        # cx=0.02, w=0.05 → left = -0.005, clamped to 0
+        # After clamp: left=0, right=0.045 → cx=0.0225, w=0.045
+        cx, cy, w, h = handler._clamp_normalized_bbox(0.02, 0.5, 0.05, 0.2)
+        assert cx == pytest.approx(0.0225)
+        assert w == pytest.approx(0.045)
+        assert cy == pytest.approx(0.5)
+        assert h == pytest.approx(0.2)
+
+    def test_clamp_normalized_bbox_top_overflow(self, handler):
+        """Top edge underflow is clamped to 0.0."""
+        # cy=0.01, h=0.04 → top = -0.01, clamped to 0
+        # After clamp: top=0, bottom=0.03 → cy=0.015, h=0.03
+        cx, cy, w, h = handler._clamp_normalized_bbox(0.5, 0.01, 0.2, 0.04)
+        assert cy == pytest.approx(0.015)
+        assert h == pytest.approx(0.03)
+
+    def test_clamp_normalized_bbox_bottom_overflow(self, handler):
+        """Bottom edge overflow is clamped to 1.0."""
+        # cy=0.99, h=0.04 → bottom = 1.01, clamped to 1.0
+        # After clamp: top=0.97, bottom=1.0 → cy=0.985, h=0.03
+        cx, cy, w, h = handler._clamp_normalized_bbox(0.5, 0.99, 0.2, 0.04)
+        assert cy == pytest.approx(0.985)
+        assert h == pytest.approx(0.03)
+
+    def test_clamp_normalized_bbox_both_overflow(self, handler):
+        """Both edges overflow — both clamped to 1.0, w→0."""
+        cx, cy, w, h = handler._clamp_normalized_bbox(1.5, 0.5, 0.2, 0.2)
+        # left=1.4→1.0, right=1.6→1.0
+        assert cx == pytest.approx(1.0)
+        assert w == pytest.approx(0.0)
+
+    def test_clamp_normalized_bbox_warning_logged(self, handler, mock_logger):
+        """Warning is logged when clamping modifies values."""
+        handler.logger = mock_logger
+        handler._clamp_normalized_bbox(1.5, 0.5, 0.2, 0.2)
+        mock_logger.warning.assert_called_once()
+        assert "Clamped normalized bbox to [0, 1]" in (
+            mock_logger.warning.call_args[0][0]
+        )
+
+    def test_clamp_normalized_bbox_no_warning_when_unchanged(
+        self, handler, mock_logger
+    ):
+        """No warning logged when values are unchanged."""
+        handler.logger = mock_logger
+        handler._clamp_normalized_bbox(0.5, 0.5, 0.2, 0.2)
+        mock_logger.warning.assert_not_called()
+
+    def test_clamp_normalized_bbox_sub_threshold_silent(
+        self, handler, mock_logger
+    ):
+        """Sub-threshold (<5e-7) edge overflow is silently clamped."""
+        handler.logger = mock_logger
+        # cx=0.5, w=1.0000001 → right edge = 1.00000005 (overflow by 5e-8)
+        # → clamped to 1.0, change is only 5e-8 < 5e-7 → silent
+        cx, cy, w, h = handler._clamp_normalized_bbox(
+            0.5, 0.5, 1.0000001, 0.2
+        )
+        # Clamping still happens
+        assert w == pytest.approx(1.0)
+        # But no warning (change < 5e-7)
+        mock_logger.warning.assert_not_called()
+
+    def test_clamp_normalized_bbox_boundary_values(self, handler):
+        """Values exactly at [0,1] boundary pass through unchanged."""
+        # cx=0.0, w=0.0 → both edges at 0 (degenerate but not OOB)
+        cx, cy, w, h = handler._clamp_normalized_bbox(0.0, 1.0, 0.0, 0.0)
+        assert cx == pytest.approx(0.0)
+        assert cy == pytest.approx(1.0)
+        assert w == pytest.approx(0.0)
+        assert h == pytest.approx(0.0)
+
+    # ── _clamp_normalized_points ────────────────────────────────────
+
+    def test_clamp_normalized_points_no_change(self, handler):
+        """Valid points pass through unchanged."""
+        points = [(0.1, 0.1), (0.5, 0.5), (0.9, 0.9)]
+        result = handler._clamp_normalized_points(points)
+        assert result == points
+
+    def test_clamp_normalized_points_overflow(self, handler):
+        """Points with sub-threshold FP imprecision get silently clamped."""
+        points = [(1.0000001, -0.0000001), (0.5, 0.5)]
+        result = handler._clamp_normalized_points(points)
+        assert result == [(1.0, 0.0), (0.5, 0.5)]
+
+    def test_clamp_normalized_points_warning(self, handler, mock_logger):
+        """Warning is logged when point change exceeds 5e-7 threshold."""
+        handler.logger = mock_logger
+        # 1.000001 → change of 1e-6 exceeds the 5e-7 threshold
+        handler._clamp_normalized_points([(1.000001, -0.000001)])
+        mock_logger.warning.assert_called_once()
+        assert "Clamped normalized polygon points" in (
+            mock_logger.warning.call_args[0][0]
+        )
+
+    def test_clamp_normalized_points_sub_threshold_silent(
+        self, handler, mock_logger
+    ):
+        """Sub-threshold (<5e-7) point overflow is silently clamped."""
+        handler.logger = mock_logger
+        # Change of 1e-7 < 5e-7 → silent
+        handler._clamp_normalized_points([(1.0000001, -0.0000001)])
+        mock_logger.warning.assert_not_called()
+
+    def test_clamp_normalized_points_no_warning_when_unchanged(
+        self, handler, mock_logger
+    ):
+        """No warning when points unchanged."""
+        handler.logger = mock_logger
+        handler._clamp_normalized_points([(0.1, 0.1), (0.5, 0.5)])
+        mock_logger.warning.assert_not_called()
+
+    def test_clamp_normalized_points_empty(self, handler):
+        """Empty list returns empty list."""
+        result = handler._clamp_normalized_points([])
+        assert result == []
+
     def test_abstract_methods(self):
         """Test that abstract methods cannot be called on abstract base class."""
         with pytest.raises(TypeError, match="Can't instantiate abstract class"):

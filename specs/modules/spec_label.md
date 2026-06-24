@@ -1,6 +1,6 @@
 # Label Module Specification
 
-> **Version:** 4.3
+> **Version:** 4.4
 > **Status:** Draft — logger receives from caller's LogManager via `logger=` parameter
 > **Layer:** Modules
 > **Dependencies:** None (foundation module; logging via stdlib `logging.Logger` only)
@@ -332,10 +332,14 @@ Both `is_det` and `is_seg` can be `True` simultaneously (mixed dataset).
 | `prediction` | No | If True, parse prediction format (with confidence). Default False (label format). |
 
 **`read()`**: Returns `DatasetAnnotations(format=YOLO)` with:
-- `BoundingBox`: `(cx, cy, w, h)` all normalized [0,1], center-based (native YOLO format)
-- `Segmentation.points`: `(x, y)` normalized [0,1]
+- `BoundingBox`: `(cx, cy, w, h)` all normalized [0,1], center-based (native YOLO format).
+  Bbox edges are **clamped to [0, 1]** before validation — a WARNING is emitted if clamping
+  changes any coordinate value.
+- `Segmentation.points`: `(x, y)` normalized [0,1]. Each point is similarly clamped
+  to [0, 1] with a WARNING if modified.
 - `ObjectAnnotation.confidence`: Set from the last token when `prediction=True`; defaults to `1.0` in label mode
 - No coordinate transformation — coordinates are stored as-is from YOLO text files
+  (after clamping)
 
 **`iter_images()`**: Yields `ImageAnnotation` objects one at a time.
 Implementation steps:
@@ -344,7 +348,7 @@ Implementation steps:
 3. For each `.txt` file:
    a. Find corresponding image file (same stem, known extensions)
    b. Read image dimensions via OpenCV
-   c. Parse YOLO lines into `ObjectAnnotation` list (same per-line logic as `read()`)
+   c. Parse YOLO lines into `ObjectAnnotation` list (same per-line logic as `read()`, **including [0, 1] clamping**)
    d. Yield `ImageAnnotation(image_id, image_path, width, height, objects)`
 4. Strict mode: raise `ValueError` on first parse error in any file/line
 5. Non-strict mode: log warning, skip invalid files/lines, continue to next
@@ -470,7 +474,8 @@ from `shape.label` values during reading.
 |------------|-------------|-----------------|
 | Invalid annotation format (wrong token count, bad JSON) | Abort immediately | Skip annotation, log warning, continue |
 | Invalid class_id (not in categories) | Abort immediately | Skip annotation, log warning, continue |
-| Invalid coordinate — YOLO (not finite or outside [0,1]) | Abort immediately | Skip annotation, log warning, continue |
+| Invalid coordinate — YOLO (not finite) | Abort immediately | Skip annotation, log warning, continue |
+| Invalid coordinate — YOLO (outside [0,1]) | **Clamp to [0, 1] + WARNING**, then validate. Abort only if clamp produces zero-area bbox | Same as strict (clamping is independent of strict_mode) |
 | Invalid coordinate — COCO/LabelMe (outside image boundary) | **Clamp to `[0, width] × [0, height]` + WARNING**, then validate. Abort only if clamp produces zero-area bbox | Same as strict (clamping is independent of strict_mode) |
 | Invalid bbox (zero area, NaN, overflow) | Abort immediately | Skip annotation, log warning, continue |
 | Image file not found (YOLO, COCO) | **Always skip with warning** | **Always skip with warning** |
@@ -486,7 +491,8 @@ from `shape.label` values during reading.
 | No categories loaded | Raise `ValueError` immediately (no images yielded) | Raise `ValueError` immediately (no images yielded) |
 | No annotation files found | Raise `ValueError` immediately (no images yielded) | Raise `ValueError` immediately (no images yielded) |
 | Invalid annotation format (per-file) | Raise `ValueError` immediately, stop iteration | Skip file, log warning, continue to next |
-| Invalid coordinate — YOLO (not finite or outside [0,1]) | Raise `ValueError` immediately, stop iteration | Skip line, log warning, continue |
+| Invalid coordinate — YOLO (not finite) | Raise `ValueError` immediately, stop iteration | Skip line, log warning, continue |
+| Invalid coordinate — YOLO (outside [0,1]) | **Clamp to [0, 1] + WARNING**, then validate. Stop iteration only if clamp produces zero-area bbox | Same as strict (clamping is independent of strict_mode) |
 | Invalid coordinate — COCO/LabelMe (outside image boundary) | **Clamp to `[0, width] × [0, height]` + WARNING**, then validate. Stop iteration only if clamp produces zero-area bbox | Same as strict (clamping is independent of strict_mode) |
 | Invalid class_id / bbox (other) | Raise `ValueError` immediately, stop iteration | Skip line, log warning, continue |
 | Image file not found (YOLO, COCO) | **Always skip with warning** | **Always skip with warning** |
@@ -510,13 +516,21 @@ on error (all-or-nothing). Callers should handle this by wrapping iteration in t
 and discarding partial results if needed.
 
 **Coordinate validity depends on format:**
-- **YOLO**: coordinates must be finite floats in [0, 1]
+- **YOLO**: coordinates are in normalized [0, 1]. Before validation, bbox edges and
+  polygon points are **clamped to [0, 1]**. This tolerates minor floating-point
+  imprecision at image edges (e.g., `cx + w/2 = 1.00000015` → `1.0`). A WARNING is
+  emitted only when clamping modifies a value by more than `5e-7` (half of YOLO's
+  `.6f` output precision), suppressing noise from harmless string↔float round-trips.
+  Clamping is applied regardless of `strict_mode` — it is data normalization, not
+  error handling. After clamping, if the bbox has zero area or non-finite values,
+  it is rejected as an invalid bbox.
 - **COCO / LabelMe**: coordinates are in absolute pixels. Before validation, they are
   **clamped to image boundaries** `[0, width] × [0, height]`. This tolerates minor
   floating-point imprecision at image edges (e.g., `x = -0.39` → `0`). A WARNING is
-  emitted when clamping modifies a value. Clamping is applied regardless of `strict_mode`
-  — it is data normalization, not error handling. After clamping, if the bbox has zero
-  area or non-finite values, it is rejected as an invalid bbox.
+  emitted when clamping modifies a value by more than `1e-9` pixels. Clamping is
+  applied regardless of `strict_mode` — it is data normalization, not error handling.
+  After clamping, if the bbox has zero area or non-finite values, it is rejected as
+  an invalid bbox.
 
 ## 6. Format-Aware Validation Constraints
 
@@ -528,7 +542,7 @@ A valid read operation must satisfy ALL of:
 4. Categories are loaded (from class_file or auto-extracted)
 5. Each annotation line/shape has a valid class_id
 6. All coordinates are finite floats in the **format-native range**:
-   - YOLO: [0, 1]
+   - YOLO: [0, 1] (coordinates outside [0, 1] are **clamped** before validation — see §5)
    - COCO/LabelMe: absolute pixels (coordinates outside image boundaries are
      **clamped** before validation — see §5 coordinate validity note)
 7. Detection annotations have valid bbox (w > 0, h > 0, finite)
@@ -547,6 +561,26 @@ A valid read operation must satisfy ALL of:
 | `compare_annotation_dirs(dir_a, dir_b, format)` | Format-aware comparison (text diff for YOLO, JSON diff for LabelMe) |
 
 ## 8. Change History
+
+### v4.3 → v4.4: Coordinate Clamping Extended to YOLO Normalized Format
+
+| Aspect | v4.3 | v4.4 |
+|--------|------|------|
+| YOLO bbox slightly out-of-bounds (e.g., `cx + w/2 = 1.00000015`) | Rejected as "bbox overflows boundary" in strict mode, skipped in non-strict | **Clamped to [0, 1]** + WARNING, then validated |
+| YOLO polygon points slightly out-of-bounds | Rejected as "out of range" in strict mode, skipped in non-strict | **Clamped to [0, 1]** + WARNING, then validated |
+| Clamping vs strict_mode | — | Clamping is independent of strict_mode (data normalization, not error handling) |
+| Zero-area bbox after clamping | — | Still rejected (clamping can't fix truly invalid data) |
+| Non-finite values (NaN, inf) | Rejected in strict mode | Unchanged (clamping only handles boundary overflow, not NaN/inf) |
+| Error table entries | Single "Invalid coordinate — YOLO (not finite or outside [0,1])" row | Split into separate "not finite" and "outside [0,1]" rows, mirroring COCO/LabelMe structure |
+| WARNING threshold (normalized) | — | `5e-7` — sub-threshold changes are silent (string↔float round-trip noise below `.6f` precision) |
+| WARNING threshold (absolute pixel) | — | `1e-9` — unchanged from existing `_clamp_abs_bbox`/`_clamp_abs_points` |
+
+**Rationale**: YOLO normalized coordinates can suffer the same floating-point imprecision
+at [0, 1] boundaries as absolute-pixel coordinates suffer at image edges. For example,
+`cx + w/2 = 1.00000015` is clearly a rounding artifact, not a genuine annotation error.
+The WARNING threshold `5e-7` is chosen to match YOLO `.6f` output precision — changes
+smaller than this are indistinguishable from string↔float round-trip noise and would
+produce "identical" before/after values in log output, creating needless alarm.
 
 ### v4.2 → v4.3: Coordinate Clamping for Absolute-Pixel Formats
 

@@ -290,6 +290,79 @@ class BaseAnnotationHandler(ABC):
 
         return clamped_points
 
+    def _clamp_normalized_bbox(
+        self, cx: float, cy: float, w: float, h: float
+    ) -> tuple:
+        """Clamp YOLO normalized bbox edges to [0, 1].
+
+        Tolerates minor floating-point imprecision at [0,1] boundaries (e.g.,
+        cx + w/2 = 1.00000015 → 1.0). Emits a WARNING if any edge value is
+        modified. Returns (cx, cy, w, h) with all edges clamped to [0, 1].
+        """
+        cx_orig, cy_orig, w_orig, h_orig = cx, cy, w, h
+
+        # Compute edges from center format
+        left = cx - w / 2
+        right = cx + w / 2
+        top = cy - h / 2
+        bottom = cy + h / 2
+
+        left_orig, right_orig = left, right
+        top_orig, bottom_orig = top, bottom
+
+        # Clamp each edge to [0, 1]
+        left = max(0.0, min(1.0, left))
+        right = max(0.0, min(1.0, right))
+        top = max(0.0, min(1.0, top))
+        bottom = max(0.0, min(1.0, bottom))
+
+        # Derive back center and dimensions
+        cx = (left + right) / 2.0
+        cy = (top + bottom) / 2.0
+        w = right - left
+        h = bottom - top
+
+        changed = (
+            abs(left - left_orig) > 5e-7
+            or abs(right - right_orig) > 5e-7
+            or abs(top - top_orig) > 5e-7
+            or abs(bottom - bottom_orig) > 5e-7
+        )
+
+        if changed:
+            self._log_warning(
+                f"Clamped normalized bbox to [0, 1]: "
+                f"({cx_orig:.6f}, {cy_orig:.6f}, {w_orig:.6f}, {h_orig:.6f}) "
+                f"→ ({cx:.6f}, {cy:.6f}, {w:.6f}, {h:.6f})"
+            )
+
+        return cx, cy, w, h
+
+    def _clamp_normalized_points(
+        self, points: list
+    ) -> list:
+        """Clamp YOLO normalized polygon points to [0, 1].
+
+        Each point (x, y) is clamped to [0, 1]. Emits a single WARNING if any
+        point coordinate is modified. Returns list of clamped (x, y) tuples.
+        """
+        clamped_points = []
+        changed = False
+
+        for x, y in points:
+            cx = max(0.0, min(1.0, float(x)))
+            cy = max(0.0, min(1.0, float(y)))
+            clamped_points.append((cx, cy))
+            if abs(cx - x) > 5e-7 or abs(cy - y) > 5e-7:
+                changed = True
+
+        if changed:
+            self._log_warning(
+                f"Clamped normalized polygon points to [0, 1]"
+            )
+
+        return clamped_points
+
     def _validate_bbox(
         self, bbox, format: AnnotationFormat = AnnotationFormat.YOLO
     ) -> bool:

@@ -407,6 +407,13 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                         width = float(items[3])
                         height = float(items[4])
 
+                        # Clamp bbox edges to [0, 1] (tolerates FP imprecision)
+                        x_center, y_center, width, height = (
+                            self._clamp_normalized_bbox(
+                                x_center, y_center, width, height
+                            )
+                        )
+
                         # Validate normalized coordinates
                         coords_to_check = [
                             ("x_center", x_center),
@@ -469,6 +476,9 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                         points = [
                             (coords[i], coords[i + 1]) for i in range(0, len(coords), 2)
                         ]
+
+                        # Clamp points to [0, 1] (tolerates FP imprecision)
+                        points = self._clamp_normalized_points(points)
 
                         # Validate points
                         skip_line = False

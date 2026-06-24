@@ -331,10 +331,10 @@ class TestYoloAnnotationHandler:
         assert obj.class_name == "person"
         assert obj.bbox is not None
         assert obj.segmentation is None
-        assert obj.bbox.x == 0.5
-        assert obj.bbox.y == 0.5
-        assert obj.bbox.width == 0.2
-        assert obj.bbox.height == 0.2
+        assert obj.bbox.x == pytest.approx(0.5)
+        assert obj.bbox.y == pytest.approx(0.5)
+        assert obj.bbox.width == pytest.approx(0.2)
+        assert obj.bbox.height == pytest.approx(0.2)
 
         # Check handler flags
         assert handler.is_det is True
@@ -530,7 +530,8 @@ class TestYoloAnnotationHandler:
         img = np.zeros((100, 100, 3), dtype=np.uint8)
         cv2.imwrite(str(img_path), img)
 
-        # Create label with invalid coordinate (> 1.0)
+        # Create label with grossly invalid coordinate (> 1.0)
+        # After clamping both edges to 1.0, w becomes 0 → rejected by w>0 check
         label_file = label_dir / "test.txt"
         label_file.write_text("0 1.5 0.5 0.2 0.2")  # x_center = 1.5
 
@@ -543,7 +544,7 @@ class TestYoloAnnotationHandler:
 
         result = handler.read()
         assert result.success is False
-        assert "out of range" in result.message.lower()
+        assert "bbox.width must be > 0" in result.message
 
     def test_read_missing_image(self, temp_dir, caplog):
         """Test reading when corresponding image is missing."""
@@ -944,3 +945,209 @@ class TestYoloAnnotationHandler:
         parts = line.split()
         assert len(parts) == 6  # 5 coords + confidence
         assert float(parts[5]) == pytest.approx(0.95, abs=1e-6)
+
+    # ── Coordinate clamping integration tests ─────────────────────────
+
+    def test_read_clamps_edge_overflow_bbox(self, temp_dir, caplog):
+        """Sub-threshold FP edge overflow is silently clamped in strict mode."""
+        class_file = temp_dir / "classes.txt"
+        class_file.write_text("person\n")
+
+        image_dir = temp_dir / "images"
+        image_dir.mkdir()
+        label_dir = temp_dir / "labels"
+        label_dir.mkdir()
+
+        img_path = image_dir / "test.jpg"
+        img = np.zeros((100, 100, 3), dtype=np.uint8)
+        cv2.imwrite(str(img_path), img)
+
+        # cx=0.979211, w=0.0415783 → right edge = 1.00000015
+        # Change is ~1.5e-7, below 5e-7 threshold → silent
+        label_file = label_dir / "test.txt"
+        label_file.write_text("0 0.979211 0.5 0.0415783 0.2")
+
+        handler = YoloAnnotationHandler(
+            label_dir=str(label_dir),
+            class_file=str(class_file),
+            image_dir=str(image_dir),
+            strict_mode=True,
+        )
+
+        result = handler.read()
+        assert result.success is True
+
+        # No warning for sub-threshold clamping
+        warnings = [r.message for r in caplog.records if r.levelname == "WARNING"]
+        assert not any(
+            "Clamped normalized bbox to [0, 1]" in w for w in warnings
+        )
+
+        # Verify clamped values
+        dataset = result.data
+        obj = dataset.images[0].objects[0]
+        assert obj.bbox.x == pytest.approx(0.979210925)
+        assert obj.bbox.width == pytest.approx(0.04157815)
+
+    def test_read_warns_super_threshold_bbox_overflow(self, temp_dir, caplog):
+        """Super-threshold edge overflow logs WARNING."""
+        class_file = temp_dir / "classes.txt"
+        class_file.write_text("person\n")
+
+        image_dir = temp_dir / "images"
+        image_dir.mkdir()
+        label_dir = temp_dir / "labels"
+        label_dir.mkdir()
+
+        img_path = image_dir / "test.jpg"
+        img = np.zeros((100, 100, 3), dtype=np.uint8)
+        cv2.imwrite(str(img_path), img)
+
+        # cx=0.5, w=1.000001 → right edge = 1.0000005 (>5e-7)
+        label_file = label_dir / "test.txt"
+        label_file.write_text("0 0.5 0.5 1.000001 0.2")
+
+        handler = YoloAnnotationHandler(
+            label_dir=str(label_dir),
+            class_file=str(class_file),
+            image_dir=str(image_dir),
+            strict_mode=True,
+        )
+
+        result = handler.read()
+        assert result.success is True
+
+        warnings = [r.message for r in caplog.records if r.levelname == "WARNING"]
+        assert any("Clamped normalized bbox to [0, 1]" in w for w in warnings)
+
+    def test_read_clamps_seg_point_overflow(self, temp_dir, caplog):
+        """Sub-threshold FP point overflow is silently clamped in strict mode."""
+        class_file = temp_dir / "classes.txt"
+        class_file.write_text("person\n")
+
+        image_dir = temp_dir / "images"
+        image_dir.mkdir()
+        label_dir = temp_dir / "labels"
+        label_dir.mkdir()
+
+        img_path = image_dir / "test.jpg"
+        img = np.zeros((100, 100, 3), dtype=np.uint8)
+        cv2.imwrite(str(img_path), img)
+
+        # Points with ~1e-7 overflow, below 5e-7 threshold → silent
+        label_file = label_dir / "test.txt"
+        label_file.write_text("0 0.1 0.1 1.0000001 0.5 0.3 -0.0000001")
+
+        handler = YoloAnnotationHandler(
+            label_dir=str(label_dir),
+            class_file=str(class_file),
+            image_dir=str(image_dir),
+            strict_mode=True,
+        )
+
+        result = handler.read()
+        assert result.success is True
+
+        # No warning for sub-threshold clamping
+        warnings = [r.message for r in caplog.records if r.levelname == "WARNING"]
+        assert not any(
+            "Clamped normalized polygon points" in w for w in warnings
+        )
+
+        # Verify clamped point values
+        dataset = result.data
+        points = dataset.images[0].objects[0].segmentation.points
+        assert points[1] == (1.0, 0.5)  # (1.0000001, 0.5) → (1.0, 0.5)
+        assert points[2] == (0.3, 0.0)  # (0.3, -0.0000001) → (0.3, 0.0)
+
+    def test_read_warns_super_threshold_seg_overflow(self, temp_dir, caplog):
+        """Super-threshold point overflow logs WARNING."""
+        class_file = temp_dir / "classes.txt"
+        class_file.write_text("person\n")
+
+        image_dir = temp_dir / "images"
+        image_dir.mkdir()
+        label_dir = temp_dir / "labels"
+        label_dir.mkdir()
+
+        img_path = image_dir / "test.jpg"
+        img = np.zeros((100, 100, 3), dtype=np.uint8)
+        cv2.imwrite(str(img_path), img)
+
+        # Points with 1e-5 overflow, well above 5e-7 threshold
+        label_file = label_dir / "test.txt"
+        label_file.write_text("0 0.1 0.1 1.00001 0.5 0.3 -0.00001")
+
+        handler = YoloAnnotationHandler(
+            label_dir=str(label_dir),
+            class_file=str(class_file),
+            image_dir=str(image_dir),
+            strict_mode=True,
+        )
+
+        result = handler.read()
+        assert result.success is True
+
+        warnings = [r.message for r in caplog.records if r.levelname == "WARNING"]
+        assert any("Clamped normalized polygon points" in w for w in warnings)
+
+    def test_read_rejects_grossly_invalid_bbox(self, temp_dir):
+        """Grossly OOB bbox (cx=2.0) produces w=0 after clamp → rejected."""
+        class_file = temp_dir / "classes.txt"
+        class_file.write_text("person\n")
+
+        image_dir = temp_dir / "images"
+        image_dir.mkdir()
+        label_dir = temp_dir / "labels"
+        label_dir.mkdir()
+
+        img_path = image_dir / "test.jpg"
+        img = np.zeros((100, 100, 3), dtype=np.uint8)
+        cv2.imwrite(str(img_path), img)
+
+        # cx=2.0, w=0.1 → edges [1.95, 2.05] both clamp to 1.0 → w=0
+        label_file = label_dir / "test.txt"
+        label_file.write_text("0 2.0 0.5 0.1 0.2")
+
+        handler = YoloAnnotationHandler(
+            label_dir=str(label_dir),
+            class_file=str(class_file),
+            image_dir=str(image_dir),
+            strict_mode=True,
+        )
+
+        result = handler.read()
+        assert result.success is False
+        assert "bbox.width must be > 0" in result.message
+
+    def test_iter_images_clamps_overflow(self, temp_dir, caplog):
+        """iter_images clamps edge-overflow bbox instead of raising error."""
+        class_file = temp_dir / "classes.txt"
+        class_file.write_text("person\n")
+
+        image_dir = temp_dir / "images"
+        image_dir.mkdir()
+        label_dir = temp_dir / "labels"
+        label_dir.mkdir()
+
+        img_path = image_dir / "test.jpg"
+        img = np.zeros((100, 100, 3), dtype=np.uint8)
+        cv2.imwrite(str(img_path), img)
+
+        # Same FP-imprecise bbox as test_read_clamps_edge_overflow_bbox
+        label_file = label_dir / "test.txt"
+        label_file.write_text("0 0.979211 0.5 0.0415783 0.2")
+
+        handler = YoloAnnotationHandler(
+            label_dir=str(label_dir),
+            class_file=str(class_file),
+            image_dir=str(image_dir),
+            strict_mode=True,
+        )
+
+        images = list(handler.iter_images())
+        assert len(images) == 1
+
+        obj = images[0].objects[0]
+        assert obj.bbox.x == pytest.approx(0.979210925)
+        assert obj.bbox.width == pytest.approx(0.04157815)
