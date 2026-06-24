@@ -1003,9 +1003,9 @@ class TestYoloAnnotationHandler:
         img = np.zeros((100, 100, 3), dtype=np.uint8)
         cv2.imwrite(str(img_path), img)
 
-        # cx=0.5, w=1.000001 → right edge = 1.0000005 (>5e-7)
+        # cx=0.5, w=1.00001 → right edge = 1.000005 (>1e-6)
         label_file = label_dir / "test.txt"
-        label_file.write_text("0 0.5 0.5 1.000001 0.2")
+        label_file.write_text("0 0.5 0.5 1.00001 0.2")
 
         handler = YoloAnnotationHandler(
             label_dir=str(label_dir),

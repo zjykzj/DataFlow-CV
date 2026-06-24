@@ -323,10 +323,10 @@ class BaseAnnotationHandler(ABC):
         h = bottom - top
 
         changed = (
-            abs(left - left_orig) > 5e-7
-            or abs(right - right_orig) > 5e-7
-            or abs(top - top_orig) > 5e-7
-            or abs(bottom - bottom_orig) > 5e-7
+            abs(left - left_orig) > 1e-6
+            or abs(right - right_orig) > 1e-6
+            or abs(top - top_orig) > 1e-6
+            or abs(bottom - bottom_orig) > 1e-6
         )
 
         if changed:
@@ -353,7 +353,7 @@ class BaseAnnotationHandler(ABC):
             cx = max(0.0, min(1.0, float(x)))
             cy = max(0.0, min(1.0, float(y)))
             clamped_points.append((cx, cy))
-            if abs(cx - x) > 5e-7 or abs(cy - y) > 5e-7:
+            if abs(cx - x) > 1e-6 or abs(cy - y) > 1e-6:
                 changed = True
 
         if changed:

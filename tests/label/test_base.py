@@ -357,16 +357,14 @@ class TestBaseAnnotationHandler:
     def test_clamp_normalized_bbox_sub_threshold_silent(
         self, handler, mock_logger
     ):
-        """Sub-threshold (<5e-7) edge overflow is silently clamped."""
+        """Sub-threshold (<1e-6) edge overflow is silently clamped."""
         handler.logger = mock_logger
-        # cx=0.5, w=1.0000001 → right edge = 1.00000005 (overflow by 5e-8)
-        # → clamped to 1.0, change is only 5e-8 < 5e-7 → silent
+        # cx=0.5, w=1.0000001 → right edge = 1.00000005
+        # → clamped to 1.0, change is ~5e-8 < 1e-6 → silent
         cx, cy, w, h = handler._clamp_normalized_bbox(
             0.5, 0.5, 1.0000001, 0.2
         )
-        # Clamping still happens
         assert w == pytest.approx(1.0)
-        # But no warning (change < 5e-7)
         mock_logger.warning.assert_not_called()
 
     def test_clamp_normalized_bbox_boundary_values(self, handler):
@@ -393,10 +391,10 @@ class TestBaseAnnotationHandler:
         assert result == [(1.0, 0.0), (0.5, 0.5)]
 
     def test_clamp_normalized_points_warning(self, handler, mock_logger):
-        """Warning is logged when point change exceeds 5e-7 threshold."""
+        """Warning is logged when point change exceeds 1e-6 threshold."""
         handler.logger = mock_logger
-        # 1.000001 → change of 1e-6 exceeds the 5e-7 threshold
-        handler._clamp_normalized_points([(1.000001, -0.000001)])
+        # 1.00001 → change of 1e-5 > 1e-6
+        handler._clamp_normalized_points([(1.00001, -0.00001)])
         mock_logger.warning.assert_called_once()
         assert "Clamped normalized polygon points" in (
             mock_logger.warning.call_args[0][0]

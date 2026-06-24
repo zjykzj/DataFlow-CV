@@ -519,8 +519,9 @@ and discarding partial results if needed.
 - **YOLO**: coordinates are in normalized [0, 1]. Before validation, bbox edges and
   polygon points are **clamped to [0, 1]**. This tolerates minor floating-point
   imprecision at image edges (e.g., `cx + w/2 = 1.00000015` → `1.0`). A WARNING is
-  emitted only when clamping modifies a value by more than `5e-7` (half of YOLO's
-  `.6f` output precision), suppressing noise from harmless string↔float round-trips.
+  emitted only when clamping modifies a value by more than `1e-6` (one unit in
+  YOLO's `.6f` output precision), suppressing noise from harmless string↔float
+  round-trips and FP comparison edge cases at the 5e-7 level.
   Clamping is applied regardless of `strict_mode` — it is data normalization, not
   error handling. After clamping, if the bbox has zero area or non-finite values,
   it is rejected as an invalid bbox.
@@ -572,15 +573,16 @@ A valid read operation must satisfy ALL of:
 | Zero-area bbox after clamping | — | Still rejected (clamping can't fix truly invalid data) |
 | Non-finite values (NaN, inf) | Rejected in strict mode | Unchanged (clamping only handles boundary overflow, not NaN/inf) |
 | Error table entries | Single "Invalid coordinate — YOLO (not finite or outside [0,1])" row | Split into separate "not finite" and "outside [0,1]" rows, mirroring COCO/LabelMe structure |
-| WARNING threshold (normalized) | — | `5e-7` — sub-threshold changes are silent (string↔float round-trip noise below `.6f` precision) |
+| WARNING threshold (normalized) | — | `1e-6` — sub-threshold changes are silent (1 unit in `.6f` output precision; avoids FP comparison edge cases at 5e-7 boundary) |
 | WARNING threshold (absolute pixel) | — | `1e-9` — unchanged from existing `_clamp_abs_bbox`/`_clamp_abs_points` |
 
 **Rationale**: YOLO normalized coordinates can suffer the same floating-point imprecision
 at [0, 1] boundaries as absolute-pixel coordinates suffer at image edges. For example,
 `cx + w/2 = 1.00000015` is clearly a rounding artifact, not a genuine annotation error.
-The WARNING threshold `5e-7` is chosen to match YOLO `.6f` output precision — changes
-smaller than this are indistinguishable from string↔float round-trip noise and would
-produce "identical" before/after values in log output, creating needless alarm.
+The WARNING threshold `1e-6` matches YOLO `.6f` output precision (1 unit in the
+least significant digit). Changes smaller than this are string↔float round-trip
+noise or FP comparison edge cases (e.g., `5e-7` overflow producing `5.000000000000001e-7`
+in binary float, which spuriously passes a `> 5e-7` check).
 
 ### v4.2 → v4.3: Coordinate Clamping for Absolute-Pixel Formats
 
