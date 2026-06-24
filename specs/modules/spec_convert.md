@@ -1,6 +1,6 @@
 # Convert Module Specification
 
-> **Version:** 5.0
+> **Version:** 5.2
 > **Status:** Draft — unified logging via `LogManager`, removed `verbose`/`logger` params in favor of `log_config`
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
@@ -333,51 +333,37 @@ See [`spec_logging.md`](spec_logging.md) for the full `LogManager` contract. Con
 - If `log_config` is None, a default `LogConfig(name=f"convert.{source_format}_to_{target_format}")` is created
 - The converter creates a `LogManager` from the config and propagates `self.logger` to handlers via `logger=self.logger`
 
-**Log pipeline** (all handled internally by the converter):
+**Streaming path progress** (yolo2labelme, labelme2yolo, coco2yolo, coco2labelme):
+
+Every 50 images, the converter emits an INFO-level progress line:
 
 ```
-══════════════════════════════════════
-Convert: YOLO → COCO
-  Source:  yolo_labels/
-  Target:  output.json
-  Mode:    label, strict
-  Options: do_rle=True
-
-── Phase: Read ──
-  500 images, 3 categories, 3240 objects
-
-── Phase: Convert ──
-  YOLO (normalized center) → COCO (absolute px)
-  500 images, 3240 objects converted
-
-── Phase: Write ──
-  COCO JSON: output.json (3240 annotations)
-
-── Result ──
-  Status:   ✓ Success
-  Images:   500
-  Objects:  3,240
-  Duration: 2.15s
-  Warnings: 1 (RLE accuracy loss)
-
-  Log saved to: logs/convert_yolo_to_coco_20240613_100000.log
-══════════════════════════════════════
+14:23:17  INFO     Converted 50 images, 320 objects - test.jpg
+14:23:19  INFO     Converted 100 images, 645 objects - test2.jpg
 ```
 
-**Log templates** are in `dataflow/convert/log_templates.py`:
-- `format_convert_header()` — header with paths, mode, options
-- `format_convert_phase()` — phase marker with statistics
-- `format_convert_result()` — final result block
+At completion, a summary line is emitted:
 
-When `verbose=True`:
-- Console output shows the full log pipeline (header → phases → result)
-- File output additionally captures DEBUG-level details (per-image processing, handler internals)
-- `log_path` is recorded in `ConversionResult`
+```
+14:23:22  INFO     Converted 500 images, 3240 objects in 16.2s
+```
 
-When `verbose=False`:
-- Console output shows a compact summary (result block only)
-- No file output
-- `log_path` is `None`
+**Batch path progress** (yolo2coco, labelme2coco):
+
+After reading and after writing, the converter emits INFO-level statistics:
+
+```
+14:23:17  INFO     Read 500 images, 3 categories, 3240 objects
+14:23:22  INFO     Wrote output.json (3240 annotations) in 4.8s
+```
+
+**Verbose mode** (`--verbose`):
+
+| Aspect | `verbose=False` (default) | `verbose=True` |
+|--------|--------------------------|----------------|
+| Console | Progress every 50 images (streaming) or read/write stats (batch); final result | Same as non-verbose, plus a header line with paths/mode/options |
+| File output | None | Full DEBUG-level log (per-image details, handler internals) |
+| `log_path` in result | `None` | Set to log file path |
 
 ## 3. Concrete Converters
 
@@ -615,6 +601,19 @@ the error are on disk. This is different from the batch path which is all-or-not
 are processed. If the stream is interrupted, already-written files remain on disk.
 
 ## 8. Change History
+
+### v5.1 → v5.2: Add Progress Output During Conversion
+
+| Aspect | v5.1 | v5.2 |
+|--------|------|------|
+| Streaming path console output | **Silent** — no output between start and finish | Progress every 50 images (image count, object count); summary at end |
+| Batch path console output | Almost silent — only with `--verbose` | Read/write statistics always shown at INFO level |
+| Log gating | INFO messages guarded by `if log_path is not None` (verbose-only) | INFO messages always emitted regardless of verbose mode |
+| `_log_info` / `_log_warning` helpers | Defined but unused (dead code) | Wired into progress output |
+
+**Rationale**: Users running streaming conversions (yolo2labelme, coco2yolo, etc.) on large
+datasets saw no output at all during processing — the tool appeared stuck. Periodic progress
+output provides feedback that work is happening and gives an estimate of completion rate.
 
 ### v5 → v5.1: Remove FileOperations
 

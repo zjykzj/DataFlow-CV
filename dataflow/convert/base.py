@@ -224,6 +224,8 @@ class BaseConverter(ABC):
                 Path(target_path)
             )
 
+            self._log_info("Converting images...")
+
             for image_ann in source_handler.iter_images():
                 target_ann = self._convert_single_image(
                     image_ann, **kwargs
@@ -246,12 +248,22 @@ class BaseConverter(ABC):
                 num_images += 1
                 num_objects += len(target_ann.objects)
 
+                if num_images % 50 == 0:
+                    self._log_progress(
+                        num_images, num_objects,
+                        message=target_ann.image_path,
+                    )
+
             result.success = True
             result.num_images_converted = num_images
             result.num_objects_converted = num_objects
 
             duration = (datetime.datetime.now() - start_time).total_seconds()
             result.add_metadata("duration_seconds", f"{duration:.2f}")
+            self._log_info(
+                f"Converted {num_images} images, {num_objects} objects "
+                f"in {duration:.1f}s"
+            )
 
         except ValueError as e:
             result.add_error(str(e))
@@ -325,10 +337,12 @@ class BaseConverter(ABC):
 
         # 3. Convert data
         annotations = read_result.data
+        self._log_info(
+            f"Read {annotations.num_images} images, "
+            f"{len(annotations.categories)} categories, "
+            f"{annotations.num_objects} objects"
+        )
         if self._log_manager.log_path is not None:
-            self.logger.info(
-                f"Read annotations for {annotations.num_images} images"
-            )
             self.logger.debug(f"Category count: {len(annotations.categories)}")
 
         converted_annotations = self.convert_annotations(annotations, kwargs)
@@ -348,6 +362,12 @@ class BaseConverter(ABC):
             )
         finally:
             self._source_annotations_for_target = None
+
+        if write_result.success:
+            self._log_info(
+                f"Wrote {target_path} "
+                f"({converted_annotations.num_objects} annotations)"
+            )
 
         # 5. Build result
         result = self._create_conversion_result(
@@ -536,6 +556,13 @@ class BaseConverter(ABC):
     def _log_info(self, message: str):
         """Log info message."""
         self.logger.info(message)
+
+    def _log_progress(self, current: int, total_objects: int, message: str = ""):
+        """Log progress during streaming conversion."""
+        tail = f" - {message}" if message else ""
+        self.logger.info(
+            f"Converted {current} images, {total_objects} objects{tail}"
+        )
 
     def _log_warning(self, message: str):
         """Log warning message."""
