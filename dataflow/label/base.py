@@ -332,8 +332,8 @@ class BaseAnnotationHandler(ABC):
         if changed:
             self._log_warning(
                 f"Clamped normalized bbox to [0, 1]: "
-                f"({cx_orig:.6f}, {cy_orig:.6f}, {w_orig:.6f}, {h_orig:.6f}) "
-                f"→ ({cx:.6f}, {cy:.6f}, {w:.6f}, {h:.6f})"
+                f"({cx_orig:.10f}, {cy_orig:.10f}, {w_orig:.10f}, {h_orig:.10f}) "
+                f"→ ({cx:.10f}, {cy:.10f}, {w:.10f}, {h:.10f})"
             )
 
         return cx, cy, w, h
