@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-06-27
+
+### Added
+
+- **Progress output during conversion**: Convert module now reports real-time progress during batch and streaming conversions, including image count, annotation count, and elapsed time.
+- **YOLO normalized coordinate clamping**: Coordinates outside [0,1] in YOLO annotations are now automatically clamped to valid range before validation, with WARNING emitted when change exceeds threshold.
+
+### Changed
+
+- **Clamping precision**: WARNING threshold raised to `1e-6` for normalized coordinates and output precision increased from `.6f` to `.10f` to reduce false-positive warnings from float round-trip noise.
+
+### Docs
+
+- **README tagline**: Replaced internal development references with a product-focused tagline describing what the tool does for users.
+- **README & CLAUDE.md sync**: Updated test count (418→440), code coverage statistics, per-module coverage table, added missing `spec_logging.md` to CLAUDE.md spec tree, and fixed `exceptions.py` path.
+
 ## [1.5.0] - 2026-06-13
 
 ### Added
