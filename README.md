@@ -231,7 +231,7 @@ For detailed developer guidance including advanced test commands, debugging, and
 
 ### 🧪 Testing
 
-**418 tests, 76% code coverage (3986 statements).**
+**440 tests, 77% code coverage (3957 statements).**
 
 ```bash
 pytest                                    # All tests
@@ -245,12 +245,12 @@ pytest tests/evaluate/test_evaluator.py     # Single module
 
 | Module | Coverage | Highlights |
 |--------|:--------:|------------|
-| `dataflow/label/` | 68% | models (87%), coco_handler (75%), labelme_handler (70%), yolo_handler (58%) |
-| `dataflow/convert/` | 87% | yolo_and_coco (90%), labelme_and_yolo (86%), coco_and_labelme (87%), rle (80%), base (83%), utils (92%) |
-| `dataflow/visualize/` | 81% | yolo_vis (100%), labelme_vis (100%), coco_vis (97%), base (74%) |
-| `dataflow/evaluate/` | 87% | evaluator (100%), metrics (93%), result (99%), base (91%), utils (68%) |
-| `dataflow/cli/` | 59% | main (96%), convert cmd (48%), evaluate cmd (24%), visualize cmd (84%), utils (86%) |
-| `dataflow/util/` | 93% | logging (98%) |
+| `dataflow/label/` | 70% | models (87%), coco_handler (75%), labelme_handler (70%), yolo_handler (61%) |
+| `dataflow/convert/` | 83% | yolo_and_coco (90%), labelme_and_yolo (86%), coco_and_labelme (87%), rle (80%), base (82%), utils (91%) |
+| `dataflow/visualize/` | 76% | yolo_vis (100%), labelme_vis (100%), coco_vis (88%), base (74%) |
+| `dataflow/evaluate/` | 87% | evaluator (100%), metrics (92%), result (99%), base (91%), utils (67%) |
+| `dataflow/cli/` | 76% | main (96%), convert cmd (49%), evaluate cmd (82%), visualize cmd (87%), utils (88%) |
+| `dataflow/util/` | 100% | logging (100%) |
 
 </details>
 
@@ -286,7 +286,7 @@ dataflow/
 ├── evaluate/        # pycocotools-based metrics, log templates
 ├── util/            # Unified logging (LogManager + format helpers)
 └── cli/             # CLI entry point, commands, validation
-tests/               # Unit & integration tests (418 tests, conftest fixtures)
+tests/               # Unit & integration tests (440 tests, conftest fixtures)
 samples/             # Python API usage examples
 assets/              # Test data (det/seg by format)
 specs/               # Canonical specifications (evaluate/ + formats/ + modules/)

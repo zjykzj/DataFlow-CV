@@ -33,7 +33,8 @@ specs/
     ├── spec_convert.md             # Convert module (pipeline, converters, RLE)
     ├── spec_visualize.md           # Visualize module (rendering pipeline, ColorManager, interaction)
     ├── spec_evaluate.md            # Evaluate module (evaluation pipeline, API, data models)
-    └── spec_cli.md                 # CLI module (command signatures, exit codes, decorators)
+    ├── spec_cli.md                 # CLI module (command signatures, exit codes, decorators)
+    └── spec_logging.md             # Logging module (LogManager, LogConfig, format helpers)
 ```
 
 ### Architecture Constraint (from specs/modules/index.md)
@@ -331,7 +332,7 @@ COCO prediction files exist in **two variants** (see `spec_coco_format.md` §10)
 - `commands/visualize.py`: 3 subcommands — `yolo`, `labelme`, `coco`
 - `commands/evaluate.py`: 2 subcommands — `detection`, `segmentation`. Both support `--prf1` (P/R/F1 only — skips COCOeval, mutually exclusive with mAP), `--prf1-iou`, `--prf1-conf`, and `--prf1-method` (macro|micro) options.
 - `commands/utils.py`: Shared decorators (`add_common_options`, `add_visualize_options`), validators, and `FormattedCommand` (custom Click Command with aligned argument display in --help)
-- `commands/exceptions.py`: Exception hierarchy with distinct exit codes:
+- `exceptions.py`: Exception hierarchy with distinct exit codes:
   - `ParameterError` (exit 1), `InputError` (exit 2), `OutputError` (exit 3), `RuntimeCLIError` (exit 4), `SystemError` (exit 5)
   - All extend `click.ClickException` for clean CLI error display
 
@@ -462,7 +463,7 @@ tests/
 ├── visualize/       # Visualizer unit tests
 ├── evaluate/        # Evaluator unit tests + metric computation tests
 ├── util/            # Utility unit tests (LogManager, format helpers)
-└── cli/             # CLI tests (convert, visualize, evaluate — 418 tests total)
+└── cli/             # CLI tests (convert, visualize, evaluate — 440 tests total)
 ```
 
 Test data lives in `assets/test_data/`, organized by format (det/seg) and annotation type. Evaluate test data lives under `assets/test_data/evaluate/`.
