@@ -1,5 +1,7 @@
 # SDD 方法论
 
+> **Version:** v1.0 | **Last Updated:** 2026-06-27
+
 > **本文档定义 SDD（规约驱动开发，Spec-Driven Development）的通用方法论。**
 >
 > 目标读者：AI Agent（如 Claude Code）和人类开发者。
