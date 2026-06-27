@@ -17,13 +17,14 @@ DataFlow-CV 的模块依赖关系（详见 [`modules/index.md`](modules/index.md
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                           CLI                                 │
-│  (calls Convert, Visualize & Evaluate public APIs)            │
+│  (passes LogConfig to modules; click.echo() for terminal UI)  │
 └──────┬─────────────────────┬──────────────────┬──────────────┘
        │                     │                  │
        ▼                     ▼                  ▼
 ┌──────────────┐    ┌──────────────────┐    ┌──────────────┐
 │   Convert    │    │    Visualize     │    │   Evaluate   │
 │  (pipeline)  │    │  (rendering)     │    │  (metrics)   │
+│  LogManager  │    │  LogManager      │    │  LogManager  │
 └──────┬───────┘    └───────┬──────────┘    └──────┬───────┘
        │                    │                      │
        │    ZERO CROSS-     │    ZERO CROSS-       │
@@ -32,7 +33,14 @@ DataFlow-CV 的模块依赖关系（详见 [`modules/index.md`](modules/index.md
        ▼                    ▼                      ▼
 ┌──────────────────────────────────────────────────────────────┐
 │                         Label                                 │
-│  Data Models + Handlers (read/write/validate)                 │
+│  Data Models + Handlers (receive logger from caller)          │
+└──────────────────────────────────────────────────────────────┘
+       │                    │                      │
+       └────────────────────┼──────────────────────┘
+                            ▼
+┌──────────────────────────────────────────────────────────────┐
+│                    util/logging.py                             │
+│  LogManager + format helpers (shared infrastructure)           │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -41,11 +49,13 @@ DataFlow-CV 的模块依赖关系（详见 [`modules/index.md`](modules/index.md
 | # | 约束 | 违反后果 |
 |---|------|----------|
 | 1 | Convert ↔ Visualize：**零交叉依赖** | 循环导入、模块耦合 |
-| 2 | Convert → Label：**仅通过公共接口** | 绕过 handler 直接操作文件 |
-| 3 | Visualize → Label：**仅通过公共接口** | 同上 |
-| 4 | CLI → Convert/Visualize/Evaluate：**不直接导入 label** | 打破分层 |
-| 5 | Evaluate ↔ Convert/Visualize：**零交叉依赖** | 循环导入、模块耦合 |
-| 6 | Evaluate → Label：**仅通过公共接口** | 绕过 handler 直接操作文件 |
+| 2 | Evaluate ↔ Convert：**零交叉依赖** | 循环导入、模块耦合 |
+| 3 | Evaluate ↔ Visualize：**零交叉依赖** | 循环导入、模块耦合 |
+| 4 | Convert → Label：**仅通过公共接口** | 绕过 handler 直接操作文件 |
+| 5 | Visualize → Label：**仅通过公共接口** | 同上 |
+| 6 | Evaluate → Label：**仅通过公共接口** | 同上 |
+| 7 | CLI → Convert/Visualize/Evaluate：**不直接导入 label 或 pycocotools** | 打破分层 |
+| 8 | **日志归属**：所有日志由模块产出，CLI 仅用 `click.echo()` | 日志混乱、不可控 |
 
 ### 外部格式
 
@@ -208,7 +218,8 @@ specs/
     ├── spec_convert.md            # Convert 模块（Pipeline + 3 Converter + RLE）
     ├── spec_visualize.md          # Visualize 模块（渲染管线 + ColorManager）
     ├── spec_evaluate.md           # Evaluate 模块（评估管线 + API + 数据模型）
-    └── spec_cli.md                # CLI 模块（命令签名 + 异常层次 + 退出码）
+    ├── spec_cli.md                # CLI 模块（命令签名 + 异常层次 + 退出码）
+    └── spec_logging.md            # Logging 模块（LogManager + LogConfig + format helpers）
 ```
 
 ---
