@@ -1,6 +1,6 @@
 # DataFlow-CV
 
-> 🌊 **Where Vibe Coding meets CV data.** Convert, visualize & evaluate datasets — built with the flow of Claude Code.
+> 🌊 **Everything your model doesn't do.** Convert, visualize, evaluate, and more — a single CLI for all CV data.
 
 <p align="center">
   <a href="https://pypi.org/project/dataflow-cv/"><img src="https://img.shields.io/pypi/v/dataflow-cv.svg" alt="PyPI"></a>
