@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2026-07-02
+
+### Docs
+
+- **Specs purge**: Removed non-contract content from all specs — Change History, File Map directory trees, Implementation Steps pseudocode, Migration guides, and Legacy API tables. Specs now contain only behavioral contracts and contract-supporting explanations.
+- **CLAUDE.md Spec Maintenance methodology**: Embedded ~55-line methodology covering classification principles, two-reader model (agent + human), six deletion types, modules interface-vs-implementation check, and two edge-case rules (comparison tables, outdated framing).
+- **Removed SDD_GUIDE.md and SDD_METHODOLOGY.md from specs/**: Methodology now lives in CLAUDE.md; reusable template available in docs/.
+
+### Fixed
+
+- **CLI pycocotools imports (spec §7 compliance)**: Removed direct `import pycocotools` from CLI; evaluate commands use `_validate_coco_available()` from `dataflow.evaluate.utils`; convert commands delegate RLE availability check to converter internals.
+- **CLI error messages**: Fixed `--image-dir`/`--class-file` references in validate_convert_params error messages to use actual positional argument names (`IMAGE_DIR`/`CLASS_FILE`).
+- **Converters cross-layer import**: Replaced `from ..label.coco_handler import HAS_COCO_MASK` with local try/except pycocotools check in `yolo_and_coco.py` and `coco_and_labelme.py`.
+- **Evaluate CLI exception type**: pycocotools unavailability now correctly raises `SystemError` (exit 5) instead of `ImportError` per spec §5.
+- **Spec CLI allowed imports**: Added `dataflow.evaluate.utils` to §7 allowed list.
+
 ## [1.6.0] - 2026-06-27
 
 ### Added
