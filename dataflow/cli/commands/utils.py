@@ -92,20 +92,20 @@ def validate_convert_params(
     # Check required parameters based on conversion direction
     if source_format == "yolo" and target_format == "coco":
         if not image_dir:
-            raise InputError("--image-dir is required for YOLO→COCO conversion")
+            raise InputError("IMAGE_DIR is required for YOLO→COCO conversion")
         if not class_file:
-            raise InputError("--class-file is required for YOLO→COCO conversion")
+            raise InputError("CLASS_FILE is required for YOLO→COCO conversion")
     elif source_format == "yolo" and target_format == "labelme":
         if not image_dir:
-            raise InputError("--image-dir is required for YOLO→LabelMe conversion")
+            raise InputError("IMAGE_DIR is required for YOLO→LabelMe conversion")
         if not class_file:
-            raise InputError("--class-file is required for YOLO→LabelMe conversion")
+            raise InputError("CLASS_FILE is required for YOLO→LabelMe conversion")
     elif source_format == "labelme" and target_format == "coco":
         if not class_file:
-            raise InputError("--class-file is required for LabelMe→COCO conversion")
+            raise InputError("CLASS_FILE is required for LabelMe→COCO conversion")
     elif source_format == "labelme" and target_format == "yolo":
         if not class_file:
-            raise InputError("--class-file is required for LabelMe→YOLO conversion")
+            raise InputError("CLASS_FILE is required for LabelMe→YOLO conversion")
     # For coco→yolo: both optional
     # For coco→labelme: both optional
 

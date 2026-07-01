@@ -55,16 +55,6 @@ def yolo2coco(
     # Parameter validation
     validate_convert_params("yolo", "coco", label_dir, output_file, image_dir, class_file)
 
-    # Validate pycocotools availability if RLE is requested
-    if do_rle:
-        try:
-            from pycocotools import mask as coco_mask  # noqa: F401
-        except ImportError:
-            raise RuntimeCLIError(
-                "RLE encoding requested (--do-rle) but pycocotools is not available. "
-                "Install with: pip install pycocotools"
-            )
-
     # Call existing API
     converter = YoloAndCocoConverter(
         source_to_target=True, prediction=prediction, log_config=log_config, strict_mode=strict
@@ -214,16 +204,6 @@ def labelme2coco(
 
     # Parameter validation
     validate_convert_params("labelme", "coco", labelme_dir, output_file, None, class_file)
-
-    # Validate pycocotools availability if RLE is requested
-    if do_rle:
-        try:
-            from pycocotools import mask as coco_mask  # noqa: F401
-        except ImportError:
-            raise RuntimeCLIError(
-                "RLE encoding requested (--do-rle) but pycocotools is not available. "
-                "Install with: pip install pycocotools"
-            )
 
     # Call existing API
     converter = CocoAndLabelMeConverter(source_to_target=False, log_config=log_config, strict_mode=strict)

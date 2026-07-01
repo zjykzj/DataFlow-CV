@@ -126,13 +126,11 @@ def detection(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, prf1_me
     validate_path_exists(dt_json, "DT JSON")
 
     # Check pycocotools availability
+    from dataflow.evaluate.utils import _validate_coco_available
     try:
-        from pycocotools.coco import COCO  # noqa: F401
-    except ImportError:
-        raise SystemError(
-            "pycocotools is required for evaluation. "
-            "Install with: pip install pycocotools"
-        )
+        _validate_coco_available()
+    except ImportError as e:
+        raise SystemError(str(e))
 
     if prf1:
         # Path B: P/R/F1 only — skip COCOeval entirely
@@ -210,13 +208,11 @@ def segmentation(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, prf1
     validate_path_exists(dt_json, "DT JSON")
 
     # Check pycocotools availability
+    from dataflow.evaluate.utils import _validate_coco_available
     try:
-        from pycocotools.coco import COCO  # noqa: F401
-    except ImportError:
-        raise SystemError(
-            "pycocotools is required for evaluation. "
-            "Install with: pip install pycocotools"
-        )
+        _validate_coco_available()
+    except ImportError as e:
+        raise SystemError(str(e))
 
     if prf1:
         # Path B: P/R/F1 only — skip COCOeval entirely

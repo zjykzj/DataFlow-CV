@@ -110,10 +110,13 @@ class YoloAndCocoConverter(BaseConverter):
             # Check if RLE conversion is requested but pycocotools is not available
             do_rle = kwargs.get("do_rle", False)
             if do_rle:
-                # Import HAS_COCO_MASK from coco_handler
-                from ..label.coco_handler import HAS_COCO_MASK
+                try:
+                    from pycocotools import mask as coco_mask  # noqa: F401
+                    _has_coco = True
+                except ImportError:
+                    _has_coco = False
 
-                if not HAS_COCO_MASK:
+                if not _has_coco:
                     error_msg = (
                         "RLE conversion requested (do_rle=True) but pycocotools is not available. "
                         "Install with: pip install pycocotools"
