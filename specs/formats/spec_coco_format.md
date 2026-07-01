@@ -148,25 +148,27 @@ All COCO coordinates are in **absolute pixels** with the origin at the **top-lef
 - Y-axis: increases downward
 - Origin: `(0, 0)` = top-left pixel
 
-### 6.2 Normalization (for Internal Model)
+### 6.2 Conversion to/from YOLO Normalized Coordinates
 
-When reading COCO into the internal data model, coordinates are normalized:
-
-```
-x_center = (x_top_left + width / 2) / image_width
-y_center = (y_top_left + height / 2) / image_height
-width_norm = width / image_width
-height_norm = height / image_height
-```
-
-When writing COCO from the internal data model, coordinates are denormalized:
+COCO absolute pixel coordinates (top-left origin) and YOLO normalized coordinates (center origin) are related by:
 
 ```
-x_top_left = x_center * image_width - (width_norm * image_width) / 2
-y_top_left = y_center * image_height - (height_norm * image_height) / 2
-width_abs = width_norm * image_width
-height_abs = height_norm * image_height
+x_center  = (x_top_left + width / 2) / image_width
+y_center  = (y_top_left + height / 2) / image_height
+width_n   = width / image_width
+height_n  = height / image_height
 ```
+
+Reverse (YOLO normalized → COCO absolute):
+
+```
+x_top_left = x_center * image_width  - (width_n  * image_width)  / 2
+y_top_left = y_center * image_height - (height_n * image_height) / 2
+width_abs  = width_n  * image_width
+height_abs = height_n * image_height
+```
+
+These formulas are used by the Convert module. DataFlow-CV stores COCO coordinates in their native absolute-pixel representation — no internal normalization is performed.
 
 ### 6.3 Coordinate System Comparison
 

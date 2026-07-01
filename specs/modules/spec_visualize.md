@@ -28,9 +28,6 @@ convert coordinates to a **unified intermediate rendering format** per-image. Th
 - **Output**: Rendered images (display window and/or saved files)
 - **Dependency**: Label module only (for handlers and data models)
 
-### 1.3 File Map
-
-```
 dataflow/visualize/
 ├── base.py                  # BaseVisualizer + ColorManager + VisualizationResult + RenderData
 ├── yolo_visualizer.py       # YOLO visualization (wraps YOLO handler + converts to RenderData)
@@ -566,39 +563,4 @@ When `verbose=False`:
 - No file output
 - `log_path` is `None`
 
-## 9. Change History
 
-### v4 → v4.1: Remove FileOperations
-
-| Aspect | v4 | v4.1 |
-|--------|----|----|
-| File I/O | `FileOperations` wrapper class | Inline stdlib `Path` calls |
-| `dataflow.util` dependency | `FileOperations` | Removed |
-
-### v3 → v4: Unified Logging via LogManager
-
-| Aspect | v3 | v4 |
-|--------|----|----|
-| Constructor params | `verbose=False, logger=None, log_file_path=None` | `log_config: Optional[LogConfig] = None` |
-| Logger creation | 3-way branch: external `log_file_path` → verboselogging → default | `LogManager(log_config)` — single unified class |
-| `VisualizationResult.log_file_path` | Present | Renamed to `log_path` |
-| Log templates | None (ad-hoc `self.logger.info(...)` calls) | `log_templates.py` — structured formatting functions |
-| CLI interaction | CLI creates logger + passes to visualizer | CLI passes `LogConfig`, visualizer handles all logging |
-
-### v4.2 → v4.3: Industry-Standard Label Positioning
-
-| Aspect | v4.2 | v4.3 |
-|--------|------|------|
-| Label horizontal alignment | Top-center `(cx, y1-5)` | Top-left `(x1, y1-2)` — matches Ultralytics, Supervision, Detectron2 |
-| Label background | Black `(0,0,0)` | Class color — visual association with bbox/polygon |
-| Edge handling | Flip below bbox | Flip **inside** bbox at top-left — matches Ultralytics YOLOv8 fallback |
-| Rationale | — | No major CV tool uses top-center or black background; left-aligned with class color is industry consensus |
-
-### v4.1 → v4.2: Consistent Label Positioning
-
-| Aspect | v4.1 | v4.2 |
-|--------|------|------|
-| Label position | Bbox top-left `(x1, y1-5)`; polygon label at first point | Bbox top-center `(cx, y1-5)` |
-| Bbox from polygon | Not computed — polygon-only annotations had no bbox | Computed from polygon axis-aligned bounds in `_convert_to_render_data()` |
-| Edge handling | Clamp text background to image bounds | Flip label below bbox when text extends above image top |
-| Spec §4.3 | No per-annotation drawing flow documented | Explicit per-annotation flow with label positioning rules |

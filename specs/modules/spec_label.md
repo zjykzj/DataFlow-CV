@@ -38,18 +38,6 @@ It exposes a stable public API through:
 - `AnnotationResult` return type
 - `iter_images()` streaming iterator — incremental per-image yield for memory-efficient processing
 
-### 1.3 File Map
-
-```
-dataflow/label/
-├── models.py              # Format-aware data structures (no unified normalization)
-├── base.py                # Abstract handler + AnnotationResult + format-specific validation
-├── yolo_handler.py        # YOLO ↔ native representation
-├── coco_handler.py        # COCO ↔ native representation
-├── labelme_handler.py     # LabelMe ↔ native representation
-└── utils.py               # Category utilities, format comparison
-```
-
 ## 2. Data Model (`models.py`)
 
 ### 2.1 Core Container: `DatasetAnnotations`
@@ -341,18 +329,7 @@ Both `is_det` and `is_seg` can be `True` simultaneously (mixed dataset).
 - No coordinate transformation — coordinates are stored as-is from YOLO text files
   (after clamping)
 
-**`iter_images()`**: Yields `ImageAnnotation` objects one at a time.
-Implementation steps:
-1. Validate `label_dir`, `image_dir`, `categories` exist (raise immediately if not)
-2. Scan `label_dir` for `*.txt` files
-3. For each `.txt` file:
-   a. Find corresponding image file (same stem, known extensions)
-   b. Read image dimensions via OpenCV
-   c. Parse YOLO lines into `ObjectAnnotation` list (same per-line logic as `read()`, **including [0, 1] clamping**)
-   d. Yield `ImageAnnotation(image_id, image_path, width, height, objects)`
-4. Strict mode: raise `ValueError` on first parse error in any file/line
-5. Non-strict mode: log warning, skip invalid files/lines, continue to next
-6. Image errors (missing file, unreadable) always skip regardless of strict_mode
+**`iter_images()`**: Yields `ImageAnnotation` objects one at a time with format-native coordinates (same per-line parsing logic as `read()`, including [0, 1] clamping). In strict mode, raises `ValueError` on first parse error. In non-strict mode, logs warnings and skips invalid files/lines. Image errors always skip regardless of strict_mode.
 
 **Key difference from `read()`**: Does not accumulate all images into a `DatasetAnnotations`.
 Callers that need `DatasetAnnotations` (with format flags, full category dict) should use
@@ -381,10 +358,6 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
 
 **Constructor:** `CocoAnnotationHandler(annotation_file, do_rle=False, **kwargs)`
 
-### 4.2 `CocoAnnotationHandler`
-
-**Constructor:** `CocoAnnotationHandler(annotation_file, do_rle=False, **kwargs)`
-
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `annotation_file` | Yes | Path to COCO `.json` file |
@@ -399,19 +372,7 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
 - `Segmentation.rle`: Preserved RLE data when segmentation is RLE-encoded
 - No coordinate normalization — COCO native coordinates are absolute pixels
 
-**`iter_images()`**: Yields `ImageAnnotation` objects one at a time.
-Implementation steps:
-1. Validate `annotation_file` exists and is valid JSON (raise immediately if not)
-2. Extract categories and image metadata from COCO JSON
-3. Group annotations by `image_id`
-4. For each image in the COCO dataset:
-   a. Resolve image path from COCO `file_name`
-   b. Collect all annotations for this `image_id`
-   c. Parse each annotation (bbox, segmentation, RLE) into `ObjectAnnotation`
-   d. Yield `ImageAnnotation(image_id, image_path, width, height, objects)`
-5. Strict mode: raise `ValueError` on first invalid annotation
-6. Non-strict mode: log warning, skip invalid annotations, continue
-7. Image errors (missing file) always skip regardless of strict_mode
+**`iter_images()`**: Yields `ImageAnnotation` objects one at a time with format-native coordinates. Groups annotations by `image_id` from the COCO JSON, yields each image with its annotations. In strict mode, raises `ValueError` on first invalid annotation. In non-strict mode, logs warnings and skips invalid annotations. Image errors always skip regardless of strict_mode.
 
 **`write(annotations, output_file, output_rle=None)`**: Writes COCO JSON.
 - Expects `DatasetAnnotations.format == COCO`
@@ -442,19 +403,7 @@ Implementation steps:
 - Shape types: `rectangle` → BoundingBox; `polygon` (≥ 3 points) → Segmentation
 - Other shape types (circle, line, point) → parse error
 
-**`iter_images()`**: Yields `ImageAnnotation` objects one at a time.
-Implementation steps:
-1. Validate `label_dir` exists (raise immediately if not)
-2. Scan `label_dir` for `*.json` files
-3. For each `.json` file:
-   a. Parse LabelMe JSON structure
-   b. Extract image dimensions from `imageWidth`/`imageHeight`
-   c. Parse shapes into `ObjectAnnotation` list (rectangle → BoundingBox, polygon → Segmentation)
-   d. Yield `ImageAnnotation(image_id, image_path, width, height, objects)`
-4. Strict mode: raise `ValueError` on first parse error in any file
-5. Non-strict mode: log warning, skip invalid files/shapes, continue
-6. Image errors: if `imagePath` is inaccessible but JSON contains valid `imageWidth`/`imageHeight`, the image is not needed — read succeeds silently. If JSON lacks dimensions AND the image is inaccessible, skip with warning (or abort in strict mode if dimensions are entirely unavailable)
-7. Category discovery: auto-extract from `shape.label` if `class_file` not provided
+**`iter_images()`**: Yields `ImageAnnotation` objects one at a time with format-native coordinates. Parses each `.json` file's shapes (rectangle → BoundingBox, polygon → Segmentation). In strict mode, raises `ValueError` on first parse error. In non-strict mode, logs warnings and skips invalid files/shapes. If `imagePath` is inaccessible but JSON contains valid `imageWidth`/`imageHeight`, the image is not needed — read succeeds silently. Categories are auto-extracted from `shape.label` if `class_file` not provided.
 
 **`write(annotations, output_dir)`**: Writes one `.json` per image.
 - Expects `DatasetAnnotations.format == LABELME`
@@ -561,97 +510,3 @@ A valid read operation must satisfy ALL of:
 | `calculate_file_hash(file_path, algorithm="md5")` | Computes hash of a file for integrity comparison |
 | `compare_annotation_dirs(dir_a, dir_b, format)` | Format-aware comparison (text diff for YOLO, JSON diff for LabelMe) |
 
-## 8. Change History
-
-### v4.3 → v4.4: Coordinate Clamping Extended to YOLO Normalized Format
-
-| Aspect | v4.3 | v4.4 |
-|--------|------|------|
-| YOLO bbox slightly out-of-bounds (e.g., `cx + w/2 = 1.00000015`) | Rejected as "bbox overflows boundary" in strict mode, skipped in non-strict | **Clamped to [0, 1]** + WARNING, then validated |
-| YOLO polygon points slightly out-of-bounds | Rejected as "out of range" in strict mode, skipped in non-strict | **Clamped to [0, 1]** + WARNING, then validated |
-| Clamping vs strict_mode | — | Clamping is independent of strict_mode (data normalization, not error handling) |
-| Zero-area bbox after clamping | — | Still rejected (clamping can't fix truly invalid data) |
-| Non-finite values (NaN, inf) | Rejected in strict mode | Unchanged (clamping only handles boundary overflow, not NaN/inf) |
-| Error table entries | Single "Invalid coordinate — YOLO (not finite or outside [0,1])" row | Split into separate "not finite" and "outside [0,1]" rows, mirroring COCO/LabelMe structure |
-| WARNING threshold (normalized) | — | `1e-6` — sub-threshold changes are silent (1 unit in `.6f` output precision; avoids FP comparison edge cases at 5e-7 boundary) |
-| WARNING threshold (absolute pixel) | — | `1e-9` — unchanged from existing `_clamp_abs_bbox`/`_clamp_abs_points` |
-
-**Rationale**: YOLO normalized coordinates can suffer the same floating-point imprecision
-at [0, 1] boundaries as absolute-pixel coordinates suffer at image edges. For example,
-`cx + w/2 = 1.00000015` is clearly a rounding artifact, not a genuine annotation error.
-The WARNING threshold `1e-6` matches YOLO `.6f` output precision (1 unit in the
-least significant digit). Changes smaller than this are string↔float round-trip
-noise or FP comparison edge cases (e.g., `5e-7` overflow producing `5.000000000000001e-7`
-in binary float, which spuriously passes a `> 5e-7` check).
-
-### v4.2 → v4.3: Coordinate Clamping for Absolute-Pixel Formats
-
-| Aspect | v4.2 | v4.3 |
-|--------|------|------|
-| COCO/LabelMe coordinate slightly out-of-bounds (e.g., `x = -0.39`) | Rejected as "invalid coordinate" in strict mode, skipped in non-strict | **Clamped to `[0, width] × [0, height]`** + WARNING, then validated |
-| Clamping vs strict_mode | — | Clamping is independent of strict_mode (data normalization, not error handling) |
-| Zero-area bbox after clamping | — | Still rejected (clamping can't fix truly invalid data) |
-| YOLO coordinates | Unchanged | Unchanged (normalized [0,1] coordinates have different semantics) |
-
-**Rationale**: Slightly-out-of-bounds coordinates in absolute-pixel formats are almost
-always caused by floating-point imprecision at image edges in annotation tools, not by
-genuinely misplaced annotations. Clamping preserves the data with a warning instead of
-rejecting it outright.
-
-### v4.1 → v4.2: LabelMe Image-File-Not-Found Clarification
-
-| Aspect | v4.1 | v4.2 |
-|--------|------|------|
-| LabelMe image file not found + JSON has dimensions | Logged as WARNING, continued | Silently succeeds — image is not needed |
-| LabelMe image file not found + JSON lacks dimensions | Same as other formats (skip with warning) | Unchanged |
-| Spec error table | Single "Image file not found" row for all formats | Format-specific rows for LabelMe vs YOLO/COCO |
-
-**Rationale**: LabelMe JSON files carry `imageWidth`/`imageHeight`, making the image
-file redundant for annotation reading. Warning about a missing image in this case is
-noise — the data is complete. The warning only makes sense when dimensions CANNOT be
-obtained from any source.
-
-### v4 → v4.1: Logger from Caller's LogManager
-
-| Aspect | v4 | v4.1 |
-|--------|----|----|
-| Logger source | Any `logging.Logger` | Logger from caller's `LogManager` (via `log_manager.logger` or `.child("handler")`) |
-| Documentation | Logger parameter documented as "optional Logger instance" | Logger parameter documented with provenance — received from `LogManager` |
-
-### v3 → v4: `write_one()` Streaming Write
-
-| Aspect | v3 | v4 |
-|--------|----|----|
-| `BaseAnnotationHandler` methods | `read()`, `iter_images()`, `write()`, `validate()` | + `write_one()` — single-image write |
-| Convert streaming pipeline | Calls `target_handler.write_one()` without interface guarantee | `write_one()` is an abstract contract — type-checker verified |
-| COCO handler streaming write | Not defined | Explicitly raises `NotImplementedError` (batch-only format) |
-
-**Design rationale**: `write_one()` was already called by `stream_convert()` in the Convert
-module but was not part of the handler's abstract interface. Formalizing it ensures all
-handlers declare the method and new handlers won't silently fail at runtime.
-
-### v2 → v3: Streaming Iterator
-
-| Aspect | v2 | v3 |
-|--------|----|----|
-| `BaseAnnotationHandler` methods | `read()`, `write()`, `validate()` | + `iter_images()` — streaming yield |
-| Data loading in visualizers | `handler.read()` → full `DatasetAnnotations` | `handler.iter_images()` → per-image `ImageAnnotation` |
-| Memory usage | O(N) — all images loaded at once | O(1) — single image at a time |
-| First-image latency | Wait for all files to parse | Display after first file parsed |
-| Error granularity | All-or-nothing (strict mode) | Partial results before error available (strict mode) |
-
-**Design rationale**: `read()` is preserved for batch workflows (conversion, evaluation) that
-need `DatasetAnnotations` with format flags and full category dict. `iter_images()` is for
-streaming workflows (visualization) that prefer low latency and low memory.
-
-### v1 → v2: Format-Native Coordinates
-
-| v1 (Deprecated) | v2 (Current) |
-|-----------------|--------------|
-| Unified normalized internal model (all coords → [0,1] center) | Format-native coordinate storage |
-| `OriginalData` + `OriginalDataManager` for lossless A→A round-trip | **Removed entirely** — not needed since coordinates stay native |
-| `BoundingBox.xyxy()` / `.xywh_abs()` conversion methods | **Removed** — converters handle coordinate math |
-| `Segmentation.points_abs()` conversion method | **Removed** — converters handle coordinate math |
-| Validation assumed [0,1] for all formats | Format-aware validation per coordinate system |
-| `DatasetAnnotations` had no `format` field | `DatasetAnnotations.format` is required and governs semantics |
-| Lossless round-trip contract (Section 6) | **Removed** — see `spec_conversion.md` for cross-format precision docs |

@@ -26,9 +26,6 @@ The module wraps pycocotools' `COCO` and `COCOeval` classes to provide:
 - **Output**: `EvaluationResult` (structured metrics container) or `PRF1Result` (single-threshold P/R/F1)
 - **Dependency**: Label module only (for COCO handler and data models), pycocotools
 
-### 1.3 File Map
-
-```
 dataflow/evaluate/
 ├── __init__.py             # Public API exports
 ├── base.py                 # BaseEvaluator abstract class + shared logic
@@ -566,21 +563,4 @@ When loading DT from `DatasetAnnotations`:
 | `evaluator.evaluate(gt, dt) → EvaluationResult` | `base.py` | Run full COCO evaluation |
 | `compute_pr_f1(gt, dt, iou_thr, conf_thr, iou_type, log_config=...) → PRF1Result` | `metrics.py` | Single-threshold P/R/F1 |
 
-## 12. Change History
 
-### v2.0 → v2.1: Remove FileOperations from Dependency Contract
-
-| Aspect | v2.0 | v2.1 |
-|--------|------|------|
-| `dataflow.util` dependency | Listed `FileOperations` | Removed — Evaluate never actually imported it |
-
-### v1.2 → v2.0: Unified Logging via LogManager
-
-| Aspect | v1.2 | v2.0 |
-|--------|------|------|
-| Constructor params | `verbose=False, logger=None` | `log_config: Optional[LogConfig] = None` |
-| `compute_pr_f1()` params | `verbose=False, logger=None` | `log_config: Optional[LogConfig] = None` |
-| Logger creation | `VerboseLoggingOperations` / `LoggingOperations` | `LogManager(log_config)` — single unified class |
-| `EvaluationResult.log_file_path` | Present | Renamed to `log_path` |
-| Log templates | `format_metric_table` / `format_per_class_table` in `utils.py` | `log_templates.py` — all formatting in one place |
-| CLI interaction | CLI creates logger + passes to evaluator | CLI passes `LogConfig`, evaluator handles all logging |

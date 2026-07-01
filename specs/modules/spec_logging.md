@@ -169,20 +169,6 @@ The logger is configured once in `__init__` with two handlers:
 
 4. **Existing handlers are cleared**: `logger.handlers.clear()` is called before adding new handlers to prevent duplicate output when the same Python logger name is reused.
 
-### 2.3 Legacy Classes (Removed)
-
-The following classes are **removed** in this version:
-
-| Removed Class | Replacement |
-|---------------|-------------|
-| `LoggingOperations` | `LogManager` — single unified class |
-| `VerboseLoggingOperations` | `LogManager` with `verbose=True` |
-| `logging_error_or_raise()` | Each base class implements its own error handling with `self.logger` |
-| `detect_image_error()` | Moved to `BaseVisualizer` (only consumer) or a small util function |
-
-Rationale: Two classes with overlapping responsibility created confusion and led to
-inconsistent behavior across modules. One `LogManager` with a `verbose` flag is simpler
-and sufficient for all use cases.
 
 ## 3. Format Helpers
 
@@ -451,23 +437,8 @@ in `dataflow/util/logging.py` since the Label module also uses it via `BaseAnnot
 **Decision**: Keep in `dataflow/util/logging.py` as a pure utility function — both Label and
 Visualize modules need image error detection.
 
----
 
-## 8. Migration from Old API
-
-| Old Pattern | New Pattern |
-|-------------|-------------|
-| `LoggingOperations().get_logger(name)` | `LogManager(LogConfig(name=name)).logger` |
-| `VerboseLoggingOperations().get_verbose_logger(name, verbose=True, log_dir=...)` | `LogManager(LogConfig(name=name, verbose=True, log_dir=...))` |
-| `logging_error_or_raise(msg, logger, strict_mode, is_image_error)` | `self._log_error(msg)` — each base class defines its own |
-| `LoggingOperations().get_logger(name, log_file=...)` | `LogManager(LogConfig(name=name, verbose=bool(log_file)))` |
-| `VerboseLoggingOperations().create_progress_logger(name)` | `log_manager.child("progress")` |
-| `VerboseLoggingOperations().log_summary(logger, title, data)` | `logger.info(format_result_block(title, data))` |
-| Constructor accepts `verbose`, `logger`, `log_file_path` | Constructor accepts `log_config: LogConfig` |
-
----
-
-## 9. Dependency Contract
+## 8. Dependency Contract
 
 ```
 dataflow/util/logging.py imports FROM:

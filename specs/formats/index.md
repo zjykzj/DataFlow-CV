@@ -40,6 +40,6 @@ Note: The [Evaluate layer](../evaluate/index.md) is an independent third layer �
 ## Reading Order
 
 - **New to annotation formats?** Start with all four in order (YOLO → LabelMe → COCO → Conversion).
-- **New to the project?** Read [`SDD_GUIDE.md`](../SDD_GUIDE.md) first for the development workflow.
+
 - **Implementing a handler?** Read the relevant format spec + `spec_conversion.md` for coordinate transforms.
 - **Auditing compliance?** Use each format spec's Validation Rules section as your checklist.

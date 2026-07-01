@@ -152,70 +152,10 @@ The following 12 metrics are the standard output of COCO evaluation. These are p
 | Speed | Fast | Slower (mask rasterization overhead) |
 | Use case | Bounding box detectors (YOLO, Faster R-CNN, etc.) | Instance segmentation models (Mask R-CNN, SOLO, etc.) |
 
-## 6. Task Selection Guide
-
-### 6.1 Decision Matrix
-
-| GT Annotations Have | DT Annotations Have | Recommended Task |
-|--------------------|--------------------|--------------------|
-| bbox only | bbox + score | **Detection** (`iouType='bbox'`) |
-| segm only | segm + score | **Segmentation** (`iouType='segm'`) |
-| bbox + segm | bbox + score | **Detection** (can also evaluate segm models) |
-| bbox + segm | segm + bbox + score | **Segmentation** (primary) + **Detection** (secondary, for bbox quality) |
-
-### 6.2 Mixed Datasets
+## 6. Mixed Datasets
 
 When a dataset contains some annotations with segmentation and some without:
 
 1. **Detection evaluation**: All annotations are usable. Those without segmentation are evaluated with bbox IoU.
 2. **Segmentation evaluation**: Annotations without segmentation are **excluded** from evaluation with a warning.
 3. The Evaluate module should log a warning when the dataset is mixed, to alert the user.
-
-### 6.3 Running Both Evaluations
-
-It is valid to run both detection and segmentation evaluation on the same GT/DT pair:
-
-```python
-det_result = evaluator_det.evaluate(gt, dt)    # iouType='bbox'
-seg_result = evaluator_seg.evaluate(gt, dt)    # iouType='segm'
-```
-
-The results are independent and complementary — bbox AP measures localization, mask AP measures pixel-level accuracy.
-
-## 7. Non-COCO Input Conversion
-
-### 7.1 YOLO Format
-
-YOLO annotations must be converted to COCO format before evaluation. Use the Convert module with the `--prediction` flag for prediction files:
-
-```
-YOLO GT (.txt, 5 tokens)  → [Convert: yolo2coco]                 → COCO JSON GT (anno.json)
-YOLO DT (.txt, 6 tokens)  → [Convert: yolo2coco --prediction]    → COCO JSON DT (pred.json)
-```
-
-**Format details:**
-
-| Step | YOLO Format | Tokens | CLI Command |
-|------|------------|--------|-------------|
-| Ground Truth | `class_id cx cy w h` | 5 | `yolo2coco images/ labels/ classes.txt anno.json` |
-| Detection Prediction | `class_id cx cy w h confidence` | 6 | `yolo2coco --prediction images/ preds/ classes.txt pred.json` |
-| Segmentation Prediction | `class_id x1 y1 ... xn yn confidence` | even > 6 | `yolo2coco --prediction images/ preds/ classes.txt pred.json` |
-
-The `--prediction` flag tells the YoloHandler to parse prediction format (even token count with trailing confidence) instead of label format (odd token count). The confidence value is preserved as the COCO `score` field in the output JSON.
-
-For segmentation predictions, the output COCO JSON stores segmentation as polygon format by default. pycocotools `COCOeval` converts polygon → RLE internally during evaluation. The `--do-rle` flag is available for smaller file size but is not required.
-
-### 7.2 LabelMe Format
-
-Same pattern — convert to COCO first:
-
-```
-LabelMe GT (.json per image) → [Convert: labelme2coco] → COCO JSON GT
-LabelMe DT (.json per image + score) → [Convert: labelme2coco] → COCO JSON DT
-```
-
-### 7.3 Conversion Note
-
-The Evaluate module does **not** perform format conversion. It accepts COCO-format input only (by file path or in-memory dict). Users are responsible for converting their data to COCO format before evaluation.
-
-The CLI may optionally accept non-COCO formats and perform conversion automatically (see `spec_cli.md`), but the core Evaluate module's contract is COCO-in/COCO-out.

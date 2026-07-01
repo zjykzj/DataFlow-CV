@@ -42,9 +42,6 @@ This avoids holding both source and target datasets in memory simultaneously.
 - **State**: `_source_annotations_for_target` — MUST be cleaned up in `try/finally`
 - **Memory**: Batch path holds source + target in memory; streaming path holds one image at a time
 
-### 1.3 File Map
-
-```
 dataflow/convert/
 ├── base.py                # BaseConverter + ConversionResult + shared streaming/batch pipelines
 ├── yolo_and_coco.py       # YOLO ↔ COCO converter (uses shared coordinate transforms from utils)
@@ -600,63 +597,4 @@ the error are on disk. This is different from the batch path which is all-or-not
 **Streaming path**: No accumulated state to clean up — images are written as they
 are processed. If the stream is interrupted, already-written files remain on disk.
 
-## 8. Change History
 
-### v5.1 → v5.2: Add Progress Output During Conversion
-
-| Aspect | v5.1 | v5.2 |
-|--------|------|------|
-| Streaming path console output | **Silent** — no output between start and finish | Progress every 50 images (image count, object count); summary at end |
-| Batch path console output | Almost silent — only with `--verbose` | Read/write statistics always shown at INFO level |
-| Log gating | INFO messages guarded by `if log_path is not None` (verbose-only) | INFO messages always emitted regardless of verbose mode |
-| `_log_info` / `_log_warning` helpers | Defined but unused (dead code) | Wired into progress output |
-
-**Rationale**: Users running streaming conversions (yolo2labelme, coco2yolo, etc.) on large
-datasets saw no output at all during processing — the tool appeared stuck. Periodic progress
-output provides feedback that work is happening and gives an estimate of completion rate.
-
-### v5 → v5.1: Remove FileOperations
-
-| Aspect | v5 | v5.1 |
-|--------|----|----|
-| File I/O | `FileOperations` wrapper class | Inline stdlib `Path` calls (read_text, write_text, rglob, mkdir) |
-| `dataflow.util` dependency | `FileOperations` | Removed — no longer imported |
-
-**Rationale**: `FileOperations` added indirection without value — each method was a 1-3 line stdlib wrapper with INFO-level log noise. File I/O is handled directly with `pathlib.Path` methods.
-
-### v4 → v5: Unified Logging via LogManager
-
-| Aspect | v4 | v5 |
-|--------|----|----|
-| Constructor params | `verbose=False, logger=None` | `log_config: Optional[LogConfig] = None` |
-| Logger creation | `VerboseLoggingOperations` in `__init__` | `LogManager(log_config)` — single unified class |
-| `ConversionResult.log_file_path` | Present | Renamed to `log_path` |
-| Log templates | None (ad-hoc `self.logger.info(...)` calls) | `log_templates.py` — structured formatting functions |
-| CLI interaction | CLI creates logger, converter may create a second one | CLI passes `LogConfig`, converter handles all logging |
-
-### v3 → v4: Shared Transforms + Interface Hardening
-
-| Aspect | v3 | v4 |
-|--------|----|----|
-| `convert_annotations()` base | Default no-op (returns `source_annotations` unchanged) | Raises `NotImplementedError` — forces explicit implementation |
-| Coordinate transform location | Duplicated in `YoloAndCocoConverter` and `LabelMeAndYoloConverter` | Shared in `convert/utils.py` via `yolo_to_absolute_pixel()` / `absolute_pixel_to_yolo()` |
-| COCO category pre-loading | Duplicated `_ensure_categories_for_streaming()` in 2 classes | Shared `read_coco_categories()` in `utils.py` + single override pattern |
-| Batch pipeline | Duplicated `_batch_convert()` in 2 converter classes | Single `batch_convert()` in `BaseConverter.convert()` |
-| `_convert_single_image()` contract | Implemented per converter | Uses shared coordinate transforms from `utils.py` |
-
-**Design rationale**: The YOLO↔absolute pixel coordinate transform is identical regardless
-of whether the other format is COCO or LabelMe. Factoring it into shared utilities
-eliminates ~80 lines of duplicated math, ensures identical precision characteristics
-across all four conversion directions, and makes the code easier to verify and test.
-
-### v2 → v3: Streaming Pipeline
-
-| Aspect | v2 | v3 |
-|--------|----|----|
-| Pipeline | Single batch pipeline (`convert()`) | Dual pipeline: batch (`convert_annotations()`) + streaming (`stream_convert()`) |
-| Data flow | All-at-once (full `DatasetAnnotations`) | Per-image optional (`iter_images()` → `_convert_single_image()` → `write_one()`) |
-| Memory for YOLO/ LabelMe target | O(N) — source + target datasets in memory | O(1) — single image at a time |
-
-### v1 → v2: Format-Native Coordinates
-
-Initial specification with explicit coordinate transforms and modular converter architecture.

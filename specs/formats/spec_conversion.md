@@ -368,23 +368,6 @@ of the binary mask, which is already an approximation of the original polygon.
   (~1e-15 relative), which for typical image sizes is well under 1 pixel
 - RLE-based round-trips always have additional rasterization loss (polygon → mask → polygon)
 
-### 9.4 Fidelity vs v1 Architecture
-
-The v1 architecture used `OriginalData` to achieve "lossless" A→A round-trips by storing
-raw bytes and bypassing coordinate transforms entirely. This added significant complexity
-and only benefited same-format round-trips (which are trivially lossless in v2 since
-coordinates never leave their native format).
-
-The v2 architecture is **more honest** about cross-format loss and **simpler** overall:
-
-| Aspect | v1 (Old) | v2 (New) |
-|--------|----------|----------|
-| Same-format round-trip | Lossless (via OriginalData) | Lossless (native coords) |
-| Cross-format round-trip | ±1px (via double normalize/denormalize) | ±1px (single explicit transform) |
-| Number of transforms per A→B | 2 (normalize + denormalize) | 1 (direct target coords) |
-| OriginalData complexity | High | None |
-| Honesty about precision | Implicit / obscured | Explicit / documented |
-
 ## 10. Error Handling
 
 ### 10.1 Error Categories
