@@ -202,6 +202,43 @@ EOF
 This ensures `git log --oneline --no-decorator` provides enough context to
 understand each release's contents without opening `CHANGELOG.md`.
 
+### Release Workflow
+
+When publishing a new release, follow these steps:
+
+1. **Bump version** — update all three locations per [Version Bump Checklist](#version-bump-checklist)
+2. **Commit** — use the [Version Bump Commits](#version-bump-commits) format (body includes CHANGELOG content)
+3. **Tag** — create an annotated tag with a minimal message:
+
+   ```bash
+   git tag -a vX.Y.Z -m "vX.Y.Z"
+   ```
+
+4. **Push** — push both the commit and the tag:
+
+   ```bash
+   git push && git push --tags
+   ```
+
+5. **Create GitHub Release** — go to the repository's Releases page, select tag `vX.Y.Z`, and fill in:
+
+   | Field | Content |
+   |-------|---------|
+   | **Title** | `vX.Y.Z` |
+   | **Body** | CHANGELOG.md `[X.Y.Z]` 版本的全部内容，末尾追加引用链接 |
+
+   Body 模板：
+
+   ```markdown
+   <CHANGELOG.md [X.Y.Z] 版本段落的原文，含 ### Added/Changed/Fixed/Docs 分类>
+
+   ---
+
+   *See [CHANGELOG.md](https://github.com/zjykzj/DataFlow-CV/blob/main/CHANGELOG.md) for the full change history.*
+   ```
+
+**Rationale**: 在 Release 页面直接展示完整变更内容，读者无需跳转。末尾引用作为出处标注，方便读者查看历史变更。
+
 ## Architecture
 
 ### Format Ordering Convention
