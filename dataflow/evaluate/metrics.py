@@ -28,7 +28,6 @@ def compute_pr_f1(
     iou_type: str = "bbox",
     method: str = "macro",
     log_config: Optional[Any] = None,
-    logger: Optional[logging.Logger] = None,
 ) -> PRF1Result:
     """Compute Precision / Recall / F1-score at a single IoU threshold.
 
@@ -53,8 +52,6 @@ def compute_pr_f1(
             ``"micro"`` — computed from summed TP/FP/FN across all
             categories.
         log_config: Optional ``LogConfig`` for logging configuration.
-        logger: Optional logger instance (backward-compatible, may be
-            removed in the future).
 
     Returns:
         PRF1Result with per-class and overall P/R/F1.
@@ -76,11 +73,11 @@ def compute_pr_f1(
             "Expected 'macro' or 'micro'."
         )
 
-    # Logger setup (prefer log_config, fallback to legacy logger param)
+    # Logger setup
     if log_config is not None:
         from dataflow.util.logging import LogManager
         logger = LogManager(log_config).logger
-    elif logger is None:
+    else:
         logger = logging.getLogger(__name__)
 
     result = PRF1Result(

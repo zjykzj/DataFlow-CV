@@ -113,8 +113,10 @@ class PRF1Result:
     success: bool
     iou_threshold: float
     confidence_threshold: float
+    method: str
     overall: Optional[PRF1Values]
     per_class: Dict[int, PRF1Values]
+    class_names: Dict[int, str]
     warnings: List[str]
     errors: List[str]
 
@@ -495,7 +497,10 @@ COCOeval.accumulate() fails → EvaluationResult(success=False, errors=[...])
 | `iouType='segm'` but no segmentation data | `EvaluationResult(success=False, errors=["Segmentation data missing for iouType='segm'"])` |
 | All categories have zero GT | `EvaluationResult(success=False, errors=["No categories with GT annotations found"])` |
 
-### 9.3 Strict vs Non-Strict
+### 9.3 Strict vs Non-Strict (Planned)
+
+> **Note:** Strict mode support is not yet implemented in code. The table below documents
+> the planned behavior contract. Currently all validations always raise on error.
 
 | Error Type | Strict Mode | Non-Strict Mode |
 |------------|-------------|-----------------|

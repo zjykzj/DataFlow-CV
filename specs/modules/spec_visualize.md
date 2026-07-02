@@ -121,11 +121,11 @@ coordinate conversion to absolute pixels.
 HSV-based color palette generator that ensures consistent, unique colors per class ID.
 
 **Algorithm:**
-1. Generate 1000 unique colors using HSV space
-2. Primary: vary hue (0–179) with step = `max(1, 180 // (num_colors // 3))`
-3. Secondary: vary saturation (100–200)
-4. Tertiary: vary value (155–255)
-5. Collision resolution: adjust saturation/value; fallback to hue shift
+1. Generate 1000 unique colors using golden ratio hue spacing
+2. Hue: `int((i * 0.3819660112501051 * 180) % 180)` — golden ratio conjugate maximizes minimum hue distance (~69° apart)
+3. Saturation: high range [200, 255] for vivid colors — `200 + (i * 43) % 56`
+4. Value: varied range [180, 240] for brightness contrast — `180 + (i * 67) % 61`
+5. Collision resolution: hue shift (+17), sat increase (+20), value shift (+30); max 20 attempts (rare with golden ratio spacing)
 
 **Public API:**
 
@@ -135,7 +135,7 @@ HSV-based color palette generator that ensures consistent, unique colors per cla
 | Color cache | `Dict[int, Tuple[int, int, int]]` — ensures deterministic color per class_id |
 
 **Fallback for class_id ≥ 1000:**
-- Deterministic HSV formula: `hue = (class_id * 127) % 180`, `sat = 100 + (class_id * 67) % 100`, `val = 155 + (class_id * 37) % 100`
+- Deterministic HSV formula: `hue = (class_id * 127) % 180`, `sat = 180 + (class_id * 43) % 76`, `val = 160 + (class_id * 67) % 96`
 
 **Debug mode:** When `debug=True`, log color assignments to stderr.
 

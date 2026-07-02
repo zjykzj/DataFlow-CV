@@ -356,12 +356,13 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
 
 ### 4.2 `CocoAnnotationHandler`
 
-**Constructor:** `CocoAnnotationHandler(annotation_file, do_rle=False, **kwargs)`
+**Constructor:** `CocoAnnotationHandler(annotation_file, do_rle=False, prediction=False, **kwargs)`
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `annotation_file` | Yes | Path to COCO `.json` file |
 | `do_rle` | No | Whether to output RLE format (default False) |
+| `prediction` | No | When True, `write()` outputs plain JSON list of annotation dicts (Variant B, prediction format). Default False (full COCO dict, Variant A). |
 
 **`read()`**: Returns `DatasetAnnotations(format=COCO)` with:
 - `BoundingBox`: `(x_tl, y_tl, w_abs, h_abs)` in absolute pixels (native COCO format).
