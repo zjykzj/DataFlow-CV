@@ -1,12 +1,7 @@
 # Annotation Format Conversion Specification
 
-> **Version:** 2.0
+> **Version:** v2.0 | **Last Updated:** 2026-07-02
 > **Status:** Draft — updated to reflect native-coordinate architecture
->
-> **Key change from v1:** The Label module no longer normalizes all coordinates to a unified
-> [0,1] internal model. Each handler stores coordinates in its format's native representation.
-> Coordinate transforms now happen **explicitly in converters**, not implicitly in handlers.
-> This eliminates unnecessary round-trip precision loss and removes the need for `OriginalData`.
 
 ## 1. Conversion Architecture
 
@@ -95,7 +90,7 @@ h_norm  = h_abs / img_height
 
 **This conversion is lossy.** See §9 for details.
 
-### 3.1 YOLO → COCO Prediction Mode
+#### 3.1.1 YOLO → COCO Prediction Mode
 
 When converting YOLO **prediction** files to COCO **prediction** JSON (`--prediction` flag):
 

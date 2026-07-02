@@ -1,6 +1,6 @@
 # YOLO Annotation Format Specification
 
-> **Version:** 1.0
+> **Version:** v1.0 | **Last Updated:** 2026-07-02
 > **Status:** Canonical — this document defines the authoritative YOLO format contract for DataFlow-CV.
 
 ## 1. File Organization
@@ -206,7 +206,7 @@ A valid YOLO annotation line must satisfy ALL of the following:
 - Coordinate values are written with **6 decimal places** (`.6f` format).
 - Internal storage uses Python `float` (IEEE 754 double precision).
 
-## 6. Reference Example
+## 5. Reference Example
 
 ### Detection
 

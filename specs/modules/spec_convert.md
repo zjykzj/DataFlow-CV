@@ -1,7 +1,7 @@
 # Convert Module Specification
 
-> **Version:** 5.2
-> **Status:** Draft — unified logging via `LogManager`, removed `verbose`/`logger` params in favor of `log_config`
+> **Version:** v5.2 | **Last Updated:** 2026-07-02
+> **Status:** Draft — unified logging via `LogManager`
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
 

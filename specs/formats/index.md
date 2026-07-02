@@ -1,5 +1,6 @@
 # Formats Layer — Specification Index
 
+> **Version:** v1.0 | **Last Updated:** 2026-07-02
 > **Status:** Canonical — these documents define the authoritative external format contracts for DataFlow-CV.
 
 ## What This Layer Covers

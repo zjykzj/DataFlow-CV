@@ -1,6 +1,6 @@
 # Evaluation Task Specification
 
-> **Version:** 1.0
+> **Version:** v1.0 | **Last Updated:** 2026-07-02
 > **Status:** Draft
 > **Layer:** Evaluate
 > **Dependencies:** `spec_evaluate_fundamentals.md` (IoU, matching, TP/FP/FN), `spec_evaluate_metrics.md` (P/R/F1, AP/mAP, AR, scales)

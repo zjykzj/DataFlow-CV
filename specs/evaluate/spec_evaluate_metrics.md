@@ -1,6 +1,6 @@
 # Evaluation Metrics Specification
 
-> **Version:** 1.1
+> **Version:** v1.1 | **Last Updated:** 2026-07-02
 > **Status:** Draft
 > **Layer:** Evaluate
 > **Dependencies:** `spec_evaluate_fundamentals.md` (IoU, matching, TP/FP/FN)

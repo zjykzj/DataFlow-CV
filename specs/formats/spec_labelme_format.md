@@ -1,6 +1,6 @@
 # LabelMe Annotation Format Specification
 
-> **Version:** 1.0
+> **Version:** v1.0 | **Last Updated:** 2026-07-02
 > **Status:** Canonical — this document defines the authoritative LabelMe format contract for DataFlow-CV.
 
 ## 1. File Organization
@@ -138,7 +138,7 @@ A valid LabelMe JSON file must satisfy:
 5. `imageHeight` > 0 and `imageWidth` > 0 (if present)
 6. `imagePath` points to an existing image file (warning if not found, but processing continues)
 
-## 8. Reference Example
+## 7. Reference Example
 
 ```json
 {

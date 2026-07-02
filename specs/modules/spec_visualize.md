@@ -1,6 +1,6 @@
 # Visualize Module Specification
 
-> **Version:** 4.3
+> **Version:** v4.3 | **Last Updated:** 2026-07-02
 > **Status:** Draft — industry-standard label positioning (top-left, class-color background, inside-bbox edge flip)
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)

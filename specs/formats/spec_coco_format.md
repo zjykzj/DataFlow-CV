@@ -1,6 +1,6 @@
 # COCO Annotation Format Specification
 
-> **Version:** 1.0
+> **Version:** v1.0 | **Last Updated:** 2026-07-02
 > **Status:** Canonical — this document defines the authoritative COCO format contract for DataFlow-CV.
 
 ## 1. File Organization
@@ -218,7 +218,7 @@ A valid COCO JSON file must satisfy:
 8. Polygon segmentation has at least 3 vertices (6 values)
 9. RLE segmentation has `size` (2-element list) and `counts` (string)
 
-## 10. Prediction JSON (vs Annotation JSON)
+## 9. Prediction JSON (vs Annotation JSON)
 
 COCO JSON files serve two distinct purposes in the DataFlow-CV pipeline:
 
@@ -305,7 +305,7 @@ For segmentation predictions, **polygon format is recommended** over RLE:
 - Polygon is **lossless** (preserves original vertex coordinates). RLE involves rasterization loss during polygon→mask conversion.
 - The `--do-rle` flag remains available for users who prioritize smaller file size over precision.
 
-## 11. Reference Example
+## 10. Reference Example
 
 ```json
 {

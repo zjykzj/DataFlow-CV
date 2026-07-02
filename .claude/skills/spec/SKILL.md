@@ -19,55 +19,101 @@ Both readers matter. Content that explains a contract (not just defines it) shou
 
 ## Classification Principle
 
-For each section, ask two questions:
+For each piece of content, ask: **"When would I read this while writing code?"**
 
-1. *Agent question:* "When would I read this while writing code?"
-2. *Human question:* "Does this content help someone understand a behavioral contract?"
+| Answer | Layer | Typical Content |
+|--------|-------|-----------------|
+| "Every change" | **CLAUDE.md** | Architecture hard constraints, global conventions (ordering/naming), high-frequency gotchas (encoding rules, state cleanup patterns), critical implementation details that affect every edit |
+| "Specific task" | **Specs — WHAT layer** | External contract definitions — what the outside world expects from this system. Data formats, API/protocol specs, metric definitions, interface contracts with external systems. Includes explanations that clarify contract semantics (e.g., "why this field uses center coordinates, not top-left"). |
+| "Specific task" | **Specs — HOW layer** | Internal module contracts — public API signatures, design constraints, option/parameter definitions, dependency rules, exception types and exit codes. How modules relate to each other, not how they are implemented internally. |
+| "Neither" | Delete | — |
 
-| Answer | Action |
-|--------|--------|
-| Read on "every change" | Belongs in CLAUDE.md — move it there |
-| Read for "specific task" OR helps understand a contract | Belongs in specs — keep |
-| Neither | Delete |
+WHAT layer naming depends on project domain (see §Spec Directory Structure for the project-type mapping). HOW has exactly one `modules/` layer.
 
-## What Belongs Where
+## What Does NOT Belong in Specs
 
-**What belongs in CLAUDE.md:** Architecture hard constraints, global ordering conventions, high-frequency gotchas (encoding rules, state cleanup), critical implementation details.
+These are not "delete on sight" rules — each requires case-by-case judgment. The key question is always: **does this define or help understand a behavioral contract?**
 
-**What belongs in specs:**
-- `formats/` (WHAT): External format definitions — fields, coordinate systems, validation rules. Includes explanations that clarify format semantics (e.g., "why (x,y) means center, not top-left").
-- `evaluate/` (WHAT): Metric definitions — IoU, mAP, P/R/F1 formulas. Includes explanations of metric design (e.g., "why TN is not applicable in object detection").
-- `modules/` (HOW): Module interface contracts — public API signatures, design constraints, option definitions, dependency rules.
+### 1. Change History / Version Changelogs → Delete
 
-## What Does NOT Belong in Specs — Delete on Sight
+Version history belongs in `git log` / `CHANGELOG.md`. Specs define current contracts, not how they evolved. Example: "Key change from v1: Internal Model removed" → delete; the spec should just describe current behavior.
 
-1. **Change History** — version changelogs belong in git log / CHANGELOG.md
-2. **Implementation pseudocode** — "Step 1: validate dir, Step 2: scan files..." is code documentation, not a contract
-3. **CLI --help output copies** — the executable is the authority
-4. **Migration guides / legacy API tables** — one-time docs, delete after migration
-5. **Directory tree file listings** — `ls` is the authority
-6. **Standalone tutorials / how-to guides** — task selection guides, workflow recipes that don't define any contract
+### 2. Implementation Pseudocode / Code Examples → Judge
+
+**Keep** if the code **defines or clarifies a behavioral contract** — it specifies what the code must do more precisely than prose could. Examples that ARE contracts:
+
+- Greedy matching algorithm pseudocode — without it, the matching contract is ambiguous
+- Coordinate transformation formulas (`cx_abs = cx * image_width`) — these ARE the mathematical contract
+- A `try/finally` code block showing which variable must be cleaned up and how — prose "must clean up" is ambiguous; the code says exactly what
+- Constructor calls showing parameter values like `strict_mode=False` — these define the behavioral contract ("visualizers never reject data")
+
+**Delete** only if the code is **truly redundant** — the prose already defines the same requirement with equal precision, and the code adds nothing. Example: `data = json.load(open(path))` when the prose says "read the file as JSON".
+
+**Key distinction:** Is the code the *clearest*, *most precise* expression of the requirement? If yes → keep. The fact that something is "implementation-like" (variable names, function calls) does NOT make it a violation — those can be the contract when they specify required behavior.
+
+**Tiebreaker:** "If I replaced this code with prose, would the behavioral requirement become less precise or ambiguous?" If yes → keep.
+
+### 3. CLI Command Signatures → Keep (with nuance)
+
+**Keep** command signatures — they ARE the module's public API contract. Example:
+```
+dataflow-cv convert yolo2coco [OPTIONS] IMAGE_DIR LABEL_DIR CLASS_FILE OUTPUT_FILE
+```
+This defines: subcommand name, positional argument order, argument count. Code must implement this exact signature.
+
+**Don't copy** full `--help` output verbatim — the executable is the authority for option descriptions.
+
+### 4. Migration Guides / Legacy API Tables → Delete
+
+One-time transition docs. Ship with the release, delete after migration is complete.
+
+### 5. Directory Tree File Listings → Judge by Level
+
+**Keep** module-level file listings — they ARE architecture documentation. Example:
+```
+dataflow/convert/
+├── base.py                # BaseConverter + shared pipelines
+├── yolo_and_coco.py       # YOLO ↔ COCO converter
+└── utils.py               # Shared coordinate transforms
+```
+This tells the reader: what files exist in this module, what each is responsible for. Essential for both agent and human to navigate the codebase.
+
+**Simplify** project-level recursive trees that just mirror `ls` output. Example: a full `specs/` tree in an index.md → redundant; the Documents table already serves as the index.
+
+### 6. Tutorials / How-To Guides → Keep, Label as Usage Guide
+
+**Keep** if it helps readers understand or apply the contract. Example: "Metric Selection Guide" telling users which metric to pick for small-object detection — it's not a contract, but it's context the reader needs when using evaluate specs.
+
+**Label** these sections clearly (e.g., "## Usage Guide") so readers know they're guidance, not behavioral requirements.
+
+**Delete** only truly standalone workflow recipes that don't reference any contract (e.g., "How to set up your first ML project").
+
+**Comparison tables** are a special case of this rule: keep if the table defines differentiated behavioral requirements between entities. If it just helps the user choose between options (e.g., "Metric Selection Guide"), keep it but label as `## Usage Guide`. Tiebreaker: "does this table help the reader apply a contract defined in this file?"
+
+## Pre-Deletion Checks
+
+Before deleting any content, apply two checks:
+
+**1. Contract check:** "Does this content help explain a behavioral contract — even if it reads like education or FAQ?" If yes, keep it. Contract-defining clarifications (e.g., "coordinates must be in [0, 1]", "TN is not applicable because there is no negative class") define the contract by explaining its boundaries.
+
+**2. Framing check:** Before deleting a section that seems "about the old architecture", check whether the *substance* is still correct but the *framing* is stale. Example: coordinate transformation formulas labeled "for Internal Model" are still mathematically correct — fix by renaming the section and adding a note about current architecture, not by deleting the formulas.
 
 ## Extra Check for `modules/` Specs — Interface Contract or Implementation Description?
 
-| Interface contract → keep | Implementation description → delete |
+The classification table below is a **starting point**, not a hard rule. Apply the "behavioral contract" test before deleting:
+
+| Interface contract → keep | Implementation description → likely delete |
 |---------------------------|-------------------------------------|
-| Public API signatures, return types | Step-by-step internal flow pseudocode |
-| Design constraints and rules | Parameter-passing code snippets |
-| Option/parameter definition tables | Internal helper function descriptions |
-| Exception types and exit codes | Directory tree file listings |
+| Public API signatures, return types, command signatures | Function-internal variable assignments |
+| Design constraints and rules (e.g., "must not import X from Y") | Step-by-step internal plumbing (e.g., "then call `ctx.obj['verbose']`") |
+| Option/parameter definition tables | Internal helper function docstrings that mirror code comments |
+| Exception types and exit codes | Directory tree of nested subdirectories |
 
-## Before Deleting, Always Double-Check
+**Nuance for common borderline cases:**
 
-"Does this content help explain a behavioral contract — even if it reads like education or FAQ?" If yes, keep it. Contract-defining clarifications (e.g., "coordinates must be in [0, 1]", "TN is not applicable because there is no negative class") should be preserved — they define the contract by explaining its boundaries.
-
-## Comparison Tables — Keep if They Define Contract Differences
-
-A table comparing two entities (detection vs segmentation, two formats, two modules) is a contract if it defines *differentiated behavioral requirements* — different inputs needed, different validation rules, different handling. It is a tutorial/guide if it just helps the user choose ("use detection when you have bbox only"). When in doubt: "does this row define a different behavior or just compare features?"
-
-## Outdated Framing ≠ Outdated Content
-
-Before deleting a section that seems "about the old architecture", check whether the *substance* is still correct but the *framing* is stale. Example: coordinate transformation formulas labeled "for Internal Model" are still mathematically correct — the fix is to rename the section and add a note about current architecture, not to delete the formulas.
+- **Step-by-step pipeline flow**: Keep if it defines the **contractual sequence** of steps (what must happen in what order). Delete if it describes **how** each step is implemented internally.
+- **Code snippets showing constructor calls**: Judge — a constructor call with specific parameter values can define behavioral requirements (e.g., `strict_mode=False` means "visualizers never reject data"; `logger=self.logger` means "visualizer passes its logger to the handler"). Delete only if the call merely repeats the signature without adding contract-relevant information.
+- **Internal utility function tables**: Delete if they duplicate what's in the module file listing. Keep if they define behavioral differences between utilities that the file listing alone doesn't convey.
 
 ## Spec Directory Structure
 

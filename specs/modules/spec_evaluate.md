@@ -1,7 +1,7 @@
 # Evaluate Module Specification
 
-> **Version:** 2.0
-> **Status:** Draft — unified logging via `LogManager`, removed `verbose`/`logger` params
+> **Version:** v2.0 | **Last Updated:** 2026-07-02
+> **Status:** Draft — unified logging via `LogManager`
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager), pycocotools
 

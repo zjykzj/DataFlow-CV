@@ -1,6 +1,6 @@
 # Label Module Specification
 
-> **Version:** 4.4
+> **Version:** v4.4 | **Last Updated:** 2026-07-02
 > **Status:** Draft — logger receives from caller's LogManager via `logger=` parameter
 > **Layer:** Modules
 > **Dependencies:** None (foundation module; logging via stdlib `logging.Logger` only)

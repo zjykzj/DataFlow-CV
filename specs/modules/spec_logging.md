@@ -1,7 +1,7 @@
 # Logging Module Specification
 
-> **Version:** 1.0
-> **Status:** Draft — unified logging infrastructure replacing `LoggingOperations` + `VerboseLoggingOperations`
+> **Version:** v1.0 | **Last Updated:** 2026-07-02
+> **Status:** Draft — unified logging infrastructure
 > **Layer:** Modules
 > **Dependencies:** None (foundation module, parallel to Label)
 
