@@ -227,7 +227,7 @@ print(f"Segm F1: {prf1.overall.f1_score:.3f}")
 
 ## 🔧 Development
 
-For detailed developer guidance including advanced test commands, debugging, and architecture overview, see [CLAUDE.md](CLAUDE.md).
+For detailed developer guidance including advanced test commands, debugging, and architecture overview, see [CLAUDE.md](CLAUDE.md). The project also includes [Claude Code skills](.claude/skills/) for common tasks: `/commit`, `/release`, `/dev`, `/spec`, and `/claude`.
 
 ### 🧪 Testing
 

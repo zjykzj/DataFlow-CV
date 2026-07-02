@@ -18,12 +18,12 @@ git commit -m "$(cat <<'EOF'
 
 <body if needed>
 
-Co-Authored-By: DeepSeek-V4.0 <noreply@deepseek.com>
+Co-Authored-By: {{AI_MODEL_NAME}} <{{AI_MODEL_EMAIL}}>
 EOF
 )"
 ```
 
-The `Co-Authored-By` line is **mandatory** for all commits. The only exception is when the AI model actually powering this session is NOT DeepSeek-V4.0 — in that case, confirm the correct model and update the Co-Authored-By line accordingly.
+The `Co-Authored-By` line is **mandatory** for all commits. `{{AI_MODEL_NAME}}` and `{{AI_MODEL_EMAIL}}` are configured per-project in CLAUDE.md.
 
 ## Conventional Commit Types
 
@@ -47,5 +47,3 @@ The `Co-Authored-By` line is **mandatory** for all commits. The only exception i
 3. Add body if the change needs explanation
 4. Append the `Co-Authored-By` line
 5. Execute the commit command
-
-The AI model used in this project is DeepSeek-V4.0, not Claude Opus.

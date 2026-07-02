@@ -10,15 +10,15 @@ Use this skill when bumping the project version and publishing a GitHub release.
 
 ## Step 1: Bump Version
 
-Update **all three** locations:
+Update **all** version locations configured for this project:
 
 | # | File | Field |
 |---|------|-------|
-| 1 | `pyproject.toml` | `version = "X.Y.Z"` |
-| 2 | `dataflow/__init__.py` | `__version__ = "X.Y.Z"` |
+| 1 | `<package-config>` | `version = "X.Y.Z"` |
+| 2 | `<init-file>` | `__version__ = "X.Y.Z"` |
 | 3 | `CHANGELOG.md` | `## [X.Y.Z] - YYYY-MM-DD` section header |
 
-Verify with: `grep -rn '"X\.Y\.Z"' dataflow/ pyproject.toml` (exclude `CHANGELOG.md` which retains old entries).
+The exact file paths and verification commands vary per project. See CLAUDE.md for this project's version bump locations.
 
 ## Step 2: Commit
 
@@ -30,7 +30,7 @@ chore: bump version to X.Y.Z
 
 <CHANGELOG.md [X.Y.Z] section content, omitting the ### headers>
 
-Co-Authored-By: DeepSeek-V4.0 <noreply@deepseek.com>
+Co-Authored-By: {{AI_MODEL_NAME}} <{{AI_MODEL_EMAIL}}>
 EOF
 )"
 ```
@@ -67,7 +67,7 @@ Body template:
 
 ---
 
-*See [CHANGELOG.md](https://github.com/zjykzj/DataFlow-CV/blob/main/CHANGELOG.md) for the full change history.*
+*See [CHANGELOG.md]({{REPO_URL}}/blob/main/CHANGELOG.md) for the full change history.*
 ```
 
 **Rationale**: Full changelog content on the Release page lets readers see all changes without navigating away. The citation link at the bottom serves as an attribution reference.

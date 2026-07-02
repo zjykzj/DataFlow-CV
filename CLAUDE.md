@@ -96,6 +96,29 @@ Git workflows are defined as project skills. Use the corresponding skill for eac
 - **`/commit`** — commit message format, `Co-Authored-By` line, and conventional commit types. Invoke for every `git commit`.
 - **`/release`** — version bump checklist, version bump commit, annotated tag, push, and GitHub Release body template. Invoke when publishing a new release.
 
+### AI Model Configuration
+
+The AI model used in this project is **DeepSeek-V4.0**. Configured in skills as:
+
+```
+{{AI_MODEL_NAME}} = DeepSeek-V4.0
+{{AI_MODEL_EMAIL}} = noreply@deepseek.com
+```
+
+### Release Configuration
+
+Version bump locations for this project:
+
+| # | File | Field |
+|---|------|-------|
+| 1 | `pyproject.toml` | `version = "X.Y.Z"` |
+| 2 | `dataflow/__init__.py` | `__version__ = "X.Y.Z"` |
+| 3 | `CHANGELOG.md` | `## [X.Y.Z] - YYYY-MM-DD` section header |
+
+Verify with: `grep -rn '"X\.Y\.Z"' dataflow/ pyproject.toml` (exclude `CHANGELOG.md`).
+
+Repository URL: `https://github.com/zjykzj/DataFlow-CV`
+
 ## Architecture
 
 ### Format Ordering Convention
@@ -325,7 +348,48 @@ Visualizers convert annotations per-image to `RenderAnnotation` (absolute pixel 
 
 ## Development Commands
 
-Development commands (install, test, lint, typecheck, manual CLI verification) and test structure are defined as a project skill. Use `/dev` when running tests, linting, type checking, or verifying the CLI.
+General development workflows are defined as a project skill — use `/dev` for test, lint, and typecheck commands. This section documents DataFlow-CV-specific additions.
+
+### Installation
+
+```bash
+pip install -e .                    # Editable install (recommended for dev)
+pip install -e .[dev]               # With test/lint deps
+pip install -e .[coco]              # With pycocotools for RLE support
+```
+
+With editable install, use `python -m dataflow.cli` instead of `dataflow-cv`.
+
+### Manual CLI Verification
+
+```bash
+# Test conversion (label)
+dataflow-cv convert yolo2coco --verbose images/ yolo_labels/ classes.txt /tmp/out.json
+
+# Test conversion (prediction)
+dataflow-cv convert yolo2coco --prediction --verbose images/ yolo_labels/ classes.txt /tmp/pred.json
+
+# Test visualization (non-display)
+dataflow-cv visualize yolo --no-display --verbose images/ yolo_labels/ classes.txt --save /tmp/viz/
+
+# Test evaluation
+dataflow-cv evaluate detection --verbose --prf1 assets/test_data/evaluate/gt_coco.json assets/test_data/evaluate/dt_coco.json
+```
+
+### Test Structure
+
+```
+tests/
+├── conftest.py      # Shared fixtures (project_root, test_data_dir, etc.)
+├── label/           # Handler unit tests (read/write/validate per format)
+├── convert/         # Converter unit tests + integration tests
+├── visualize/       # Visualizer unit tests
+├── evaluate/        # Evaluator unit tests + metric computation tests
+├── util/            # Utility unit tests (LogManager, format helpers)
+└── cli/             # CLI tests (convert, visualize, evaluate — 440 tests total)
+```
+
+Test data lives in `assets/test_data/`, organized by format (det/seg) and annotation type. Evaluate test data lives under `assets/test_data/evaluate/`.
 
 ## Known Gotchas
 
