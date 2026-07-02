@@ -87,57 +87,7 @@ specs/
 
 ### Spec Maintenance
 
-When creating or modifying spec files, apply this methodology.
-
-**Specs serve two readers:**
-
-| Reader | Needs from specs |
-|--------|-----------------|
-| **Agent** (Claude Code) | Behavioral contracts — "what is correct" to verify compliance |
-| **Human developer** | Understanding — "why" a contract exists and "what are the boundaries" |
-
-Both readers matter. Content that explains a contract (not just defines it) should be kept.
-
-**Classification principle — for each section, ask two questions:**
-
-1. *Agent question:* "When would I read this while writing code?"
-2. *Human question:* "Does this content help someone understand a behavioral contract?"
-
-| Answer | Action |
-|--------|--------|
-| Read on "every change" | Belongs in CLAUDE.md — move it there |
-| Read for "specific task" OR helps understand a contract | Belongs in specs — keep |
-| Neither | Delete |
-
-**What belongs in CLAUDE.md:** Architecture hard constraints, global ordering conventions, high-frequency gotchas (encoding rules, state cleanup), critical implementation details.
-
-**What belongs in specs:**
-- `formats/` (WHAT): External format definitions — fields, coordinate systems, validation rules. Includes explanations that clarify format semantics (e.g., "why (x,y) means center, not top-left").
-- `evaluate/` (WHAT): Metric definitions — IoU, mAP, P/R/F1 formulas. Includes explanations of metric design (e.g., "why TN is not applicable in object detection").
-- `modules/` (HOW): Module interface contracts — public API signatures, design constraints, option definitions, dependency rules.
-
-**What does NOT belong in specs — delete on sight:**
-1. **Change History** — version changelogs belong in git log / CHANGELOG.md
-2. **Implementation pseudocode** — "Step 1: validate dir, Step 2: scan files..." is code documentation, not a contract
-3. **CLI --help output copies** — the executable is the authority
-4. **Migration guides / legacy API tables** — one-time docs, delete after migration
-5. **Directory tree file listings** — `ls` is the authority
-6. **Standalone tutorials / how-to guides** — task selection guides, workflow recipes that don't define any contract
-
-**Extra check for `modules/` specs — is it interface contract or implementation description?**
-
-| Interface contract → keep | Implementation description → delete |
-|---------------------------|-------------------------------------|
-| Public API signatures, return types | Step-by-step internal flow pseudocode |
-| Design constraints and rules | Parameter-passing code snippets |
-| Option/parameter definition tables | Internal helper function descriptions |
-| Exception types and exit codes | Directory tree file listings |
-
-**Before deleting, always double-check:** "Does this content help explain a behavioral contract — even if it reads like education or FAQ?" If yes, keep it. Contract-defining clarifications (e.g., "coordinates must be in [0, 1]", "TN is not applicable because there is no negative class") should be preserved — they define the contract by explaining its boundaries.
-
-**Comparison tables — keep if they define contract differences:** A table comparing two entities (detection vs segmentation, two formats, two modules) is a contract if it defines *differentiated behavioral requirements* — different inputs needed, different validation rules, different handling. It is a tutorial/guide if it just helps the user choose ("use detection when you have bbox only"). When in doubt: "does this row define a different behavior or just compare features?"
-
-**Outdated framing ≠ outdated content:** Before deleting a section that seems "about the old architecture", check whether the *substance* is still correct but the *framing* is stale. Example: coordinate transformation formulas labeled "for Internal Model" are still mathematically correct — the fix is to rename the section and add a note about current architecture, not to delete the formulas.
+Spec maintenance methodology is defined as a project skill. Use `/spec` when creating, modifying, or reviewing spec files. The skill covers the two-reader model, classification principles, what belongs where, and deletion rules.
 
 ## Git Operations
 
@@ -375,47 +325,7 @@ Visualizers convert annotations per-image to `RenderAnnotation` (absolute pixel 
 
 ## Development Commands
 
-### Installation
-```bash
-pip install -e .                    # Editable install (recommended for dev)
-pip install -e .[dev]               # With test/lint deps
-pip install -e .[coco]              # With pycocotools for RLE support
-```
-
-With editable install, use `python -m dataflow.cli` instead of `dataflow-cv`.
-
-### Testing
-```bash
-pytest                              # All tests
-pytest -x -q                        # Stop on first failure, quiet
-pytest tests/label/test_yolo.py     # Single module
-pytest tests/label/test_yolo.py::TestYoloAnnotationHandler::test_read_detection  # Single test
-pytest --cov=dataflow --cov-report=html  # Coverage report
-pytest -n auto                      # Parallel (requires pytest-xdist)
-```
-
-### Linting
-```bash
-black dataflow tests samples        # Format
-isort dataflow tests samples        # Imports
-flake8 dataflow tests samples       # Lint
-mypy dataflow                       # Type check
-```
-
-### Manual CLI Verification
-```bash
-# Test conversion (label)
-dataflow-cv convert yolo2coco --verbose images/ yolo_labels/ classes.txt /tmp/out.json
-
-# Test conversion (prediction)
-dataflow-cv convert yolo2coco --prediction --verbose images/ yolo_labels/ classes.txt /tmp/pred.json
-
-# Test visualization (non-display)
-dataflow-cv visualize yolo --no-display --verbose images/ yolo_labels/ classes.txt --save /tmp/viz/
-
-# Test evaluation
-dataflow-cv evaluate detection --verbose --prf1 assets/test_data/evaluate/gt_coco.json assets/test_data/evaluate/dt_coco.json
-```
+Development commands (install, test, lint, typecheck, manual CLI verification) and test structure are defined as a project skill. Use `/dev` when running tests, linting, type checking, or verifying the CLI.
 
 ## Known Gotchas
 
@@ -449,18 +359,3 @@ dataflow-cv evaluate detection --verbose --prf1 assets/test_data/evaluate/gt_coc
    - **YOLO**: Bbox edges and polygon points are clamped to `[0, 1]` via `_clamp_normalized_bbox()` / `_clamp_normalized_points()`. Change detection threshold is `1e-6` (1 unit in YOLO `.6f` output precision) — sub-threshold changes are silent to suppress string↔float round-trip noise and FP comparison edge cases.
    - **LabelMe / COCO**: Bbox and polygon points are clamped to `[0, width] × [0, height]` via `_clamp_abs_bbox()` / `_clamp_abs_points()`. Change detection threshold is `1e-9`.
    Clamping emits a WARNING only when the change exceeds the threshold, and is independent of `strict_mode` — it is data normalization, not error handling. Only values that cannot be fixed (NaN, zero-area bbox after clamping) are rejected during validation.
-
-## Test Structure
-
-```
-tests/
-├── conftest.py      # Shared fixtures (project_root, test_data_dir, etc.)
-├── label/           # Handler unit tests (read/write/validate per format)
-├── convert/         # Converter unit tests + integration tests
-├── visualize/       # Visualizer unit tests
-├── evaluate/        # Evaluator unit tests + metric computation tests
-├── util/            # Utility unit tests (LogManager, format helpers)
-└── cli/             # CLI tests (convert, visualize, evaluate — 440 tests total)
-```
-
-Test data lives in `assets/test_data/`, organized by format (det/seg) and annotation type. Evaluate test data lives under `assets/test_data/evaluate/`.
