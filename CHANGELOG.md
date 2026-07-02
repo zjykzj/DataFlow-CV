@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.2] - 2026-07-02
+
+### Docs
+
+- **Project skills**: Extracted git workflows (`/commit`, `/release`), development workflows (`/dev`), spec maintenance (`/spec`), and CLAUDE.md authoring (`/claude`) from CLAUDE.md into reusable project skills. Skills use placeholder notation for cross-project portability; project-specific config retained in CLAUDE.md.
+- **Specs audit and normalization**: Unified version headers (`vX.Y | Last Updated: YYYY-MM-DD`) across all 16 spec files per `/spec` methodology. Removed changelog/migration notes. Fixed section numbering gaps.
+- **Spec-code alignment**: Audited all specs against code — added undocumented `method`/`class_names`/`prediction` fields to specs, updated ColorManager algorithm to match golden ratio implementation, marked `strict_mode` as planned.
+
+### Changed
+
+- **CLAUDE.md restructured**: Spec maintenance methodology, development commands, and test structure moved to skills. Added AI model configuration and release configuration sections.
+
+### Fixed
+
+- **Legacy `logger` parameter removed**: Removed deprecated `logger` parameter from `compute_pr_f1()` — no callers were using it.
+
 ## [1.6.1] - 2026-07-02
 
 ### Docs
