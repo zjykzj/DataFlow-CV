@@ -68,3 +68,92 @@ A table comparing two entities (detection vs segmentation, two formats, two modu
 ## Outdated Framing ≠ Outdated Content
 
 Before deleting a section that seems "about the old architecture", check whether the *substance* is still correct but the *framing* is stale. Example: coordinate transformation formulas labeled "for Internal Model" are still mathematically correct — the fix is to rename the section and add a note about current architecture, not to delete the formulas.
+
+## Spec Directory Structure
+
+### WHAT vs HOW Separation
+
+```
+specs/
+├── <contract-layer-1>/    # WHAT — external data/interface/protocol contracts
+│   ├── index.md
+│   └── spec_<topic>.md
+│
+├── <contract-layer-2>/    # WHAT — other contract layers (optional)
+│   ├── index.md
+│   └── spec_<topic>.md
+│
+└── modules/               # HOW — internal module architecture
+    ├── index.md           # Architecture diagram + hard constraints (single source of truth for module dependencies)
+    ├── spec_<module-1>.md
+    ├── spec_<module-2>.md
+    └── ...
+```
+
+WHAT layer naming depends on project domain:
+
+| Project Type | Suggested Name | Example Content |
+|-------------|---------------|-----------------|
+| Data processing / format conversion | `formats/` | Data format definitions, conversion rules |
+| Web API | `api/` | REST/GraphQL interface contracts |
+| Library / SDK | `interfaces/` | Public API signatures, type definitions |
+| Evaluation / benchmarking | `evaluate/` | Metric definitions, baselines |
+| Protocol / communication | `protocols/` | Message formats, state machines |
+
+WHAT layers may have multiple; HOW has exactly one `modules/`, mirroring code modules.
+
+### Index Template
+
+When creating a new layer index, use this template:
+
+```markdown
+# <Layer Name> — Specification Index
+
+> **Status:** Canonical — these documents define the authoritative
+> <contract-type> for <project-name>.
+
+## What This Layer Covers
+
+Briefly describe what this layer defines and what it is the ground truth for.
+
+## Documents
+
+| # | Document | Purpose |
+|---|----------|---------|
+| 1 | `spec_xxx.md` | One-line description |
+
+## Relationship to Other Layers
+
+- This layer (WHAT) maps to which modules in `modules/` (HOW)
+- This layer is independent of which other layers
+
+## Reading Order
+
+Recommended reading order by task:
+- Newcomer → what to read first
+- Specific task → what to read
+```
+
+### What Each Spec Should Answer
+
+| Spec Type | Questions It Answers |
+|-----------|---------------------|
+| Data format / protocol spec | What does this external contract look like? What required fields are defined? |
+| Conversion / adapter spec | How does A become B? How are edge cases handled? |
+| Module spec | What are this module's public interfaces, design constraints, and behavioral contracts? |
+
+A spec file should not answer both "what does the data look like" and "how does the code implement it" simultaneously. If both appear, split them.
+
+### Version Management
+
+Each spec file starts with a version and last-updated date:
+
+```markdown
+> **Version:** vX.Y | **Last Updated:** YYYY-MM-DD
+```
+
+| Scenario | Version Change |
+|----------|---------------|
+| New definitions / extending existing contracts | Minor increment (v1.0 → v1.1) |
+| Behavioral change (breaking change) | Major increment (v1.2 → v2.0) |
+| Clarification / wording fix (no behavior change) | Update date only, keep version |
