@@ -8,6 +8,20 @@ allowed-tools: Bash
 
 Use this skill when bumping the project version and publishing a GitHub release.
 
+## Step 0: Determine Version Number
+
+Review `git log` since the last tag. Classify each commit's conventional commit type into semver:
+
+| Commit Type(s) | Semver | Example |
+|---------------|--------|---------|
+| `fix:`, `docs:`, `refactor:`, `style:`, `chore:`, `test:`, `ci:`, `build:` | **PATCH** (1.6.1 → 1.6.2) | Bug fix, doc update, internal restructure |
+| `feat:` | **MINOR** (1.6.2 → 1.7.0) | New public API, new CLI flag, new feature |
+| `feat!:` or `BREAKING CHANGE` in commit body | **MAJOR** (1.7.0 → 2.0.0) | Remove public API, change default behavior |
+
+**Rule:** the highest-severity commit wins. If all commits are `docs`/`refactor`/`chore` → PATCH. If any `feat` → MINOR. If any breaking change → MAJOR.
+
+**Concrete check:** before picking a version, look at the CHANGELOG diff you're about to write. If the `### Added` section is empty (no new features) → PATCH.
+
 ## Step 1: Bump Version
 
 Update **all** version locations configured for this project:
