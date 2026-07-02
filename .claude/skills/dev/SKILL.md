@@ -1,6 +1,6 @@
 ---
 name: dev
-description: Run development commands — install, test, lint, typecheck, and manual CLI verification. Use when the user asks to run tests, lint, type check, or verify the CLI.
+description: Run development commands — install, test, lint, typecheck, and manual CLI verification. Use when the user asks to run tests, lint, type check, verify the CLI, check test coverage, or ensure samples/tests are compatible with the codebase.
 allowed-tools: Bash
 ---
 
