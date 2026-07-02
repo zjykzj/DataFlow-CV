@@ -71,7 +71,7 @@ Go to the repository's Releases page, select tag `vX.Y.Z`, and fill in:
 
 | Field | Content |
 |-------|---------|
-| **Title** | `vX.Y.Z` |
+| **Title** | `vX.Y.Z: <one-line summary>` — draw the key theme(s) from the CHANGELOG entries. Keep it concise (~5-10 words). Examples: `v1.5.0: Industry-Standard Label Positioning`, `v1.6.1: Specs Purge & Code-Spec Compliance` |
 | **Body** | CHANGELOG.md `[X.Y.Z]` section content, with citation link appended at the end |
 
 Body template:
