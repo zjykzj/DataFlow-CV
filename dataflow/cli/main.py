@@ -46,8 +46,9 @@ def cli(ctx):
 
 
 # Register subcommand groups
-from .commands import convert, visualize, evaluate
+from .commands import analyse, convert, visualize, evaluate
 
+cli.add_command(analyse.analyse_group)
 cli.add_command(convert.convert_group)
 cli.add_command(visualize.visualize_group)
 cli.add_command(evaluate.evaluate_group)

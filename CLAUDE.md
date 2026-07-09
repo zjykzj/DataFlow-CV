@@ -34,7 +34,8 @@ specs/
     ├── spec_visualize.md           # Visualize module (rendering pipeline, ColorManager, interaction)
     ├── spec_evaluate.md            # Evaluate module (evaluation pipeline, API, data models)
     ├── spec_cli.md                 # CLI module (command signatures, exit codes, decorators)
-    └── spec_logging.md             # Logging module (LogManager, LogConfig, format helpers)
+    ├── spec_logging.md             # Logging module (LogManager, LogConfig, format helpers)
+    └── spec_analyse.md             # Analyse module (BaseAnalyser, stats, split, auto-detection)
 ```
 
 ### Architecture Constraint (from specs/modules/index.md)
@@ -43,26 +44,26 @@ specs/
 ┌──────────────────────────────────────────────────────────────┐
 │                           CLI                                 │
 │  (passes LogConfig to modules; click.echo() for terminal UI)  │
-└──────┬─────────────────────┬──────────────────┬──────────────┘
-       │                     │                  │
-       ▼                     ▼                  ▼
-┌──────────────┐    ┌──────────────────┐    ┌──────────────┐
-│   Convert    │    │    Visualize     │    │   Evaluate   │
-│  (pipeline)  │    │  (rendering)     │    │  (metrics)   │
-│  LogManager  │    │  LogManager      │    │  LogManager  │
-└──────┬───────┘    └───────┬──────────┘    └──────┬───────┘
-       │                    │                      │
-       │    ZERO CROSS-     │    ZERO CROSS-       │
-       │    DEPENDENCY      │    DEPENDENCY        │
-       │                    │                      │
-       ▼                    ▼                      ▼
+└──┬──────────┬──────────────┬──────────────┬──────────────────┘
+   │          │              │              │
+   ▼          ▼              ▼              ▼
+┌──────────────┐ ┌────────┐ ┌──────────┐ ┌──────────┐
+│   Analyse    │ │Convert │ │Visualize │ │Evaluate  │
+│(introspection)│ │(pipeline)│ │(rendering)│ │(metrics) │
+│  LogManager  │ │LogMgr  │ │LogMgr    │ │LogMgr    │
+└──────┬───────┘ └──┬─────┘ └────┬─────┘ └────┬─────┘
+       │            │            │            │
+       │   ZERO CROSS-DEPENDENCY │            │
+       │            │            │            │
+       ▼            ▼            ▼            ▼
 ┌──────────────────────────────────────────────────────────────┐
 │                         Label                                 │
 │  Data Models + Handlers (receive logger from caller)          │
 └──────────────────────────────────────────────────────────────┘
-       │                    │                      │
-       └────────────────────┼──────────────────────┘
-                            ▼
+       │            │            │            │
+       └────────────┼────────────┼────────────┘
+                    │            │
+                    ▼            ▼
 ┌──────────────────────────────────────────────────────────────┐
 │                    util/logging.py                             │
 │  LogManager + format helpers (shared infrastructure)           │
@@ -70,14 +71,16 @@ specs/
 ```
 
 **Hard constraints:**
-1. **Convert ↔ Visualize**: Zero dependency. They do not import from each other.
-2. **Evaluate ↔ Convert**: Zero dependency. They do not import from each other.
-3. **Evaluate ↔ Visualize**: Zero dependency. They do not import from each other.
-4. **Convert → Label**: Converters import handlers and models only through public interfaces.
-5. **Visualize → Label**: Visualizers import handlers and models only through public interfaces.
-6. **Evaluate → Label**: Evaluators import COCO handler and models only through public interfaces.
-7. **CLI → Convert/Visualize/Evaluate**: CLI commands only call converter/visualizer/evaluator public APIs. CLI must NOT import label handlers or pycocotools directly.
-8. **Logging ownership**: All log output is produced by modules, not CLI. CLI passes `LogConfig` to module constructors and uses `click.echo()` for terminal UI.
+1. **Analyse ↔ Convert/Visualize/Evaluate**: Zero dependency. Analyse does not import from any of them, and vice versa.
+2. **Convert ↔ Visualize**: Zero dependency. They do not import from each other.
+3. **Evaluate ↔ Convert**: Zero dependency. They do not import from each other.
+4. **Evaluate ↔ Visualize**: Zero dependency. They do not import from each other.
+5. **Analyse → Label**: Analysers import handlers and models only through public interfaces.
+6. **Convert → Label**: Converters import handlers and models only through public interfaces.
+7. **Visualize → Label**: Visualizers import handlers and models only through public interfaces.
+8. **Evaluate → Label**: Evaluators import COCO handler and models only through public interfaces.
+9. **CLI → Analyse/Convert/Visualize/Evaluate**: CLI commands only call module public APIs. CLI must NOT import label handlers or pycocotools directly.
+10. **Logging ownership**: All log output is produced by modules, not CLI. CLI passes `LogConfig` to module constructors and uses `click.echo()` for terminal UI.
 
 ### Specs vs CLAUDE.md
 
@@ -154,16 +157,16 @@ YOLO → LabelMe → COCO
 
 ### Module Ordering Convention
 
-When Convert, Visualize, and Evaluate appear together in any listing (docs, tables, `--help` output, imports, etc.), they **must** follow this order:
+When Analyse, Convert, Visualize, and Evaluate appear together in any listing (docs, tables, `--help` output, imports, etc.), they **must** follow this order:
 
 ```
-Convert → Visualize → Evaluate
+Analyse → Convert → Visualize → Evaluate
 ```
 
-**Rationale**: Logical workflow progression — **Convert** transforms data into the format you need, **Visualize** lets you inspect it to verify correctness, and **Evaluate** computes metrics on model predictions against ground truth. This maps directly to the user's mental pipeline: prepare data → verify → measure.
+**Rationale**: Logical workflow progression — **Analyse** inspects and prepares your dataset (stats, split), **Convert** transforms data into the format you need, **Visualize** lets you inspect it to verify correctness, and **Evaluate** computes metrics on model predictions against ground truth. This maps directly to the user's mental pipeline: prepare data → transform → verify → measure.
 
 **Where this applies:**
-- README sections and the three-column feature table
+- README sections and the feature table
 - CLI top-level command order in `--help` output (registration order = display order via `NaturalOrderGroup`)
 - Spec documents (Modules layer ordering, reading order)
 - Import order and docstring listings
@@ -171,16 +174,30 @@ Convert → Visualize → Evaluate
 **Where this does NOT apply:**
 - Individual module specs where self-reference is natural (e.g., `spec_visualize.md` discusses its own pipeline without referencing Evaluate first)
 
+### Analyse Module (`dataflow/analyse/`)
+
+The Analyse module provides dataset introspection and preparation — statistics and train/test splitting. It depends only on the Label module.
+
+- **Format auto-detection**: The label path is inspected to determine YOLO / LabelMe / COCO automatically. See `utils.detect_format()` for the detection rules. All handlers are created with `strict_mode=False` — analysis is read-only and lenient with imperfect data.
+- **`StatsAnalyser`**: Reads all annotations via `handler.read()`, counts total files/annotations, tallies per-class counts. Output ordering: class-file order > count-descending.
+- **`SplitAnalyser`**: Reads all annotations, shuffles with `random.Random(seed)`, splits by ratio, writes to `output_dir/train/` and `output_dir/val/`. COCO uses batch `handler.write()`, YOLO/LabelMe use streaming `handler.write_one()`. The class file is copied to both output dirs.
+- **`AnalysisResult`**: Shared result container (`success`, `data`, `errors`, `warnings`, `log_path`). `StatsResult` / `SplitResult` provide domain-specific fields.
+
+```
+Analyse pipeline (StatsAnalyser / SplitAnalyser):
+Label Path → detect_format() → create_handler(strict_mode=False) → handler.read() → DatasetAnnotations → count/split → AnalysisResult
+```
+
 ### Data Flow Pipeline
 
-**Batch path (used by Convert→COCO, Evaluate):**
+**Batch path (used by Analyse→Stats/Split, Convert→COCO, Evaluate):**
 ```
-Source Format → Handler.read() → DatasetAnnotations → Converter.convert_annotations() → Target Handler.write() → Target Format
+Source Format → Handler.read() → DatasetAnnotations → analyse/split | Converter.convert_annotations() | Evaluator.evaluate() → Target Handler.write() → Target Format
 ```
 
-**Streaming path (used by Visualize, Convert→YOLO/LabelMe):**
+**Streaming path (used by Analyse→Split (YOLO/LabelMe), Visualize, Convert→YOLO/LabelMe):**
 ```
-Source Format → Handler.iter_images() → ImageAnnotation → _convert_single_image() → Target Handler.write_one() → Target Format
+Source Format → Handler.iter_images() → ImageAnnotation → _convert_single_image() | Handler.write_one() → Target Format
 ```
 
 ### Core Data Model (`dataflow/label/models.py`)
@@ -432,3 +449,5 @@ Test data lives in `assets/test_data/`, organized by format (det/seg) and annota
    - **YOLO**: Bbox edges and polygon points are clamped to `[0, 1]` via `_clamp_normalized_bbox()` / `_clamp_normalized_points()`. Change detection threshold is `1e-6` (1 unit in YOLO `.6f` output precision) — sub-threshold changes are silent to suppress string↔float round-trip noise and FP comparison edge cases.
    - **LabelMe / COCO**: Bbox and polygon points are clamped to `[0, width] × [0, height]` via `_clamp_abs_bbox()` / `_clamp_abs_points()`. Change detection threshold is `1e-9`.
    Clamping emits a WARNING only when the change exceeds the threshold, and is independent of `strict_mode` — it is data normalization, not error handling. Only values that cannot be fixed (NaN, zero-area bbox after clamping) are rejected during validation.
+28. **Analyse format auto-detection**: `detect_format()` in `dataflow/analyse/utils.py` determines the annotation format by inspecting the label path. Single `.json` files → COCO. Directories with only `.txt` files → YOLO. Directories with `.json` files → the first `.json` is opened: `"shapes"` key → LabelMe, `"images"` key → COCO. Mixed extensions or empty directories raise `ValueError`.
+29. **Analyse is read-only**: All analyse operations run handlers with `strict_mode=False` — errors are accumulated in `AnalysisResult.errors` and logged at ERROR level, but exceptions are never raised for data issues. This differs from Convert (raises in strict mode) and Evaluate (always raises).

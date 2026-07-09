@@ -226,7 +226,56 @@ Evaluates instance segmentation results using mask IoU (`iouType='segm'`).
 
 **`--output` mode** — Full `EvaluationResult` serialized as JSON, containing: 12 metrics, per-class data (class_id, class_name, gt/dt/tp/fp/fn counts, AP/AP50/AP75, P/R/F1), GT/DT stats, warnings, errors. Intended for programmatic consumption (CI pipelines, experiment tracking).
 
-## 5. Exception Hierarchy
+## 5. Analyse Subcommands
+
+### 5.1 Shared Options
+
+Both ``stats`` and ``split`` subcommands use the `@add_common_options` decorator (§2.1) which provides `--verbose`, `--no-strict`, and `--log-dir`.
+
+### 5.2 Command Signatures
+
+#### `stats`
+
+```
+dataflow-cv analyse stats [OPTIONS] LABEL_PATH
+```
+
+Compute dataset statistics. Auto-detects the annotation format from `LABEL_PATH`.
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `LABEL_PATH` | Path (exists) | Path to labels — directory (YOLO/LabelMe) or JSON file (COCO) |
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--class-file`, `-c` | Path | None | Classes.txt for class name mapping and output ordering |
+
+#### `split`
+
+```
+dataflow-cv analyse split [OPTIONS] LABEL_PATH OUTPUT_DIR
+```
+
+Split dataset into train/val subsets with deterministic shuffling.
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `LABEL_PATH` | Path (exists) | Path to labels — directory (YOLO/LabelMe) or JSON file (COCO) |
+| `OUTPUT_DIR` | Path | Output root directory (``train/`` and ``val/`` created inside) |
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--ratio`, `-r` | Float | 0.8 | Train proportion |
+| `--seed`, `-s` | Int | 42 | Random seed |
+| `--class-file`, `-c` | Path | None | Classes.txt (required for YOLO, copied to output dirs) |
+
+### 5.3 Output
+
+**`stats`** — Summary block (total files, total annotations, category count) + per-class count table in COCO class order (or class-file order if provided).
+
+**`split`** — Split summary block (train/val counts, output directories). Creates ``OUTPUT_DIR/train/`` and ``OUTPUT_DIR/val/``. For COCO, produces ``train.json`` and ``val.json``. For YOLO/LabelMe, produces per-file output via ``write_one()``.
+
+## 6. Exception Hierarchy
 
 All CLI exceptions extend `click.ClickException` with specific exit codes:
 
@@ -246,7 +295,7 @@ CLIError (base, exit_code configurable)
 - `SystemError` is used when pycocotools is not installed for evaluate commands
 - `ParameterError`, `OutputError` are defined but used sparingly
 
-## 6. Validators
+## 7. Validators
 
 ### 6.1 `validate_convert_params`
 
@@ -269,27 +318,30 @@ Missing required parameters raise `InputError`.
 - Validates `image_dir` exists (if provided)
 - Creates `output_dir` if it doesn't exist (if provided)
 
-## 7. Dependency Contract
+## 8. Dependency Contract
 
 ```
 CLI module imports FROM:
-├── dataflow.convert.*            (YoloAndCocoConverter, LabelMeAndYoloConverter, CocoAndLabelMeConverter)
-├── dataflow.visualize.*          (YOLOVisualizer, COCOVisualizer, LabelMeVisualizer)
-├── dataflow.evaluate.evaluator   (DetectionEvaluator, SegmentationEvaluator)
-├── dataflow.evaluate.metrics     (compute_pr_f1)
-├── dataflow.evaluate.utils       (_validate_coco_available, format_prf1_output, format_metric_table, format_per_class_table)
-├── dataflow.util.logging         (LogConfig only)
-├── dataflow.cli.exceptions       (InputError, RuntimeCLIError, SystemError)
-└── click                         (Framework)
+├── dataflow.analyse                (StatsAnalyser, SplitAnalyser)
+├── dataflow.convert.*              (YoloAndCocoConverter, LabelMeAndYoloConverter, CocoAndLabelMeConverter)
+├── dataflow.visualize.*            (YOLOVisualizer, COCOVisualizer, LabelMeVisualizer)
+├── dataflow.evaluate.evaluator     (DetectionEvaluator, SegmentationEvaluator)
+├── dataflow.evaluate.metrics       (compute_pr_f1)
+├── dataflow.evaluate.utils         (_validate_coco_available, format_prf1_output, format_metric_table, format_per_class_table)
+├── dataflow.util.logging           (LogConfig only)
+├── dataflow.cli.exceptions         (InputError, RuntimeCLIError, SystemError)
+└── click                           (Framework)
 
 CLI module does NOT import FROM:
-├── dataflow.label.*              (FORBIDDEN — must go through Convert/Visualize/Evaluate)
-├── dataflow.convert.rle_converter (FORBIDDEN — internal to Convert)
-├── dataflow.convert.utils        (FORBIDDEN — internal to Convert)
-├── dataflow.visualize.base       (FORBIDDEN — internal to Visualize)
-├── dataflow.evaluate.base        (FORBIDDEN — internal to Evaluate)
-├── dataflow.evaluate.result      (FORBIDDEN — internal to Evaluate)
-└── pycocotools                   (FORBIDDEN — Evaluate dependency)
+├── dataflow.label.*                (FORBIDDEN — must go through Analyse/Convert/Visualize/Evaluate)
+├── dataflow.analyse.base           (FORBIDDEN — internal to Analyse)
+├── dataflow.analyse.utils          (FORBIDDEN — internal to Analyse)
+├── dataflow.convert.rle_converter  (FORBIDDEN — internal to Convert)
+├── dataflow.convert.utils          (FORBIDDEN — internal to Convert)
+├── dataflow.visualize.base         (FORBIDDEN — internal to Visualize)
+├── dataflow.evaluate.base          (FORBIDDEN — internal to Evaluate)
+├── dataflow.evaluate.result        (FORBIDDEN — internal to Evaluate)
+└── pycocotools                     (FORBIDDEN — Evaluate dependency)
 ```
 
 **Compliance verification:**
@@ -297,7 +349,7 @@ CLI module does NOT import FROM:
 2. No CLI file imports from `pycocotools`
 3. No CLI file imports cross-module internals (e.g., convert commands don't import from visualize internals)
 
-## 8. Logging Contract
+## 9. Logging Contract
 
 Logging is **module-owned**. CLI does not write log messages.
 
