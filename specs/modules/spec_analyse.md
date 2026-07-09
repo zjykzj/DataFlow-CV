@@ -70,7 +70,6 @@ class StatsResult:
 **Ordering contract**:
 - If `--class-file` is provided: `per_class` is ordered by the class order in the file, with classes not in the file appended at the end (sorted alphabetically)
 - If `--class-file` is NOT provided: `per_class` is ordered by count descending, then alphabetically for ties
-- COCO format: categories are read from the JSON's `categories` array, maintaining their original order. If `--class-file` is also provided, the class-file order takes precedence
 
 ### 2.3 `SplitResult`
 
@@ -275,6 +274,7 @@ def create_handler(
     label_path: Path,
     format: str,
     class_file: Optional[Path] = None,
+    image_dir: Optional[Path] = None,
     logger: Optional[logging.Logger] = None,
 ) -> BaseAnnotationHandler:
     """Create the appropriate handler for the detected format.
@@ -282,7 +282,8 @@ def create_handler(
     Args:
         label_path: Path to labels
         format: "yolo" | "labelme" | "coco"
-        class_file: Classes.txt path (used for YOLO)
+        class_file: Classes.txt path (required for YOLO)
+        image_dir: Image directory for YOLO (auto-detected if omitted)
         logger: Logger to pass to the handler
 
     Returns:
@@ -305,11 +306,12 @@ The module auto-detects the annotation format by inspecting the label path:
 
 | Label Path Type | Detection Method | Result |
 |----------------|-----------------|--------|
-| File ending in `.json` | Read JSON, check for top-level keys | COCO if `"images"` key present |
-| Directory with `.txt` files | File extension check | YOLO |
-| Directory with `.json` files | Read first `.json`, check for `"shapes"` key | LabelMe |
+| File ending in `.json` | Read JSON, check for ``"images"`` / ``"annotations"`` → COCO, ``"shapes"`` → LabelMe | COCO or LabelMe |
+| Directory with `.txt` files only | File extension check | YOLO |
+| Directory with `.json` files only | Read first `.json`, check for ``"shapes"`` key | LabelMe |
+| Directory with ``"images"``-key JSON | — | Error: "COCO is a single file — point to it directly" |
 | Empty directory | — | Error: "No annotation files found" |
-| Ambiguous (mixed extensions) | — | Error: "Cannot determine format" |
+| Mixed extensions or ambiguous | — | Error with diagnostic message |
 
 ### 5.2 Handler Configuration
 
@@ -384,8 +386,8 @@ Analyse: Train/Test Split
 
 Log templates are in `dataflow/analyse/log_templates.py`:
 
-- `format_analyse_header(operation, label_path, format)` — header block
-- `format_stats_result(total_files, total_annotations, per_class, categories)` — stats table
+- `format_analyse_header(operation, label_path, format_name)` — header block
+- `format_stats_result(total_files, total_annotations, per_class)` — stats table
 - `format_split_result(train_count, val_count, train_dir, val_dir, ratio, seed)` — split summary
 - `format_analyse_result(status, log_path)` — final result block
 
@@ -487,7 +489,7 @@ All analyser operations run in **non-strict mode by default** (handlers created 
 - The operation continues with valid data
 - Skipped counts are reported in the warnings list
 
-## 10. CLI Integration (Planned)
+## 10. CLI Integration
 
 ### 10.1 Command Signatures
 

@@ -41,6 +41,7 @@ class StatsAnalyser(BaseAnalyser):
         self,
         label_path: Path,
         class_file: Optional[Path] = None,
+        image_dir: Optional[Path] = None,
     ) -> AnalysisResult:
         """Compute statistics for the dataset at ``label_path``.
 
@@ -49,6 +50,8 @@ class StatsAnalyser(BaseAnalyser):
                 JSON file (COCO).
             class_file: Optional classes.txt for name mapping and
                 output ordering.
+            image_dir: Optional image directory for YOLO format
+                (auto-detected if omitted).
 
         Returns:
             ``AnalysisResult`` with ``StatsResult`` in ``.data``.
@@ -68,6 +71,7 @@ class StatsAnalyser(BaseAnalyser):
                 label_path,
                 fmt,
                 class_file=class_file,
+                image_dir=image_dir,
                 logger=self.logger,
             )
         except (ValueError, FileNotFoundError) as e:

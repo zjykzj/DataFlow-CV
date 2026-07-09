@@ -8,6 +8,7 @@
 
 The CLI module (`dataflow/cli/`) is a **thin wrapper** over Convert, Visualize, and Evaluate. It owns zero business logic and zero log output.
 
+- **CLI → Analyse**: Calls `StatsAnalyser.analyse()` / `SplitAnalyser.analyse()` only. Does NOT import label handlers.
 - **CLI → Convert**: Calls `Converter.convert()` only. Does NOT import label handlers.
 - **CLI → Visualize**: Calls `Visualizer.visualize()` only. Does NOT import label handlers.
 - **CLI → Evaluate**: Calls `Evaluator.evaluate()` only. Does NOT import label handlers or `pycocotools` directly.
@@ -297,7 +298,7 @@ CLIError (base, exit_code configurable)
 
 ## 7. Validators
 
-### 6.1 `validate_convert_params`
+### 7.1 `validate_convert_params`
 
 Required parameter matrix:
 
@@ -312,7 +313,7 @@ Required parameter matrix:
 
 Missing required parameters raise `InputError`.
 
-### 6.2 `validate_visualize_params`
+### 7.2 `validate_visualize_params`
 
 - Validates `input_path` exists
 - Validates `image_dir` exists (if provided)

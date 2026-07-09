@@ -218,6 +218,8 @@ the log level and passes the result to `self.logger.info()` / `.debug()` / etc.
 
 ```
 dataflow/
+├── analyse/
+│   └── log_templates.py      # Analyse-specific log formatting
 ├── convert/
 │   └── log_templates.py      # Convert-specific log formatting
 ├── visualize/
@@ -449,6 +451,7 @@ dataflow/util/logging.py imports FROM:
 
 dataflow/util/logging.py is imported BY:
 ├── dataflow.label.base           (LogManager → handler logger)
+├── dataflow.analyse.base         (LogManager → analysis pipeline)
 ├── dataflow.convert.base         (LogManager → converter pipeline)
 ├── dataflow.visualize.base       (LogManager → visualization pipeline)
 ├── dataflow.evaluate.base        (LogManager → evaluation pipeline)

@@ -5,9 +5,8 @@ Handles bidirectional conversion between LabelMe and YOLO annotation formats.
 Supports both object detection and instance segmentation annotations.
 """
 
-import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 from ..label.labelme_handler import LabelMeAnnotationHandler
 from ..label.models import (AnnotationFormat, DatasetAnnotations,

@@ -49,18 +49,22 @@ class SplitAnalyser(BaseAnalyser):
         ratio: float = 0.8,
         seed: int = 42,
         class_file: Optional[Path] = None,
+        image_dir: Optional[Path] = None,
     ) -> AnalysisResult:
         """Split the dataset at ``label_path`` into train and val.
 
         Args:
             label_path: Path to labels — directory (YOLO/LabelMe) or
                 JSON file (COCO).
-            output_dir: Output root directory (``train/`` and ``val/``
-                subdirectories are created inside).
+            output_dir: Output root directory.  For COCO, ``train.json``
+                and ``val.json`` are written here.  For YOLO/LabelMe,
+                ``train/`` and ``val/`` subdirectories are created.
             ratio: Proportion of data for training (default 0.8).
             seed: Random seed for reproducible shuffling.
             class_file: Optional classes.txt.  Required for YOLO format
                 (copied to both output directories).
+            image_dir: Optional image directory for YOLO format
+                (auto-detected if omitted).
 
         Returns:
             ``AnalysisResult`` with ``SplitResult`` in ``.data``.
@@ -87,6 +91,7 @@ class SplitAnalyser(BaseAnalyser):
                 label_path,
                 fmt,
                 class_file=class_file,
+                image_dir=image_dir,
                 logger=self.logger,
             )
         except (ValueError, FileNotFoundError) as e:
@@ -164,33 +169,55 @@ class SplitAnalyser(BaseAnalyser):
         )
 
         # 7. Write outputs
-        train_dir = output_dir / "train"
-        val_dir = output_dir / "val"
-
-        try:
-            train_dir.mkdir(parents=True, exist_ok=True)
-            val_dir.mkdir(parents=True, exist_ok=True)
-        except OSError as e:
-            result.add_error(f"Cannot create output directory: {e}")
-            return result
-
         if fmt == "coco":
-            # Batch write — one JSON per split
+            # Batch write — one JSON per split at output_dir level
+            try:
+                output_dir.mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                result.add_error(f"Cannot create output directory: {e}")
+                return result
             train_path = output_dir / "train.json"
             val_path = output_dir / "val.json"
             try:
-                handler.write(train_ds, str(train_path))
-                handler.write(val_ds, str(val_path))
+                write_result = handler.write(train_ds, str(train_path))
+                if not write_result.success:
+                    for err in write_result.errors:
+                        result.add_error(f"Write train: {err}")
+                    return result
+                write_result = handler.write(val_ds, str(val_path))
+                if not write_result.success:
+                    for err in write_result.errors:
+                        result.add_error(f"Write val: {err}")
+                    return result
             except Exception as e:
                 result.add_error(f"Failed to write split output: {e}")
                 return result
+            train_dir = train_path
+            val_dir = val_path
         else:
             # Streaming write — per-file for YOLO and LabelMe
+            train_dir = output_dir / "train"
+            val_dir = output_dir / "val"
+            try:
+                train_dir.mkdir(parents=True, exist_ok=True)
+                val_dir.mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                result.add_error(f"Cannot create output directory: {e}")
+                return result
+
             try:
                 for img in train_ds.images:
-                    handler.write_one(img, train_dir)
+                    wr = handler.write_one(img, train_dir)
+                    if not wr.success:
+                        for err in wr.errors:
+                            result.add_error(f"Write train/{img.image_id}: {err}")
+                        return result
                 for img in val_ds.images:
-                    handler.write_one(img, val_dir)
+                    wr = handler.write_one(img, val_dir)
+                    if not wr.success:
+                        for err in wr.errors:
+                            result.add_error(f"Write val/{img.image_id}: {err}")
+                        return result
             except Exception as e:
                 result.add_error(f"Failed to write split output: {e}")
                 return result

@@ -26,27 +26,51 @@ def analyse_group():
 
 
 # ---------------------------------------------------------------------------
+# Shared options
+# ---------------------------------------------------------------------------
+
+
+def _add_analyse_options(func):
+    """Decorator: add analyse-specific options shared by all subcommands."""
+    from functools import wraps
+
+    @click.option(
+        "-c",
+        "--class-file",
+        type=click.Path(exists=True, path_type=Path),
+        default=None,
+        help="Classes.txt file for class name mapping and output ordering",
+    )
+    @click.option(
+        "--image-dir",
+        type=click.Path(exists=True, file_okay=False, path_type=Path),
+        default=None,
+        help="Image directory (auto-detected for YOLO if omitted: "
+             "looks for sibling 'images/' directory of LABEL_PATH)",
+    )
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+    return wrapper
+
+
+# ---------------------------------------------------------------------------
 # Subcommand: stats
 # ---------------------------------------------------------------------------
 
 
 @analyse_group.command(cls=FormattedCommand)
 @add_common_options
+@_add_analyse_options
 @click.argument(
     "label_path",
     type=click.Path(exists=True, path_type=Path),
-)
-@click.option(
-    "-c",
-    "--class-file",
-    type=click.Path(exists=True, path_type=Path),
-    default=None,
-    help="Classes.txt file for class name mapping and output ordering",
 )
 def stats(
     ctx: click.Context,
     label_path: Path,
     class_file: Path,
+    image_dir: Path,
 ):
     """Compute dataset statistics for annotations at LABEL_PATH.
 
@@ -64,10 +88,13 @@ def stats(
         log_dir=log_dir,
     )
     analyser = StatsAnalyser(log_config=log_config)
-    result = analyser.analyse(label_path, class_file=class_file)
+    result = analyser.analyse(
+        label_path,
+        class_file=class_file,
+        image_dir=image_dir,
+    )
 
     if result.success and result.data is not None:
-        # Module handles all log output internally
         if result.log_path:
             click.echo(f"\nLog saved to: {result.log_path}")
         for warning in result.warnings:
@@ -75,6 +102,9 @@ def stats(
     else:
         error_msg = result.errors[0] if result.errors else "Statistics analysis failed"
         click.echo(f"Error: {error_msg}", err=True)
+        if len(result.errors) > 1:
+            for err in result.errors[1:]:
+                click.echo(f"  {err}", err=True)
         raise RuntimeCLIError(error_msg)
 
 
@@ -116,6 +146,12 @@ def stats(
     default=None,
     help="Classes.txt file (required for YOLO format, copied to output dirs)",
 )
+@click.option(
+    "--image-dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=None,
+    help="Image directory (auto-detected for YOLO if omitted)",
+)
 def split(
     ctx: click.Context,
     label_path: Path,
@@ -123,13 +159,15 @@ def split(
     ratio: float,
     seed: int,
     class_file: Path,
+    image_dir: Path,
 ):
     """Split dataset at LABEL_PATH into train/val at OUTPUT_DIR.
 
     LABEL_PATH is a directory (YOLO .txt or LabelMe .json files) or
     a single COCO .json file.  The format is auto-detected.
 
-    Creates OUTPUT_DIR/train/ and OUTPUT_DIR/val/ with the split data.
+    For COCO: creates ``train.json`` and ``val.json`` in OUTPUT_DIR.
+    For YOLO/LabelMe: creates OUTPUT_DIR/train/ and OUTPUT_DIR/val/.
     """
     from dataflow.analyse import SplitAnalyser
 
@@ -148,6 +186,7 @@ def split(
         ratio=ratio,
         seed=seed,
         class_file=class_file,
+        image_dir=image_dir,
     )
 
     if result.success and result.data is not None:
@@ -158,4 +197,7 @@ def split(
     else:
         error_msg = result.errors[0] if result.errors else "Dataset split failed"
         click.echo(f"Error: {error_msg}", err=True)
+        if len(result.errors) > 1:
+            for err in result.errors[1:]:
+                click.echo(f"  {err}", err=True)
         raise RuntimeCLIError(error_msg)

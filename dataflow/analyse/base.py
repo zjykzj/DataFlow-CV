@@ -151,6 +151,4 @@ class BaseAnalyser:
         Returns:
             A fresh ``AnalysisResult`` instance.
         """
-        result = AnalysisResult(success=True, data=data)
-        result.log_path = None  # set by subclass after analysis
-        return result
+        return AnalysisResult(success=True, data=data)

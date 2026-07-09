@@ -5,9 +5,8 @@ Handles bidirectional conversion between COCO and LabelMe annotation formats.
 Supports both object detection and instance segmentation annotations.
 """
 
-import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 from ..label.base import BaseAnnotationHandler
 from ..label.coco_handler import CocoAnnotationHandler

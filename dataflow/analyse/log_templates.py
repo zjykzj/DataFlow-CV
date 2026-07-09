@@ -131,5 +131,4 @@ def format_analyse_result(
     Returns:
         Formatted result block.
     """
-    items = {"Status": status}
-    return format_result_block(status, items, log_path or None)
+    return format_result_block(status, {}, log_path or None)

@@ -201,9 +201,12 @@ class BaseEvaluator(ABC):
         warnings.extend(_validate_common_categories(coco_gt, coco_dt))
 
         if errors:
-            for err in errors:
-                self._log_error(err)
-            return False, warnings
+            # Log all validation errors, then raise on the first one.
+            # _log_error raises ValueError, so we use the logger
+            # directly for subsequent errors before raising.
+            for err in errors[:-1]:
+                self.logger.error(err)
+            self._log_error(errors[-1])
 
         return True, warnings
 

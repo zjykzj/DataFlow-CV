@@ -6,7 +6,6 @@ with optional pycocotools dependency handling.
 """
 
 import logging
-import sys
 from typing import Dict, List, Optional, Tuple
 
 try:

@@ -34,12 +34,28 @@ def detect_format(label_path: Path) -> str:
     if not label_path.exists():
         raise ValueError(f"Label path does not exist: {label_path}")
 
-    # 1. Single file → COCO
+    # 1. Single file → inspect contents to distinguish COCO vs LabelMe
     if label_path.is_file():
-        if label_path.suffix == ".json":
-            return "coco"
+        if label_path.suffix != ".json":
+            raise ValueError(
+                f"Single-file label path must be a .json file, got: {label_path}"
+            )
+        # Read file to distinguish COCO vs LabelMe
+        with open(label_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            if "images" in data:
+                return "coco"
+            if "shapes" in data:
+                return "labelme"
+            if "annotations" in data:
+                # COCO-compatible: has annotations key but possibly
+                # missing images (prediction list format)
+                return "coco"
         raise ValueError(
-            f"Single-file label path must be a .json file, got: {label_path}"
+            f"Cannot determine format from file: {label_path}. "
+            f"Expected COCO ('images' / 'annotations' key) or "
+            f"LabelMe ('shapes' key)."
         )
 
     # 2. Directory → inspect contents
@@ -52,16 +68,29 @@ def detect_format(label_path: Path) -> str:
             f"No annotation files found in directory: {label_path}"
         )
 
-    # Check extensions
-    extensions = {f.suffix for f in files}
+    # Check extensions (exclude auxiliary files like classes.txt)
+    annotation_files = [
+        f for f in files
+        if f.name not in ("classes.txt",)
+    ]
+    extensions = {f.suffix for f in annotation_files}
     has_txt = ".txt" in extensions
     has_json = ".json" in extensions
 
-    if has_txt and not has_json:
+    # Mixed extensions → ambiguous, refuse to guess
+    if has_txt and has_json:
+        raise ValueError(
+            f"Cannot determine annotation format from: {label_path}. "
+            f"Directory contains both .txt (YOLO) and .json "
+            f"(LabelMe/COCO) files. Please separate them or specify "
+            f"the format explicitly."
+        )
+
+    if has_txt:
         return "yolo"
 
     if has_json:
-        # Read first .json to distinguish LabelMe vs COCO
+        # Read first .json to distinguish LabelMe from COCO
         json_files = [f for f in files if f.suffix == ".json"]
         with open(json_files[0], "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -70,16 +99,21 @@ def detect_format(label_path: Path) -> str:
             if "shapes" in data:
                 return "labelme"
             if "images" in data:
-                return "coco"
+                raise ValueError(
+                    f"{label_path} appears to contain a COCO JSON file, "
+                    f"but COCO annotations are a single file, not a "
+                    f"directory. Point to the specific .json file instead."
+                )
 
         raise ValueError(
             f"Cannot determine format from JSON files in: {label_path}. "
-            f"Expected LabelMe ('shapes' key) or COCO ('images' key)."
+            f"Expected LabelMe ('shapes' key)."
         )
 
     raise ValueError(
         f"Cannot determine annotation format from: {label_path}. "
-        f"Supported formats: .txt (YOLO), .json (LabelMe or COCO)."
+        f"Supported formats: .txt (YOLO), .json (LabelMe) or "
+        f"a single COCO .json file."
     )
 
 
@@ -130,6 +164,13 @@ def create_handler(
             candidate = label_path.parent / "images"
             if candidate.is_dir():
                 image_dir = candidate
+            else:
+                raise ValueError(
+                    f"image_dir is required for YOLO format. "
+                    f"No sibling 'images/' directory found at "
+                    f"{candidate}. Use --image-dir to specify "
+                    f"the image directory."
+                )
 
         handler = YoloAnnotationHandler(
             label_dir=str(label_path),
