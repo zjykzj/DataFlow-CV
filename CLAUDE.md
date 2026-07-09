@@ -105,6 +105,15 @@ The AI model used in this project is **DeepSeek-V4.0**. Configured in skills as:
 {{AI_MODEL_EMAIL}} = noreply@deepseek.com
 ```
 
+### Development Configuration
+
+Template variables for `/dev` skill:
+
+```
+{{PACKAGE_NAME}} = dataflow
+{{SRC_DIRS}} = dataflow tests samples
+```
+
 ### Release Configuration
 
 Version bump locations for this project:

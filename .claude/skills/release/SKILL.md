@@ -28,9 +28,8 @@ Update **all** version locations configured for this project:
 
 | # | File | Field |
 |---|------|-------|
-| 1 | `<package-config>` | `version = "X.Y.Z"` |
-| 2 | `<init-file>` | `__version__ = "X.Y.Z"` |
-| 3 | `CHANGELOG.md` | `## [X.Y.Z] - YYYY-MM-DD` section header |
+| 1 | `modelflow/__init__.py` | `__version__ = "X.Y.Z"` |
+| 2 | `CHANGELOG.md` | `## [X.Y.Z] - YYYY-MM-DD` section header |
 
 The exact file paths and verification commands vary per project. See CLAUDE.md for this project's version bump locations.
 
