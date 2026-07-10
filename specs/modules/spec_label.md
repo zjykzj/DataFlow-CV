@@ -36,6 +36,7 @@ It exposes a stable public API through:
 - `DatasetAnnotations` with `format` field identifying coordinate semantics
 - `BaseAnnotationHandler` abstract interface (read/write/validate/iter_images)
 - `AnnotationResult` return type
+- `ImageError` exception — raised for image-related errors (missing files, unreadable images, invalid dimensions). In strict mode causes abort; in non-strict mode causes skip. YOLO non-strict mode: uses placeholder dimensions (1,1) instead of raising
 - `iter_images()` streaming iterator — incremental per-image yield for memory-efficient processing
 
 ## 2. Data Model (`models.py`)
@@ -316,7 +317,7 @@ Both `is_det` and `is_seg` can be `True` simultaneously (mixed dataset).
 |-----------|----------|-------------|
 | `label_dir` | Yes | Directory containing `.txt` label or prediction files |
 | `class_file` | Yes | Path to `classes.txt` |
-| `image_dir` | Yes | Directory containing image files |
+| `image_dir` | Conditional | Directory containing image files. Required in strict mode. In non-strict mode, missing directory or missing images are tolerated — labels are still parsed with placeholder dimensions (1, 1). |
 | `prediction` | No | If True, parse prediction format (with confidence). Default False (label format). |
 
 **`read()`**: Returns `DatasetAnnotations(format=YOLO)` with:
@@ -428,16 +429,19 @@ from `shape.label` values during reading.
 | Invalid coordinate — YOLO (outside [0,1]) | **Clamp to [0, 1] + WARNING**, then validate. Abort only if clamp produces zero-area bbox | Same as strict (clamping is independent of strict_mode) |
 | Invalid coordinate — COCO/LabelMe (outside image boundary) | **Clamp to `[0, width] × [0, height]` + WARNING**, then validate. Abort only if clamp produces zero-area bbox | Same as strict (clamping is independent of strict_mode) |
 | Invalid bbox (zero area, NaN, overflow) | Abort immediately | Skip annotation, log warning, continue |
-| Image file not found (YOLO, COCO) | **Always skip with warning** | **Always skip with warning** |
+| Image file not found (YOLO) | Raise `ImageError` → skip with warning | Use placeholder dims (1,1), log debug, continue |
+| Image file not found (COCO) | **Always skip with warning** | **Always skip with warning** |
 | Image file not found (LabelMe) | JSON has `imageWidth`/`imageHeight` → read succeeds silently. JSON lacks dimensions → abort immediately | JSON has `imageWidth`/`imageHeight` → read succeeds silently. JSON lacks dimensions → skip with warning |
 | Image unreadable / corrupt | **Always skip with warning** | **Always skip with warning** |
-| Invalid image dimensions | **Always skip with warning** | **Always skip with warning** |
+| Invalid image dimensions (YOLO non-strict) | Raise `ImageError` → skip with warning | Use placeholder dims (1,1), log debug, continue |
+| Invalid image dimensions (other) | **Always skip with warning** | **Always skip with warning** |
 
 ### 5.2 Streaming Read (`iter_images()`)
 
 | Error Type | Strict Mode | Non-Strict Mode |
 |------------|-------------|-----------------|
-| Label/image directory not found | Raise `ValueError` immediately (no images yielded) | Raise `ValueError` immediately (no images yielded) |
+| Label/image directory not found (YOLO) | Raise `ValueError` immediately | Log debug, continue (labels parsed with placeholder dims) |
+| Label/image directory not found (COCO/LabelMe) | Raise `ValueError` immediately | Raise `ValueError` immediately |
 | No categories loaded | Raise `ValueError` immediately (no images yielded) | Raise `ValueError` immediately (no images yielded) |
 | No annotation files found | Raise `ValueError` immediately (no images yielded) | Raise `ValueError` immediately (no images yielded) |
 | Invalid annotation format (per-file) | Raise `ValueError` immediately, stop iteration | Skip file, log warning, continue to next |
@@ -445,7 +449,8 @@ from `shape.label` values during reading.
 | Invalid coordinate — YOLO (outside [0,1]) | **Clamp to [0, 1] + WARNING**, then validate. Stop iteration only if clamp produces zero-area bbox | Same as strict (clamping is independent of strict_mode) |
 | Invalid coordinate — COCO/LabelMe (outside image boundary) | **Clamp to `[0, width] × [0, height]` + WARNING**, then validate. Stop iteration only if clamp produces zero-area bbox | Same as strict (clamping is independent of strict_mode) |
 | Invalid class_id / bbox (other) | Raise `ValueError` immediately, stop iteration | Skip line, log warning, continue |
-| Image file not found (YOLO, COCO) | **Always skip with warning** | **Always skip with warning** |
+| Image file not found (YOLO) | Raise `ImageError` → skip with warning, stop iteration | Use placeholder dims (1,1), log debug, continue yielding |
+| Image file not found (COCO) | **Always skip with warning** | **Always skip with warning** |
 | Image file not found (LabelMe) | JSON has `imageWidth`/`imageHeight` → yield succeeds silently. JSON lacks dimensions → raise `ValueError`, stop iteration | JSON has `imageWidth`/`imageHeight` → yield succeeds silently. JSON lacks dimensions → skip with warning |
 | Image unreadable / corrupt | **Always skip with warning** | **Always skip with warning** |
 | Invalid image dimensions | **Always skip with warning** | **Always skip with warning** |

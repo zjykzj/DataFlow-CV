@@ -154,11 +154,16 @@ class TestCreateHandler:
         assert isinstance(handler, LabelMeAnnotationHandler)
         assert handler.strict_mode is False
 
-    def test_yolo_without_class_file_raises(self):
-        """YOLO format requires class_file."""
+    def test_yolo_without_class_file_auto_generates(self):
+        """YOLO without class_file auto-generates class names from label IDs."""
         yolo_labels = TEST_DATA / "det" / "yolo" / "labels"
-        with pytest.raises(ValueError, match="class_file is required"):
-            create_handler(yolo_labels, "yolo")
+        handler = create_handler(yolo_labels, "yolo")
+        from dataflow.label.yolo_handler import YoloAnnotationHandler
+        assert isinstance(handler, YoloAnnotationHandler)
+        assert handler.strict_mode is False
+        # Verify the handler can read the dataset
+        result = handler.read()
+        assert result.success
 
     def test_unknown_format_raises(self):
         """Unknown format string raises ValueError."""

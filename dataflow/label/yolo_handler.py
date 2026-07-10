@@ -167,8 +167,14 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
             return result
 
         if not self.image_dir.exists():
-            result.add_error(f"Image directory does not exist: {self.image_dir}")
-            return result
+            if self.strict_mode:
+                result.add_error(f"Image directory does not exist: {self.image_dir}")
+                return result
+            else:
+                self._log_warning(
+                    f"Image directory does not exist: {self.image_dir}. "
+                    f"Labels will be read without image dimension validation."
+                )
 
         if not self.categories:
             result.add_error(f"No categories loaded from {self.class_file}")
@@ -252,9 +258,15 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                 f"Label directory does not exist: {self.label_dir}"
             )
         if not self.image_dir.exists():
-            raise ValueError(
-                f"Image directory does not exist: {self.image_dir}"
-            )
+            if self.strict_mode:
+                raise ValueError(
+                    f"Image directory does not exist: {self.image_dir}"
+                )
+            else:
+                self._log_warning(
+                    f"Image directory does not exist: {self.image_dir}. "
+                    f"Labels will be read without image dimension validation."
+                )
         if not self.categories:
             raise ValueError(
                 f"No categories loaded from {self.class_file}"
@@ -318,19 +330,41 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     break
 
             if image_path is None:
-                # Try with any extension
-                image_files = list(self.image_dir.glob(f"{image_stem}.*"))
-                if image_files:
-                    image_path = image_files[0]
-                else:
-                    raise ImageError(f"No corresponding image found for {txt_file}")
+                # Try with any image extension (only if image_dir exists)
+                if self.image_dir.exists():
+                    image_files = [
+                        f for f in self.image_dir.glob(f"{image_stem}.*")
+                        if f.suffix.lower() in {
+                            ".jpg", ".jpeg", ".png", ".bmp",
+                            ".tiff", ".tif", ".webp",
+                        }
+                    ]
+                    if image_files:
+                        image_path = image_files[0]
 
-            # Get image dimensions
-            img_width, img_height = self._get_image_size(image_path)
-            if img_width <= 0 or img_height <= 0:
-                raise ImageError(
-                    f"Invalid image dimensions for {image_path}: {img_width}x{img_height}"
-                )
+            if image_path is None:
+                if self.strict_mode:
+                    raise ImageError(f"No corresponding image found for {txt_file}")
+                else:
+                    self._log_debug(
+                        f"No corresponding image found for {txt_file}. "
+                        f"Using placeholder dimensions (1, 1)."
+                    )
+                    img_width, img_height = 1, 1
+            else:
+                # Get image dimensions
+                img_width, img_height = self._get_image_size(image_path)
+                if img_width <= 0 or img_height <= 0:
+                    if self.strict_mode:
+                        raise ImageError(
+                            f"Invalid image dimensions for {image_path}: {img_width}x{img_height}"
+                        )
+                    else:
+                        self._log_debug(
+                            f"Invalid image dimensions for {image_path}: {img_width}x{img_height}. "
+                            f"Using placeholder dimensions (1, 1)."
+                        )
+                        img_width, img_height = 1, 1
 
             # Read label file
             lines = Path(txt_file).read_text(encoding="utf-8").splitlines()
@@ -561,14 +595,18 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
             # Create image annotation
             # Store relative path to image_dir for consistent path handling
-            try:
-                relative_image_path = image_path.relative_to(self.image_dir)
-                image_path_str = str(relative_image_path)
-            except ValueError:
-                # If image_path is not relative to image_dir, store the full path
-                # This might happen if paths are in different directories
-                image_path_str = str(image_path)
-                self._log_warning(f"Image path {image_path} is not relative to image directory {self.image_dir}")
+            if image_path is not None:
+                try:
+                    relative_image_path = image_path.relative_to(self.image_dir)
+                    image_path_str = str(relative_image_path)
+                except ValueError:
+                    image_path_str = str(image_path)
+                    self._log_debug(
+                        f"Image path {image_path} is not relative to "
+                        f"image directory {self.image_dir}"
+                    )
+            else:
+                image_path_str = txt_file.stem
 
             image_ann = ImageAnnotation(
                 image_id=image_stem,

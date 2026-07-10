@@ -231,7 +231,7 @@ Evaluates instance segmentation results using mask IoU (`iouType='segm'`).
 
 ### 5.1 Shared Options
 
-Both ``stats`` and ``split`` subcommands use the `@add_common_options` decorator (§2.1) which provides `--verbose`, `--no-strict`, and `--log-dir`.
+Both ``stats`` and ``split`` subcommands use the `@add_common_options` decorator (§2.1) which provides `--verbose`, `--no-strict`, and `--log-dir`.  (The ``--no-strict`` flag is accepted but has no effect — analyse operations always run in non-strict mode.)
 
 ### 5.2 Command Signatures
 
@@ -250,6 +250,7 @@ Compute dataset statistics. Auto-detects the annotation format from `LABEL_PATH`
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `--class-file`, `-c` | Path | None | Classes.txt for class name mapping and output ordering |
+| `--image-dir` | Path | None | Image directory for YOLO format (auto-detected if omitted) |
 
 #### `split`
 
@@ -268,7 +269,8 @@ Split dataset into train/val subsets with deterministic shuffling.
 |--------|------|---------|-------------|
 | `--ratio`, `-r` | Float | 0.8 | Train proportion |
 | `--seed`, `-s` | Int | 42 | Random seed |
-| `--class-file`, `-c` | Path | None | Classes.txt (required for YOLO, copied to output dirs) |
+| `--class-file`, `-c` | Path | None | Classes.txt (auto-generated for YOLO if omitted, copied to output dirs) |
+| `--image-dir` | Path | None | Image directory for YOLO format (auto-detected if omitted) |
 
 ### 5.3 Output
 

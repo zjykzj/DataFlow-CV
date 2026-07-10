@@ -117,6 +117,61 @@ def detect_format(label_path: Path) -> str:
     )
 
 
+def _auto_generate_class_file(label_dir: Path) -> Path:
+    """Generate a temporary classes.txt from observed class IDs in label files.
+
+    Scans all .txt files in ``label_dir``, collects unique class IDs, and
+    creates a temporary ``classes.txt`` with ``class_<id>`` names.
+
+    Args:
+        label_dir: Directory containing YOLO .txt label files.
+
+    Returns:
+        Path to the generated temporary classes.txt file.
+    """
+    import tempfile
+
+    class_ids: set[int] = set()
+    for txt_file in sorted(label_dir.glob("*.txt")):
+        try:
+            with open(txt_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    tokens = stripped.split()
+                    if tokens:
+                        try:
+                            class_ids.add(int(tokens[0]))
+                        except ValueError:
+                            pass
+        except Exception:
+            continue
+
+    if not class_ids:
+        raise ValueError(
+            f"No valid class IDs found in YOLO label files in: {label_dir}. "
+            f"Provide a classes.txt file with --class-file."
+        )
+
+    max_id = max(class_ids)
+    names = []
+    for i in range(max_id + 1):
+        if i in class_ids:
+            names.append(f"class_{i}")
+        else:
+            names.append(f"class_{i}")  # placeholder for gaps
+
+    # Write to a named temporary file (must survive beyond the function call)
+    tmp = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".txt", prefix="analyse_classes_", delete=False
+    )
+    tmp.write("\n".join(names) + "\n")
+    tmp.close()
+
+    return Path(tmp.name)
+
+
 def create_handler(
     label_path: Path,
     format: str,
@@ -155,27 +210,24 @@ def create_handler(
 
     if format == "yolo":
         if class_file is None:
-            raise ValueError(
-                "class_file is required for YOLO format. "
-                "Provide a classes.txt file to map class IDs to names."
-            )
+            # Auto-generate class names from observed class IDs in label files
+            class_file = _auto_generate_class_file(label_path)
         if image_dir is None:
-            # Auto-detect: sibling "images" directory
-            candidate = label_path.parent / "images"
-            if candidate.is_dir():
-                image_dir = candidate
-            else:
-                raise ValueError(
-                    f"image_dir is required for YOLO format. "
-                    f"No sibling 'images/' directory found at "
-                    f"{candidate}. Use --image-dir to specify "
-                    f"the image directory."
-                )
+            # Auto-detect: try common image directory layouts
+            candidates = [
+                label_path / "images",               # labels/images/
+                label_path.parent / "images",        # dataset/images/ (labels/ sibling)
+                label_path.parent.parent / "images", # dataset/images/ (labels/val/ → up 2)
+            ]
+            for candidate in candidates:
+                if candidate.is_dir():
+                    image_dir = candidate
+                    break
 
         handler = YoloAnnotationHandler(
             label_dir=str(label_path),
             class_file=str(class_file),
-            image_dir=str(image_dir) if image_dir else str(label_path.parent),
+            image_dir=str(image_dir) if image_dir else str(label_path),
             **handler_kwargs,
         )
     elif format == "labelme":

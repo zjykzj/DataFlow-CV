@@ -352,6 +352,8 @@ The `validate_inputs()` method checks:
 6. At least one category has both GT and DT annotations
 7. If `iouType='segm'`, segmentation data is present on GT and DT annotations that will be matched
 
+All validation errors are collected into a list first. Each is logged individually via ``self.logger.error()``; then ``ValueError`` is raised on the last one. This ensures all problems are visible in the log before the operation aborts.
+
 ## 6. Logging Contract
 
 See [`spec_logging.md`](spec_logging.md) for the full `LogManager` contract. Evaluate-specific:
@@ -500,7 +502,8 @@ COCOeval.accumulate() fails → EvaluationResult(success=False, errors=[...])
 ### 9.3 Strict vs Non-Strict (Planned)
 
 > **Note:** Strict mode support is not yet implemented in code. The table below documents
-> the planned behavior contract. Currently all validations always raise on error.
+> the planned behavior contract. All validation errors are collected and logged before
+> a ``ValueError`` is raised on the last one.
 
 | Error Type | Strict Mode | Non-Strict Mode |
 |------------|-------------|-----------------|

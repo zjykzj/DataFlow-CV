@@ -100,11 +100,11 @@ def stats(
         for warning in result.warnings:
             click.echo(f"Warning: {warning}", err=True)
     else:
+        for warning in result.warnings:
+            click.echo(f"Warning: {warning}", err=True)
         error_msg = result.errors[0] if result.errors else "Statistics analysis failed"
-        click.echo(f"Error: {error_msg}", err=True)
         if len(result.errors) > 1:
-            for err in result.errors[1:]:
-                click.echo(f"  {err}", err=True)
+            error_msg += "\n" + "\n".join(result.errors[1:])
         raise RuntimeCLIError(error_msg)
 
 
@@ -195,9 +195,9 @@ def split(
         for warning in result.warnings:
             click.echo(f"Warning: {warning}", err=True)
     else:
+        for warning in result.warnings:
+            click.echo(f"Warning: {warning}", err=True)
         error_msg = result.errors[0] if result.errors else "Dataset split failed"
-        click.echo(f"Error: {error_msg}", err=True)
         if len(result.errors) > 1:
-            for err in result.errors[1:]:
-                click.echo(f"  {err}", err=True)
+            error_msg += "\n" + "\n".join(result.errors[1:])
         raise RuntimeCLIError(error_msg)
