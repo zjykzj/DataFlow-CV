@@ -9,7 +9,7 @@ from dataflow.convert import (
     LabelMeAndYoloConverter,
     YoloAndCocoConverter,
 )
-from dataflow.util.logging import LogConfig, LogManager
+from dataflow.util import LogConfig, LogManager
 
 project_root = Path(__file__).parent.parent.parent
 

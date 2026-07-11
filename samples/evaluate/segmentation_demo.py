@@ -6,7 +6,7 @@ from pathlib import Path
 
 from dataflow.evaluate import SegmentationEvaluator, compute_pr_f1
 from dataflow.evaluate.utils import format_metric_table, format_prf1_output
-from dataflow.util.logging import LogConfig, LogManager
+from dataflow.util import LogConfig, LogManager
 
 project_root = Path(__file__).parent.parent.parent
 
@@ -29,6 +29,7 @@ def main():
         result = compute_pr_f1(
             str(GT_FILE), str(DT_FILE),
             iou_type="segm", method=args.prf1_method,
+            log_config=log_config,
         )
         if result.success:
             print(format_prf1_output(result))

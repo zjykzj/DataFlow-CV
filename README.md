@@ -63,6 +63,9 @@ dataflow-cv analyse split yolo_labels/ output/ --ratio 0.8 --seed 42 --class-fil
 dataflow-cv analyse split coco_annotations.json output/ --ratio 0.8 --seed 42
 dataflow-cv analyse split labelme_json/ output/ --ratio 0.8
 
+# Sort by count descending (default: class ID ascending)
+dataflow-cv analyse stats --sort-by count --descending yolo_labels/
+
 # Verbose logging
 dataflow-cv analyse stats --verbose yolo_labels/ --class-file classes.txt
 ```
@@ -156,6 +159,9 @@ dataflow-cv evaluate segmentation --verbose anno.json pred.json
 
 # Save results as JSON
 dataflow-cv evaluate detection --output results.json anno.json pred.json
+
+# Custom log directory
+dataflow-cv evaluate detection --verbose --log-dir logs/eval/ anno.json pred.json
 ```
 
 ##### ③ Detection vs Segmentation

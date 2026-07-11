@@ -4,7 +4,7 @@
 import argparse
 from pathlib import Path
 
-from dataflow.util.logging import LogConfig, LogManager
+from dataflow.util import LogConfig, LogManager
 from dataflow.visualize import LabelMeVisualizer
 
 project_root = Path(__file__).parent.parent.parent
@@ -20,7 +20,7 @@ def main():
 
     data_dir = project_root / "assets" / "test_data" / "det" / "labelme"
     image_dir = data_dir / "images"
-    label_dir = data_dir / "labels" if "labelme" != "coco" else data_dir
+    label_dir = data_dir
 
     if not data_dir.exists():
         logger.error(f"Data not found: {data_dir}")

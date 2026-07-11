@@ -4,7 +4,7 @@
 import argparse
 from pathlib import Path
 
-from dataflow.util.logging import LogConfig, LogManager
+from dataflow.util import LogConfig, LogManager
 from dataflow.visualize import COCOVisualizer
 
 project_root = Path(__file__).parent.parent.parent
