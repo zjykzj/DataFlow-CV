@@ -137,8 +137,9 @@ class BaseConverter(ABC):
         that donʼt expose them until ``read()`` / ``iter_images()`` runs.
 
         Default: try ``source_handler.categories`` if available and it is
-        a genuine dict (not a mock).
+        a genuine dict (not a mock). Always resets stale state first.
         """
+        self._source_annotations_for_target = None
         cats = getattr(source_handler, "categories", None)
         if isinstance(cats, dict) and cats:
             self._source_annotations_for_target = DatasetAnnotations(
@@ -198,6 +199,9 @@ class BaseConverter(ABC):
         # create_target_handler() (e.g., image copying in LabelMe→YOLO)
         self._source_path = source_path
 
+        # Clear stale state from any previous conversion
+        self._source_annotations_for_target = None
+
         num_images = 0
         num_objects = 0
 
@@ -245,6 +249,11 @@ class BaseConverter(ABC):
                         result.add_warning(err)
                         continue
 
+                # Per-image post-processing (e.g., image file copying)
+                self._post_stream_image(
+                    image_ann, target_ann, target_path, kwargs
+                )
+
                 num_images += 1
                 num_objects += len(target_ann.objects)
 
@@ -273,6 +282,9 @@ class BaseConverter(ABC):
             result.add_error(f"Unexpected error: {e}")
             if self._log_manager.log_path is not None:
                 self.logger.exception("Streaming conversion failed")
+        finally:
+            # Clean up state — must match the batch path guarantee
+            self._source_annotations_for_target = None
 
         return result
 
@@ -406,6 +418,22 @@ class BaseConverter(ABC):
         Called after a successful batch write. Subclasses override this
         to add format-specific warnings or metadata (e.g., RLE accuracy
         warnings).
+
+        Default: no-op.
+        """
+
+    def _post_stream_image(
+        self,
+        source_ann: ImageAnnotation,
+        target_ann: ImageAnnotation,
+        target_path: str,
+        kwargs: Dict,
+    ) -> None:
+        """Optional per-image post-processing hook for streaming conversions.
+
+        Called after each successful ``write_one()`` in the streaming loop.
+        Subclasses override this to add per-image side effects (e.g.,
+        copying image files from source to target directory).
 
         Default: no-op.
         """

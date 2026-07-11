@@ -37,8 +37,10 @@ from .coco_visualizer import COCOVisualizer
 
 __all__ = [
     "BaseVisualizer",
-    "VisualizationResult",
     "ColorManager",
+    "RenderAnnotation",
+    "RenderData",
+    "VisualizationResult",
     "YOLOVisualizer",
     "LabelMeVisualizer",
     "COCOVisualizer",

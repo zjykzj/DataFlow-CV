@@ -41,6 +41,10 @@ def yolo_to_absolute_pixel(
     new_seg = None
 
     if bbox:
+        if img_width <= 0 or img_height <= 0:
+            raise ValueError(
+                f"Image dimensions must be positive, got {img_width}x{img_height}"
+            )
         cx_abs = bbox.x * img_width
         cy_abs = bbox.y * img_height
         w_abs = bbox.width * img_width
@@ -50,6 +54,10 @@ def yolo_to_absolute_pixel(
         new_bbox = BoundingBox(x=x_tl, y=y_tl, width=w_abs, height=h_abs)
 
     if seg:
+        if img_width <= 0 or img_height <= 0:
+            raise ValueError(
+                f"Image dimensions must be positive, got {img_width}x{img_height}"
+            )
         new_points = [
             (x * img_width, y * img_height) for x, y in seg.points
         ]

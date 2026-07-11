@@ -241,11 +241,6 @@ class BaseVisualizer(ABC):
         start_time = datetime.datetime.now()
         self.summary_data["start_time"] = start_time
 
-        if self._log_manager.log_path is not None:
-            self.logger.debug(
-                f"Starting visualization pipeline: {self.label_dir}"
-            )
-
         result = VisualizationResult(
             success=False, log_path=self._log_manager.log_path
         )
@@ -267,6 +262,21 @@ class BaseVisualizer(ABC):
             # 2. Create handler and obtain streaming iterator
             handler = self._create_handler()
             image_iter = handler.iter_images()
+
+            # 2a. Log header with format and path info
+            format_name = self.__class__.__name__.replace("Visualizer", "")
+            from dataflow.visualize.log_templates import format_viz_header
+
+            self.logger.info(
+                format_viz_header(
+                    format_name=format_name,
+                    label_dir=str(self.label_dir),
+                    image_dir=str(self.image_dir),
+                    is_show=self.is_show,
+                    is_save=self.is_save,
+                    output_dir=str(self.output_dir) if self.output_dir else None,
+                )
+            )
 
             # 3. Process images one at a time (streaming)
             user_interrupted = False
@@ -328,8 +338,7 @@ class BaseVisualizer(ABC):
                 result.data = {"processed_count": processed_count}
 
             self.summary_data["end_time"] = datetime.datetime.now()
-            if self._log_manager.log_path is not None:
-                self._log_visualization_summary(result)
+            self._log_visualization_summary(result)
 
         except ValueError as e:
             # Handler structural errors or strict-mode parsing errors
@@ -656,13 +665,26 @@ class BaseVisualizer(ABC):
         """Log progress information (counter-based for streaming).
 
         Uses a counter format since the total image count is unknown
-        until the iterator exhausts.
+        until the iterator exhausts. When ``message`` contains the
+        current image name, outputs a per-image progress line.
         """
         failed = self.summary_data.get("failed_images", 0)
-        tail = f" - {message}" if message else ""
-        self.logger.info(
-            f"Processed {current} images, {failed} failed{tail}"
-        )
+
+        if message:
+            from dataflow.visualize.log_templates import format_viz_progress
+
+            self.logger.info(
+                format_viz_progress(
+                    index=current,
+                    image_name=message,
+                    n_objects=0,  # Objects counted per image — not available here
+                    status="✓",
+                )
+            )
+        else:
+            self.logger.info(
+                f"[====] Processed {current} images, {failed} failed"
+            )
 
     def _create_progress_bar(self, current: int, total: int, width: int = 40) -> str:
         """Create text progress bar (retained for compatibility).

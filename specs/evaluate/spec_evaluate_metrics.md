@@ -117,13 +117,12 @@ Output: per-class {P, R, F1, TP, FP, FN} + overall {P, R, F1, TP, FP, FN}
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `gt_source` | str/Path/Dict/DatasetAnnotations | (required) | Ground truth COCO data |
-| `dt_source` | str/Path/Dict/List/DatasetAnnotations | (required) | Detection/prediction COCO data |
+| `dt_source` | str/Path/Dict/List/DatasetAnnotations | (required) | Detection/prediction COCO data. ``List`` is a plain JSON array of annotation dicts (Variant B per ``spec_coco_format.md`` §10.1). |
 | `iou_threshold` | float | 0.5 | IoU threshold for matching |
 | `confidence_threshold` | float | 0.0 | Minimum detection score |
 | `iou_type` | str | "bbox" | IoU type: ``"bbox"`` or ``"segm"`` |
 | `method` | str | "macro" | Aggregation method: ``"macro"`` or ``"micro"`` |
-| `verbose` | bool | False | Enable per-class progress logging |
-| `logger` | Logger | None | Logger instance |
+| `log_config` | Optional[LogConfig] | None | Logging configuration. Controls console and file output. Per-class progress is logged only when ``verbose=True`` in the config. |
 
 The `method` parameter controls how `overall` P/R/F1 is computed from per-class results (see §2.3):
 - ``"macro"`` (default): Macro averaging — mean of per-class P and R.

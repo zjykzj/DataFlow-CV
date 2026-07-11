@@ -191,8 +191,16 @@ def format_result_block(
     status: str,
     items: Dict[str, Any],
     log_path: Optional[str] = None,
+    width: int = _DEFAULT_WIDTH,
 ) -> str:
-    """Return a result summary block with optional log path line."""
+    """Return a result summary block with optional log path line.
+
+    Args:
+        status: Status line text, e.g. ``"✓ Success"``.
+        items: Key-value pairs to display.
+        log_path: Optional log file path to append at end.
+        width: Total width of the block.
+    """
 ```
 
 ### 3.2 Table Helpers (for Evaluate)

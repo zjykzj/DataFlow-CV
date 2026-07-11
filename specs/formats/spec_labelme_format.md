@@ -51,8 +51,10 @@ Images and labels may be in the same directory or separate directories.
 
 ### 2.4 `imageHeight` / `imageWidth`
 
-- Optional on read. If missing, the handler reads the actual image file to determine dimensions.
-- If the image file is not found, defaults to `(1, 1)` with a warning.
+- Optional on read. If missing, the handler reads the actual image file to determine dimensions via OpenCV.
+- If the image file is not found AND `imageHeight`/`imageWidth` are absent from JSON, an `ImageError` is raised, causing the image to be skipped with a warning.
+- If the image file is not found BUT `imageHeight`/`imageWidth` are present in JSON, those dimensions are used — the image file is not required in this case (no warning).
+- Both fields are validated to be `> 0` when present.
 - On write, both fields are always included with the actual dimensions.
 
 ## 3. `shapes` Array

@@ -200,6 +200,33 @@ class BaseEvaluator(ABC):
         # Category cross-check
         warnings.extend(_validate_common_categories(coco_gt, coco_dt))
 
+        # Rule 3: DT image_id subset check
+        gt_img_ids = set(coco_gt.getImgIds())
+        dt_img_ids = set(coco_dt.getImgIds())
+        unknown_img = dt_img_ids - gt_img_ids
+        if unknown_img:
+            warnings.append(
+                f"DT contains {len(unknown_img)} image_id(s) not in GT: "
+                f"{sorted(unknown_img)[:10]}"
+                f"{'...' if len(unknown_img) > 10 else ''}. "
+                "These detections will be ignored."
+            )
+
+        # Rule 6: At least one shared category
+        gt_cat_ids = set(coco_gt.getCatIds())
+        dt_cat_ids = set(coco_dt.getCatIds())
+        if not (gt_cat_ids & dt_cat_ids):
+            errors.append(
+                "No shared categories between GT and DT. "
+                f"GT categories: {sorted(gt_cat_ids)}, "
+                f"DT categories: {sorted(dt_cat_ids)}."
+            )
+
+        # Rule 7: Segmentation data check for segm IoU type
+        if self._iou_type() == "segm":
+            segm_warnings = self._validate_segm_data(coco_gt, coco_dt)
+            warnings.extend(segm_warnings)
+
         if errors:
             # Log all validation errors, then raise on the first one.
             # _log_error raises ValueError, so we use the logger
@@ -209,6 +236,41 @@ class BaseEvaluator(ABC):
             self._log_error(errors[-1])
 
         return True, warnings
+
+    @staticmethod
+    def _validate_segm_data(coco_gt: Any, coco_dt: Any) -> List[str]:
+        """Check segmentation data presence for mask IoU evaluation.
+
+        Returns a list of warning messages. Always returns warnings rather
+        than raising errors — pycocotools falls back to bbox IoU when
+        segmentation data is absent on individual annotations.
+        """
+        warnings: List[str] = []
+
+        gt_has_segm = False
+        for ann in coco_gt.loadAnns(coco_gt.getAnnIds()):
+            if ann.get("segmentation") and ann["segmentation"]:
+                gt_has_segm = True
+                break
+
+        dt_has_segm = False
+        for ann in coco_dt.loadAnns(coco_dt.getAnnIds()):
+            if ann.get("segmentation") and ann["segmentation"]:
+                dt_has_segm = True
+                break
+
+        if not gt_has_segm:
+            warnings.append(
+                "iouType='segm' but no GT segmentation data found. "
+                "pycocotools will fall back to bbox IoU."
+            )
+        if not dt_has_segm:
+            warnings.append(
+                "iouType='segm' but no DT segmentation data found. "
+                "pycocotools will fall back to bbox IoU."
+            )
+
+        return warnings
 
     # ------------------------------------------------------------------
     # Metric extraction

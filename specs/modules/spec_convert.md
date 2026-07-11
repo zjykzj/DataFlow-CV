@@ -122,6 +122,16 @@ class BaseConverter(ABC):
     # Hook 5: Create target handler (abstract — subclass must implement)
     @abstractmethod
     def create_target_handler(self, target_path, kwargs) -> BaseAnnotationHandler: ...
+
+    # Hook 6: Post-stream-image processing (optional — streaming path)
+    def _post_stream_image(self, source_ann: ImageAnnotation,
+                           target_ann: ImageAnnotation,
+                           target_path: str, kwargs: Dict) -> None: ...
+
+    # Hook 7: Post-batch-convert processing (optional — batch path)
+    def _post_batch_convert(self, result: ConversionResult,
+                            source_handler: BaseAnnotationHandler,
+                            kwargs: Dict) -> None: ...
 ```
 
 **`_convert_single_image()` contract:**
@@ -131,6 +141,24 @@ class BaseConverter(ABC):
   converted objects
 - Does NOT accumulate data — each call is independent
 - Same precision characteristics as the batch `convert_annotations()` (§9)
+
+**`_post_stream_image()` contract (optional hook):**
+- Called after `_convert_single_image()` and `handler.write_one()` for each image
+  in the streaming pipeline
+- Default implementation in `BaseConverter` is a no-op
+- Receives the source `ImageAnnotation` (pre-transform), target `ImageAnnotation`
+  (post-transform), target path, and kwargs
+- Override point for per-image side effects during streaming. Example:
+  `LabelMeAndYoloConverter` overrides this hook to copy source image files to the
+  target images directory per-image during LabelMe→YOLO conversion
+
+**`_post_batch_convert()` contract (optional hook):**
+- Called after `handler.write()` completes in the batch pipeline
+- Default implementation in `BaseConverter` is a no-op
+- Receives the `ConversionResult`, source handler, and kwargs
+- Override point for post-conversion side effects. Example: `YoloAndCocoConverter`
+  overrides this hook to add RLE accuracy warnings to the result when `do_rle=True`
+  and segmentation data exists
 
 ### 2.3 Conversion Method Contracts
 
@@ -213,16 +241,18 @@ finally:
 Failure to do this causes **stale state leakage** — the next conversion would see the previous
 conversion's data.
 
-**Streaming path**: The `_source_annotations_for_target` pattern is replaced by direct
-category extraction from the source handler **before** iteration begins. For example:
+**Streaming path**: The `_source_annotations_for_target` field is reset to `None`
+at the start of `stream_convert()` and again in a `finally` block, ensuring
+cleanup even if the streaming loop is interrupted. Category extraction from the
+source handler happens **before** iteration begins. For example:
 
 - **COCO → YOLO**: Extract `handler.categories` after `handler.read()` (or from
   `handler.iter_images()` metadata) to generate `classes.txt` before writing images
-- **LabelMe → YOLO**: Copy image files per-image during the streaming loop
-  (no need to hold all images in memory)
+- **LabelMe → YOLO**: Copy image files per-image during the streaming loop via
+  `_post_stream_image()` (no need to hold all images in memory)
 
-The streaming path avoids the stale-state problem entirely since data flows
-per-image through the pipeline without accumulated state.
+The streaming path explicitly cleans up `_source_annotations_for_target` with
+the same `try/finally` pattern used in the batch path — no stale state leak.
 
 ### 2.6 Coordinate Transform Responsibility
 
@@ -245,13 +275,16 @@ utility functions to eliminate the duplication previously spread across
 ```python
 def yolo_to_absolute_pixel(
     bbox: Optional[BoundingBox],
-    segmentation: Optional[Segmentation],
+    seg: Optional[Segmentation],
     img_width: int, img_height: int,
 ) -> Tuple[Optional[BoundingBox], Optional[Segmentation]]:
     """Convert YOLO normalized center → absolute pixel top-left.
 
     Bbox: (cx_norm, cy_norm, w_norm, h_norm) → (x_tl, y_tl, w_abs, h_abs)
     Segmentation: (x_norm, y_norm) per point → (x_abs, y_abs) per point
+
+    Validates that ``img_width`` and ``img_height`` are positive integers.
+    Raises ``ValueError`` if either dimension is <= 0.
 
     This is a pure function with no side effects. Used by:
     - YoloAndCocoConverter (YOLO → COCO)
@@ -260,13 +293,16 @@ def yolo_to_absolute_pixel(
 
 def absolute_pixel_to_yolo(
     bbox: Optional[BoundingBox],
-    segmentation: Optional[Segmentation],
+    seg: Optional[Segmentation],
     img_width: int, img_height: int,
 ) -> Tuple[Optional[BoundingBox], Optional[Segmentation]]:
     """Convert absolute pixel top-left → YOLO normalized center.
 
     Bbox: (x_tl, y_tl, w_abs, h_abs) → (cx_norm, cy_norm, w_norm, h_norm)
     Segmentation: (x_abs, y_abs) per point → (x_norm, y_norm) per point
+
+    Validates that ``img_width`` and ``img_height`` are positive integers.
+    Raises ``ValueError`` if either dimension is <= 0.
 
     This is a pure function with no side effects. Used by:
     - YoloAndCocoConverter (COCO → YOLO)
@@ -305,19 +341,21 @@ def _ensure_categories_for_streaming(
     that don't expose them until ``read()`` / ``iter_images()`` runs.
 
     Default implementation:
-        Checks ``source_handler.categories`` — if it's a non-empty dict,
+        Resets ``self._source_annotations_for_target = None`` at entry,
+        then checks ``source_handler.categories`` — if it's a non-empty dict,
         stores a minimal ``DatasetAnnotations`` with those categories in
         ``self._source_annotations_for_target``.
 
     Subclass overrides (COCO sources):
-        Reads categories directly from the COCO JSON file's ``"categories"``
+        Resets ``self._source_annotations_for_target = None`` at entry,
+        then reads categories directly from the COCO JSON file's ``"categories"``
         array. This avoids loading the full dataset into memory just to
         extract category mappings.
     """
 ```
 
 Implementation is in `BaseConverter` (default) with COCO-specific overrides. The
-COCO JSON reading logic (`_read_coco_categories()`) is a shared helper in
+COCO JSON reading logic (`read_coco_categories()`) is a shared helper in
 `convert/utils.py` to avoid duplication between `YoloAndCocoConverter` and
 `CocoAndLabelMeConverter`.
 
@@ -431,7 +469,9 @@ After reading and after writing, the converter emits INFO-level statistics:
 3. `stream_convert()`:
    - Iterates `LabelMeAnnotationHandler.iter_images()` (yields one `ImageAnnotation` per JSON)
    - `_convert_single_image()`: LabelMe absolute pixels → YOLO normalized
-   - Copies image file to `target_path/images/` per-image
+   - `_post_stream_image()` (overridden): Copies the source image file to
+     `target_path/images/` per-image during the streaming loop, avoiding the
+     need to hold all image paths in memory
    - Writes one `.txt` file per image immediately
 4. Creates `LabelMeAnnotationHandler` as source, `YoloAnnotationHandler` as target
 
@@ -530,8 +570,8 @@ responsibility to:
 | Function | Purpose |
 |----------|---------|
 | `extract_categories_from_annotations(dataset)` | Extracts `Dict[id, name]` from DatasetAnnotations |
-| `yolo_to_absolute_pixel(bbox, seg, img_w, img_h)` | **Shared** — YOLO normalized center → absolute pixel top-left (bbox + polygon) |
-| `absolute_pixel_to_yolo(bbox, seg, img_w, img_h)` | **Shared** — absolute pixel top-left → YOLO normalized center (bbox + polygon) |
+| `yolo_to_absolute_pixel(bbox, seg, img_w, img_h)` | **Shared** — YOLO normalized center → absolute pixel top-left (bbox + polygon). The parameter ``seg`` is a ``Segmentation`` object (alias for the historical ``segmentation`` name in earlier docs). |
+| `absolute_pixel_to_yolo(bbox, seg, img_w, img_h)` | **Shared** — absolute pixel top-left → YOLO normalized center (bbox + polygon). The parameter ``seg`` is a ``Segmentation`` object (alias for the historical ``segmentation`` name in earlier docs). |
 | `read_coco_categories(json_path)` | **Shared** — reads categories from a COCO JSON file without full dataset load |
 | `generate_classes_file(categories, path)` | Writes `classes.txt` from category dict |
 | `load_classes_file(path)` | Reads `classes.txt` into `Dict[int, str]` |

@@ -48,9 +48,9 @@ defines how all coordinate fields should be interpreted.**
 
 ```
 DatasetAnnotations
-├── format: AnnotationFormat       # SOURCE format — defines coordinate semantics
 ├── images: List[ImageAnnotation]  # All images in the dataset
 ├── categories: Dict[int, str]     # category_id → category_name
+├── format: AnnotationFormat       # SOURCE format — defines coordinate semantics
 └── dataset_info: Dict[str, Any]   # Format-specific metadata (raw JSON preserved)
 ```
 
@@ -59,6 +59,23 @@ DatasetAnnotations
 - `num_images` = `len(images)`
 - `num_objects` = `sum(len(img.objects) for img in images)`
 - `format` must be set to the actual source format (never `UNKNOWN` after a successful read)
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `num_images` | int | Number of images in the dataset |
+| `num_objects` | int | Total number of annotated objects across all images |
+| `num_categories` | int | Number of categories in the dataset |
+
+**Methods:**
+
+| Method | Description |
+|--------|-------------|
+| `add_image(image_annotation: ImageAnnotation)` | Append an image annotation to the dataset |
+| `add_category(cat_id: int, cat_name: str)` | Add a category; raises `ValueError` if `cat_id` already exists with a different name |
+| `get_category_name(cat_id: int) -> Optional[str]` | Look up category name by ID; returns `None` if not found |
+| `get_category_id(cat_name: str) -> Optional[int]` | Look up category ID by name (linear scan); returns `None` if not found |
 
 ### 2.2 `ImageAnnotation`
 
@@ -117,7 +134,7 @@ transformations.
 
 **Validation:**
 - YOLO format: `x`, `y`, `width`, `height` ∈ [0, 1]; `width > 0`, `height > 0`
-- COCO/LabelMe format: `x`, `y` > 0; `width` > 0, `height` > 0; values are absolute pixels
+- COCO/LabelMe format: `x`, `y` >= 0; `width` > 0, `height` > 0; values are absolute pixels
 
 ### 2.5 `Segmentation`
 
@@ -145,8 +162,8 @@ transformations.
 ```python
 class AnnotationFormat(Enum):
     YOLO = "yolo"       # Normalized [0,1] center-based coordinates
-    COCO = "coco"       # Absolute pixel top-left coordinates
     LABELME = "labelme" # Absolute pixel corner coordinates
+    COCO = "coco"       # Absolute pixel top-left coordinates
     UNKNOWN = "unknown"
 ```
 
@@ -247,11 +264,11 @@ def iter_images(self) -> Iterator[ImageAnnotation]:
 
 **Format-specific validation in `_validate_bbox`:**
 - `YOLO`: All values ∈ [0, 1]; width > 0, height > 0; center (x,y) within [0,1]
-- `COCO/LabelMe`: All values > 0; width > 0, height > 0; finite real numbers
+- `COCO/LabelMe`: All values >= 0; width > 0, height > 0; finite real numbers
 
 **Format-specific validation in `_validate_segmentation_points`:**
 - `YOLO`: ≥ 3 points; all coordinates ∈ [0, 1]
-- `COCO/LabelMe`: ≥ 3 points; all coordinates > 0; finite real numbers
+- `COCO/LabelMe`: ≥ 3 points; all coordinates ≥ 0; finite real numbers
 
 #### `write_one()` — Single-Image Write (Streaming)
 
@@ -338,7 +355,6 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
 `iter_images()` for lower memory and faster first-image latency.
 
 **`write(annotations, output_dir)`**: Writes one `.txt` per image.
-- Expects `DatasetAnnotations.format == YOLO`
 - Output: `class_id cx cy w h` (5 tokens for detection) or `class_id x1 y1 x2 y2 ...` (segmentation)
 - **Prediction write**: When `ObjectAnnotation.confidence < 1.0`, writes 6 tokens (detection) or appends confidence (segmentation)
 - Coordinates written with 6 decimal places (`.6f`); confidence written with 6 decimal places
@@ -377,7 +393,6 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
 **`iter_images()`**: Yields `ImageAnnotation` objects one at a time with format-native coordinates. Groups annotations by `image_id` from the COCO JSON, yields each image with its annotations. In strict mode, raises `ValueError` on first invalid annotation. In non-strict mode, logs warnings and skips invalid annotations. Image errors always skip regardless of strict_mode.
 
 **`write(annotations, output_file, output_rle=None)`**: Writes COCO JSON.
-- Expects `DatasetAnnotations.format == COCO`
 - Crowd annotations (`iscrowd=1`) always use RLE format
 - Non-crowd annotations follow `output_rle` flag
 
@@ -385,6 +400,8 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
 - Write: `counts_bytes.decode("latin1")` — mandatory; UTF-8 cannot represent all 256 byte values
 - Read: `counts_str.encode("latin1")` → `mask.decode()`
 - `HAS_COCO_MASK` flag indicates pycocotools availability
+
+**`validate()`**: Validates the COCO JSON file. Takes no arguments — all information is self-contained from `self.annotation_file` set at construction. This differs from YOLO/LabelMe handlers where `validate(annotation_file: str)` accepts an explicit file path. This variance is acceptable per-handler design.
 
 ### 4.3 `LabelMeAnnotationHandler`
 
@@ -408,7 +425,6 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
 **`iter_images()`**: Yields `ImageAnnotation` objects one at a time with format-native coordinates. Parses each `.json` file's shapes (rectangle → BoundingBox, polygon → Segmentation). In strict mode, raises `ValueError` on first parse error. In non-strict mode, logs warnings and skips invalid files/shapes. If `imagePath` is inaccessible but JSON contains valid `imageWidth`/`imageHeight`, the image is not needed — read succeeds silently. Categories are auto-extracted from `shape.label` if `class_file` not provided.
 
 **`write(annotations, output_dir)`**: Writes one `.json` per image.
-- Expects `DatasetAnnotations.format == LABELME`
 - `imageData` is always set to `None`
 - For rectangle annotations: writes as `shape_type="rectangle"` with two corner points `[[x1,y1],[x2,y2]]`
 
@@ -431,7 +447,7 @@ from `shape.label` values during reading.
 | Invalid bbox (zero area, NaN, overflow) | Abort immediately | Skip annotation, log warning, continue |
 | Image file not found (YOLO) | Raise `ImageError` → skip with warning | Use placeholder dims (1,1), log debug, continue |
 | Image file not found (COCO) | **Always skip with warning** | **Always skip with warning** |
-| Image file not found (LabelMe) | JSON has `imageWidth`/`imageHeight` → read succeeds silently. JSON lacks dimensions → abort immediately | JSON has `imageWidth`/`imageHeight` → read succeeds silently. JSON lacks dimensions → skip with warning |
+| Image file not found (LabelMe) | JSON has `imageWidth`/`imageHeight` → read succeeds silently. JSON lacks dimensions → always skip with warning | JSON has `imageWidth`/`imageHeight` → read succeeds silently. JSON lacks dimensions → always skip with warning |
 | Image unreadable / corrupt | **Always skip with warning** | **Always skip with warning** |
 | Invalid image dimensions (YOLO non-strict) | Raise `ImageError` → skip with warning | Use placeholder dims (1,1), log debug, continue |
 | Invalid image dimensions (other) | **Always skip with warning** | **Always skip with warning** |
@@ -451,7 +467,7 @@ from `shape.label` values during reading.
 | Invalid class_id / bbox (other) | Raise `ValueError` immediately, stop iteration | Skip line, log warning, continue |
 | Image file not found (YOLO) | Raise `ImageError` → skip with warning, stop iteration | Use placeholder dims (1,1), log debug, continue yielding |
 | Image file not found (COCO) | **Always skip with warning** | **Always skip with warning** |
-| Image file not found (LabelMe) | JSON has `imageWidth`/`imageHeight` → yield succeeds silently. JSON lacks dimensions → raise `ValueError`, stop iteration | JSON has `imageWidth`/`imageHeight` → yield succeeds silently. JSON lacks dimensions → skip with warning |
+| Image file not found (LabelMe) | JSON has `imageWidth`/`imageHeight` → yield succeeds silently. JSON lacks dimensions → always skip with warning | JSON has `imageWidth`/`imageHeight` → yield succeeds silently. JSON lacks dimensions → always skip with warning |
 | Image unreadable / corrupt | **Always skip with warning** | **Always skip with warning** |
 | Invalid image dimensions | **Always skip with warning** | **Always skip with warning** |
 
@@ -514,5 +530,5 @@ A valid read operation must satisfy ALL of:
 | `generate_classes_file(categories, output_path)` | Generates `classes.txt` from category dict |
 | `load_classes_file(file_path)` | Loads `classes.txt` into `Dict[int, str]` |
 | `calculate_file_hash(file_path, algorithm="md5")` | Computes hash of a file for integrity comparison |
-| `compare_annotation_dirs(dir_a, dir_b, format)` | Format-aware comparison (text diff for YOLO, JSON diff for LabelMe) |
+| `compare_annotation_dirs(dir_a, dir_b, format)` | Format-aware comparison (text diff for YOLO, JSON diff for LabelMe) <!-- TODO: not yet implemented --> |
 

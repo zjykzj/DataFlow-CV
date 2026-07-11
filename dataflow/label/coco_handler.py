@@ -54,6 +54,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         self.dataset_info = {}
         self.output_rle = do_rle  # Whether to output RLE format when writing
         self.prediction = prediction  # Whether to output prediction (list) format
+        self._user_set_output_rle = do_rle  # Track whether user explicitly set do_rle
 
     def read(self) -> AnnotationResult:
         """
@@ -105,7 +106,9 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
             # Detect RLE format
             self.is_rle = self._detect_rle_format(self.annotations)
-            self.output_rle = self.is_rle  # Default to same format as input
+            # Only auto-detect output format if user didn't explicitly set do_rle
+            if not self._user_set_output_rle:
+                self.output_rle = self.is_rle
 
             # Create dataset annotations
             dataset = self._create_dataset()
@@ -773,12 +776,17 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             if not self.prediction:
                 ann_dict["id"] = ann_id
 
-            # Include score for prediction output
-            # In prediction mode, always include score (explicit contract).
-            # In annotation mode, only include when confidence < 1.0
-            # (data-driven, for round-trip compatibility).
-            if self.prediction or obj.confidence < 1.0:
+            # Include score for prediction output only.
+            # Annotation-mode COCO JSON must never include score
+            # (spec_coco_format.md §10.3).
+            if self.prediction:
                 ann_dict["score"] = obj.confidence
+
+            # Enforce iscrowd=0 for prediction output (crowd is GT-only,
+            # spec_coco_format.md §10.3).
+            if self.prediction and iscrowd != 0:
+                iscrowd = 0
+                ann_dict["iscrowd"] = 0
 
             return ann_dict
 

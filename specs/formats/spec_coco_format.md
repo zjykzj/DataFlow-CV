@@ -288,7 +288,7 @@ model's confidence:
 
 | Aspect | Annotation JSON | Prediction JSON |
 |--------|----------------|----------------|
-| `annotations[].score` | Absent | **Required** (float [0,1]) |
+| `annotations[].score` | Always absent (must never be included) | **Required** (float [0,1]) |
 | `annotations[].iscrowd` | 0 or 1 | Always 0 (crowd is a GT-only concept) |
 | Annotation count | Typically matches actual object count | Typically higher (model outputs multiple candidates per image) |
 | `annotations[].id` | Sequential, unique | Sequential, unique (can start from 1 independently of GT) |

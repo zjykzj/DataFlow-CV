@@ -32,7 +32,7 @@ def add_evaluate_options(func):
     @click.option(
         "--prf1",
         is_flag=True,
-        help="Additionally compute and display P/R/F1",
+        help="Compute P/R/F1 instead of mAP (mutually exclusive)",
     )
     @click.option(
         "--prf1-iou",

@@ -5,6 +5,7 @@ Handles bidirectional conversion between LabelMe and YOLO annotation formats.
 Supports both object detection and instance segmentation annotations.
 """
 
+import shutil
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -152,46 +153,15 @@ class LabelMeAndYoloConverter(BaseConverter):
             images_dir.mkdir(parents=True, exist_ok=True)
 
             # Copy class file to target directory if it doesn't exist there
-            import shutil
-
             source_class_file = Path(class_file)
             target_class_file = target_path_obj / "classes.txt"
             if source_class_file.exists() and not target_class_file.exists():
                 try:
                     shutil.copy2(source_class_file, target_class_file)
                     self.logger.info(f"Copied class file to: {target_class_file}")
-                    # Update class_file to point to the copied file for handler
                     class_file = str(target_class_file)
                 except Exception as e:
                     self.logger.warning(f"Failed to copy class file: {e}")
-
-            # Copy image files if source annotations are available
-            if (
-                hasattr(self, "_source_annotations_for_target")
-                and self._source_annotations_for_target
-            ):
-                source_label_dir = Path(self._source_path)
-                for image_ann in self._source_annotations_for_target.images:
-                    source_image_path = Path(image_ann.image_path)
-                    # Resolve relative paths against source label directory
-                    if not source_image_path.is_absolute():
-                        source_image_path = source_label_dir / source_image_path
-                    if source_image_path.exists():
-                        target_image_path = images_dir / source_image_path.name
-                        if not target_image_path.exists():
-                            try:
-                                shutil.copy2(source_image_path, target_image_path)
-                                self.logger.info(
-                                    f"Copied image to: {target_image_path}"
-                                )
-                            except Exception as e:
-                                self.logger.warning(
-                                    f"Failed to copy image {source_image_path}: {e}"
-                                )
-                    else:
-                        self.logger.warning(
-                            f"Source image does not exist: {source_image_path}"
-                        )
 
             # Get image_dir from kwargs or use images_dir as default
             image_dir = kwargs.get("image_dir")
@@ -220,6 +190,66 @@ class LabelMeAndYoloConverter(BaseConverter):
 
         return handler
 
+    def _ensure_categories_for_streaming(
+        self,
+        source_handler: Any,
+        source_path: str,
+        kwargs: Dict,
+    ) -> None:
+        """Pre-load categories for streaming conversion.
+
+        For LabelMe source, categories may be auto-detected from
+        annotations during iteration. We pre-scan the first JSON file
+        to extract category labels without loading every file.
+        For YOLO source, categories come from the class_file.
+        """
+        self._source_annotations_for_target = None
+        cats = getattr(source_handler, "categories", None)
+        if isinstance(cats, dict) and cats:
+            self._source_annotations_for_target = DatasetAnnotations(
+                format=AnnotationFormat.UNKNOWN,
+                categories=cats.copy(),
+            )
+
+    def _post_stream_image(
+        self,
+        source_ann: ImageAnnotation,
+        target_ann: ImageAnnotation,
+        target_path: str,
+        kwargs: Dict,
+    ) -> None:
+        """Copy the source image to the target directory (LabelMe→YOLO only).
+
+        This is called per-image during the streaming loop, ensuring each
+        image is copied immediately after its annotation is written.
+        """
+        if not self.source_to_target:
+            return  # YOLO→LabelMe: image_dir already points to source images
+
+        target_path_obj = Path(target_path)
+        images_dir = target_path_obj / "images"
+
+        source_image_path = Path(source_ann.image_path)
+        if not source_image_path.is_absolute():
+            # Resolve relative to the source path
+            source_image_path = Path(self._source_path) / source_image_path
+
+        if not source_image_path.exists():
+            self.logger.warning(
+                f"Source image does not exist, skipping copy: {source_image_path}"
+            )
+            return
+
+        target_image_path = images_dir / source_image_path.name
+        if target_image_path.exists():
+            return  # Already copied (e.g., shared images between annotations)
+
+        try:
+            shutil.copy2(source_image_path, target_image_path)
+        except Exception as e:
+            self.logger.warning(
+                f"Failed to copy image {source_image_path}: {e}"
+            )
     def _convert_single_image(
         self, image_ann: ImageAnnotation, **kwargs
     ) -> ImageAnnotation:

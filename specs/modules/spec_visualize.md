@@ -56,7 +56,7 @@ class RenderAnnotation:
     polygon: Optional[List[Tuple[int, int]]]
     
     # RLE mask data (COCO only, preserved as-is)
-    rle: Optional[Dict[str, Any]]
+    rle: Optional[Dict]
 ```
 
 ### 2.2 `RenderData`
@@ -162,7 +162,7 @@ Abstract base class implementing the template method pattern.
 | `output_dir` | Optional[Path] | No | None | Save directory (required if `is_save=True`) |
 | `is_show` | bool | No | True | Display visualization window |
 | `is_save` | bool | No | False | Save rendered images |
-| `log_config` | Optional[LogConfig] | No | None | Logging configuration (see `spec_logging.md`) |
+| `log_config` | Optional[Any] | No | None | Logging configuration (see `spec_logging.md`) |
 
 **Drawing configuration (`self.config`):**
 
@@ -272,7 +272,7 @@ For each `RenderAnnotation`, drawing proceeds in this order:
 
 ```
 1. Determine label position:
-   ├── bbox exists → label_pos = bbox top-left (x1, y1 - 2)
+   ├── bbox exists → label_pos = bbox top-left (x1, y1 - text_padding)
    └── bbox is None, polygon exists → label_pos = polygon[0] (fallback)
 
 2. Draw bbox (if present):
@@ -305,18 +305,18 @@ if polygon and bbox is None:
 This ensures label positioning is always based on a bounding box rather than an
 arbitrary polygon vertex, giving consistent placement across all annotation types.
 
-**Label position**: `(x1, y1 - 2)` (above bbox, top-left aligned).
+**Label position**: `(x1, y1 - text_padding)` (above bbox, top-left aligned, default offset 5px).
 Background rectangle uses the same class color as the bbox/polygon, providing
 visual association between label and annotation. Text is white for contrast.
 If bbox is None but polygon exists (no bbox computed), falls back to polygon's
 first point.
 
-#### `_draw_bbox(image, bbox, color, class_name)`
+#### `_draw_bbox(image, bbox, color)`
 
 - `bbox`: `(x1, y1, x2, y2)` in absolute pixels (from `RenderAnnotation` — already in absolute coords)
 - Draw rectangle with `cv2.rectangle()`
 
-#### `_draw_polygon(image, polygon, color, class_name)`
+#### `_draw_polygon(image, polygon, color)`
 
 - `polygon`: `[(x1, y1), (x2, y2), ...]` in absolute pixels (from `RenderAnnotation`)
 - Draw semi-transparent fill with `cv2.fillPoly()` + `cv2.addWeighted()` (alpha from config)
@@ -334,7 +334,7 @@ Requires pycocotools — logs error and returns without drawing if unavailable.
 #### `_draw_text(image, text, position, color, bbox)`
 
 1. Calculate text bounding box via `cv2.getTextSize()`
-2. If text extends above image top edge (`y1 - text_padding - text_height < 0`):
+2. If text extends above image top edge (`(y1 - text_padding) - text_height + baseline < 0`):
    - Flip label **inside** bbox: `position = (x1, y1 + text_height + text_padding)`
 3. Draw **class-color** background rectangle (from `color` parameter, clamped to image boundaries)
 4. Draw **white** text with `cv2.putText()` (anti-aliased)
@@ -345,10 +345,12 @@ When `is_show=True`, each image is shown in a window:
 
 | Key | Action |
 |-----|--------|
-| Enter / Space | Continue to next image |
+| Any key | Continue to next image (the documented Enter/Space contract is satisfied by this behavior) |
 | `q` / ESC | Stop visualization (returns `None` from `_visualize_single_image`) |
 
 When the user interrupts, `VisualizationResult.data` includes `{"interrupted": True}`.
+
+**Window management**: A single OpenCV window named `"DataFlow-CV Visualization"` is created with `cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO` flags. On first display, it is positioned at `(100, 100)`. The window auto-sizes to fit the image dimensions, capped at 1920x1080 — larger images are scaled down proportionally while maintaining aspect ratio via `WINDOW_KEEPRATIO`.
 
 ### 4.5 Save Mode
 
@@ -521,9 +523,10 @@ See [`spec_logging.md`](spec_logging.md) for the full `LogManager` contract. Vis
 
 - If `log_config` is None, a default `LogConfig(name=f"visualize.{class_name}")` is created
 - The visualizer creates a `LogManager` from the config
-- A child logger is created for progress output: `self._log_manager.child("progress")`
 
 **Log pipeline** (all handled internally by the visualizer):
+
+1. **Header** — `format_viz_header()` is called at the start of the pipeline, logging the format name, label/image paths, and display/save mode at INFO level (both verbose and non-verbose). Example:
 
 ```
 ══════════════════════════════════════
@@ -532,12 +535,15 @@ Visualize: YOLO
   Images:  images/
   Display: yes
   Save:    yes → output/
+```
 
-── Progress ──
-  001  image_001.jpg  (5 objects)  ✓
-  002  image_002.jpg  (3 objects)  ✓
-  ...
+2. **Per-image progress** — `format_viz_progress()` is called for each image, producing a single-line entry with image index, name, object count, and status mark (e.g., `001  image_001.jpg  (5 objects)  ✓`). This is logged at INFO level for detailed output.
 
+3. **Aggregate progress** — When the message parameter is empty, a counter-based summary line is logged instead: `[====] Processed X images, Y failed`. This provides batch progress suitable for lower-verbosity modes.
+
+4. **Result summary** — `format_viz_result()` is called at the end, logging a summary block (status, image counts, object counts, duration, log path) at INFO level. This is logged in **both** verbose and non-verbose modes.
+
+```
 ── Result ──
   Status:   ✓ Success
   Images:   500 / 500 (0 failed)
@@ -554,12 +560,12 @@ Visualize: YOLO
 - `format_viz_result()` — final result block
 
 When `verbose=True`:
-- Console: header + progress (every 10 images, counter-based since total is unknown in streaming)
+- Console: header + per-image progress + result block
 - File: DEBUG-level per-image details (color assignments, coordinate conversions, drawing operations)
 - `log_path` is recorded in `VisualizationResult.log_path`
 
 When `verbose=False`:
-- Console: progress (every 10 images, INFO level) + result block
+- Console: header + aggregate progress (every 10 images, INFO level) + result block
 - No file output
 - `log_path` is `None`
 

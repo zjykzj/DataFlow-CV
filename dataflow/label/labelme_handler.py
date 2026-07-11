@@ -252,11 +252,9 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                             f"Could not read image dimensions from file: {e}"
                         )
                 if not dims_read:
-                    self._log_warning(
-                        f"Image dimensions not in JSON {json_file} and could not read from file, using defaults"
+                    raise ImageError(
+                        f"Image dimensions not in JSON {json_file} and could not read from file"
                     )
-                    image_height = 1
-                    image_width = 1
 
             if not self._validate_image_dimensions(image_width, image_height):
                 raise ImageError(f"Invalid image dimensions in {json_file}")

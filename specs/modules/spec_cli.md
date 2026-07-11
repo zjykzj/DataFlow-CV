@@ -233,6 +233,8 @@ Evaluates instance segmentation results using mask IoU (`iouType='segm'`).
 
 Both ``stats`` and ``split`` subcommands use the `@add_common_options` decorator (§2.1) which provides `--verbose`, `--no-strict`, and `--log-dir`.  (The ``--no-strict`` flag is accepted but has no effect — analyse operations always run in non-strict mode.)
 
+Both subcommands accept `--class-file` and `--image-dir`. The `_add_analyse_options` decorator (defined in ``commands/analyse.py``) provides these options and is used by the ``stats`` subcommand, while the ``split`` subcommand defines them inline (both as ``@click.option`` with identical signatures).
+
 ### 5.2 Command Signatures
 
 #### `stats`

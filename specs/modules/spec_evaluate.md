@@ -74,16 +74,24 @@ class PerClassMetrics:
     class_name: str
     gt_count: int            # Number of GT annotations for this class
     dt_count: int            # Number of DT annotations for this class
-    tp: int                  # True Positives (at IoU threshold 0.50:0.95 aggregate)
-    fp: int                  # False Positives
-    fn: int                  # False Negatives
+    tp: int                  # True Positives at IoU=0.50 (estimated from precision and recall)
+    fp: int                  # False Positives at IoU=0.50 (estimated from precision and recall)
+    fn: int                  # False Negatives at IoU=0.50 (estimated from precision and recall)
     ap: float                # AP (IoU=0.50:0.95)
     ap50: float              # AP at IoU=0.50
     ap75: float              # AP at IoU=0.75
-    precision: float         # P at IoU=0.50, optimal confidence
-    recall: float            # R at IoU=0.50, optimal confidence
-    f1_score: float          # F1 at IoU=0.50, optimal confidence
+    precision: float         # P at IoU=0.50, at the confidence threshold that maximizes per-class F1
+    recall: float            # R at IoU=0.50, at the confidence threshold that maximizes per-class F1
+    f1_score: float          # F1 at IoU=0.50, at the confidence threshold that maximizes per-class F1
 ```
+
+**Note on tp/fp/fn**: These values are **estimated** from the precision and recall
+measured at IoU=0.50 (not directly counted from the raw matching output of COCOeval).
+They are derived as follows: `tp = (P × R × (gt_count + dt_count)) / (P + R)` and
+`fp = gt_count - tp`, `fn = gt_count - tp` (where gt_count is the number of GT
+annotations for that class). This is an approximation — tp/fp/fn for the full
+IoU=0.50:0.95 range would require aggregating across 10 threshold levels, which
+COCOeval does not expose per-class.
 
 ### 2.3 `EvaluationResult`
 
@@ -214,6 +222,7 @@ def evaluate(
     dt_source: Union[str, Path, DatasetAnnotations, Dict, List],
 ) -> EvaluationResult:
 ```
+Where `DatasetAnnotations` is `dataflow.label.models.DatasetAnnotations`.
 
 **GT input normalization** (`utils.py`):
 
@@ -245,7 +254,7 @@ Single-threshold P/R/F1 computation. Does NOT require the full COCOeval pipeline
 ```python
 def compute_pr_f1(
     gt_source: Union[str, Path, DatasetAnnotations, Dict],
-    dt_source: Union[str, Path, DatasetAnnotations, Dict],
+    dt_source: Union[str, Path, DatasetAnnotations, Dict, List],
     iou_threshold: float = 0.5,
     confidence_threshold: float = 0.0,
     iou_type: str = "bbox",
@@ -347,10 +356,27 @@ The `validate_inputs()` method checks:
 1. GT categories is non-empty
 2. GT images is non-empty
 3. DT's `image_id` values are a subset of GT's `image_id` values (warn if DT contains images not in GT)
+   - Compares the set of `image_id` values in DT annotations against GT images
+   - If DT contains image_ids not present in GT, a WARNING is logged listing the
+     count and the first few unknown IDs
+   - Unknown DT image_ids are excluded from evaluation — they cannot be matched
+     to any GT
+   - This is a warning, not an error — the evaluation continues
 4. Every DT annotation has a `score` field
 5. DT `category_id` values are a subset of GT `category_id` values (warn on unknown categories)
-6. At least one category has both GT and DT annotations
-7. If `iouType='segm'`, segmentation data is present on GT and DT annotations that will be matched
+6. At least one shared category between GT and DT
+   - Collects the set of category IDs that have both GT annotations and DT
+     annotations (after score filtering)
+   - If this set is empty, there is nothing to evaluate — no matching can occur
+   - Logged as an ERROR and evaluation aborts with
+     ``"No shared categories between GT and DT — nothing to evaluate"``
+7. If `iouType='segm'`, segmentation data is present on GT and DT annotations
+   - Checks whether both GT and DT contain `segmentation` fields on annotations
+     that are expected to be matched
+   - If either GT or DT lacks segmentation data, logged as an ERROR and
+     evaluation aborts with
+     ``"Segmentation data missing — cannot evaluate with iouType='segm'. Ensure both GT and DT contain segmentation annotations."``
+   - This check is skipped for `iouType='bbox'`
 
 All validation errors are collected into a list first. Each is logged individually via ``self.logger.error()``; then ``ValueError`` is raised on the last one. This ensures all problems are visible in the log before the operation aborts.
 

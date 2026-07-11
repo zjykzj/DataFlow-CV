@@ -126,12 +126,14 @@ class StatsAnalyser(BaseAnalyser):
         self,
         label_path: Path,
         class_file: Optional[Path] = None,
+        image_dir: Optional[Path] = None,
     ) -> AnalysisResult:
         """Compute statistics for the dataset at ``label_path``.
 
         Args:
             label_path: Path to labels — directory (YOLO/LabelMe) or JSON file (COCO)
             class_file: Optional classes.txt for name mapping and ordering
+            image_dir: Optional image directory (needed for YOLO format to locate image dimensions)
 
         Returns:
             AnalysisResult with StatsResult in ``.data``
@@ -142,7 +144,7 @@ class StatsAnalyser(BaseAnalyser):
 
 ```
 1. detect_format(label_path)     → "yolo" | "labelme" | "coco"
-2. create_handler(label_path, class_file, logger)
+2. create_handler(format, label_path, class_file, image_dir, logger)
 3. handler.read()                → DatasetAnnotations
 4. Count:
    a. total_files = len(dataset.images)
@@ -173,6 +175,7 @@ class SplitAnalyser(BaseAnalyser):
         ratio: float = 0.8,
         seed: int = 42,
         class_file: Optional[Path] = None,
+        image_dir: Optional[Path] = None,
     ) -> AnalysisResult:
         """Split the dataset at ``label_path`` into train and val.
 
@@ -182,6 +185,7 @@ class SplitAnalyser(BaseAnalyser):
             ratio: Proportion of data for training (default 0.8)
             seed: Random seed for reproducibility
             class_file: Optional classes.txt (required for YOLO)
+            image_dir: Optional image directory (needed for YOLO format to locate image dimensions)
 
         Returns:
             AnalysisResult with SplitResult in ``.data``
@@ -192,14 +196,16 @@ class SplitAnalyser(BaseAnalyser):
 
 ```
 1. detect_format(label_path)     → "yolo" | "labelme" | "coco"
-2. create_handler(label_path, class_file, logger)
+2. create_handler(format, label_path, class_file, image_dir, logger)
 3. handler.read()                → DatasetAnnotations
 4. Shuffle images:
    a. random.Random(seed).shuffle(dataset.images)
 5. Split by ratio:
    a. split_idx = int(len(images) * ratio)
-   b. train_images = images[:split_idx]
-   c. val_images = images[split_idx:]
+   b. If split_idx == 0 and len(images) >= 2 → silently adjust to 1
+   c. If split_idx == len(images) and len(images) >= 2 → silently adjust to len(images)-1
+   d. train_images = images[:split_idx]
+   e. val_images = images[split_idx:]
 6. Create two DatasetAnnotations (train, val) from image subsets
 7. Write outputs:
    a. COCO: handler.write() for train.json and val.json in output_dir/
@@ -215,7 +221,7 @@ class SplitAnalyser(BaseAnalyser):
 |----------|----------|
 | Random seed | `random.Random(seed)` for deterministic shuffling |
 | Ratio | `train_count = int(total_images * ratio)`, remainder to val |
-| Minimum size | If ratio results in empty train or val set, warn but proceed (single-image datasets) |
+| Minimum size | If ratio results in empty train or val set and dataset has >= 2 images, silently adjust boundaries (min 1 per side). Single-image datasets produce empty val set with a warning. |
 | Image copying | Images are NOT copied in v1 — only labels are split |
 | Class file | Copied to both output directories if provided |
 
@@ -227,7 +233,7 @@ class SplitAnalyser(BaseAnalyser):
 
 ## 4. Public API
 
-### 4.1 `StatsAnalyser.analyse(label_path, class_file) → AnalysisResult`
+### 4.1 `StatsAnalyser.analyse(label_path, class_file, image_dir) → AnalysisResult`
 
 Compute dataset statistics. Auto-detects the annotation format from `label_path`.
 
@@ -235,8 +241,9 @@ Compute dataset statistics. Auto-detects the annotation format from `label_path`
 |-----------|------|----------|-------------|
 | `label_path` | Path | Yes | Path to labels (directory or file) |
 | `class_file` | Path | No | Classes.txt for name mapping and output ordering |
+| `image_dir` | Path | No | Image directory (needed for YOLO format to locate image dimensions) |
 
-### 4.2 `SplitAnalyser.analyse(label_path, output_dir, ratio, seed, class_file) → AnalysisResult`
+### 4.2 `SplitAnalyser.analyse(label_path, output_dir, ratio, seed, class_file, image_dir) → AnalysisResult`
 
 Split dataset into train and validation subsets.
 
@@ -247,6 +254,7 @@ Split dataset into train and validation subsets.
 | `ratio` | float | No | 0.8 | Train proportion |
 | `seed` | int | No | 42 | Random seed |
 | `class_file` | Path | No | None | Classes.txt (required for YOLO) |
+| `image_dir` | Path | No | None | Image directory (needed for YOLO format to locate image dimensions) |
 
 ### 4.3 Module-Level Utilities (`utils.py`)
 
@@ -256,8 +264,11 @@ def detect_format(label_path: Path) -> str:
 
     Detection rules (checked in order):
     1. If label_path is a file ending in .json:
-       - Open file, check keys → ``"images"`` / ``"annotations"`` → ``"coco"``;
-         ``"shapes"`` → ``"labelme"``; otherwise → error
+       - Open file, check keys in order:
+         a. ``"images"`` → ``"coco"``
+         b. ``"shapes"`` → ``"labelme"``
+         c. ``"annotations"`` → ``"coco"`` (both ``"images"`` and ``"annotations"`` individually indicate COCO)
+         d. otherwise → error
     2. If label_path is a directory:
        a. List non-hidden files, exclude ``classes.txt``
        b. If mixed .txt and .json → error (ambiguous)
@@ -307,7 +318,7 @@ The module auto-detects the annotation format by inspecting the label path:
 
 | Label Path Type | Detection Method | Result |
 |----------------|-----------------|--------|
-| File ending in `.json` | Read JSON, check for ``"images"`` / ``"annotations"`` → COCO, ``"shapes"`` → LabelMe | COCO or LabelMe |
+| File ending in `.json` | Read JSON, check in order: ``"images"`` → COCO, ``"shapes"`` → LabelMe, ``"annotations"`` → COCO. Both ``"images"`` and ``"annotations"`` individually indicate COCO. | COCO or LabelMe |
 | Directory with `.txt` files only | File extension check | YOLO |
 | Directory with `.json` files only | Read first `.json`, check for ``"shapes"`` key | LabelMe |
 | Directory with ``"images"``-key JSON | — | Error: "COCO is a single file — point to it directly" |
@@ -514,9 +525,9 @@ dataflow-cv analyse split [OPTIONS] LABEL_PATH OUTPUT_DIR
 | API | Location | Purpose |
 |-----|----------|---------|
 | `StatsAnalyser(log_config)` | `stats.py` | Dataset statistics computation |
-| `analyser.analyse(label_path, class_file) → AnalysisResult` | `stats.py` | Run statistics |
+| `analyser.analyse(label_path, class_file, image_dir) → AnalysisResult` | `stats.py` | Run statistics |
 | `SplitAnalyser(log_config)` | `split.py` | Train/val dataset splitting |
-| `analyser.analyse(label_path, output_dir, ratio, seed, class_file) → AnalysisResult` | `split.py` | Run split |
+| `analyser.analyse(label_path, output_dir, ratio, seed, class_file, image_dir) → AnalysisResult` | `split.py` | Run split |
 | `detect_format(label_path) → str` | `utils.py` | Auto-detect annotation format |
 | `create_handler(label_path, format, class_file, logger) → BaseAnnotationHandler` | `utils.py` | Handler factory |
 | `load_class_names(class_file) → Dict[int, str]` | `utils.py` | Parse classes.txt |
