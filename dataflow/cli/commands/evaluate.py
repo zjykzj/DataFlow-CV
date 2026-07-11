@@ -30,6 +30,13 @@ def add_evaluate_options(func):
         help="Enable verbose output: per-class metrics table and file logging",
     )
     @click.option(
+        "--log-dir",
+        type=click.Path(path_type=Path),
+        default="./logs",
+        show_default=True,
+        help="Directory for log files (only when --verbose is set)",
+    )
+    @click.option(
         "--prf1",
         is_flag=True,
         help="Compute P/R/F1 instead of mAP (mutually exclusive)",
@@ -105,7 +112,7 @@ def evaluate_group():
     "dt_json",
     type=click.Path(exists=True, path_type=Path),
 )
-def detection(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, prf1_method, output):
+def detection(ctx, gt_json, dt_json, verbose, log_dir, prf1, prf1_iou, prf1_conf, prf1_method, output):
     """Evaluate object detection results (bbox IoU).
 
     GT_JSON: COCO format Ground Truth JSON file.
@@ -118,7 +125,7 @@ def detection(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, prf1_me
     log_config = LogConfig(
         name="evaluate.detection",
         verbose=verbose,
-        log_dir=Path("./logs"),
+        log_dir=log_dir,
     )
 
     # Validate inputs
@@ -181,7 +188,7 @@ def detection(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, prf1_me
     "dt_json",
     type=click.Path(exists=True, path_type=Path),
 )
-def segmentation(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, prf1_method, output):
+def segmentation(ctx, gt_json, dt_json, verbose, log_dir, prf1, prf1_iou, prf1_conf, prf1_method, output):
     """Evaluate instance segmentation results (mask IoU).
 
     GT_JSON: COCO format Ground Truth JSON file (annotations must include 'segmentation').
@@ -194,7 +201,7 @@ def segmentation(ctx, gt_json, dt_json, verbose, prf1, prf1_iou, prf1_conf, prf1
     log_config = LogConfig(
         name="evaluate.segmentation",
         verbose=verbose,
-        log_dir=Path("./logs"),
+        log_dir=log_dir,
     )
 
     # Validate inputs
