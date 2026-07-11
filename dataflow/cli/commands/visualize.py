@@ -66,7 +66,7 @@ def yolo(
     save: Optional[Path],
 ):
     """Visualize YOLO format labels"""
-    from dataflow.visualize.yolo_visualizer import YOLOVisualizer
+    from dataflow.visualize import YOLOVisualizer
 
     # Parameter validation
     validate_visualize_params(label_dir, image_dir, save)
@@ -122,7 +122,7 @@ def labelme(
     save: Optional[Path],
 ):
     """Visualize LabelMe format labels"""
-    from dataflow.visualize.labelme_visualizer import LabelMeVisualizer
+    from dataflow.visualize import LabelMeVisualizer
 
     # Parameter validation
     validate_visualize_params(label_dir, image_dir, save)
@@ -176,7 +176,7 @@ def coco(
     save: Optional[Path],
 ):
     """Visualize COCO format labels"""
-    from dataflow.visualize.coco_visualizer import COCOVisualizer
+    from dataflow.visualize import COCOVisualizer
 
     # Parameter validation
     validate_visualize_params(coco_file, image_dir, save)

@@ -328,11 +328,10 @@ Missing required parameters raise `InputError`.
 ```
 CLI module imports FROM:
 ├── dataflow.analyse                (StatsAnalyser, SplitAnalyser)
-├── dataflow.convert.*              (YoloAndCocoConverter, LabelMeAndYoloConverter, CocoAndLabelMeConverter)
-├── dataflow.visualize.*            (YOLOVisualizer, COCOVisualizer, LabelMeVisualizer)
-├── dataflow.evaluate.evaluator     (DetectionEvaluator, SegmentationEvaluator)
-├── dataflow.evaluate.metrics       (compute_pr_f1)
-├── dataflow.evaluate.utils         (_validate_coco_available, format_prf1_output, format_metric_table, format_per_class_table)
+├── dataflow.convert                (YoloAndCocoConverter, LabelMeAndYoloConverter, CocoAndLabelMeConverter)
+├── dataflow.visualize              (YOLOVisualizer, COCOVisualizer, LabelMeVisualizer)
+├── dataflow.evaluate               (DetectionEvaluator, SegmentationEvaluator, compute_pr_f1)
+├── dataflow.evaluate.utils         (format_prf1_output, format_metric_table, format_per_class_table)
 ├── dataflow.util.logging           (LogConfig only)
 ├── dataflow.cli.exceptions         (InputError, RuntimeCLIError, SystemError)
 └── click                           (Framework)

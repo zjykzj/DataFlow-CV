@@ -43,7 +43,7 @@ def yolo2coco(
     prediction: bool,
 ):
     """Convert YOLO format to COCO format"""
-    from dataflow.convert.yolo_and_coco import YoloAndCocoConverter
+    from dataflow.convert import YoloAndCocoConverter
 
     strict = ctx.obj["strict"]
     log_config = LogConfig(
@@ -95,7 +95,7 @@ def yolo2labelme(
     output_dir: Path,
 ):
     """Convert YOLO format to LabelMe format"""
-    from dataflow.convert.labelme_and_yolo import LabelMeAndYoloConverter
+    from dataflow.convert import LabelMeAndYoloConverter
 
     strict = ctx.obj["strict"]
     log_config = LogConfig(
@@ -141,7 +141,7 @@ def labelme2yolo(
     output_dir: Path,
 ):
     """Convert LabelMe format to YOLO format"""
-    from dataflow.convert.labelme_and_yolo import LabelMeAndYoloConverter
+    from dataflow.convert import LabelMeAndYoloConverter
 
     strict = ctx.obj["strict"]
     log_config = LogConfig(
@@ -193,7 +193,7 @@ def labelme2coco(
     do_rle: bool,
 ):
     """Convert LabelMe format to COCO format"""
-    from dataflow.convert.coco_and_labelme import CocoAndLabelMeConverter
+    from dataflow.convert import CocoAndLabelMeConverter
 
     strict = ctx.obj["strict"]
     log_config = LogConfig(
@@ -238,7 +238,7 @@ def coco2yolo(
     output_path: Path,
 ):
     """Convert COCO format to YOLO format"""
-    from dataflow.convert.yolo_and_coco import YoloAndCocoConverter
+    from dataflow.convert import YoloAndCocoConverter
 
     strict = ctx.obj["strict"]
     log_config = LogConfig(
@@ -282,7 +282,7 @@ def coco2labelme(
     output_path: Path,
 ):
     """Convert COCO format to LabelMe format"""
-    from dataflow.convert.coco_and_labelme import CocoAndLabelMeConverter
+    from dataflow.convert import CocoAndLabelMeConverter
 
     strict = ctx.obj["strict"]
     log_config = LogConfig(
