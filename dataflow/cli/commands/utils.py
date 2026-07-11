@@ -126,7 +126,7 @@ class FormattedCommand(click.Command):
         # 写入用法
         self.format_usage(ctx, formatter)
 
-        # 写入命令描述
+        # 写入命令描述（使用 Click 标准格式，与 main CLI 对齐）
         if self.help:
             formatter.write_paragraph()
             with formatter.indentation():
@@ -172,10 +172,11 @@ class FormattedCommand(click.Command):
         help_map = {
             "image_dir": "Image file directory (for obtaining image dimensions)",
             "label_dir": "YOLO label directory",
+            "label_path": "Path to labels — directory (YOLO/LabelMe) or COCO .json file",
             "class_file": "Class file path",
             "output_file": "Output COCO JSON file path",
-            "output_dir": "Output directory (will contain classes.txt and labels/)",
-            "output_path": "Output directory (will contain classes.txt and labels/)",
+            "output_dir": "Output directory",
+            "output_path": "Output directory",
             "labelme_dir": "LabelMe annotation directory",
             "input_path": "Input COCO JSON annotation file",
         }

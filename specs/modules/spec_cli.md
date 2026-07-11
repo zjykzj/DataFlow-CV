@@ -276,7 +276,7 @@ Split dataset into train/val subsets with deterministic shuffling.
 |--------|------|---------|-------------|
 | `--ratio`, `-r` | Float | 0.8 | Train proportion |
 | `--seed`, `-s` | Int | 42 | Random seed |
-| `--class-file`, `-c` | Path | None | Classes.txt (auto-generated for YOLO if omitted, copied to output dirs) |
+| `--class-file`, `-c` | Path | None | Classes.txt (required for YOLO, copied to output dirs) |
 | `--image-dir` | Path | None | Image directory for YOLO format (auto-detected if omitted) |
 
 ### 5.3 Output

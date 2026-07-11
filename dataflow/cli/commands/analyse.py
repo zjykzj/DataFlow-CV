@@ -39,14 +39,13 @@ def _add_analyse_options(func):
         "--class-file",
         type=click.Path(exists=True, path_type=Path),
         default=None,
-        help="Classes.txt file for class name mapping and output ordering",
+        help="Classes.txt for name mapping and output ordering",
     )
     @click.option(
         "--image-dir",
         type=click.Path(exists=True, file_okay=False, path_type=Path),
         default=None,
-        help="Image directory (auto-detected for YOLO if omitted: "
-             "looks for sibling 'images/' directory of LABEL_PATH)",
+        help="Image directory for YOLO format (auto-detected if omitted)",
     )
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -67,8 +66,8 @@ def _add_analyse_options(func):
     type=click.Choice(["id", "count"], case_sensitive=False),
     default="id",
     show_default=True,
-    help="Sort per-class output by class ID (0-indexed) or annotation count " \
-         "(ignored when --class-file is provided)",
+    help="Sort by class ID (0-indexed) or annotation count "
+         "(overridden by --class-file)",
 )
 @click.option(
     "--descending/--ascending",
@@ -79,6 +78,7 @@ def _add_analyse_options(func):
 @click.argument(
     "label_path",
     type=click.Path(exists=True, path_type=Path),
+    metavar="LABEL_PATH",
 )
 def stats(
     ctx: click.Context,
@@ -90,8 +90,7 @@ def stats(
 ):
     """Compute dataset statistics for annotations at LABEL_PATH.
 
-    LABEL_PATH is a directory (YOLO .txt or LabelMe .json files) or
-    a single COCO .json file.  The format is auto-detected.
+    LABEL_PATH is a directory (YOLO .txt or LabelMe .json) or a single COCO JSON file. The format is auto-detected.
     """
     from dataflow.analyse import StatsAnalyser
 
@@ -136,10 +135,12 @@ def stats(
 @click.argument(
     "label_path",
     type=click.Path(exists=True, path_type=Path),
+    metavar="LABEL_PATH",
 )
 @click.argument(
     "output_dir",
     type=click.Path(path_type=Path),
+    metavar="OUTPUT_DIR",
 )
 @click.option(
     "-r",
@@ -147,7 +148,7 @@ def stats(
     type=float,
     default=0.8,
     show_default=True,
-    help="Proportion of data for training set",
+    help="Train proportion",
 )
 @click.option(
     "-s",
@@ -162,13 +163,13 @@ def stats(
     "--class-file",
     type=click.Path(exists=True, path_type=Path),
     default=None,
-    help="Classes.txt file (required for YOLO format, copied to output dirs)",
+    help="Classes.txt (required for YOLO, copied to output dirs)",
 )
 @click.option(
     "--image-dir",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
     default=None,
-    help="Image directory (auto-detected for YOLO if omitted)",
+    help="Image directory for YOLO format (auto-detected if omitted)",
 )
 def split(
     ctx: click.Context,
@@ -179,13 +180,11 @@ def split(
     class_file: Path,
     image_dir: Path,
 ):
-    """Split dataset at LABEL_PATH into train/val at OUTPUT_DIR.
+    """Split dataset at LABEL_PATH into train/val subsets.
 
-    LABEL_PATH is a directory (YOLO .txt or LabelMe .json files) or
-    a single COCO .json file.  The format is auto-detected.
+    LABEL_PATH is a directory (YOLO .txt or LabelMe .json) or a single COCO JSON file. The format is auto-detected.
 
-    For COCO: creates ``train.json`` and ``val.json`` in OUTPUT_DIR.
-    For YOLO/LabelMe: creates OUTPUT_DIR/train/ and OUTPUT_DIR/val/.
+    COCO creates train.json and val.json in OUTPUT_DIR. YOLO/LabelMe create train/ and val/ subdirectories in OUTPUT_DIR.
     """
     from dataflow.analyse import SplitAnalyser
 
