@@ -334,7 +334,7 @@ COCO prediction files exist in **two variants** (see `spec_coco_format.md` §10)
   - `ParameterError` (exit 1), `InputError` (exit 2), `OutputError` (exit 3), `RuntimeCLIError` (exit 4), `SystemError` (exit 5)
   - All extend `click.ClickException` for clean CLI error display
 
-Common CLI options: `--verbose` (enable file logging), `--no-strict` (disable strict mode for convert), `--display/--no-display` (control visualization window for visualize).
+Common CLI options: `--verbose` (enable file logging), `--log-dir` (log output directory, default `./logs/`), `--no-strict` (disable strict mode for convert), `--display/--no-display` (control visualization window for visualize).
 
 ### Utilities (`dataflow/util/`)
 
