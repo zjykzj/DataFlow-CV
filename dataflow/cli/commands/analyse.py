@@ -67,7 +67,7 @@ def _add_analyse_options(func):
     type=click.Choice(["id", "count"], case_sensitive=False),
     default="id",
     show_default=True,
-    help="Sort per-class output by class ID or annotation count "
+    help="Sort per-class output by class ID (0-indexed) or annotation count " \
          "(ignored when --class-file is provided)",
 )
 @click.option(

@@ -47,6 +47,7 @@ def format_stats_result(
     total_files: int,
     total_annotations: int,
     per_class: Dict[str, int],
+    categories: Dict[int, str] = None,
 ) -> str:
     """Per-class statistics table with summary.
 
@@ -54,6 +55,8 @@ def format_stats_result(
         total_files: Number of label files.
         total_annotations: Total annotation objects.
         per_class: ``{class_name: count}`` dict, pre-ordered.
+        categories: ``{class_id: class_name}`` dict for ID lookup.
+            When provided, an ``ID`` column is added (0-indexed).
 
     Returns:
         Formatted statistics output.
@@ -67,14 +70,33 @@ def format_stats_result(
     ]
 
     if per_class:
-        headers = ["Class", "Count"]
-        rows = [[name, str(count)] for name, count in per_class.items()]
-        # Add total row
-        rows.append(["─" * 15, "─" * 7])
-        rows.append([
-            f"Total ({len(per_class)})",
-            str(sum(per_class.values())),
-        ])
+        # Build name→id reverse mapping
+        name_to_id: Dict[str, int] = {}
+        if categories:
+            for cid, cname in categories.items():
+                if cname not in name_to_id:
+                    name_to_id[cname] = cid
+
+        if categories:
+            headers = ["Class", "ID", "Count"]
+            rows = [
+                [name, str(name_to_id.get(name, "")), str(count)]
+                for name, count in per_class.items()
+            ]
+            rows.append(["─" * 15, "─" * 4, "─" * 7])
+            rows.append([
+                f"Total ({len(per_class)})",
+                "",
+                str(sum(per_class.values())),
+            ])
+        else:
+            headers = ["Class", "Count"]
+            rows = [[name, str(count)] for name, count in per_class.items()]
+            rows.append(["─" * 15, "─" * 7])
+            rows.append([
+                f"Total ({len(per_class)})",
+                str(sum(per_class.values())),
+            ])
         lines.append(format_section("Per-Class"))
         lines.append(format_table(headers, rows))
     else:

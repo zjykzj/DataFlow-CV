@@ -281,7 +281,7 @@ Split dataset into train/val subsets with deterministic shuffling.
 
 ### 5.3 Output
 
-**`stats`** — Summary block (total files, total annotations, category count) + per-class count table. Output ordering: class-file order if `--class-file` is provided, otherwise controlled by `--sort-by` + `--descending/--ascending` (default: class_id ascending).
+**`stats`** — Summary block (total files, total annotations, category count) + per-class table (Class, ID, Count columns; ID is 0-indexed). Output ordering: class-file order if `--class-file` is provided, otherwise controlled by `--sort-by` + `--descending/--ascending` (default: class_id ascending).
 
 **`split`** — Split summary block (train/val counts, output directories). Creates ``OUTPUT_DIR/train/`` and ``OUTPUT_DIR/val/``. For COCO, produces ``train.json`` and ``val.json``. For YOLO/LabelMe, produces per-file output via ``write_one()``.
 
