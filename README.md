@@ -1,6 +1,6 @@
 # DataFlow-CV
 
-> 🌊 **Everything your model doesn't do.** Convert, visualize, evaluate, and more — a single CLI for all CV data.
+> 🌊 **Everything your model doesn't do.** Analyse, convert, visualize, evaluate — a single CLI for all CV data.
 
 <p align="center">
   <a href="https://pypi.org/project/dataflow-cv/"><img src="https://img.shields.io/pypi/v/dataflow-cv.svg" alt="PyPI"></a>
@@ -16,10 +16,11 @@
   <img src="https://img.shields.io/badge/COCO-.json-e74c3c?style=flat-square" alt="COCO">
 </p>
 
-A computer vision dataset processing library — convert, visualize, and evaluate annotations across YOLO, LabelMe, and COCO formats.
+A computer vision dataset processing library — analyse, convert, visualize, and evaluate annotations across YOLO, LabelMe, and COCO formats.
 
 | | | |
 |:---|:---|:---|
+| 🔍 **Analyse** | Dataset statistics & train/test splitting with format auto-detection | `dataflow-cv analyse stats ...` |
 | 🔄 **Convert** | 6 directions: YOLO ↔ LabelMe ↔ COCO, plus model predictions | `dataflow-cv convert yolo2coco ...` |
 | 🎨 **Visualize** | OpenCV rendering with color-coded classes, display & save modes | `dataflow-cv visualize yolo ...` |
 | 📊 **Evaluate** | COCO mAP via pycocotools, single-threshold P/R/F1 per class | `dataflow-cv evaluate detection ...` |
@@ -48,6 +49,23 @@ cd DataFlow-CV && pip install .
 ### Command-line Interface
 
 All required parameters (image directories, label directories, class files, output paths) are positional arguments for better usability. Use `--help` on any subcommand for detailed usage.
+
+#### 🔍 Dataset Analysis
+
+```bash
+# Dataset statistics (auto-detects YOLO / LabelMe / COCO)
+dataflow-cv analyse stats yolo_labels/ --image-dir images/ --class-file classes.txt
+dataflow-cv analyse stats labelme_json/
+dataflow-cv analyse stats coco_annotations.json
+
+# Train / test split
+dataflow-cv analyse split yolo_labels/ output/ --ratio 0.8 --seed 42 --class-file classes.txt
+dataflow-cv analyse split coco_annotations.json output/ --ratio 0.8 --seed 42
+dataflow-cv analyse split labelme_json/ output/ --ratio 0.8
+
+# Verbose logging
+dataflow-cv analyse stats --verbose yolo_labels/ --class-file classes.txt
+```
 
 #### 🔄 Format Conversion
 
@@ -153,9 +171,25 @@ Two evaluation modes, distinguished by how overlap is measured:
 
 ```python
 from dataflow.util.logging import LogConfig
+from dataflow.analyse import StatsAnalyser, SplitAnalyser
 from dataflow.convert import YoloAndCocoConverter
 from dataflow.visualize import YOLOVisualizer
 from dataflow.evaluate import DetectionEvaluator, compute_pr_f1
+
+# ── Analyse ─────────────────────────────────────────
+log_cfg = LogConfig(name="analyse", verbose=True)
+
+# Dataset statistics
+analyser = StatsAnalyser(log_config=log_cfg)
+result = analyser.analyse("yolo_labels/", class_file="classes.txt")
+print(f"{result.data.total_files} images, {result.data.total_annotations} objects")
+
+# Train/test split
+splitter = SplitAnalyser(log_config=log_cfg)
+result = splitter.analyse(
+    "yolo_labels/", "output/", ratio=0.8, seed=42, class_file="classes.txt",
+)
+print(f"Train: {result.data.train_count}, Val: {result.data.val_count}")
 
 # ── Convert ──────────────────────────────────────────
 # YOLO labels → COCO (label mode)
@@ -231,7 +265,7 @@ For detailed developer guidance including advanced test commands, debugging, and
 
 ### 🧪 Testing
 
-**440 tests, 77% code coverage (3957 statements).**
+**471 tests, 77% code coverage (3957 statements).**
 
 ```bash
 pytest                                    # All tests
@@ -281,12 +315,13 @@ pre-commit run --all-files    # Manual run against all files
 ```
 dataflow/
 ├── label/           # Annotation handlers + data models
+├── analyse/         # Dataset statistics & train/test split
 ├── convert/         # Format converters, RLE utility, log templates
 ├── visualize/       # OpenCV-based rendering, log templates
 ├── evaluate/        # pycocotools-based metrics, log templates
 ├── util/            # Unified logging (LogManager + format helpers)
 └── cli/             # CLI entry point, commands, validation
-tests/               # Unit & integration tests (440 tests, conftest fixtures)
+tests/               # Unit & integration tests (471 tests, conftest fixtures)
 samples/             # Python API usage examples
 assets/              # Test data (det/seg by format)
 specs/               # Canonical specifications (evaluate/ + formats/ + modules/)

@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-DataFlow-CV is a computer vision dataset processing library for format conversion, visualization, and evaluation between YOLO, LabelMe, and COCO annotation formats. It provides both a Python API and a command-line interface (CLI) with `convert`, `visualize`, and `evaluate` subcommands.
+DataFlow-CV is a computer vision dataset processing library for dataset analysis, format conversion, visualization, and evaluation between YOLO, LabelMe, and COCO annotation formats. It provides both a Python API and a command-line interface (CLI) with `analyse`, `convert`, `visualize`, and `evaluate` subcommands.
 
-The project follows a modular architecture with clear separation between format handlers, converters, visualizers, evaluators, and utilities. Each handler stores coordinates in its format's native representation — see `DatasetAnnotations.format` to determine coordinate semantics.
+The project follows a modular architecture with clear separation between format handlers, analysers, converters, visualizers, evaluators, and utilities. Each handler stores coordinates in its format's native representation — see `DatasetAnnotations.format` to determine coordinate semantics.
 
 ## Specifications
 
@@ -30,12 +30,12 @@ specs/
 └── modules/                        # HOW — internal module architecture & interface contracts
     ├── index.md                    # Modules layer overview + dependency diagram
     ├── spec_label.md               # Label module (data models + handler interface)
+    ├── spec_analyse.md             # Analyse module (BaseAnalyser, stats, split, auto-detection)
     ├── spec_convert.md             # Convert module (pipeline, converters, RLE)
     ├── spec_visualize.md           # Visualize module (rendering pipeline, ColorManager, interaction)
     ├── spec_evaluate.md            # Evaluate module (evaluation pipeline, API, data models)
     ├── spec_cli.md                 # CLI module (command signatures, exit codes, decorators)
-    ├── spec_logging.md             # Logging module (LogManager, LogConfig, format helpers)
-    └── spec_analyse.md             # Analyse module (BaseAnalyser, stats, split, auto-detection)
+    └── spec_logging.md             # Logging module (LogManager, LogConfig, format helpers)
 ```
 
 ### Architecture Constraint (from specs/modules/index.md)
@@ -261,6 +261,8 @@ These are pure functions — stateless, no handler interaction. They replaced ~8
 
 **State management**: `_source_annotations_for_target` stores categories for target handler creation. Must be cleared via `try/finally` in batch path. Streaming path avoids stale state by extracting categories upfront via `_ensure_categories_for_streaming()`.
 
+**Log output** (`convert/log_templates.py`): Both `_batch_convert()` and `stream_convert()` call `format_convert_header()` at the start of each conversion and `format_convert_result()` at the end. The batch path includes duration in the write log message.
+
 ### RLE Conversion (`dataflow/convert/rle_converter.py`)
 
 Handles polygon-to-RLE and RLE-to-polygon conversion using pycocotools. **Critical**: RLE `counts` bytes must use `latin1` (not UTF-8) encoding for JSON serialization — latin1 provides lossless 1:1 byte-to-character mapping while UTF-8 crashes on arbitrary binary RLE data.
@@ -451,3 +453,7 @@ Test data lives in `assets/test_data/`, organized by format (det/seg) and annota
    Clamping emits a WARNING only when the change exceeds the threshold, and is independent of `strict_mode` — it is data normalization, not error handling. Only values that cannot be fixed (NaN, zero-area bbox after clamping) are rejected during validation.
 28. **Analyse format auto-detection**: `detect_format()` in `dataflow/analyse/utils.py` determines the annotation format by inspecting the label path. Single `.json` files → COCO. Directories with only `.txt` files → YOLO. Directories with `.json` files → the first `.json` is opened: `"shapes"` key → LabelMe, `"images"` key → COCO. Mixed extensions or empty directories raise `ValueError`.
 29. **Analyse is read-only**: All analyse operations run handlers with `strict_mode=False` — errors are accumulated in `AnalysisResult.errors` and logged at ERROR level, but exceptions are never raised for data issues. This differs from Convert (raises in strict mode) and Evaluate (always raises).
+30. **COCO handler derives bbox from polygon for seg-only objects**: When an `ObjectAnnotation` has `segmentation` but no `bbox`, `_object_to_coco_annotation()` computes the bbox from the polygon extent (`min/max` of x and y). Previously it left `bbox` as an empty list `[]`, violating the COCO format requirement that every annotation includes a 4-element bbox array (`spec_coco_format.md` §4).
+31. **Evaluate segm validation aborts on missing data**: `_validate_segm_data()` returns error messages (not warnings). When `iouType='segm'` and either GT or DT lacks segmentation annotations, evaluation aborts with a clear error instead of silently falling back to bbox IoU — mask-based metrics on bbox data would be misleading.
+32. **YOLO confidence validation rejects NaN**: `YoloAnnotationHandler` uses `math.isfinite()` alongside the `[0, 1]` range check for confidence values. For `float('nan')`, both `nan < 0.0` and `nan > 1.0` are `False`, so NaN would silently pass a range-only check. The `math.isfinite()` guard catches NaN, Inf, and -Inf before the range check.
+33. **Evaluate `validate_inputs` raises with all errors**: All validation errors are collected and raised together via `ValueError("\n".join(errors))`. The `evaluate()` method catches this and splits the joined string into individual `result.errors` entries — all validation problems are visible in both the log and programmatic output. Previously only the last error appeared in `result.errors`.
