@@ -62,6 +62,20 @@ def _add_analyse_options(func):
 @analyse_group.command(cls=FormattedCommand)
 @add_common_options
 @_add_analyse_options
+@click.option(
+    "--sort-by",
+    type=click.Choice(["id", "count"], case_sensitive=False),
+    default="id",
+    show_default=True,
+    help="Sort per-class output by class ID or annotation count "
+         "(ignored when --class-file is provided)",
+)
+@click.option(
+    "--descending/--ascending",
+    default=False,
+    show_default=True,
+    help="Sort direction",
+)
 @click.argument(
     "label_path",
     type=click.Path(exists=True, path_type=Path),
@@ -71,6 +85,8 @@ def stats(
     label_path: Path,
     class_file: Path,
     image_dir: Path,
+    sort_by: str,
+    descending: bool,
 ):
     """Compute dataset statistics for annotations at LABEL_PATH.
 
@@ -92,6 +108,8 @@ def stats(
         label_path,
         class_file=class_file,
         image_dir=image_dir,
+        sort_by=sort_by,
+        descending=descending,
     )
 
     if result.success and result.data is not None:

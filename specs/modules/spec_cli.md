@@ -236,6 +236,8 @@ Both ``stats`` and ``split`` subcommands use the `@add_common_options` decorator
 
 Both subcommands accept `--class-file` and `--image-dir`. The `_add_analyse_options` decorator (defined in ``commands/analyse.py``) provides these options and is used by the ``stats`` subcommand, while the ``split`` subcommand defines them inline (both as ``@click.option`` with identical signatures).
 
+The ``stats`` subcommand additionally accepts `--sort-by` (`id`|`count`) and `--descending/--ascending` to control per-class output ordering when `--class-file` is not provided.
+
 ### 5.2 Command Signatures
 
 #### `stats`
@@ -254,6 +256,8 @@ Compute dataset statistics. Auto-detects the annotation format from `LABEL_PATH`
 |--------|------|---------|-------------|
 | `--class-file`, `-c` | Path | None | Classes.txt for class name mapping and output ordering |
 | `--image-dir` | Path | None | Image directory for YOLO format (auto-detected if omitted) |
+| `--sort-by` | Choice | `"id"` | Sort key: `"id"` (class_id) or `"count"`. Ignored when `--class-file` is provided. |
+| `--descending/--ascending` | Flag | ascending | Sort direction (default: ascending) |
 
 #### `split`
 
@@ -277,7 +281,7 @@ Split dataset into train/val subsets with deterministic shuffling.
 
 ### 5.3 Output
 
-**`stats`** — Summary block (total files, total annotations, category count) + per-class count table in COCO class order (or class-file order if provided).
+**`stats`** — Summary block (total files, total annotations, category count) + per-class count table. Output ordering: class-file order if `--class-file` is provided, otherwise controlled by `--sort-by` + `--descending/--ascending` (default: class_id ascending).
 
 **`split`** — Split summary block (train/val counts, output directories). Creates ``OUTPUT_DIR/train/`` and ``OUTPUT_DIR/val/``. For COCO, produces ``train.json`` and ``val.json``. For YOLO/LabelMe, produces per-file output via ``write_one()``.
 

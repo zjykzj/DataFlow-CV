@@ -179,7 +179,7 @@ Analyse → Convert → Visualize → Evaluate
 The Analyse module provides dataset introspection and preparation — statistics and train/test splitting. It depends only on the Label module.
 
 - **Format auto-detection**: The label path is inspected to determine YOLO / LabelMe / COCO automatically. See `utils.detect_format()` for the detection rules. All handlers are created with `strict_mode=False` — analysis is read-only and lenient with imperfect data.
-- **`StatsAnalyser`**: Reads all annotations via `handler.read()`, counts total files/annotations, tallies per-class counts. Output ordering: class-file order > count-descending.
+- **`StatsAnalyser`**: Reads all annotations via `handler.read()`, counts total files/annotations, tallies per-class counts. Output ordering: class-file order (if provided) > `--sort-by` (`id`/`count`) + `--descending/--ascending` (default: class_id ascending).
 - **`SplitAnalyser`**: Reads all annotations, shuffles with `random.Random(seed)`, splits by ratio, writes to `output_dir/train/` and `output_dir/val/`. COCO uses batch `handler.write()`, YOLO/LabelMe use streaming `handler.write_one()`. The class file is copied to both output dirs.
 - **`AnalysisResult`**: Shared result container (`success`, `data`, `errors`, `warnings`, `log_path`). `StatsResult` / `SplitResult` provide domain-specific fields.
 

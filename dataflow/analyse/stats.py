@@ -42,6 +42,8 @@ class StatsAnalyser(BaseAnalyser):
         label_path: Path,
         class_file: Optional[Path] = None,
         image_dir: Optional[Path] = None,
+        sort_by: str = "id",
+        descending: bool = False,
     ) -> AnalysisResult:
         """Compute statistics for the dataset at ``label_path``.
 
@@ -49,9 +51,15 @@ class StatsAnalyser(BaseAnalyser):
             label_path: Path to labels — directory (YOLO/LabelMe) or
                 JSON file (COCO).
             class_file: Optional classes.txt for name mapping and
-                output ordering.
+                output ordering.  When provided, per-class output
+                follows the file's line order regardless of other
+                sort settings.
             image_dir: Optional image directory for YOLO format
                 (auto-detected if omitted).
+            sort_by: Sort key when no class_file is given —
+                ``"id"`` (default, class_id ascending) or
+                ``"count"`` (annotation count).
+            descending: When True, reverse the sort direction.
 
         Returns:
             ``AnalysisResult`` with ``StatsResult`` in ``.data``.
@@ -127,11 +135,24 @@ class StatsAnalyser(BaseAnalyser):
                 ordered[name] = per_class_raw[name]
             per_class = ordered
         else:
-            # Sort by count descending, then alphabetically for ties
+            # Build name→id mapping for sort_by='id'
+            name_to_id: dict[str, int] = {}
+            for cid, cname in categories.items():
+                if cname not in name_to_id:
+                    name_to_id[cname] = cid
+
+            if sort_by == "id":
+                key_fn = lambda item: (name_to_id.get(item[0], 999999), item[0])
+            elif descending:
+                key_fn = lambda item: (-item[1], item[0])
+            else:
+                key_fn = lambda item: (item[1], item[0])
+
             per_class = dict(
                 sorted(
                     per_class_raw.items(),
-                    key=lambda item: (-item[1], item[0]),
+                    key=key_fn,
+                    reverse=(sort_by == "id" and descending),
                 )
             )
 

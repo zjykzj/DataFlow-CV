@@ -68,8 +68,8 @@ class StatsResult:
 ```
 
 **Ordering contract**:
-- If `--class-file` is provided: `per_class` is ordered by the class order in the file, with classes not in the file appended at the end (sorted alphabetically)
-- If `--class-file` is NOT provided: `per_class` is ordered by count descending, then alphabetically for ties
+- If `--class-file` is provided: `per_class` is ordered by the class order in the file, with classes not in the file appended at the end (sorted alphabetically). Sort options (`--sort-by`, `--descending`) are ignored.
+- If `--class-file` is NOT provided: `per_class` is ordered by `--sort-by` + `--descending/--ascending`, ties broken alphabetically. Default: class_id ascending.
 
 ### 2.3 `SplitResult`
 
@@ -127,13 +127,17 @@ class StatsAnalyser(BaseAnalyser):
         label_path: Path,
         class_file: Optional[Path] = None,
         image_dir: Optional[Path] = None,
+        sort_by: str = "id",
+        descending: bool = False,
     ) -> AnalysisResult:
         """Compute statistics for the dataset at ``label_path``.
 
         Args:
             label_path: Path to labels — directory (YOLO/LabelMe) or JSON file (COCO)
-            class_file: Optional classes.txt for name mapping and ordering
+            class_file: Optional classes.txt for name mapping and ordering (overrides sort options)
             image_dir: Optional image directory (needed for YOLO format to locate image dimensions)
+            sort_by: ``"id"`` (default, class_id ascending) or ``"count"`` (annotation count)
+            descending: When True, reverse sort direction
 
         Returns:
             AnalysisResult with StatsResult in ``.data``
@@ -151,8 +155,8 @@ class StatsAnalyser(BaseAnalyser):
    b. total_annotations = sum(len(img.objects) for img in dataset.images)
    c. per_class = tally object counts by class_name
 5. Order per_class:
-   a. If class_file given: reorder to match class_file order, append unknowns
-   b. If no class_file: sort by count descending
+   a. If class_file given: reorder to match class_file order, append unknowns alphabetically
+   b. If no class_file: sort by ``sort_by`` + ``descending`` (default: class_id ascending), ties alphabetically
 6. Log formatted table via log_templates
 7. Return AnalysisResult(success=True, data=StatsResult(...))
 ```
@@ -233,15 +237,17 @@ class SplitAnalyser(BaseAnalyser):
 
 ## 4. Public API
 
-### 4.1 `StatsAnalyser.analyse(label_path, class_file, image_dir) → AnalysisResult`
+### 4.1 `StatsAnalyser.analyse(label_path, class_file, image_dir, sort_by, descending) → AnalysisResult`
 
 Compute dataset statistics. Auto-detects the annotation format from `label_path`.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `label_path` | Path | Yes | Path to labels (directory or file) |
-| `class_file` | Path | No | Classes.txt for name mapping and output ordering |
-| `image_dir` | Path | No | Image directory (needed for YOLO format to locate image dimensions) |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `label_path` | Path | Yes | — | Path to labels (directory or file) |
+| `class_file` | Path | No | None | Classes.txt for name mapping and output ordering |
+| `image_dir` | Path | No | None | Image directory (needed for YOLO format to locate image dimensions) |
+| `sort_by` | str | No | `"id"` | Sort key: `"id"` (class_id) or `"count"` (annotation count). Ignored when `class_file` is provided. |
+| `descending` | bool | No | False | When True, reverse sort direction |
 
 ### 4.2 `SplitAnalyser.analyse(label_path, output_dir, ratio, seed, class_file, image_dir) → AnalysisResult`
 
