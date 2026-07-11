@@ -441,11 +441,11 @@ is removed — each module defines its own `_log_error()` with behavior specific
 
 ### 7.2 `detect_image_error()`
 
-Moved to `dataflow/visualize/utils.py` (only consumer) or kept as a small standalone function
-in `dataflow/util/logging.py` since the Label module also uses it via `BaseAnnotationHandler`.
+Located in `dataflow/util/logging.py` as a pure utility function.
 
-**Decision**: Keep in `dataflow/util/logging.py` as a pure utility function — both Label and
-Visualize modules need image error detection.
+**Usage**: Only the Visualize module imports and uses `detect_image_error()`. The Label module
+defines its own `ImageError` class and handles image errors internally — it does not import
+or use `detect_image_error()`.
 
 
 ## 8. Dependency Contract

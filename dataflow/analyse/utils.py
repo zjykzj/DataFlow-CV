@@ -7,7 +7,10 @@ Format auto-detection, handler factory, and class file parsing.
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional
+
+if TYPE_CHECKING:
+    from dataflow.label.base import BaseAnnotationHandler
 
 
 def detect_format(label_path: Path) -> str:
@@ -178,7 +181,7 @@ def create_handler(
     class_file: Optional[Path] = None,
     image_dir: Optional[Path] = None,
     logger: Optional[logging.Logger] = None,
-):
+) -> "BaseAnnotationHandler":
     """Create the appropriate handler for the detected format.
 
     All handlers are created with ``strict_mode=False`` — analysis

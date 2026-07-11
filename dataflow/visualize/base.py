@@ -284,20 +284,25 @@ class BaseVisualizer(ABC):
             for image_ann in image_iter:
                 image_index += 1
 
-                if image_index % 10 == 0:
+                # Convert to render data (per-image)
+                render_data = self._convert_to_render_data(image_ann)
+                total_objects += len(render_data.annotations)
+
+                # Per-image progress (every 10th to console, every
+                # image when verbose with log file)
+                if image_index % 10 == 0 or self._log_manager.log_path is not None:
+                    n_obj = len(render_data.annotations)
                     self._log_progress(
                         image_index,
-                        message=f"Processing {image_ann.image_path}",
+                        message=str(image_ann.image_path),
+                        n_objects=n_obj,
                     )
 
                 if self._log_manager.log_path is not None:
                     self.logger.debug(
                         f"Processing image: {image_ann.image_path}"
+                        f" ({len(render_data.annotations)} objects)"
                     )
-
-                # Convert to render data (per-image)
-                render_data = self._convert_to_render_data(image_ann)
-                total_objects += len(render_data.annotations)
 
                 # Visualize
                 success = self._visualize_single_image(
@@ -661,12 +666,17 @@ class BaseVisualizer(ABC):
         }
         self.logger.info(format_viz_result(stats))
 
-    def _log_progress(self, current: int, message: str = ""):
+    def _log_progress(self, current: int, message: str = "", n_objects: int = 0):
         """Log progress information (counter-based for streaming).
 
         Uses a counter format since the total image count is unknown
         until the iterator exhausts. When ``message`` contains the
         current image name, outputs a per-image progress line.
+
+        Args:
+            current: Current (1-based) image index.
+            message: Image filename or path for display.
+            n_objects: Number of annotation objects in this image.
         """
         failed = self.summary_data.get("failed_images", 0)
 
@@ -677,7 +687,7 @@ class BaseVisualizer(ABC):
                 format_viz_progress(
                     index=current,
                     image_name=message,
-                    n_objects=0,  # Objects counted per image — not available here
+                    n_objects=n_objects,
                     status="✓",
                 )
             )

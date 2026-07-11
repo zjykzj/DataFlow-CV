@@ -148,7 +148,7 @@ class StatsAnalyser(BaseAnalyser):
 
         # 7. Log output
         self._log_info(
-            format_analyse_header("Dataset Statistics", label_path, fmt)
+            format_analyse_header("Dataset Statistics", label_path, f"{fmt} (auto-detected)")
         )
         self._log_info(
             format_stats_result(total_files, total_annotations, per_class)

@@ -529,5 +529,5 @@ dataflow-cv analyse split [OPTIONS] LABEL_PATH OUTPUT_DIR
 | `SplitAnalyser(log_config)` | `split.py` | Train/val dataset splitting |
 | `analyser.analyse(label_path, output_dir, ratio, seed, class_file, image_dir) → AnalysisResult` | `split.py` | Run split |
 | `detect_format(label_path) → str` | `utils.py` | Auto-detect annotation format |
-| `create_handler(label_path, format, class_file, logger) → BaseAnnotationHandler` | `utils.py` | Handler factory |
+| `create_handler(label_path, format, class_file, image_dir, logger) → BaseAnnotationHandler` | `utils.py` | Handler factory |
 | `load_class_names(class_file) → Dict[int, str]` | `utils.py` | Parse classes.txt |

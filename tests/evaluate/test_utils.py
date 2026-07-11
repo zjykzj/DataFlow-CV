@@ -205,9 +205,8 @@ class TestValidateDtScores:
 
     def test_all_have_scores(self, dt_path):
         coco_dt = _load_coco(dt_path)
-        valid, warnings = _validate_dt_scores(coco_dt)
-        assert valid is True
-        assert warnings == []
+        # Returns None on success (raises ValueError on failure)
+        _validate_dt_scores(coco_dt)
 
     def test_missing_scores(self):
         data = {

@@ -30,7 +30,7 @@ format-native representation. When converting between formats, the converter:
 
 The streaming pipeline processes images one at a time:
 ```
-handler.iter_images() → ImageAnnotation → _convert_single_image() → RenderData → handler.write_one()
+handler.iter_images() → ImageAnnotation → _convert_single_image() → ImageAnnotation → handler.write_one()
 ```
 This avoids holding both source and target datasets in memory simultaneously.
 
@@ -48,6 +48,7 @@ dataflow/convert/
 ├── labelme_and_yolo.py    # LabelMe ↔ YOLO converter (uses shared coordinate transforms from utils)
 ├── coco_and_labelme.py    # COCO ↔ LabelMe converter (absolute ↔ absolute, no normalize)
 ├── rle_converter.py       # Polygon ↔ RLE utility
+├── log_templates.py       # Log message template helpers
 └── utils.py               # Shared coordinate transforms, category extraction, path resolution
 ```
 
@@ -132,6 +133,12 @@ class BaseConverter(ABC):
     def _post_batch_convert(self, result: ConversionResult,
                             source_handler: BaseAnnotationHandler,
                             kwargs: Dict) -> None: ...
+
+    # Log helpers — shared logging methods for subclasses
+    def _log_info(self, message: str) -> None: ...
+    def _log_progress(self, current: int, total_objects: int, message: str = "") -> None: ...
+    def _log_warning(self, message: str) -> None: ...
+    def _log_error(self, message: str) -> None: ...
 ```
 
 **`_convert_single_image()` contract:**
@@ -436,7 +443,7 @@ After reading and after writing, the converter emits INFO-level statistics:
 **COCO → YOLO behavior (streaming — YOLO output is per-file):**
 1. Creates directory structure: `target_path/labels/` and `target_path/images/`
 2. Generates `classes.txt` from COCO categories if not provided
-3. Creates `CocoAnnotationHandler` as source, reads JSON → extracts categories and images metadata
+3. Creates `CocoAnnotationHandler` as source. Uses `_ensure_categories_for_streaming()` (which calls shared helper `read_coco_categories()` from utils) to pre-load categories from the COCO JSON file without loading the full dataset into memory, since the streaming pipeline needs categories to configure the target handler before iteration begins.
 4. `stream_convert()`:
    - Iterates `handler.iter_images()` (yields one `ImageAnnotation` per image)
    - `_convert_single_image()`:
@@ -578,10 +585,19 @@ responsibility to:
 | `extract_categories_from_coco(coco_data)` | Extracts categories from raw COCO dict |
 | `ensure_categories_in_annotations(dataset)` | Ensures category consistency |
 | `get_image_dimensions_from_handler(handler)` | Extracts image dimensions |
-| `normalize_path(path)` | Normalizes file paths |
+| `normalize_path(path, base_dir)` | Normalizes file paths |
 | `validate_conversion_chain(source_format, target_format, allowed_chains)` | Validates a (source, target) pair against a list of allowed conversion chains |
 | `create_conversion_chain(chain)` | Creates a multi-step conversion pipeline from a list of format names |
-| `resolve_image_paths(dataset, base_dir)` | Resolves relative image paths |
+| `resolve_image_paths(annotations, source_dir, target_dir)` | Resolves relative image paths |
+
+### 5.1 RLE Accuracy Warning
+
+The RLE accuracy warning is **conditionally emitted** only when both conditions are met:
+
+- `do_rle=True` is set on the converter
+- The source dataset contains segmentation data (`source_handler.is_seg` is `True`)
+
+Detection-only datasets with `--do-rle` do not produce a misleading warning. The check is performed in `_post_batch_convert()` (e.g., `YoloAndCocoConverter` and `CocoAndLabelMeConverter`).
 
 ## 6. Dependency Contract
 

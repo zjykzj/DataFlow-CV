@@ -389,4 +389,3 @@ of the binary mask, which is already an approximation of the original polygon.
 | `image_dir` | YOLO→COCO, YOLO→LabelMe | Directory containing image files |
 | `do_rle` | YOLO→COCO, LabelMe→COCO (optional) | Enable RLE encoding for segmentation |
 | `strict_mode` | All (optional, default=True) | Enable strict validation |
-| `verbose` | All (optional, default=False) | Enable verbose file logging |

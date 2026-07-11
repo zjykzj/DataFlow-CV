@@ -5,8 +5,8 @@ Handles reading and writing of YOLO format annotation files.
 Supports both object detection and instance segmentation formats.
 """
 
-import json
 import logging
+import math
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
@@ -391,7 +391,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     if has_confidence:
                         try:
                             confidence = float(items[-1])
-                            if confidence < 0.0 or confidence > 1.0:
+                            if not math.isfinite(confidence) or confidence < 0.0 or confidence > 1.0:
                                 error_msg = (
                                     f"Confidence out of range [0,1] in {txt_file}, "
                                     f"line {line_num}: {confidence}"
@@ -891,7 +891,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                                 (height, "height"),
                                 (confidence, "confidence"),
                             ]:
-                                if value < 0 or value > 1:
+                                if not math.isfinite(value) or value < 0 or value > 1:
                                     self.logger.error(
                                         f"{name} out of range [0,1] in line {line_num}: {value}"
                                     )
@@ -933,7 +933,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                                     )
                                     return False
 
-                            if confidence < 0 or confidence > 1:
+                            if not math.isfinite(confidence) or confidence < 0 or confidence > 1:
                                 self.logger.error(
                                     f"confidence out of range [0,1] in line {line_num}: {confidence}"
                                 )

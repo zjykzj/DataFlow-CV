@@ -22,7 +22,7 @@ from .utils import _load_coco, _load_dt, _validate_coco_available
 
 def compute_pr_f1(
     gt_source: Union[str, Path, Dict, Any],
-    dt_source: Union[str, Path, Dict, Any],
+    dt_source: Union[str, Path, Dict, List, Any],
     iou_threshold: float = 0.5,
     confidence_threshold: float = 0.0,
     iou_type: str = "bbox",
@@ -46,7 +46,9 @@ def compute_pr_f1(
         confidence_threshold: Minimum detection score. Default 0.0 (keep
             all). Detections below this are filtered out.
         iou_type: ``'bbox'`` for detection, ``'segm'`` for segmentation.
-            Currently only ``'bbox'`` is supported via manual matching.
+            Both are supported.  For ``'segm'``, mask IoU is computed
+            via pycocotools and crowd annotations are handled per
+            standard COCO behavior.
         method: Aggregation method for overall P/R/F1.
             ``"macro"`` (default) — mean of per-class P and R.
             ``"micro"`` — computed from summed TP/FP/FN across all

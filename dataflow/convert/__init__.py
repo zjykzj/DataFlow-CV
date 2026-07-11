@@ -28,6 +28,7 @@ Example usage:
 
 from . import utils
 from .base import BaseConverter, ConversionResult
+from .rle_converter import RLEConverter
 from .yolo_and_coco import YoloAndCocoConverter
 from .labelme_and_yolo import LabelMeAndYoloConverter
 from .coco_and_labelme import CocoAndLabelMeConverter
@@ -35,6 +36,7 @@ from .coco_and_labelme import CocoAndLabelMeConverter
 __all__ = [
     "BaseConverter",
     "ConversionResult",
+    "RLEConverter",
     "YoloAndCocoConverter",
     "LabelMeAndYoloConverter",
     "CocoAndLabelMeConverter",

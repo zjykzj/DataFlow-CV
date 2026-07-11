@@ -138,7 +138,7 @@ def format_per_class_table(per_class: Dict[int, Any]) -> str:
     )
     sep = "─" * len(header)
     lines = [
-        "Per-Class Breakdown (IoU: 0.50:0.95):",
+        "Per-Class Breakdown (AP/AR: IoU 0.50:0.95 | P/R/F1: IoU 0.50):",
         sep,
         header,
         sep,

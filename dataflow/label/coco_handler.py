@@ -754,13 +754,18 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 and isinstance(segmentation, list)
                 and segmentation
             ):
-                # Estimate area from segmentation polygon
+                # Derive bbox and area from segmentation polygon extent.
+                # COCO format requires bbox as [x, y, w, h] for every
+                # annotation (spec_coco_format.md §4).
                 points = obj.segmentation.points
                 if points:
                     xs = [p[0] for p in points]
                     ys = [p[1] for p in points]
-                    w = max(xs) - min(xs)
-                    h = max(ys) - min(ys)
+                    min_x = min(xs)
+                    min_y = min(ys)
+                    w = max(xs) - min_x
+                    h = max(ys) - min_y
+                    bbox = [float(min_x), float(min_y), float(w), float(h)]
                     area = float(w * h)
 
             image_id_val = int(img.image_id) if img.image_id.isdigit() else img_id

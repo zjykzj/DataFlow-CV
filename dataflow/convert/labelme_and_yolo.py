@@ -198,10 +198,11 @@ class LabelMeAndYoloConverter(BaseConverter):
     ) -> None:
         """Pre-load categories for streaming conversion.
 
-        For LabelMe source, categories may be auto-detected from
-        annotations during iteration. We pre-scan the first JSON file
-        to extract category labels without loading every file.
-        For YOLO source, categories come from the class_file.
+        Uses the source handler's ``categories`` dict (already loaded
+        during handler construction). For LabelMe source with a class
+        file, categories come from the class file; without a class
+        file, LabelMe auto-detects categories during construction.
+        For YOLO source, categories always come from the class_file.
         """
         self._source_annotations_for_target = None
         cats = getattr(source_handler, "categories", None)

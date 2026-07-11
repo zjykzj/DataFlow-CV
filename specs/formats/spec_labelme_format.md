@@ -138,7 +138,7 @@ A valid LabelMe JSON file must satisfy:
 3. Rectangle shapes have exactly 2 points
 4. Polygon shapes have at least 3 points
 5. `imageHeight` > 0 and `imageWidth` > 0 (if present)
-6. `imagePath` points to an existing image file (warning if not found, but processing continues)
+6. `imagePath` points to an existing image file (warning if not found, but processing continues). **Exception**: When the JSON file contains valid `imageHeight` and `imageWidth` fields, the image file itself is not required — its absence in this case produces no warning, as dimensions are read directly from the JSON.
 
 ## 7. Reference Example
 

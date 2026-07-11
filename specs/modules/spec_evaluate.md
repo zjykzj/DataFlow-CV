@@ -87,9 +87,10 @@ class PerClassMetrics:
 
 **Note on tp/fp/fn**: These values are **estimated** from the precision and recall
 measured at IoU=0.50 (not directly counted from the raw matching output of COCOeval).
-They are derived as follows: `tp = (P × R × (gt_count + dt_count)) / (P + R)` and
-`fp = gt_count - tp`, `fn = gt_count - tp` (where gt_count is the number of GT
-annotations for that class). This is an approximation — tp/fp/fn for the full
+They are derived as follows: `tp = round(recall × gt_count)`, `fp = round(tp / precision) − tp`,
+`fn = gt_count − tp` (where gt_count is the number of GT
+annotations for that class). When precision or recall is zero, fp and fn
+default to 0 and gt_count respectively. This is an approximation — tp/fp/fn for the full
 IoU=0.50:0.95 range would require aggregating across 10 threshold levels, which
 COCOeval does not expose per-class.
 
@@ -154,9 +155,21 @@ class BaseEvaluator(ABC):
     # Hook: Validate inputs before evaluation
     def validate_inputs(self, gt_coco, dt_coco) -> Tuple[bool, List[str]]: ...
 
+    # Hook: Return the IoU type string for this evaluator (abstract)
+    @abstractmethod
+    def _iou_type(self) -> str: ...
+
     # Hook: Create COCOeval instance (abstract — iouType differs)
     @abstractmethod
     def _create_cocoeval(self, gt_coco, dt_coco) -> COCOeval: ...
+
+    # Static: Extract 12 standard metrics from a completed COCOeval
+    @staticmethod
+    def _extract_metrics(coco_eval) -> EvaluationMetrics: ...
+
+    # Static: Validate segmentation data presence for mask IoU evaluation
+    @staticmethod
+    def _validate_segm_data(coco_gt, coco_dt) -> List[str]: ...
 
     # Hook: Compute per-class metrics from COCOeval results
     def _compute_per_class(self, cocoeval, gt_coco, dt_coco) -> Dict[int, PerClassMetrics]: ...
@@ -173,8 +186,8 @@ class BaseEvaluator(ABC):
 4. _create_cocoeval(gt, dt)     → COCOeval instance
 5. cocoeval.evaluate()          → per-image evaluation
 6. cocoeval.accumulate()        → accumulate into PR arrays
-7. cocoeval.summarize()         → compute 12 stats → self.stats (stdout suppressed)
-8. Extract metrics → EvaluationMetrics from cocoeval.stats
+7. cocoeval.summarize()         → compute 12 stats (stdout suppressed)
+8. _extract_metrics(cocoeval)   → reads cocoeval.stats → EvaluationMetrics
 9. If verbose: _compute_per_class() → per-class details
 10. Build EvaluationResult
 ```
@@ -207,7 +220,7 @@ class SegmentationEvaluator(BaseEvaluator):
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `log_config` | Optional[LogConfig] | No | None | Logging configuration. If None, default `LogConfig(name="evaluate")` is used. Per-class metrics are computed only when `verbose=True` in the config. |
+| `log_config` | Optional[LogConfig] | No | None | Logging configuration. If None, a default `LogConfig(name="evaluate")` is created with `verbose=False`. Per-class metrics are computed only when the evaluator's stored log config has `verbose=True`. |
 
 ## 4. Public API
 
@@ -307,12 +320,14 @@ def compute_pr_f1(
 
 ```python
 # In __init__.py — re-exported for easy imports
+from dataflow.evaluate.base import BaseEvaluator
 from dataflow.evaluate.evaluator import DetectionEvaluator, SegmentationEvaluator
 from dataflow.evaluate.metrics import compute_pr_f1
 from dataflow.evaluate.result import (
     EvaluationResult, EvaluationMetrics, PerClassMetrics,
     PRF1Result, PRF1Values,
 )
+from dataflow.evaluate import utils  # utilities module
 ```
 
 ## 5. Input Format Contract
@@ -371,11 +386,16 @@ The `validate_inputs()` method checks:
    - Logged as an ERROR and evaluation aborts with
      ``"No shared categories between GT and DT — nothing to evaluate"``
 7. If `iouType='segm'`, segmentation data is present on GT and DT annotations
-   - Checks whether both GT and DT contain `segmentation` fields on annotations
-     that are expected to be matched
-   - If either GT or DT lacks segmentation data, logged as an ERROR and
-     evaluation aborts with
-     ``"Segmentation data missing — cannot evaluate with iouType='segm'. Ensure both GT and DT contain segmentation annotations."``
+   - Calls ``_validate_segm_data(coco_gt, coco_dt)`` which returns a list of
+     error messages (not warnings — missing segmentation data is fatal for mask
+     IoU evaluation)
+   - Checks whether GT, DT, or both lack ``segmentation`` fields on annotations
+   - Returns specific error messages depending on which side lacks data:
+     both missing → ``"Segmentation data missing — cannot evaluate with iouType='segm'. Ensure both GT and DT contain segmentation annotations."``;
+     only GT missing → ``"GT contains no segmentation data — cannot evaluate with iouType='segm'. Ensure GT contains segmentation annotations."``;
+     only DT missing → ``"DT contains no segmentation data — cannot evaluate with iouType='segm'. Ensure DT contains segmentation annotations."``
+   - Error messages are collected with other validation errors; if any errors
+     exist, all are logged and a ``ValueError`` is raised (evaluation aborts)
    - This check is skipped for `iouType='bbox'`
 
 All validation errors are collected into a list first. Each is logged individually via ``self.logger.error()``; then ``ValueError`` is raised on the last one. This ensures all problems are visible in the log before the operation aborts.
@@ -388,7 +408,7 @@ See [`spec_logging.md`](spec_logging.md) for the full `LogManager` contract. Eva
 
 - If `log_config` is None, a default `LogConfig(name="evaluate")` is created
 - The evaluator creates a `LogManager` from the config
-- Per-class metrics are computed only when `log_config.verbose=True`
+- Per-class metrics are computed only when the evaluator is configured with ``verbose=True``. The evaluator stores the provided ``log_config`` (or a default ``LogConfig(name="evaluate")`` if ``None``), and per-class computation is gated on ``self._log_config.verbose``.
 
 **Log pipeline** (all handled internally by the evaluator):
 
@@ -414,12 +434,13 @@ Evaluate: Detection (bbox IoU)
 └──────────────┴──────────┘
 
 ── Per-Class (3 categories) ──
-┌────────────┬──────┬──────┬───────┬──────┬──────┬──────┐
-│ Class      │ GT   │ DT   │ AP    │ P    │ R    │ F1   │
-├────────────┼──────┼──────┼───────┼──────┼──────┼──────┤
-│ cat        │ 1200 │ 1180 │ 0.523 │ 0.72 │ 0.65 │ 0.68 │
-│ dog        │ 1100 │ 1050 │ 0.445 │ 0.61 │ 0.55 │ 0.58 │
-└────────────┴──────┴──────┴───────┴──────┴──────┴──────┘
+Per-Class Breakdown (AP/AR: IoU 0.50:0.95 | P/R/F1: IoU 0.50):
+┌────────────┬──────┬──────┬──────┬──────┬──────┬───────┬───────┬───────┬──────┬──────┬──────┐
+│ Class      │ GT   │ DT   │ TP   │ FP   │ FN   │ AP    │ AP50  │ AP75  │ P    │ R    │ F1   │
+├────────────┼──────┼──────┼──────┼──────┼──────┼───────┼───────┼───────┼──────┼──────┼──────┤
+│ cat        │ 1200 │ 1180 │ 780  │ 400  │ 420  │ 0.523 │ 0.678 │ 0.512 │ 0.72 │ 0.65 │ 0.68 │
+│ dog        │ 1100 │ 1050 │ 605  │ 445  │ 495  │ 0.445 │ 0.601 │ 0.455 │ 0.61 │ 0.55 │ 0.58 │
+└────────────┴──────┴──────┴──────┴──────┴──────┴───────┴───────┴───────┴──────┴──────┴──────┘
 
 ── Result ──
   Status:   ✓ Success

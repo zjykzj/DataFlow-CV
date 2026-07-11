@@ -245,7 +245,7 @@ class SplitAnalyser(BaseAnalyser):
 
         # 10. Log output
         self._log_info(
-            format_analyse_header("Train/Test Split", label_path, fmt)
+            format_analyse_header("Train/Test Split", label_path, f"{fmt} (auto-detected)")
         )
         self._log_info(
             format_split_result(

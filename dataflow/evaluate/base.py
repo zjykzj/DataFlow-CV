@@ -39,7 +39,7 @@ class BaseEvaluator(ABC):
 
     def __init__(
         self,
-        log_config: Optional[Any] = None,
+        log_config: Optional["LogConfig"] = None,
     ):
         """Initialize the evaluator.
 
@@ -54,6 +54,7 @@ class BaseEvaluator(ABC):
 
         if log_config is None:
             log_config = LogConfig(name="evaluate")
+        self._log_config = log_config
         self._log_manager = LogManager(log_config)
         self.logger = self._log_manager.logger
 
@@ -64,7 +65,7 @@ class BaseEvaluator(ABC):
     def evaluate(
         self,
         gt_source: Union[str, Path, Dict, Any],
-        dt_source: Union[str, Path, Dict, Any],
+        dt_source: Union[str, Path, Dict, List, Any],
     ) -> EvaluationResult:
         """Run full COCO evaluation.
 
@@ -122,7 +123,7 @@ class BaseEvaluator(ABC):
             result.dt_stats = dt_stats
 
             # 7. Per-class (verbose only)
-            if self._log_manager.log_path is not None:
+            if self._log_config.verbose:
                 self._log_info("Computing per-class metrics...")
                 result.per_class = self._compute_per_class(
                     coco_eval, coco_gt, coco_dt
@@ -134,6 +135,12 @@ class BaseEvaluator(ABC):
                 f"Evaluation complete: {result.get_summary()}"
             )
 
+        except ValueError as e:
+            # Validation errors are newline-separated — add each
+            # individually so callers see the full error list.
+            for err_line in str(e).split("\n"):
+                result.add_error(err_line)
+            self.logger.error(str(e))
         except Exception as e:
             result.add_error(str(e))
             self.logger.error(str(e))
@@ -224,16 +231,16 @@ class BaseEvaluator(ABC):
 
         # Rule 7: Segmentation data check for segm IoU type
         if self._iou_type() == "segm":
-            segm_warnings = self._validate_segm_data(coco_gt, coco_dt)
-            warnings.extend(segm_warnings)
+            segm_errors = self._validate_segm_data(coco_gt, coco_dt)
+            errors.extend(segm_errors)
 
         if errors:
-            # Log all validation errors, then raise on the first one.
-            # _log_error raises ValueError, so we use the logger
-            # directly for subsequent errors before raising.
-            for err in errors[:-1]:
+            # Log all validation errors individually, then raise with
+            # the full error list so all problems are captured in
+            # result.errors.
+            for err in errors:
                 self.logger.error(err)
-            self._log_error(errors[-1])
+            raise ValueError("\n".join(errors))
 
         return True, warnings
 
@@ -241,11 +248,14 @@ class BaseEvaluator(ABC):
     def _validate_segm_data(coco_gt: Any, coco_dt: Any) -> List[str]:
         """Check segmentation data presence for mask IoU evaluation.
 
-        Returns a list of warning messages. Always returns warnings rather
-        than raising errors — pycocotools falls back to bbox IoU when
-        segmentation data is absent on individual annotations.
+        Returns a list of error messages (not warnings).  When
+        ``iouType='segm'`` is requested but segmentation data is missing,
+        evaluation cannot produce meaningful mask-based metrics — bbox
+        fallback would silently produce incorrect results.
+
+        Returns an empty list if both GT and DT contain segmentation data.
         """
-        warnings: List[str] = []
+        errors: List[str] = []
 
         gt_has_segm = False
         for ann in coco_gt.loadAnns(coco_gt.getAnnIds()):
@@ -259,18 +269,26 @@ class BaseEvaluator(ABC):
                 dt_has_segm = True
                 break
 
-        if not gt_has_segm:
-            warnings.append(
-                "iouType='segm' but no GT segmentation data found. "
-                "pycocotools will fall back to bbox IoU."
+        if not gt_has_segm and not dt_has_segm:
+            errors.append(
+                "Segmentation data missing — cannot evaluate with "
+                "iouType='segm'. Ensure both GT and DT contain "
+                "segmentation annotations."
             )
-        if not dt_has_segm:
-            warnings.append(
-                "iouType='segm' but no DT segmentation data found. "
-                "pycocotools will fall back to bbox IoU."
+        elif not gt_has_segm:
+            errors.append(
+                "GT contains no segmentation data — cannot evaluate "
+                "with iouType='segm'. Ensure GT contains segmentation "
+                "annotations."
+            )
+        elif not dt_has_segm:
+            errors.append(
+                "DT contains no segmentation data — cannot evaluate "
+                "with iouType='segm'. Ensure DT contains segmentation "
+                "annotations."
             )
 
-        return warnings
+        return errors
 
     # ------------------------------------------------------------------
     # Metric extraction

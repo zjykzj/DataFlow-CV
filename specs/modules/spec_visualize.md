@@ -33,7 +33,7 @@ dataflow/visualize/
 ├── yolo_visualizer.py       # YOLO visualization (wraps YOLO handler + converts to RenderData)
 ├── labelme_visualizer.py    # LabelMe visualization (wraps LabelMe handler + converts to RenderData)
 ├── coco_visualizer.py       # COCO visualization (wraps COCO handler + converts to RenderData)
-└── utils.py                 # Image scaling, text positioning utilities
+└── utils.py                 # Image scaling, color map, blending utilities
 ```
 
 ## 2. Unified Rendering Format

@@ -195,6 +195,16 @@ class BaseConverter(ABC):
             target_path=target_path,
         )
 
+        # 0. Log conversion header
+        from .log_templates import format_convert_header
+        self._log_info(format_convert_header(
+            source_format=self.source_format,
+            target_format=self.target_format,
+            source_path=source_path,
+            target_path=target_path,
+            strict=self.strict_mode,
+        ))
+
         # Store source_path for subclasses that need it in
         # create_target_handler() (e.g., image copying in LabelMe→YOLO)
         self._source_path = source_path
@@ -323,7 +333,19 @@ class BaseConverter(ABC):
         Subclasses should NOT override this — override the abstract
         hooks and the optional ``_post_batch_convert()`` hook instead.
         """
+        import time as _time
+        start_time = _time.time()
         self._source_annotations_for_target = None
+
+        # 0. Log conversion header
+        from .log_templates import format_convert_header
+        self._log_info(format_convert_header(
+            source_format=self.source_format,
+            target_format=self.target_format,
+            source_path=source_path,
+            target_path=target_path,
+            strict=self.strict_mode,
+        ))
 
         # 1. Validate inputs
         if not self.validate_inputs(source_path, target_path, kwargs):
@@ -376,9 +398,11 @@ class BaseConverter(ABC):
             self._source_annotations_for_target = None
 
         if write_result.success:
+            duration = _time.time() - start_time
             self._log_info(
                 f"Wrote {target_path} "
                 f"({converted_annotations.num_objects} annotations)"
+                f" in {duration:.1f}s"
             )
 
         # 5. Build result
