@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-07-12
+
+### Added
+
+- **Analyse module**: New `dataflow.analyse` module for dataset introspection and preparation. Includes `StatsAnalyser` (dataset statistics with per-class counts) and `SplitAnalyser` (train/val split with seed-based shuffling). Supports YOLO, LabelMe, and COCO formats with automatic format detection.
+- **Stats sorting options**: `stats` command now supports `--sort-by` (`id`/`count`) and `--descending`/`--ascending` to control per-class table ordering. Added ID column to the per-class statistics table.
+- **`--log-dir` for evaluate**: `evaluate` subcommands now accept `--log-dir` to specify log output directory, consistent with other CLI subcommands.
+
+### Changed
+
+- **CLI imports normalized**: CLI commands now import only through package-level public API (`dataflow.convert`, `dataflow.visualize`, `dataflow.evaluate`), respecting the architecture layering constraint.
+- **Analyse help text formatting**: Improved `analyse` subcommand `--help` output alignment.
+
+### Fixed
+
+- **Spec-code alignment**: Comprehensive audit fixed inconsistencies between 16 spec files and implementation — coordinate clamping thresholds, error message content, import paths, and validation behavior.
+- **Converter state cleanup**: `_source_annotations_for_target` is now properly cleared in a `finally` block on batch conversion to prevent stale state across conversions.
+- **Prediction output format**: COCO prediction output now correctly uses Variant B (plain JSON list), matching the format expected by pycocotools `loadRes()`.
+- **Evaluate validation**: Input validation now collects all errors before raising, ensuring every validation problem is visible in both logs and programmatic output.
+- **YOLO handler image requirement**: YOLO handler no longer requires image files to exist when labels can be read independently.
+- **Analyse bugs and spec consistency**: Fixed unused imports, incorrect spec cross-references, and stale parameter documentation.
+
+### Docs
+
+- **Samples and README sync**: Demo scripts and README updated to reflect current API (LogConfig-based logging, CLI command structure).
+- **Module ordering unified**: All docs now consistently use Analyse → Convert → Visualize → Evaluate ordering.
+
 ## [1.6.2] - 2026-07-02
 
 ### Docs
