@@ -1,7 +1,7 @@
 # Analyse Module Specification
 
-> **Version:** v1.1 | **Last Updated:** 2026-07-13
-> **Status:** Draft — adding filter functionality
+> **Version:** v1.2 | **Last Updated:** 2026-07-14
+> **Status:** Draft — adding multi-path stats and recursive traversal
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
 
@@ -13,10 +13,12 @@ The Analyse module (`dataflow/analyse/`) provides dataset introspection and prep
 
 Unlike Convert and Visualize which use format-specific subclasses, Analyse uses **operation-specific** concrete classes (`StatsAnalyser`, `SplitAnalyser`, `FilterAnalyser`) that work across all annotation formats via the handler interface. The format is automatically detected from the label path, eliminating the need for the user to specify it explicitly.
 
+`StatsAnalyser` supports **multiple label paths** — statistics from each path are computed independently and merged into a single aggregated result. All paths must share the same format and, when a class file is provided, the same category list. A `--recursive` flag enables recursive traversal of subdirectories for YOLO and LabelMe formats.
+
 ### 1.2 Module Contract
 
-- **Input**: A label path (directory or file) pointing to annotations in any supported format (YOLO, LabelMe, COCO)
-- **Processing**: Auto-detect format → create handler → read annotations → compute statistics, split, or filter
+- **Input**: One or more label paths (directories or files) pointing to annotations in any supported format (YOLO, LabelMe, COCO). All paths must be the same format. An optional `--recursive` flag enables recursive subdirectory traversal for YOLO and LabelMe formats.
+- **Processing**: Auto-detect format → create handler(s) → read annotations → compute statistics, split, or filter → merge (stats only)
 - **Output**: `AnalysisResult` (structured container for statistics, split, or filter results)
 - **Dependency**: Label module only (for handlers and data models), standard library only
 
@@ -66,6 +68,7 @@ class StatsResult:
     per_class: Dict[str, int]           # class_name → count, ordered by class_file or discovery order
     format: str                         # "yolo" | "labelme" | "coco"
     categories: Dict[int, str] = field(default_factory=dict)  # class_id → class_name
+    source_paths: List[Path] = field(default_factory=list)   # Paths that contributed to this result
 ```
 
 **Ordering contract**:
@@ -145,7 +148,7 @@ class BaseAnalyser:
 
 ### 3.2 `StatsAnalyser` (`stats.py`)
 
-Computes dataset statistics for any supported annotation format.
+Computes dataset statistics for any supported annotation format. Supports multiple label paths (merged into a single result) and recursive subdirectory traversal.
 
 ```python
 class StatsAnalyser(BaseAnalyser):
@@ -156,42 +159,73 @@ class StatsAnalyser(BaseAnalyser):
 
     def analyse(
         self,
-        label_path: Path,
+        label_paths: List[Path],
         class_file: Optional[Path] = None,
         image_dir: Optional[Path] = None,
         sort_by: str = "id",
         descending: bool = False,
+        recursive: bool = False,
     ) -> AnalysisResult:
-        """Compute statistics for the dataset at ``label_path``.
+        """Compute statistics for the datasets at ``label_paths``.
 
         Args:
-            label_path: Path to labels — directory (YOLO/LabelMe) or JSON file (COCO)
-            class_file: Optional classes.txt for name mapping and ordering (overrides sort options)
-            image_dir: Optional image directory (needed for YOLO format to locate image dimensions)
-            sort_by: ``"id"`` (default, class_id ascending) or ``"count"`` (annotation count)
-            descending: When True, reverse sort direction
+            label_paths: One or more paths to labels — directories
+                (YOLO/LabelMe) or JSON files (COCO).  All paths must
+                be the same format.
+            class_file: Optional classes.txt for name mapping and
+                ordering (overrides sort options).  When provided,
+                categories in the data that are NOT in this file
+                cause an ERROR.
+            image_dir: Optional image directory (needed for YOLO
+                format to locate image dimensions).
+            sort_by: ``"id"`` (default, class_id ascending) or
+                ``"count"`` (annotation count).
+            descending: When True, reverse sort direction.
+            recursive: When True, recursively traverse subdirectories
+                for YOLO and LabelMe formats.  Ignored for COCO
+                (single-file format).
 
         Returns:
             AnalysisResult with StatsResult in ``.data``
         """
 ```
 
-**Pipeline**:
+**Pipeline** (per path, then merge):
 
 ```
-1. detect_format(label_path)     → "yolo" | "labelme" | "coco"
-2. create_handler(format, label_path, class_file, image_dir, logger)
-3. handler.read()                → DatasetAnnotations
-4. Count:
-   a. total_files = len(dataset.images)
-   b. total_annotations = sum(len(img.objects) for img in dataset.images)
-   c. per_class = tally object counts by class_name
-5. Order per_class:
-   a. If class_file given: reorder to match class_file order, append unknowns alphabetically
-   b. If no class_file: sort by ``sort_by`` + ``descending`` (default: class_id ascending), ties alphabetically
-6. Log formatted table via log_templates
-7. Return AnalysisResult(success=True, data=StatsResult(...))
+For each label_path:
+  1. detect_format(label_path)     → "yolo" | "labelme" | "coco"
+     - All paths must yield the same format; first path sets the
+       expected format; subsequent paths with different formats
+       produce an ERROR.
+  2. If recursive and format in (yolo, labelme):
+       _collect_files_recursive(label_path, fmt) → temp dir with symlinks
+       use temp dir as effective label_path for handler
+  3. create_handler(fmt, label_path, class_file, image_dir, logger)
+  4. handler.read()                → DatasetAnnotations
+  5. Count:
+     a. total_files += len(dataset.images)
+     b. total_annotations += sum(len(img.objects) for img in dataset.images)
+     c. per_class = merge tally by class_name across all paths
+  6. If class_file provided:
+     a. Strict validation: any class_name in data NOT in class_file → ERROR
+        (reports the specific path and unknown class names)
+     b. Reorder per_class to match class_file order, drop unknowns
+        (none should exist after validation)
+
+After all paths:
+  7. If class_file NOT provided:
+     a. Sort per_class by sort_by + descending (default: class_id ascending),
+        ties broken alphabetically
+  8. Log formatted table via log_templates
+  9. Return AnalysisResult(success=True, data=StatsResult(...))
 ```
+
+**Merge contract**:
+- `total_files` and `total_annotations`: simple sum across paths
+- `per_class`: merge by class_name (sum counts for matching names)
+- `categories`: all paths share the same class_file → use class_file definitions
+- `format`: all paths must be identical; first path's format is authoritative
 
 ### 3.3 `SplitAnalyser` (`split.py`)
 
@@ -354,17 +388,18 @@ Filter is **same-format only** — the output format matches the source format. 
 
 ## 4. Public API
 
-### 4.1 `StatsAnalyser.analyse(label_path, class_file, image_dir, sort_by, descending) → AnalysisResult`
+### 4.1 `StatsAnalyser.analyse(label_paths, class_file, image_dir, sort_by, descending, recursive) → AnalysisResult`
 
-Compute dataset statistics. Auto-detects the annotation format from `label_path`.
+Compute dataset statistics for one or more label paths. Auto-detects the annotation format from the first path; all subsequent paths must match. Supports recursive subdirectory traversal.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `label_path` | Path | Yes | — | Path to labels (directory or file) |
-| `class_file` | Path | No | None | Classes.txt for name mapping and output ordering |
+| `label_paths` | List[Path] | Yes | — | One or more paths to labels (directories or files). All must be the same format. |
+| `class_file` | Path | No | None | Classes.txt for name mapping and output ordering. When provided, **strict validation** is enforced — any class in the data not present in this file causes an ERROR. |
 | `image_dir` | Path | No | None | Image directory (needed for YOLO format to locate image dimensions) |
 | `sort_by` | str | No | `"id"` | Sort key: `"id"` (class_id) or `"count"` (annotation count). Ignored when `class_file` is provided. |
 | `descending` | bool | No | False | When True, reverse sort direction |
+| `recursive` | bool | No | False | When True, recursively find label files in subdirectories (YOLO/LabelMe only). Ignored for COCO. |
 
 ### 4.2 `SplitAnalyser.analyse(label_path, output_dir, ratio, seed, class_file, image_dir) → AnalysisResult`
 
@@ -443,6 +478,18 @@ def load_class_names(class_file: Path) -> Dict[int, str]:
     Format: one class name per line, 0-indexed.
     Blank lines and lines starting with # are skipped.
     """
+
+def _collect_files_recursive(root: Path, fmt: str) -> Path:
+    """Recursively collect label files and create a temporary flat directory.
+
+    For YOLO: rglob("*.txt") → symlinks in temp dir.
+    For LabelMe: rglob("*.json") → open each, keep those with "shapes" key.
+    For COCO: not applicable (single-file format).
+
+    Returns:
+        Path to temporary directory containing symlinks to found files.
+        The caller is responsible for cleanup.
+    """
 ```
 
 ## 5. Input Format Contract
@@ -472,6 +519,17 @@ All handlers are created with `strict_mode=False` — analysis operations are re
 - LabelMe format: `class_file` is **optional** — class names are read from JSON files. If provided, it controls output ordering only.
 - COCO format: `class_file` is **optional** — categories are read from the JSON's `categories` array. If provided, it controls output ordering only.
 
+**Strict class validation (stats only)**:
+
+When `class_file` is provided to `StatsAnalyser.analyse()`, after counting all annotations, the analyser validates that every class name observed in the data appears in the class file. Classes in the data but NOT in the class file produce an **ERROR** (not a warning). The error message includes:
+
+- The specific label path where the unknown classes were found
+- The list of unknown class names
+
+This strict validation ensures data quality — when you define an expected category list, any deviation is a hard failure. When `class_file` is NOT provided, no validation occurs (any class names are accepted).
+
+All paths in a multi-path stats run share the same `class_file`. Validation runs against the merged per-class tally, reporting all unknown names with their source paths.
+
 **For filter operation:**
 
 - `original_class_file` is **required** — defines the source dataset's full category set (class_id → class_name). This is the ground truth for which categories exist in the source data.
@@ -489,6 +547,8 @@ See [`spec_logging.md`](spec_logging.md) for the full `LogManager` contract. Ana
 
 ### 6.1 Stats Output Format
 
+**Single path** (backward-compatible):
+
 ```
 ══════════════════════════════════════
 Analyse: Dataset Statistics
@@ -501,13 +561,15 @@ Analyse: Dataset Statistics
   Categories:        3
 
 ── Per-Class ──
-┌────────────┬───────┐
-│ Class      │ Count │
-├────────────┼───────┤
-│ cat        │    42 │
-│ dog        │    38 │
-│ person     │    15 │
-└────────────┴───────┘
+┌────────────┬────┬───────┐
+│ Class      │ ID │ Count │
+├────────────┼────┼───────┤
+│ cat        │ 0  │    42 │
+│ dog        │ 1  │    38 │
+│ person     │ 2  │    15 │
+├────────────┼────┼───────┤
+│ Total (3)  │    │    95 │
+└────────────┴────┴───────┘
 
 ── Result ──
   Status: ✓ Success
@@ -515,6 +577,44 @@ Analyse: Dataset Statistics
   Log saved to: logs/analyse_stats_20260709_100000.log
 ══════════════════════════════════════
 ```
+
+**Multi-path** (two or more source paths):
+
+```
+══════════════════════════════════════
+Analyse: Dataset Statistics
+  Sources:        train/labels/, val/labels/    (2 paths)
+  Class file:     classes.txt (80 categories)
+  Format:         yolo (auto-detected)
+
+── Path Breakdown ──
+  train/labels/    5000 files, 12450 annotations
+  val/labels/      1200 files,  2980 annotations
+
+── Summary ──
+  Total files:       6200
+  Total annotations: 15430
+  Categories:        80
+
+── Per-Class ──
+┌────────────┬────┬───────┐
+│ Class      │ ID │ Count │
+├────────────┼────┼───────┤
+│ person     │ 0  │  3240 │
+│ car        │ 1  │  2891 │
+│ ...        │ .. │   ... │
+├────────────┼────┼───────┤
+│ Total (80) │    │ 15430 │
+└────────────┴────┴───────┘
+
+── Result ──
+  Status: ✓ Success
+
+  Log saved to: logs/analyse_stats_20260709_100000.log
+══════════════════════════════════════
+```
+
+The "Path Breakdown" section is only shown when ``len(label_paths) > 1``. When `--recursive` is used, each path is annotated with ``(recursive)`` in the breakdown.
 
 ### 6.2 Split Output Format
 
@@ -580,8 +680,9 @@ Analyse: Category Filter
 
 Log templates are in `dataflow/analyse/log_templates.py`:
 
-- `format_analyse_header(operation, label_path, format_name)` — header block
-- `format_stats_result(total_files, total_annotations, per_class)` — stats table
+- `format_analyse_header(operation, label_paths, format_name, class_file, recursive)` — header block (shows "Source:" for single path, "Sources:" for multi-path)
+- `format_stats_result(total_files, total_annotations, per_class, categories)` — stats table with per-class breakdown
+- `format_stats_path_breakdown(path_stats)` — per-path file/annotation counts (multi-path only)
 - `format_split_result(train_count, val_count, train_dir, val_dir, ratio, seed)` — split summary
 - `format_filter_result(total_files, total_files_with_annotations, annotations_before, annotations_after, kept_categories, removed_categories, missing_categories, output_dir)` — filter comparison + summary
 - `format_analyse_result(status, log_path)` — final result block
@@ -669,8 +770,11 @@ Split output write fails   → AnalysisResult(success=False, errors=[...])
 |-------|----------|
 | Label path not found | `AnalysisResult(success=False, errors=["Label path not found: ..."])` |
 | Cannot determine format | `AnalysisResult(success=False, errors=["Cannot determine annotation format from: ..."])` |
+| Mixed formats in multi-path | `AnalysisResult(success=False, errors=["All paths must be the same format. Got yolo for ... but ... is labelme"])` |
 | Empty dataset (no annotations) | `AnalysisResult(success=True, data=StatsResult(total_files=0, ...))` — not an error |
 | Class file not found | `AnalysisResult(success=False, errors=["Class file not found: ..."])` |
+| Data class not in class_file (strict) | `AnalysisResult(success=False, errors=["Categories in data not found in class file: {...}. Path: ..."])` |
+| `--recursive` finds no matching files | `AnalysisResult(success=False, errors=["No label files found recursively in: ..."])` |
 | Split ratio out of range | `AnalysisResult(success=False, errors=["Ratio must be between 0 and 1, got: ..."])` |
 | Output directory not writable | `AnalysisResult(success=False, errors=["Cannot create output directory: ..."])` |
 | Skipped invalid files (non-strict) | Warning in `warnings` list; analysis continues |
@@ -693,7 +797,7 @@ All analyser operations run in **non-strict mode by default** (handlers created 
 ### 10.1 Command Signatures
 
 ```
-dataflow-cv analyse stats [OPTIONS] LABEL_PATH
+dataflow-cv analyse stats [OPTIONS] LABEL_PATH [LABEL_PATH ...]
 dataflow-cv analyse split [OPTIONS] LABEL_PATH OUTPUT_DIR
 dataflow-cv analyse filter [OPTIONS] LABEL_PATH ORIGINAL_CLASS_FILE NEW_CLASS_FILE OUTPUT_DIR
 ```
@@ -704,14 +808,36 @@ dataflow-cv analyse filter [OPTIONS] LABEL_PATH ORIGINAL_CLASS_FILE NEW_CLASS_FI
 |--------|-----------|------|---------|-------------|
 | `--verbose` | all three | Flag | False | Enable verbose log output |
 | `--log-dir` | all three | Path | `./logs` | Log file output directory |
-| `--class-file`, `-c` | stats, split | Path | None | Classes.txt for name mapping |
+| `--class-file`, `-c` | stats, split | Path | None | Classes.txt for name mapping. For stats: enables **strict validation** — data classes not in this file cause an error. |
 | `--image-dir` | all three | Path | None | Image directory for YOLO (auto-detected if omitted: tries ``labels/images/``, ``dataset/images/``, ``dataset_parent/images/``) |
 | `--sort-by` | stats | Choice | `"id"` | `"id"` or `"count"` |
 | `--descending/--ascending` | stats | Flag | `--ascending` | Sort direction |
+| `--recursive`, `-R` | stats | Flag | False | Recursively traverse subdirectories for label files (YOLO/LabelMe only) |
 | `--ratio`, `-r` | split | Float | 0.8 | Train proportion |
 | `--seed`, `-s` | split | Int | 42 | Random seed |
 
-### 10.3 Filter Command
+### 10.3 Stats Command (Multi-Path)
+
+```
+dataflow-cv analyse stats [OPTIONS] LABEL_PATH [LABEL_PATH ...]
+```
+
+| Argument / Option | Type | Default | Description |
+|-------------------|------|---------|-------------|
+| `LABEL_PATH` (argument, repeatable) | Path | *(at least 1 required)* | Directory (YOLO/LabelMe) or COCO JSON file. All paths must be the same format. |
+| `--recursive`, `-R` | Flag | False | Recursively find label files in subdirectories. For YOLO: `rglob("*.txt")`. For LabelMe: `rglob("*.json")` filtered to those with `"shapes"` key. Ignored for COCO. |
+| `--class-file`, `-c` | Path | None | Shared classes.txt across all paths. Enables strict validation. |
+
+Plus shared options: `--verbose`, `--log-dir`, `--image-dir`, `--sort-by`, `--descending/--ascending`.
+
+**Multi-path merge behavior**:
+- Each path is analyzed independently, then results are merged
+- All paths must be the same format (first path sets the expected format)
+- `total_files` and `total_annotations` are summed
+- `per_class` is merged by class_name (counts summed)
+- When `--class-file` is provided, strict validation runs on the merged data
+
+### 10.4 Filter Command
 
 ```
 dataflow-cv analyse filter [OPTIONS] LABEL_PATH ORIGINAL_CLASS_FILE NEW_CLASS_FILE OUTPUT_DIR
@@ -741,8 +867,8 @@ The filtered `classes.txt` (from `NEW_CLASS_FILE`) is copied to `OUTPUT_DIR/`.
 
 | API | Location | Purpose |
 |-----|----------|---------|
-| `StatsAnalyser(log_config)` | `stats.py` | Dataset statistics computation |
-| `analyser.analyse(label_path, class_file, image_dir) → AnalysisResult` | `stats.py` | Run statistics |
+| `StatsAnalyser(log_config)` | `stats.py` | Dataset statistics computation (single or multi-path, optional recursive) |
+| `analyser.analyse(label_paths, class_file, image_dir, sort_by, descending, recursive) → AnalysisResult` | `stats.py` | Run statistics |
 | `SplitAnalyser(log_config)` | `split.py` | Train/val dataset splitting |
 | `analyser.analyse(label_path, output_dir, ratio, seed, class_file, image_dir) → AnalysisResult` | `split.py` | Run split |
 | `FilterAnalyser(log_config)` | `filter.py` | Category-based annotation filtering |
@@ -750,3 +876,4 @@ The filtered `classes.txt` (from `NEW_CLASS_FILE`) is copied to `OUTPUT_DIR/`.
 | `detect_format(label_path) → str` | `utils.py` | Auto-detect annotation format |
 | `create_handler(label_path, format, class_file, image_dir, logger) → BaseAnnotationHandler` | `utils.py` | Handler factory |
 | `load_class_names(class_file) → Dict[int, str]` | `utils.py` | Parse classes.txt |
+| `_collect_files_recursive(root, fmt) → Path` | `utils.py` | Recursively find label files, create temp dir with symlinks |

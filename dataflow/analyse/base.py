@@ -54,6 +54,8 @@ class StatsResult:
             count descending.
         format: Detected format (``"yolo"`` | ``"labelme"`` | ``"coco"``).
         categories: ``{class_id: class_name}`` mapping.
+        source_paths: Paths that contributed to this result
+            (single element for single-path, multiple for multi-path).
     """
 
     total_files: int
@@ -61,6 +63,7 @@ class StatsResult:
     per_class: Dict[str, int]
     format: str
     categories: Dict[int, str] = field(default_factory=dict)
+    source_paths: List[Path] = field(default_factory=list)
 
 
 @dataclass

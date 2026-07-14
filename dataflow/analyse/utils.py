@@ -251,6 +251,175 @@ def create_handler(
     return handler
 
 
+def _collect_files_recursive(root: Path, fmt: str) -> Path:
+    """Recursively collect label files and create a temporary flat directory.
+
+    For YOLO: ``rglob("*.txt")``, excluding ``classes.txt``.
+    For LabelMe: ``rglob("*.json")``, filtering to files containing a
+    ``"shapes"`` key.
+
+    Symlinks with disambiguated names (relative path separators replaced
+    by ``_``) are created in a temporary directory so the existing
+    handler can read them without modification.
+
+    Args:
+        root: Root directory to search recursively.
+        fmt: ``"yolo"`` or ``"labelme"``.
+
+    Returns:
+        Path to a temporary directory containing symlinks to found files.
+        The caller is responsible for cleanup (``shutil.rmtree``).
+
+    Raises:
+        ValueError: If no matching files are found, or if *fmt* is not
+            a directory-based format.
+    """
+    import tempfile
+
+    if fmt == "yolo":
+        files = [
+            f for f in sorted(root.rglob("*.txt"))
+            if f.name != "classes.txt"
+        ]
+    elif fmt == "labelme":
+        candidates = sorted(root.rglob("*.json"))
+        files = []
+        for f in candidates:
+            try:
+                with open(f, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+                if isinstance(data, dict) and "shapes" in data:
+                    files.append(f)
+            except (json.JSONDecodeError, OSError):
+                continue
+    else:
+        raise ValueError(
+            f"Recursive mode is not supported for format: {fmt}. "
+            f"Only YOLO and LabelMe (directory-based formats) are supported."
+        )
+
+    if not files:
+        raise ValueError(
+            f"No label files found recursively in: {root}"
+        )
+
+    tmp_dir = tempfile.mkdtemp(prefix="analyse_recursive_")
+
+    for f in files:
+        rel = f.relative_to(root)
+        # Replace path separators to create a flat, disambiguated filename
+        name = str(rel).replace("/", "_").replace("\\", "_")
+        link = Path(tmp_dir) / name
+        link.symlink_to(f.resolve())
+
+    return Path(tmp_dir)
+
+
+def _detect_format_recursive(root: Path) -> str:
+    """Detect annotation format by looking at files recursively.
+
+    Uses ``rglob`` to find files in all subdirectories, then applies the
+    same detection rules as ``detect_format()`` for directory-based
+    formats.
+
+    Args:
+        root: Root directory to search recursively.
+
+    Returns:
+        ``"yolo"`` | ``"labelme"``
+
+    Raises:
+        ValueError: If format cannot be determined.
+    """
+    if not root.exists() or not root.is_dir():
+        raise ValueError(f"Path does not exist or is not a directory: {root}")
+
+    all_files = sorted(
+        [f for f in root.rglob("*") if f.is_file() and not f.name.startswith(".")]
+    )
+
+    if not all_files:
+        raise ValueError(
+            f"No files found recursively in: {root}"
+        )
+
+    # Check extensions (exclude auxiliary files like classes.txt)
+    annotation_files = [
+        f for f in all_files
+        if f.name not in ("classes.txt",)
+    ]
+    extensions = {f.suffix for f in annotation_files}
+    has_txt = ".txt" in extensions
+    has_json = ".json" in extensions
+
+    if has_txt and has_json:
+        raise ValueError(
+            f"Cannot determine annotation format recursively from: {root}. "
+            f"Found both .txt (YOLO) and .json (LabelMe/COCO) files. "
+            f"Please separate them or specify the format explicitly."
+        )
+
+    if has_txt:
+        return "yolo"
+
+    if has_json:
+        # Read first .json to distinguish LabelMe from COCO
+        json_files = [f for f in annotation_files if f.suffix == ".json"]
+        with open(json_files[0], "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            if "shapes" in data:
+                return "labelme"
+            if "images" in data:
+                raise ValueError(
+                    f"{root} appears to contain a COCO JSON file, "
+                    f"but COCO annotations are a single file, not a "
+                    f"directory. Point to the specific .json file instead."
+                )
+        raise ValueError(
+            f"Cannot determine format from JSON files recursively in: {root}. "
+            f"Expected LabelMe ('shapes' key)."
+        )
+
+    raise ValueError(
+        f"Cannot determine annotation format recursively from: {root}. "
+        f"Supported formats: .txt (YOLO), .json (LabelMe)."
+    )
+
+
+def _scan_yolo_class_ids(label_dir: Path) -> set:
+    """Scan all .txt files in *label_dir* and return the set of class IDs.
+
+    Used for strict class validation before the handler silently drops
+    unknown IDs in non-strict mode.
+
+    Args:
+        label_dir: Directory containing YOLO .txt label files.
+
+    Returns:
+        Set of integer class IDs found across all .txt files.
+    """
+    ids: set = set()
+    for txt_file in sorted(label_dir.glob("*.txt")):
+        if txt_file.name == "classes.txt":
+            continue
+        try:
+            with open(txt_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    tokens = stripped.split()
+                    if tokens:
+                        try:
+                            ids.add(int(tokens[0]))
+                        except ValueError:
+                            pass
+        except OSError:
+            continue
+    return ids
+
+
 def load_class_names(class_file: Path) -> Dict[int, str]:
     """Parse classes.txt → ``{class_id: class_name}``.
 

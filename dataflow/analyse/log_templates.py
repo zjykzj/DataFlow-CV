@@ -7,7 +7,7 @@ result to ``self.logger.info()`` / ``.debug()`` / etc.
 """
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from ..util.logging import (
     format_divider,
@@ -20,15 +20,19 @@ from ..util.logging import (
 
 def format_analyse_header(
     operation: str,
-    label_path: Path,
+    label_paths,
     format_name: str,
+    class_file: Optional[Path] = None,
+    recursive: bool = False,
 ) -> str:
     """Header block shown at the start of an analysis operation.
 
     Args:
         operation: Operation name, e.g. ``"Dataset Statistics"``.
-        label_path: Path to the label source.
+        label_paths: Single ``Path`` or list of ``Path`` objects.
         format_name: Detected format, e.g. ``"yolo (auto-detected)"``.
+        class_file: Optional class file path for display.
+        recursive: Whether recursive traversal was used.
 
     Returns:
         Formatted header string.
@@ -36,10 +40,53 @@ def format_analyse_header(
     lines = [
         format_divider("═"),
         f"Analyse: {operation}",
-        format_kv("Source", str(label_path)),
-        format_kv("Format", format_name),
-        "",
     ]
+
+    # Normalise to list
+    if isinstance(label_paths, (str, Path)):
+        path_list = [Path(label_paths)]
+    else:
+        path_list = list(label_paths)
+
+    if len(path_list) == 1:
+        label = f"{path_list[0]}"
+        if recursive:
+            label += " (recursive)"
+        lines.append(format_kv("Source", label))
+    else:
+        lines.append(
+            format_kv("Sources", f"{', '.join(str(p) for p in path_list)}"
+                      f"    ({len(path_list)} paths)")
+        )
+
+    if class_file is not None:
+        lines.append(format_kv("Class file", str(class_file)))
+    lines.append(format_kv("Format", format_name))
+    lines.append("")
+    return "\n".join(lines)
+
+
+def format_stats_path_breakdown(path_stats) -> str:
+    """Per-path file and annotation counts (multi-path only).
+
+    Args:
+        path_stats: List of dicts with keys ``path`` (Path), ``files``
+            (int), ``annotations`` (int), ``recursive`` (bool).
+
+    Returns:
+        Formatted path breakdown section.
+    """
+    lines = [format_section("Path Breakdown")]
+    for ps in path_stats:
+        label = f"{ps['path']}"
+        if ps.get("recursive"):
+            label += " (recursive)"
+        lines.append(
+            f"  {label:<40} "
+            f"{ps['files']:>5} files, "
+            f"{ps['annotations']:>5} annotations"
+        )
+    lines.append("")
     return "\n".join(lines)
 
 

@@ -75,24 +75,43 @@ def _add_analyse_options(func):
     show_default=True,
     help="Sort direction",
 )
+@click.option(
+    "--recursive", "-R",
+    is_flag=True,
+    default=False,
+    help="Recursively traverse subdirectories for label files "
+         "(YOLO/LabelMe only)",
+)
 @click.argument(
-    "label_path",
+    "label_paths",
+    nargs=-1,
     type=click.Path(exists=True, path_type=Path),
-    metavar="LABEL_PATH",
+    metavar="LABEL_PATH [LABEL_PATH ...]",
 )
 def stats(
     ctx: click.Context,
-    label_path: Path,
+    label_paths: tuple,
     class_file: Path,
     image_dir: Path,
     sort_by: str,
     descending: bool,
+    recursive: bool,
 ):
-    """Compute dataset statistics for annotations at LABEL_PATH.
+    """Compute dataset statistics for annotations at one or more LABEL_PATHs.
 
-    LABEL_PATH is a directory (YOLO .txt or LabelMe .json) or a single COCO JSON file. The format is auto-detected.
+    LABEL_PATH is a directory (YOLO .txt or LabelMe .json) or a single
+    COCO JSON file. The format is auto-detected.
+
+    Multiple LABEL_PATHs can be specified — statistics are merged into a
+    single result. All paths must be the same format.
+
+    When --class-file / -c is provided, strict validation is enforced:
+    any category in the data not listed in the class file causes an error.
     """
     from dataflow.analyse import StatsAnalyser
+
+    if not label_paths:
+        raise click.UsageError("At least one LABEL_PATH is required.")
 
     verbose = ctx.obj["verbose"]
     log_dir = ctx.obj["log_dir"]
@@ -104,11 +123,12 @@ def stats(
     )
     analyser = StatsAnalyser(log_config=log_config)
     result = analyser.analyse(
-        label_path,
+        label_paths=list(label_paths),
         class_file=class_file,
         image_dir=image_dir,
         sort_by=sort_by,
         descending=descending,
+        recursive=recursive,
     )
 
     if result.success and result.data is not None:
