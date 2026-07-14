@@ -181,6 +181,7 @@ def create_handler(
     class_file: Optional[Path] = None,
     image_dir: Optional[Path] = None,
     logger: Optional[logging.Logger] = None,
+    skip_image_loading: bool = False,
 ) -> "BaseAnnotationHandler":
     """Create the appropriate handler for the detected format.
 
@@ -195,6 +196,9 @@ def create_handler(
             If not provided for YOLO, attempts to auto-detect a sibling ``images/``
             directory.
         logger: Logger to pass to the handler.
+        skip_image_loading: If True and format is YOLO, skip all image file
+            I/O (use placeholder dimensions).  For read-only operations
+            like stats that don't need real image dimensions.
 
     Returns:
         Configured BaseAnnotationHandler instance.
@@ -227,10 +231,14 @@ def create_handler(
                     image_dir = candidate
                     break
 
+        kwargs = {}
+        if skip_image_loading:
+            kwargs["skip_image_loading"] = True
         handler = YoloAnnotationHandler(
             label_dir=str(label_path),
             class_file=str(class_file),
             image_dir=str(image_dir) if image_dir else str(label_path),
+            **kwargs,
             **handler_kwargs,
         )
     elif format == "labelme":

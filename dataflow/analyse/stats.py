@@ -313,6 +313,7 @@ class StatsAnalyser(BaseAnalyser):
                     class_file=class_file,
                     image_dir=image_dir,
                     logger=self.logger,
+                    skip_image_loading=True,
                 )
             except (ValueError, FileNotFoundError) as e:
                 result.add_error(str(e))

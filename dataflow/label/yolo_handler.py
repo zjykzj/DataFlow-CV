@@ -23,7 +23,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
     def __init__(
         self, label_dir: str, class_file: str, image_dir: str,
-        prediction: bool = False, **kwargs
+        prediction: bool = False, skip_image_loading: bool = False, **kwargs
     ):
         """
         Initialize YOLO handler.
@@ -34,6 +34,9 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
             image_dir: Directory containing image files (for getting image dimensions)
             prediction: If True, parse prediction format (with confidence scores).
                 Default False (label format).
+            skip_image_loading: If True, skip all image file I/O
+                (use placeholder dimensions).  Useful for read-only
+                operations like stats that don't need real dimensions.
             **kwargs: Additional arguments for BaseAnnotationHandler
         """
         super().__init__(**kwargs)
@@ -41,6 +44,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
         self.class_file = Path(class_file)
         self.image_dir = Path(image_dir)
         self.prediction = prediction
+        self.skip_image_loading = skip_image_loading
         self.categories = self._load_categories()
 
     def _load_categories(self) -> Dict[int, str]:
@@ -320,51 +324,59 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
         try:
             # Get corresponding image file
             image_stem = txt_file.stem
-            image_extensions = [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"]
-            image_path = None
 
-            for ext in image_extensions:
-                potential_path = self.image_dir / f"{image_stem}{ext}"
-                if potential_path.exists():
-                    image_path = potential_path
-                    break
-
-            if image_path is None:
-                # Try with any image extension (only if image_dir exists)
-                if self.image_dir.exists():
-                    image_files = [
-                        f for f in self.image_dir.glob(f"{image_stem}.*")
-                        if f.suffix.lower() in {
-                            ".jpg", ".jpeg", ".png", ".bmp",
-                            ".tiff", ".tif", ".webp",
-                        }
-                    ]
-                    if image_files:
-                        image_path = image_files[0]
-
-            if image_path is None:
-                if self.strict_mode:
-                    raise ImageError(f"No corresponding image found for {txt_file}")
-                else:
-                    self._log_debug(
-                        f"No corresponding image found for {txt_file}. "
-                        f"Using placeholder dimensions (1, 1)."
-                    )
-                    img_width, img_height = 1, 1
+            if self.skip_image_loading:
+                # Fast path: skip all image I/O for read-only operations
+                # (e.g. stats, split).  Use placeholder dimensions — the
+                # caller only needs annotation counts, not real coords.
+                image_path = None
+                img_width, img_height = 1, 1
             else:
-                # Get image dimensions
-                img_width, img_height = self._get_image_size(image_path)
-                if img_width <= 0 or img_height <= 0:
+                image_extensions = [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"]
+                image_path = None
+
+                for ext in image_extensions:
+                    potential_path = self.image_dir / f"{image_stem}{ext}"
+                    if potential_path.exists():
+                        image_path = potential_path
+                        break
+
+                if image_path is None:
+                    # Try with any image extension (only if image_dir exists)
+                    if self.image_dir.exists():
+                        image_files = [
+                            f for f in self.image_dir.glob(f"{image_stem}.*")
+                            if f.suffix.lower() in {
+                                ".jpg", ".jpeg", ".png", ".bmp",
+                                ".tiff", ".tif", ".webp",
+                            }
+                        ]
+                        if image_files:
+                            image_path = image_files[0]
+
+                if image_path is None:
                     if self.strict_mode:
-                        raise ImageError(
-                            f"Invalid image dimensions for {image_path}: {img_width}x{img_height}"
-                        )
+                        raise ImageError(f"No corresponding image found for {txt_file}")
                     else:
                         self._log_debug(
-                            f"Invalid image dimensions for {image_path}: {img_width}x{img_height}. "
+                            f"No corresponding image found for {txt_file}. "
                             f"Using placeholder dimensions (1, 1)."
                         )
                         img_width, img_height = 1, 1
+                else:
+                    # Get image dimensions
+                    img_width, img_height = self._get_image_size(image_path)
+                    if img_width <= 0 or img_height <= 0:
+                        if self.strict_mode:
+                            raise ImageError(
+                                f"Invalid image dimensions for {image_path}: {img_width}x{img_height}"
+                            )
+                        else:
+                            self._log_debug(
+                                f"Invalid image dimensions for {image_path}: {img_width}x{img_height}. "
+                                f"Using placeholder dimensions (1, 1)."
+                            )
+                            img_width, img_height = 1, 1
 
             # Read label file
             lines = Path(txt_file).read_text(encoding="utf-8").splitlines()
