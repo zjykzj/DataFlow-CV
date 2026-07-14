@@ -11,6 +11,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Optional
 
+from dataflow.label.utils import parse_yolo_class_id
+
 if TYPE_CHECKING:
     from dataflow.label.base import BaseAnnotationHandler
 
@@ -122,30 +124,6 @@ def detect_format(label_path: Path) -> str:
     )
 
 
-def _parse_class_id_token(token: str) -> Optional[int]:
-    """Parse a class ID token, accepting integer-valued float strings.
-
-    YOLO format uses ``class_id`` as an integer, but some tooling
-    outputs float-formatted values like ``5.000000``.  This parser
-    handles both cases gracefully.
-
-    Returns:
-        Integer class ID, or ``None`` if *token* is not a valid
-        class ID.
-    """
-    try:
-        return int(token)
-    except ValueError:
-        pass
-    try:
-        val = float(token)
-        if val.is_integer() and val >= 0:
-            return int(val)
-    except (ValueError, OverflowError):
-        pass
-    return None
-
-
 def _auto_generate_class_file(label_dir: Path, recursive: bool = False) -> Path:
     """Generate a temporary classes.txt from observed class IDs in label files.
 
@@ -174,7 +152,7 @@ def _auto_generate_class_file(label_dir: Path, recursive: bool = False) -> Path:
                         continue
                     tokens = stripped.split()
                     if tokens:
-                        cid = _parse_class_id_token(tokens[0])
+                        cid = parse_yolo_class_id(tokens[0])
                         if cid is not None:
                             class_ids.add(cid)
         except Exception:
@@ -318,7 +296,7 @@ def _scan_yolo_class_ids(label_dir: Path, recursive: bool = False) -> set:
                         continue
                     tokens = stripped.split()
                     if tokens:
-                        cid = _parse_class_id_token(tokens[0])
+                        cid = parse_yolo_class_id(tokens[0])
                         if cid is not None:
                             ids.add(cid)
         except OSError:

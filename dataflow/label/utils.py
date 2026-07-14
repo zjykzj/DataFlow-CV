@@ -4,7 +4,56 @@ Utility functions for the label module.
 
 import hashlib
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
+
+
+def parse_yolo_class_id(token: str) -> Optional[int]:
+    """Parse a YOLO class ID token, accepting integer-valued float strings.
+
+    YOLO format specifies ``class_id`` as an integer, but some tooling
+    outputs float-formatted values like ``5.000000``.  This parser
+    handles both cases gracefully and is the **canonical implementation**
+    for lenient parsing of class IDs from raw YOLO text.
+
+    For strict validation (raising on non-integer floats), use
+    ``YoloAnnotationHandler._parse_class_id()`` instead.
+
+    Args:
+        token: Raw string token from a YOLO annotation line.
+
+    Returns:
+        Integer class ID, or ``None`` if *token* is not a valid
+        non-negative integer or integer-valued float.
+
+    Examples:
+        >>> parse_yolo_class_id("5")
+        5
+        >>> parse_yolo_class_id("5.000000")
+        5
+        >>> parse_yolo_class_id("0.0")
+        0
+        >>> parse_yolo_class_id("0.5")
+        None
+        >>> parse_yolo_class_id("-1")
+        None
+        >>> parse_yolo_class_id("abc")
+        None
+    """
+    # Fast path: try direct int conversion first
+    try:
+        cid = int(token)
+        if cid >= 0:
+            return cid
+        return None
+    except ValueError:
+        pass
+    try:
+        val = float(token)
+        if val.is_integer() and val >= 0:
+            return int(val)
+    except (ValueError, OverflowError):
+        pass
+    return None
 
 
 def calculate_file_hash(file_path: Path, algorithm: str = "md5") -> str:

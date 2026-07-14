@@ -560,5 +560,5 @@ A valid read operation must satisfy ALL of:
 | `generate_classes_file(categories, output_path)` | Generates `classes.txt` from category dict |
 | `load_classes_file(file_path)` | Loads `classes.txt` into `Dict[int, str]` |
 | `calculate_file_hash(file_path, algorithm="md5")` | Computes hash of a file for integrity comparison |
-| `compare_annotation_dirs(dir_a, dir_b, format)` | Format-aware comparison (text diff for YOLO, JSON diff for LabelMe) <!-- TODO: not yet implemented --> |
+| `parse_yolo_class_id(token)` | **Float-tolerant** YOLO class ID parser. Accepts ``"5"`` and ``"5.000000"`` → `5`. Returns `None` for invalid tokens. Canonical lenient parser — use this when parsing class IDs from raw YOLO text outside the handler. For strict validation (raising on non-integer floats), use ``YoloAnnotationHandler._parse_class_id()``. |
 

@@ -233,3 +233,50 @@ class TestStatsAnalyser:
         result = analyser.analyse(empty, recursive=True)
         assert not result.success
         assert "No files found" in result.errors[0]
+
+    def test_recursive_yolo_float_class_ids(self, tmp_path):
+        """Recursive YOLO with float-formatted class IDs (no -c)."""
+        root = tmp_path / "float_nested"
+        sub = root / "sub"
+        sub.mkdir(parents=True)
+        (root / "a.txt").write_text("0 0.5 0.5 0.1 0.1\n")
+        (sub / "b.txt").write_text("2.000000 0.3 0.3 0.2 0.2\n")
+
+        analyser = StatsAnalyser()
+        result = analyser.analyse(root, recursive=True)
+        assert result.success
+        stats = result.data
+        assert stats.total_files == 2
+        assert stats.total_annotations == 2
+        assert stats.per_class == {"class_0": 1, "class_2": 1}
+
+    def test_recursive_labelme(self, tmp_path):
+        """Recursive stats on nested LabelMe dirs."""
+        import shutil, json
+
+        root = tmp_path / "labelme_nested"
+        sub = root / "sub"
+        sub.mkdir(parents=True)
+
+        # Copy LabelMe test files
+        src = TEST_DATA / "det" / "labelme"
+        for f in src.glob("*.json"):
+            shutil.copy2(str(f), str(sub / f.name))
+
+        analyser = StatsAnalyser()
+        result = analyser.analyse(root, recursive=True)
+        assert result.success
+        stats = result.data
+        assert stats.total_files == 2
+        assert stats.total_annotations > 0
+
+    def test_recursive_coco_single_file(self, tmp_path):
+        """Recursive flag on a COCO file is a no-op (single file)."""
+        analyser = StatsAnalyser()
+        result = analyser.analyse(
+            TEST_DATA / "det" / "coco" / "annotations.json",
+            recursive=True,
+        )
+        assert result.success
+        stats = result.data
+        assert stats.total_files > 0

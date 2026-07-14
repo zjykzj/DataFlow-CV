@@ -1,7 +1,7 @@
 # Analyse Module Specification
 
 > **Version:** v1.2 | **Last Updated:** 2026-07-14
-> **Status:** Draft — adding multi-path stats and recursive traversal
+> **Status:** Stable
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
 
@@ -456,18 +456,33 @@ def create_handler(
     class_file: Optional[Path] = None,
     image_dir: Optional[Path] = None,
     logger: Optional[logging.Logger] = None,
+    skip_image_loading: bool = False,
+    recursive: bool = False,
 ) -> BaseAnnotationHandler:
     """Create the appropriate handler for the detected format.
 
     Args:
         label_path: Path to labels
         format: "yolo" | "labelme" | "coco"
-        class_file: Classes.txt path (required for YOLO)
+        class_file: Classes.txt path (required for YOLO; auto-generated
+            if omitted by scanning .txt files for class IDs)
         image_dir: Image directory for YOLO (auto-detected if omitted)
         logger: Logger to pass to the handler
+        skip_image_loading: If True and format is YOLO, skip image file
+            I/O (use placeholder dimensions) — for read-only stats
+        recursive: If True, handler uses rglob for recursive file
+            discovery (YOLO/LabelMe only)
 
     Returns:
         Configured BaseAnnotationHandler instance with strict_mode=False
+    """
+
+def _auto_generate_class_file(label_dir: Path, recursive: bool = False) -> Path:
+    """Generate a temporary classes.txt from observed class IDs in .txt files.
+
+    Scans all .txt files (recursively if recursive=True), collects unique
+    class IDs, and creates a temporary classes.txt with class_<id> names.
+    Uses parse_yolo_class_id() for float-tolerant parsing.
     """
 
 def load_class_names(class_file: Path) -> Dict[int, str]:
@@ -863,3 +878,5 @@ The filtered `classes.txt` (from `NEW_CLASS_FILE`) is copied to `OUTPUT_DIR/`.
 | `detect_format(label_path) → str` | `utils.py` | Auto-detect annotation format |
 | `create_handler(label_path, format, class_file, image_dir, logger, skip_image_loading=False, recursive=False) → BaseAnnotationHandler` | `utils.py` | Handler factory. `recursive=True` enables handler-side rglob file discovery. |
 | `load_class_names(class_file) → Dict[int, str]` | `utils.py` | Parse classes.txt |
+| `parse_yolo_class_id(token) → Optional[int]` | `label/utils.py` | Float-tolerant YOLO class ID parser — accepts ``"5"`` and ``"5.000000"`` |
+| `_auto_generate_class_file(label_dir, recursive=False) → Path` | `utils.py` | Generate temp classes.txt from observed class IDs |

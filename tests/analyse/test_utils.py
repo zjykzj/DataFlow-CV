@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 
 from dataflow.analyse.utils import (
+    _auto_generate_class_file,
+    _scan_yolo_class_ids,
     create_handler,
     detect_format,
     load_class_names,
@@ -169,3 +171,94 @@ class TestCreateHandler:
         """Unknown format string raises ValueError."""
         with pytest.raises(ValueError, match="Unknown format"):
             create_handler(Path("."), "invalid")
+
+
+# ---------------------------------------------------------------------------
+# Float-tolerant class ID parsing
+# ---------------------------------------------------------------------------
+
+
+class TestAutoGenerateClassFile:
+    """Tests for _auto_generate_class_file with float-formatted class IDs."""
+
+    def test_integer_class_ids(self, tmp_path):
+        """Plain integer class IDs work."""
+        (tmp_path / "a.txt").write_text("0 0.5 0.5 0.1 0.1\n")
+        (tmp_path / "b.txt").write_text("2 0.3 0.3 0.2 0.2\n")
+        result = _auto_generate_class_file(tmp_path)
+        assert result.exists()
+        names = result.read_text().strip().split("\n")
+        assert names[0] == "class_0"
+        assert names[2] == "class_2"
+
+    def test_float_formatted_class_ids(self, tmp_path):
+        """Float-formatted class IDs like '5.000000' are parsed correctly."""
+        (tmp_path / "a.txt").write_text("5.000000 0.5 0.5 0.1 0.1\n")
+        (tmp_path / "b.txt").write_text("3.000000 0.3 0.3 0.2 0.2\n")
+        result = _auto_generate_class_file(tmp_path)
+        assert result.exists()
+        names = result.read_text().strip().split("\n")
+        assert names[3] == "class_3"
+        assert names[5] == "class_5"
+
+    def test_mixed_format_class_ids(self, tmp_path):
+        """Mix of integer and float-formatted class IDs."""
+        (tmp_path / "a.txt").write_text("0 0.5 0.5 0.1 0.1\n")
+        (tmp_path / "b.txt").write_text("2.000000 0.3 0.3 0.2 0.2\n")
+        (tmp_path / "c.txt").write_text("1 0.4 0.4 0.15 0.15\n")
+        result = _auto_generate_class_file(tmp_path)
+        names = result.read_text().strip().split("\n")
+        assert names[0] == "class_0"
+        assert names[1] == "class_1"
+        assert names[2] == "class_2"
+
+    def test_recursive_float_class_ids(self, tmp_path):
+        """Recursive scan finds float class IDs in subdirectories."""
+        (tmp_path / "sub").mkdir()
+        (tmp_path / "a.txt").write_text("0 0.5 0.5 0.1 0.1\n")
+        (tmp_path / "sub" / "b.txt").write_text("2.000000 0.3 0.3 0.2 0.2\n")
+        result = _auto_generate_class_file(tmp_path, recursive=True)
+        names = result.read_text().strip().split("\n")
+        assert names[0] == "class_0"
+        assert names[2] == "class_2"
+
+    def test_no_valid_class_ids_errors(self, tmp_path):
+        """Empty or invalid directory raises ValueError."""
+        (tmp_path / "a.txt").write_text("0.5 0.5 0.5 0.1 0.1\n")  # non-integer float
+        (tmp_path / "b.txt").write_text("abc 0.3 0.3 0.2 0.2\n")  # non-numeric
+        with pytest.raises(ValueError, match="No valid class IDs found"):
+            _auto_generate_class_file(tmp_path)
+
+    def test_skips_classes_txt(self, tmp_path):
+        """classes.txt in the label directory is skipped."""
+        (tmp_path / "classes.txt").write_text("ignored\n")
+        (tmp_path / "a.txt").write_text("0 0.5 0.5 0.1 0.1\n")
+        result = _auto_generate_class_file(tmp_path)
+        names = result.read_text().strip().split("\n")
+        assert names[0] == "class_0"
+
+
+class TestScanYoloClassIds:
+    """Tests for _scan_yolo_class_ids with float-formatted class IDs."""
+
+    def test_float_class_ids(self, tmp_path):
+        """Float-formatted class IDs are found."""
+        (tmp_path / "a.txt").write_text("5.000000 0.5 0.5 0.1 0.1\n")
+        (tmp_path / "b.txt").write_text("3.000000 0.3 0.3 0.2 0.2\n")
+        ids = _scan_yolo_class_ids(tmp_path)
+        assert ids == {3, 5}
+
+    def test_mixed_format_ids(self, tmp_path):
+        """Mix of integer and float class IDs."""
+        (tmp_path / "a.txt").write_text("0 0.5 0.5 0.1 0.1\n")
+        (tmp_path / "b.txt").write_text("2.000000 0.3 0.3 0.2 0.2\n")
+        ids = _scan_yolo_class_ids(tmp_path)
+        assert ids == {0, 2}
+
+    def test_recursive_scan(self, tmp_path):
+        """Recursive scan finds IDs in subdirectories."""
+        (tmp_path / "sub").mkdir()
+        (tmp_path / "a.txt").write_text("0 0.5 0.5 0.1 0.1\n")
+        (tmp_path / "sub" / "b.txt").write_text("2.000000 0.3 0.3 0.2 0.2\n")
+        ids = _scan_yolo_class_ids(tmp_path, recursive=True)
+        assert ids == {0, 2}
