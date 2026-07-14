@@ -874,6 +874,6 @@ The filtered `classes.txt` (from `NEW_CLASS_FILE`) is copied to `OUTPUT_DIR/`.
 | `FilterAnalyser(log_config)` | `filter.py` | Category-based annotation filtering |
 | `analyser.analyse(label_path, original_class_file, new_class_file, output_dir, image_dir) → AnalysisResult` | `filter.py` | Run filter |
 | `detect_format(label_path) → str` | `utils.py` | Auto-detect annotation format |
-| `create_handler(label_path, format, class_file, image_dir, logger) → BaseAnnotationHandler` | `utils.py` | Handler factory |
+| `create_handler(label_path, format, class_file, image_dir, logger, skip_image_loading=False) → BaseAnnotationHandler` | `utils.py` | Handler factory. `skip_image_loading=True` skips YOLO image I/O for read-only ops like stats. |
 | `load_class_names(class_file) → Dict[int, str]` | `utils.py` | Parse classes.txt |
 | `_collect_files_recursive(root, fmt) → Path` | `utils.py` | Recursively find label files, create temp dir with symlinks |

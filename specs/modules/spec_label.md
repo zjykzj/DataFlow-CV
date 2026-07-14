@@ -363,6 +363,7 @@ Both `is_det` and `is_seg` can be `True` simultaneously (mixed dataset).
 | `class_file` | Yes | Path to `classes.txt` |
 | `image_dir` | Conditional | Directory containing image files. Required in strict mode. In non-strict mode, missing directory or missing images are tolerated — labels are still parsed with placeholder dimensions (1, 1). |
 | `prediction` | No | If True, parse prediction format (with confidence). Default False (label format). |
+| `skip_image_loading` | No | If True, skip all image I/O and use placeholder (1, 1) dimensions. For read-only operations like stats that don't need real dimensions. Default False. |
 
 **`read()`**: Returns `DatasetAnnotations(format=YOLO)` with:
 - `BoundingBox`: `(cx, cy, w, h)` all normalized [0,1], center-based (native YOLO format).
