@@ -1,15 +1,16 @@
 """
 Analyse module — dataset introspection and preparation.
 
-Provides dataset statistics and train/test splitting for all supported
-annotation formats (YOLO, LabelMe, COCO).  Format is auto-detected from
-the label path.
+Provides dataset statistics, train/test splitting, and category filtering
+for all supported annotation formats (YOLO, LabelMe, COCO).  Format is
+auto-detected from the label path.
 
 Key features:
 - **Dataset statistics**: Count total files, total annotations, and
   per-class distribution
 - **Train/test split**: Deterministic dataset splitting with configurable
   ratio and seed
+- **Category filter**: Keep only specified categories and remap class IDs
 
 Example::
 
@@ -26,16 +27,29 @@ Example::
 """
 
 from . import utils
-from .base import AnalysisResult, BaseAnalyser, SplitResult, StatsResult
+from .base import (
+    AnalysisResult,
+    BaseAnalyser,
+    CategoryMapping,
+    FilterResult,
+    RemovedCategory,
+    SplitResult,
+    StatsResult,
+)
+from .filter import FilterAnalyser
 from .split import SplitAnalyser
 from .stats import StatsAnalyser
 
 __all__ = [
     "BaseAnalyser",
     "AnalysisResult",
+    "CategoryMapping",
+    "FilterResult",
+    "RemovedCategory",
     "StatsResult",
     "SplitResult",
     "StatsAnalyser",
     "SplitAnalyser",
+    "FilterAnalyser",
     "utils",
 ]

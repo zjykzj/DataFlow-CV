@@ -86,6 +86,63 @@ class SplitResult:
     format: str
 
 
+@dataclass
+class CategoryMapping:
+    """A category that was kept during filtering.
+
+    Attributes:
+        new_id: New class ID (line index in the target classes.txt).
+        old_id: Original class ID in the source dataset.
+        name: Class name.
+    """
+
+    new_id: int
+    old_id: int
+    name: str
+
+
+@dataclass
+class RemovedCategory:
+    """A category that was removed during filtering.
+
+    Attributes:
+        old_id: Original class ID in the source dataset.
+        name: Class name.
+    """
+
+    old_id: int
+    name: str
+
+
+@dataclass
+class FilterResult:
+    """Container for category-based annotation filtering results.
+
+    Attributes:
+        total_files: Total label files processed.
+        total_files_with_annotations: Files that still have annotations
+            after filtering.
+        total_annotations_before: Annotation count before filtering.
+        total_annotations_after: Annotation count after filtering.
+        kept_categories: Categories retained, in new class file order.
+        removed_categories: Categories removed during filtering.
+        missing_categories: Categories in new class file but not found
+            in the source data.
+        output_dir: Output directory.
+        format: Detected format (``"yolo"`` | ``"labelme"`` | ``"coco"``).
+    """
+
+    total_files: int
+    total_files_with_annotations: int
+    total_annotations_before: int
+    total_annotations_after: int
+    kept_categories: List[CategoryMapping] = field(default_factory=list)
+    removed_categories: List[RemovedCategory] = field(default_factory=list)
+    missing_categories: List[str] = field(default_factory=list)
+    output_dir: Path = field(default_factory=Path)
+    format: str = ""
+
+
 # ---------------------------------------------------------------------------
 # Base class
 # ---------------------------------------------------------------------------

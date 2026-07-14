@@ -7,7 +7,7 @@ result to ``self.logger.info()`` / ``.debug()`` / etc.
 """
 
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 from ..util.logging import (
     format_divider,
@@ -137,6 +137,77 @@ def format_split_result(
         format_kv("Val", f"{val_count} images → {val_dir}"),
         format_kv("Total", str(total)),
     ]
+    return "\n".join(lines)
+
+
+def format_filter_result(
+    total_files: int,
+    total_files_with_annotations: int,
+    annotations_before: int,
+    annotations_after: int,
+    kept_categories: List,
+    removed_categories: List,
+    missing_categories: List[str],
+    output_dir: Path,
+) -> str:
+    """Filter comparison + summary block.
+
+    Args:
+        total_files: Total label files processed.
+        total_files_with_annotations: Files that still have annotations.
+        annotations_before: Annotation count before filtering.
+        annotations_after: Annotation count after filtering.
+        kept_categories: ``[CategoryMapping, ...]`` — kept categories
+            with {new_id, old_id, name}.
+        removed_categories: ``[RemovedCategory, ...]`` — discarded
+            categories with {old_id, name}.
+        missing_categories: ``[str, ...]`` — class names in the new
+            class file that were not found in the source data.
+        output_dir: Output directory.
+
+    Returns:
+        Formatted filter comparison + summary.
+    """
+    lines: List[str] = []
+
+    # ── Category Comparison ──
+    lines.append(format_section("Category Comparison"))
+
+    # Kept (remapped)
+    kept_count = len(kept_categories)
+    lines.append(f"  Kept (remapped):     {kept_count} categories")
+    for km in kept_categories:
+        lines.append(f"    [{km.new_id}] {km.name:<12} (was: class_id={km.old_id})")
+    lines.append("")
+
+    # Removed
+    removed_count = len(removed_categories)
+    lines.append(f"  Removed:             {removed_count} categories")
+    for rc in removed_categories:
+        lines.append(f'    class_id={rc.old_id:<3} "{rc.name}"')
+    lines.append("")
+
+    # Not found in source
+    missing_count = len(missing_categories)
+    if missing_count > 0:
+        lines.append(f"  Not found in source: {missing_count} categories")
+        for name in missing_categories:
+            lines.append(f'    "{name}"')
+    else:
+        lines.append(f"  Not found in source: 0 categories")
+    lines.append("")
+
+    # ── Filter Summary ──
+    lines.append(format_section("Filter Summary"))
+    lines.append(format_kv("Total files", str(total_files)))
+    lines.append(format_kv("Files with annotations", str(total_files_with_annotations)))
+    lines.append(format_kv("Annotations before", str(annotations_before)))
+    lines.append(format_kv("Annotations after", str(annotations_after)))
+    lines.append(format_kv(
+        "Output",
+        f"{total_files_with_annotations} files → {output_dir}",
+    ))
+
     return "\n".join(lines)
 
 

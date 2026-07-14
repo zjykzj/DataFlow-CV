@@ -27,3 +27,18 @@ def test_split_help():
     result = runner.invoke(cli, ["analyse", "split", "--help"])
     assert result.exit_code == 0
     assert "split" in result.output.lower()
+
+
+def test_filter_help():
+    """``analyse filter --help`` shows subcommand description."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["analyse", "filter", "--help"])
+    assert result.exit_code == 0
+    assert "filter" in result.output.lower()
+
+
+def test_filter_missing_args():
+    """``analyse filter`` with no args shows an error."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["analyse", "filter"])
+    assert result.exit_code != 0

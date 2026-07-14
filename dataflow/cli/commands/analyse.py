@@ -1,8 +1,8 @@
 """
 CLI analyse subcommands for DataFlow-CV.
 
-Provides ``stats`` and ``split`` subcommands under the ``analyse``
-command group.
+Provides ``stats``, ``split``, and ``filter`` subcommands under the
+``analyse`` command group.
 """
 
 from pathlib import Path
@@ -215,6 +215,88 @@ def split(
         for warning in result.warnings:
             click.echo(f"Warning: {warning}", err=True)
         error_msg = result.errors[0] if result.errors else "Dataset split failed"
+        if len(result.errors) > 1:
+            error_msg += "\n" + "\n".join(result.errors[1:])
+        raise RuntimeCLIError(error_msg)
+
+
+# ---------------------------------------------------------------------------
+# Subcommand: filter
+# ---------------------------------------------------------------------------
+
+
+@analyse_group.command(cls=FormattedCommand)
+@add_common_options
+@click.argument(
+    "label_path",
+    type=click.Path(exists=True, path_type=Path),
+    metavar="LABEL_PATH",
+)
+@click.argument(
+    "original_class_file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    metavar="ORIGINAL_CLASS_FILE",
+)
+@click.argument(
+    "new_class_file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    metavar="NEW_CLASS_FILE",
+)
+@click.argument(
+    "output_dir",
+    type=click.Path(path_type=Path),
+    metavar="OUTPUT_DIR",
+)
+@click.option(
+    "--image-dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=None,
+    help="Image directory for YOLO format (auto-detected if omitted)",
+)
+def filter(
+    ctx: click.Context,
+    label_path: Path,
+    original_class_file: Path,
+    new_class_file: Path,
+    output_dir: Path,
+    image_dir: Path,
+):
+    """Filter dataset at LABEL_PATH by category.
+
+    LABEL_PATH is a directory (YOLO .txt or LabelMe .json) or a single COCO JSON file. The format is auto-detected.
+
+    ORIGINAL_CLASS_FILE is the source classes.txt defining all categories in the source dataset. NEW_CLASS_FILE is the target classes.txt defining which categories to keep and their new order/IDs.
+
+    Filtered labels are written to OUTPUT_DIR. The new classes.txt is copied there as well.
+    """
+    from dataflow.analyse import FilterAnalyser
+
+    verbose = ctx.obj["verbose"]
+    log_dir = ctx.obj["log_dir"]
+
+    log_config = LogConfig(
+        name="analyse.filter",
+        verbose=verbose,
+        log_dir=log_dir,
+    )
+    analyser = FilterAnalyser(log_config=log_config)
+    result = analyser.analyse(
+        label_path,
+        original_class_file=original_class_file,
+        new_class_file=new_class_file,
+        output_dir=output_dir,
+        image_dir=image_dir,
+    )
+
+    if result.success and result.data is not None:
+        if result.log_path:
+            click.echo(f"\nLog saved to: {result.log_path}")
+        for warning in result.warnings:
+            click.echo(f"Warning: {warning}", err=True)
+    else:
+        for warning in result.warnings:
+            click.echo(f"Warning: {warning}", err=True)
+        error_msg = result.errors[0] if result.errors else "Category filter failed"
         if len(result.errors) > 1:
             error_msg += "\n" + "\n".join(result.errors[1:])
         raise RuntimeCLIError(error_msg)
