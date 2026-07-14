@@ -4,6 +4,8 @@ Utility functions for the Analyse module.
 Format auto-detection, handler factory, and class file parsing.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from pathlib import Path
@@ -120,7 +122,31 @@ def detect_format(label_path: Path) -> str:
     )
 
 
-def _auto_generate_class_file(label_dir: Path) -> Path:
+def _parse_class_id_token(token: str) -> Optional[int]:
+    """Parse a class ID token, accepting integer-valued float strings.
+
+    YOLO format uses ``class_id`` as an integer, but some tooling
+    outputs float-formatted values like ``5.000000``.  This parser
+    handles both cases gracefully.
+
+    Returns:
+        Integer class ID, or ``None`` if *token* is not a valid
+        class ID.
+    """
+    try:
+        return int(token)
+    except ValueError:
+        pass
+    try:
+        val = float(token)
+        if val.is_integer() and val >= 0:
+            return int(val)
+    except (ValueError, OverflowError):
+        pass
+    return None
+
+
+def _auto_generate_class_file(label_dir: Path, recursive: bool = False) -> Path:
     """Generate a temporary classes.txt from observed class IDs in label files.
 
     Scans all .txt files in ``label_dir``, collects unique class IDs, and
@@ -128,14 +154,18 @@ def _auto_generate_class_file(label_dir: Path) -> Path:
 
     Args:
         label_dir: Directory containing YOLO .txt label files.
+        recursive: If True, use ``rglob`` to scan subdirectories.
 
     Returns:
         Path to the generated temporary classes.txt file.
     """
     import tempfile
 
+    pattern = label_dir.rglob if recursive else label_dir.glob
     class_ids: set[int] = set()
-    for txt_file in sorted(label_dir.glob("*.txt")):
+    for txt_file in sorted(pattern("*.txt")):
+        if txt_file.name == "classes.txt":
+            continue
         try:
             with open(txt_file, "r", encoding="utf-8") as f:
                 for line in f:
@@ -144,10 +174,9 @@ def _auto_generate_class_file(label_dir: Path) -> Path:
                         continue
                     tokens = stripped.split()
                     if tokens:
-                        try:
-                            class_ids.add(int(tokens[0]))
-                        except ValueError:
-                            pass
+                        cid = _parse_class_id_token(tokens[0])
+                        if cid is not None:
+                            class_ids.add(cid)
         except Exception:
             continue
 
@@ -182,6 +211,7 @@ def create_handler(
     image_dir: Optional[Path] = None,
     logger: Optional[logging.Logger] = None,
     skip_image_loading: bool = False,
+    recursive: bool = False,
 ) -> "BaseAnnotationHandler":
     """Create the appropriate handler for the detected format.
 
@@ -199,6 +229,8 @@ def create_handler(
         skip_image_loading: If True and format is YOLO, skip all image file
             I/O (use placeholder dimensions).  For read-only operations
             like stats that don't need real image dimensions.
+        recursive: If True, handler uses ``rglob`` for file discovery,
+            traversing subdirectories recursively.  Default False.
 
     Returns:
         Configured BaseAnnotationHandler instance.
@@ -217,8 +249,7 @@ def create_handler(
 
     if format == "yolo":
         if class_file is None:
-            # Auto-generate class names from observed class IDs in label files
-            class_file = _auto_generate_class_file(label_path)
+            class_file = _auto_generate_class_file(label_path, recursive=recursive)
         if image_dir is None:
             # Auto-detect: try common image directory layouts
             candidates = [
@@ -234,6 +265,7 @@ def create_handler(
         kwargs = {}
         if skip_image_loading:
             kwargs["skip_image_loading"] = True
+        kwargs["recursive"] = recursive
         handler = YoloAnnotationHandler(
             label_dir=str(label_path),
             class_file=str(class_file),
@@ -245,6 +277,7 @@ def create_handler(
         handler = LabelMeAnnotationHandler(
             label_dir=str(label_path),
             class_file=str(class_file) if class_file else None,
+            recursive=recursive,
             **handler_kwargs,
         )
     elif format == "coco":
@@ -259,68 +292,38 @@ def create_handler(
     return handler
 
 
-def _collect_files_recursive(root: Path, fmt: str) -> Path:
-    """Recursively collect label files and create a temporary flat directory.
+def _scan_yolo_class_ids(label_dir: Path, recursive: bool = False) -> set:
+    """Scan all .txt files in *label_dir* and return the set of class IDs.
 
-    For YOLO: ``rglob("*.txt")``, excluding ``classes.txt``.
-    For LabelMe: ``rglob("*.json")``, filtering to files containing a
-    ``"shapes"`` key.
-
-    Symlinks with disambiguated names (relative path separators replaced
-    by ``_``) are created in a temporary directory so the existing
-    handler can read them without modification.
+    Used for strict class validation before the handler silently drops
+    unknown IDs in non-strict mode.
 
     Args:
-        root: Root directory to search recursively.
-        fmt: ``"yolo"`` or ``"labelme"``.
+        label_dir: Directory containing YOLO .txt label files.
+        recursive: If True, use ``rglob`` to scan subdirectories.
 
     Returns:
-        Path to a temporary directory containing symlinks to found files.
-        The caller is responsible for cleanup (``shutil.rmtree``).
-
-    Raises:
-        ValueError: If no matching files are found, or if *fmt* is not
-            a directory-based format.
+        Set of integer class IDs found across all .txt files.
     """
-    import tempfile
-
-    if fmt == "yolo":
-        files = [
-            f for f in sorted(root.rglob("*.txt"))
-            if f.name != "classes.txt"
-        ]
-    elif fmt == "labelme":
-        candidates = sorted(root.rglob("*.json"))
-        files = []
-        for f in candidates:
-            try:
-                with open(f, "r", encoding="utf-8") as fh:
-                    data = json.load(fh)
-                if isinstance(data, dict) and "shapes" in data:
-                    files.append(f)
-            except (json.JSONDecodeError, OSError):
-                continue
-    else:
-        raise ValueError(
-            f"Recursive mode is not supported for format: {fmt}. "
-            f"Only YOLO and LabelMe (directory-based formats) are supported."
-        )
-
-    if not files:
-        raise ValueError(
-            f"No label files found recursively in: {root}"
-        )
-
-    tmp_dir = tempfile.mkdtemp(prefix="analyse_recursive_")
-
-    for f in files:
-        rel = f.relative_to(root)
-        # Replace path separators to create a flat, disambiguated filename
-        name = str(rel).replace("/", "_").replace("\\", "_")
-        link = Path(tmp_dir) / name
-        link.symlink_to(f.resolve())
-
-    return Path(tmp_dir)
+    ids: set = set()
+    pattern = label_dir.rglob if recursive else label_dir.glob
+    for txt_file in sorted(pattern("*.txt")):
+        if txt_file.name == "classes.txt":
+            continue
+        try:
+            with open(txt_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    tokens = stripped.split()
+                    if tokens:
+                        cid = _parse_class_id_token(tokens[0])
+                        if cid is not None:
+                            ids.add(cid)
+        except OSError:
+            continue
+    return ids
 
 
 def _detect_format_recursive(root: Path) -> str:
@@ -328,7 +331,8 @@ def _detect_format_recursive(root: Path) -> str:
 
     Uses ``rglob`` to find files in all subdirectories, then applies the
     same detection rules as ``detect_format()`` for directory-based
-    formats.
+    formats.  For use when the root directory contains only
+    subdirectories (no annotation files directly at the top level).
 
     Args:
         root: Root directory to search recursively.
@@ -347,14 +351,10 @@ def _detect_format_recursive(root: Path) -> str:
     )
 
     if not all_files:
-        raise ValueError(
-            f"No files found recursively in: {root}"
-        )
+        raise ValueError(f"No files found recursively in: {root}")
 
-    # Check extensions (exclude auxiliary files like classes.txt)
     annotation_files = [
-        f for f in all_files
-        if f.name not in ("classes.txt",)
+        f for f in all_files if f.name not in ("classes.txt",)
     ]
     extensions = {f.suffix for f in annotation_files}
     has_txt = ".txt" in extensions
@@ -363,69 +363,30 @@ def _detect_format_recursive(root: Path) -> str:
     if has_txt and has_json:
         raise ValueError(
             f"Cannot determine annotation format recursively from: {root}. "
-            f"Found both .txt (YOLO) and .json (LabelMe/COCO) files. "
-            f"Please separate them or specify the format explicitly."
+            f"Found both .txt (YOLO) and .json (LabelMe/COCO) files."
         )
 
     if has_txt:
         return "yolo"
 
     if has_json:
-        # Read first .json to distinguish LabelMe from COCO
         json_files = [f for f in annotation_files if f.suffix == ".json"]
         with open(json_files[0], "r", encoding="utf-8") as f:
             data = json.load(f)
-        if isinstance(data, dict):
-            if "shapes" in data:
-                return "labelme"
-            if "images" in data:
-                raise ValueError(
-                    f"{root} appears to contain a COCO JSON file, "
-                    f"but COCO annotations are a single file, not a "
-                    f"directory. Point to the specific .json file instead."
-                )
+        if isinstance(data, dict) and "shapes" in data:
+            return "labelme"
+        if isinstance(data, dict) and "images" in data:
+            raise ValueError(
+                f"{root} appears to contain a COCO JSON file, "
+                f"but COCO is a single file.  Point to the file directly."
+            )
         raise ValueError(
-            f"Cannot determine format from JSON files recursively in: {root}. "
-            f"Expected LabelMe ('shapes' key)."
+            f"Cannot determine format from JSON files in: {root}."
         )
 
     raise ValueError(
-        f"Cannot determine annotation format recursively from: {root}. "
-        f"Supported formats: .txt (YOLO), .json (LabelMe)."
+        f"Cannot determine annotation format from: {root}."
     )
-
-
-def _scan_yolo_class_ids(label_dir: Path) -> set:
-    """Scan all .txt files in *label_dir* and return the set of class IDs.
-
-    Used for strict class validation before the handler silently drops
-    unknown IDs in non-strict mode.
-
-    Args:
-        label_dir: Directory containing YOLO .txt label files.
-
-    Returns:
-        Set of integer class IDs found across all .txt files.
-    """
-    ids: set = set()
-    for txt_file in sorted(label_dir.glob("*.txt")):
-        if txt_file.name == "classes.txt":
-            continue
-        try:
-            with open(txt_file, "r", encoding="utf-8") as f:
-                for line in f:
-                    stripped = line.strip()
-                    if not stripped:
-                        continue
-                    tokens = stripped.split()
-                    if tokens:
-                        try:
-                            ids.add(int(tokens[0]))
-                        except ValueError:
-                            pass
-        except OSError:
-            continue
-    return ids
 
 
 def load_class_names(class_file: Path) -> Dict[int, str]:

@@ -21,19 +21,28 @@ from .models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
 class LabelMeAnnotationHandler(BaseAnnotationHandler):
     """Handler for LabelMe JSON annotation format."""
 
-    def __init__(self, label_dir: str, class_file: Optional[str] = None, **kwargs):
+    def __init__(self, label_dir: str, class_file: Optional[str] = None,
+                 recursive: bool = False, **kwargs):
         """
         Initialize LabelMe handler.
 
         Args:
             label_dir: Directory containing LabelMe JSON files
             class_file: Optional file containing class names (one per line)
+            recursive: If True, use ``rglob`` for file discovery,
+                traversing subdirectories recursively.  Default False.
             **kwargs: Additional arguments for BaseAnnotationHandler
         """
         super().__init__(**kwargs)
         self.label_dir = Path(label_dir)
         self.class_file = Path(class_file) if class_file else None
+        self.recursive = recursive
         self.categories = self._load_categories()
+
+    def _list_json_files(self) -> List[Path]:
+        """List .json label files, optionally recursively."""
+        pattern = self.label_dir.rglob if self.recursive else self.label_dir.glob
+        return sorted(f for f in pattern("*.json"))
 
     def _load_categories(self) -> Dict[int, str]:
         """Load category mapping from class file or extract from annotations."""
@@ -66,7 +75,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             return result
 
         try:
-            json_files = list(Path(self.label_dir).glob("*.json"))
+            json_files = self._list_json_files()
             if not json_files:
                 result.add_error(f"No JSON files found in {self.label_dir}")
                 return result
@@ -156,7 +165,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 f"Label directory does not exist: {self.label_dir}"
             )
 
-        json_files = list(Path(self.label_dir).glob("*.json"))
+        json_files = self._list_json_files()
         if not json_files:
             raise ValueError(
                 f"No JSON files found in {self.label_dir}"

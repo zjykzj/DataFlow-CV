@@ -195,11 +195,10 @@ class TestStatsAnalyser:
         )
         assert result.success
         stats = result.data
-        # Each subdir has 2 files → 4 total
-        # But wait: YOLO labels need class_file, and without it,
-        # _auto_generate_class_file scans the label dir.
-        # Since we're using recursive, the effective_path is a temp dir.
-        # Auto-generate should still work on the temp dir.
+        # Each subdir has 2 files → 4 total.
+        # Without class_file, _auto_generate_class_file scans the
+        # original path with rglob (recursive=True), and the handler
+        # also uses rglob to find label files natively.
         assert stats.total_files == 4
         assert stats.total_annotations == 12  # 6×2
 

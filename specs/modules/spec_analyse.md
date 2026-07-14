@@ -198,27 +198,25 @@ For each label_path:
      - All paths must yield the same format; first path sets the
        expected format; subsequent paths with different formats
        produce an ERROR.
-  2. If recursive and format in (yolo, labelme):
-       _collect_files_recursive(label_path, fmt) → temp dir with symlinks
-       use temp dir as effective label_path for handler
-  3. create_handler(fmt, label_path, class_file, image_dir, logger)
-  4. handler.read()                → DatasetAnnotations
-  5. Count:
+  2. create_handler(fmt, label_path, class_file, image_dir, logger,
+       skip_image_loading=True, recursive=recursive)
+  3. handler.read()                → DatasetAnnotations
+  4. Count:
      a. total_files += len(dataset.images)
      b. total_annotations += sum(len(img.objects) for img in dataset.images)
      c. per_class = merge tally by class_name across all paths
-  6. If class_file provided:
+  5. If class_file provided:
      a. Strict validation: any class_name in data NOT in class_file → ERROR
         (reports the specific path and unknown class names)
      b. Reorder per_class to match class_file order, drop unknowns
         (none should exist after validation)
 
 After all paths:
-  7. If class_file NOT provided:
+  6. If class_file NOT provided:
      a. Sort per_class by sort_by + descending (default: class_id ascending),
         ties broken alphabetically
-  8. Log formatted table via log_templates
-  9. Return AnalysisResult(success=True, data=StatsResult(...))
+  7. Log formatted table via log_templates
+  8. Return AnalysisResult(success=True, data=StatsResult(...))
 ```
 
 **Merge contract**:
@@ -479,17 +477,6 @@ def load_class_names(class_file: Path) -> Dict[int, str]:
     Blank lines and lines starting with # are skipped.
     """
 
-def _collect_files_recursive(root: Path, fmt: str) -> Path:
-    """Recursively collect label files and create a temporary flat directory.
-
-    For YOLO: rglob("*.txt") → symlinks in temp dir.
-    For LabelMe: rglob("*.json") → open each, keep those with "shapes" key.
-    For COCO: not applicable (single-file format).
-
-    Returns:
-        Path to temporary directory containing symlinks to found files.
-        The caller is responsible for cleanup.
-    """
 ```
 
 ## 5. Input Format Contract
@@ -774,7 +761,7 @@ Split output write fails   → AnalysisResult(success=False, errors=[...])
 | Empty dataset (no annotations) | `AnalysisResult(success=True, data=StatsResult(total_files=0, ...))` — not an error |
 | Class file not found | `AnalysisResult(success=False, errors=["Class file not found: ..."])` |
 | Data class not in class_file (strict) | `AnalysisResult(success=False, errors=["Categories in data not found in class file: {...}. Path: ..."])` |
-| `--recursive` finds no matching files | `AnalysisResult(success=False, errors=["No label files found recursively in: ..."])` |
+| `--recursive` finds no matching files | `AnalysisResult(success=False, errors=["No TXT files found in ..."]`) — error raised by handler |
 | Split ratio out of range | `AnalysisResult(success=False, errors=["Ratio must be between 0 and 1, got: ..."])` |
 | Output directory not writable | `AnalysisResult(success=False, errors=["Cannot create output directory: ..."])` |
 | Skipped invalid files (non-strict) | Warning in `warnings` list; analysis continues |
@@ -874,6 +861,5 @@ The filtered `classes.txt` (from `NEW_CLASS_FILE`) is copied to `OUTPUT_DIR/`.
 | `FilterAnalyser(log_config)` | `filter.py` | Category-based annotation filtering |
 | `analyser.analyse(label_path, original_class_file, new_class_file, output_dir, image_dir) → AnalysisResult` | `filter.py` | Run filter |
 | `detect_format(label_path) → str` | `utils.py` | Auto-detect annotation format |
-| `create_handler(label_path, format, class_file, image_dir, logger, skip_image_loading=False) → BaseAnnotationHandler` | `utils.py` | Handler factory. `skip_image_loading=True` skips YOLO image I/O for read-only ops like stats. |
+| `create_handler(label_path, format, class_file, image_dir, logger, skip_image_loading=False, recursive=False) → BaseAnnotationHandler` | `utils.py` | Handler factory. `recursive=True` enables handler-side rglob file discovery. |
 | `load_class_names(class_file) → Dict[int, str]` | `utils.py` | Parse classes.txt |
-| `_collect_files_recursive(root, fmt) → Path` | `utils.py` | Recursively find label files, create temp dir with symlinks |

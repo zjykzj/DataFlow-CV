@@ -364,8 +364,10 @@ Both `is_det` and `is_seg` can be `True` simultaneously (mixed dataset).
 | `image_dir` | Conditional | Directory containing image files. Required in strict mode. In non-strict mode, missing directory or missing images are tolerated — labels are still parsed with placeholder dimensions (1, 1). |
 | `prediction` | No | If True, parse prediction format (with confidence). Default False (label format). |
 | `skip_image_loading` | No | If True, skip all image I/O and use placeholder (1, 1) dimensions. For read-only operations like stats that don't need real dimensions. Default False. |
+| `recursive` | No | If True, use `rglob` instead of `glob` for file discovery, traversing subdirectories recursively. Default False. |
 
 **`read()`**: Returns `DatasetAnnotations(format=YOLO)` with:
+- File discovery uses `rglob("*.txt")` when `recursive=True`, `glob("*.txt")` otherwise.
 - `BoundingBox`: `(cx, cy, w, h)` all normalized [0,1], center-based (native YOLO format).
   Bbox edges are **clamped to [0, 1]** before validation — a WARNING is emitted if clamping
   changes any coordinate value.
@@ -439,8 +441,10 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
 |-----------|----------|-------------|
 | `label_dir` | Yes | Directory containing `.json` label files |
 | `class_file` | No | Optional path to `classes.txt` |
+| `recursive` | No | If True, use `rglob` for file discovery, traversing subdirectories. Default False. |
 
 **`read()`**: Returns `DatasetAnnotations(format=LABELME)` with:
+- File discovery uses `rglob("*.json")` when `recursive=True`, `glob("*.json")` otherwise.
 - `BoundingBox`: `(x_tl, y_tl, w_abs, h_abs)` derived from rectangle corner points
   (`x = min(x1,x2)`, `y = min(y1,y2)`, `w = |x2-x1|`, `h = |y2-y1|`), in absolute pixels.
   Coordinates are **clamped to image boundaries** `[0, width] × [0, height]` before

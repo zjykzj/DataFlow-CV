@@ -10,7 +10,6 @@ Supports **multiple label paths** (merged into a single result) and
 YOLO and LabelMe formats.
 """
 
-import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -22,7 +21,6 @@ from .log_templates import (
     format_stats_result,
 )
 from .utils import (
-    _collect_files_recursive,
     _detect_format_recursive,
     _scan_yolo_class_ids,
     create_handler,
@@ -219,7 +217,6 @@ class StatsAnalyser(BaseAnalyser):
         """
         result = self._create_result()
         paths = self._normalize_paths(label_paths)
-        temp_dirs: List[Path] = []  # for cleanup
 
         # ---- 0. Validate class_file early -------------------------------
         class_names_from_file: Optional[List[str]] = None
@@ -250,21 +247,14 @@ class StatsAnalyser(BaseAnalyser):
                 return result
 
             # ---- 2. Detect format ---------------------------------------
-            if recursive:
-                # For recursive mode, look at all files under the root
-                # to determine format, since the root itself may only
-                # contain subdirectories.
-                try:
+            try:
+                if recursive and path.is_dir():
                     path_fmt = _detect_format_recursive(path)
-                except ValueError as e:
-                    result.add_error(str(e))
-                    return result
-            else:
-                try:
+                else:
                     path_fmt = detect_format(path)
-                except ValueError as e:
-                    result.add_error(str(e))
-                    return result
+            except ValueError as e:
+                result.add_error(str(e))
+                return result
 
             if fmt is None:
                 fmt = path_fmt
@@ -275,23 +265,9 @@ class StatsAnalyser(BaseAnalyser):
                 )
                 return result
 
-            # ---- 3. Recursive file collection (YOLO/LabelMe only) ------
-            effective_path = path
-            if recursive and fmt in ("yolo", "labelme"):
-                try:
-                    tmp_dir = _collect_files_recursive(path, fmt)
-                    temp_dirs.append(tmp_dir)
-                    effective_path = tmp_dir
-                except ValueError as e:
-                    result.add_error(str(e))
-                    return result
-            elif recursive and fmt == "coco":
-                # COCO is single-file; recursive is a no-op for it
-                pass
-
-            # ---- 3a. YOLO pre-scan for strict class validation --------
+            # ---- 3. YOLO pre-scan for strict class validation --------
             if class_names_from_file is not None and fmt == "yolo":
-                raw_ids = _scan_yolo_class_ids(effective_path)
+                raw_ids = _scan_yolo_class_ids(path, recursive=recursive)
                 valid_max = len(class_names_from_file) - 1
                 invalid_ids = {
                     i for i in raw_ids if i > valid_max or i < 0
@@ -308,12 +284,13 @@ class StatsAnalyser(BaseAnalyser):
             # ---- 4. Create handler --------------------------------------
             try:
                 handler = create_handler(
-                    effective_path,
+                    path,
                     fmt,
                     class_file=class_file,
                     image_dir=image_dir,
                     logger=self.logger,
                     skip_image_loading=True,
+                    recursive=recursive,
                 )
             except (ValueError, FileNotFoundError) as e:
                 result.add_error(str(e))
@@ -405,12 +382,5 @@ class StatsAnalyser(BaseAnalyser):
             self._log_info(
                 format_analyse_result("✓ Success", result.log_path)
             )
-
-        # ---- 12. Cleanup temp dirs --------------------------------------
-        for td in temp_dirs:
-            try:
-                shutil.rmtree(td, ignore_errors=True)
-            except OSError:
-                pass
 
         return result

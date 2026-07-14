@@ -23,7 +23,8 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
     def __init__(
         self, label_dir: str, class_file: str, image_dir: str,
-        prediction: bool = False, skip_image_loading: bool = False, **kwargs
+        prediction: bool = False, skip_image_loading: bool = False,
+        recursive: bool = False, **kwargs
     ):
         """
         Initialize YOLO handler.
@@ -37,6 +38,8 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
             skip_image_loading: If True, skip all image file I/O
                 (use placeholder dimensions).  Useful for read-only
                 operations like stats that don't need real dimensions.
+            recursive: If True, use ``rglob`` for file discovery,
+                traversing subdirectories recursively.  Default False.
             **kwargs: Additional arguments for BaseAnnotationHandler
         """
         super().__init__(**kwargs)
@@ -45,6 +48,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
         self.image_dir = Path(image_dir)
         self.prediction = prediction
         self.skip_image_loading = skip_image_loading
+        self.recursive = recursive
         self.categories = self._load_categories()
 
     def _load_categories(self) -> Dict[int, str]:
@@ -142,6 +146,13 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
             f"Invalid class_id '{token}': must be an integer"
         )
 
+    def _list_txt_files(self) -> List[Path]:
+        """List .txt label files, optionally recursively."""
+        pattern = self.label_dir.rglob if self.recursive else self.label_dir.glob
+        return sorted(
+            f for f in pattern("*.txt") if f.name != "classes.txt"
+        )
+
     def _get_image_size(self, image_path: Path) -> Tuple[int, int]:
         """Get image dimensions from image file."""
         try:
@@ -186,7 +197,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
         try:
             # Find all TXT files in label directory
-            txt_files = list(self.label_dir.glob("*.txt"))
+            txt_files = self._list_txt_files()
             if not txt_files:
                 result.add_error(f"No TXT files found in {self.label_dir}")
                 return result
@@ -276,7 +287,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                 f"No categories loaded from {self.class_file}"
             )
 
-        txt_files = list(self.label_dir.glob("*.txt"))
+        txt_files = self._list_txt_files()
         if not txt_files:
             raise ValueError(
                 f"No TXT files found in {self.label_dir}"
