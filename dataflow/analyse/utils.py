@@ -6,15 +6,36 @@ Format auto-detection, handler factory, and class file parsing.
 
 from __future__ import annotations
 
+import atexit
 import json
 import logging
+import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional, Set
 
 from dataflow.label.utils import parse_yolo_class_id
 
 if TYPE_CHECKING:
     from dataflow.label.base import BaseAnnotationHandler
+
+# ---------------------------------------------------------------------------
+# Temp file cleanup — tracks auto-generated class files for atexit cleanup
+# ---------------------------------------------------------------------------
+_temp_files: Set[Path] = set()
+
+
+def _cleanup_temp_files() -> None:
+    """Remove auto-generated temporary class files."""
+    for path in list(_temp_files):
+        try:
+            if path.exists():
+                os.unlink(path)
+        except OSError:
+            pass
+    _temp_files.clear()
+
+
+atexit.register(_cleanup_temp_files)
 
 
 def detect_format(label_path: Path) -> str:
@@ -179,7 +200,9 @@ def _auto_generate_class_file(label_dir: Path, recursive: bool = False) -> Path:
     tmp.write("\n".join(names) + "\n")
     tmp.close()
 
-    return Path(tmp.name)
+    tmp_path = Path(tmp.name)
+    _temp_files.add(tmp_path)
+    return tmp_path
 
 
 def create_handler(

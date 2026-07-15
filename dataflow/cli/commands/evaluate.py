@@ -13,7 +13,7 @@ from typing import Any
 import click
 
 from dataflow.cli.commands.utils import FormattedCommand, validate_path_exists
-from dataflow.cli.exceptions import RuntimeCLIError, SystemError
+from dataflow.cli.exceptions import RuntimeCLIError
 from dataflow.util.logging import LogConfig
 
 
@@ -157,7 +157,7 @@ def detection(ctx, gt_json, dt_json, verbose, log_dir, prf1, prf1_iou, prf1_conf
         result = evaluator.evaluate(str(gt_json), str(dt_json))
 
         if result.success and result.metrics is not None:
-            _print_detection_result(result, verbose)
+            _print_eval_result(result, verbose)
 
             if output:
                 _save_result_json(result, output)
@@ -233,7 +233,7 @@ def segmentation(ctx, gt_json, dt_json, verbose, log_dir, prf1, prf1_iou, prf1_c
         result = evaluator.evaluate(str(gt_json), str(dt_json))
 
         if result.success and result.metrics is not None:
-            _print_segmentation_result(result, verbose)
+            _print_eval_result(result, verbose)
 
             if output:
                 _save_result_json(result, output)
@@ -254,35 +254,15 @@ def segmentation(ctx, gt_json, dt_json, verbose, log_dir, prf1, prf1_iou, prf1_c
 # Output helpers
 # ---------------------------------------------------------------------------
 
-def _print_detection_result(result, verbose):
-    """Print detection evaluation results (mAP path)."""
+def _print_eval_result(result, verbose):
+    """Print evaluation results (mAP path) for detection or segmentation."""
     from dataflow.evaluate.utils import format_metric_table, format_per_class_table
+
+    iou_label = "detection (bbox)" if result.iou_type == "bbox" else "segmentation (mask)"
 
     click.echo()
     click.echo(
-        f"Evaluation: detection (bbox)\n"
-        f"Ground Truth: {result.gt_stats.get('images', 0)} images, "
-        f"{result.gt_stats.get('annotations', 0)} annotations, "
-        f"{result.gt_stats.get('categories', 0)} categories\n"
-        f"Detections:   {result.dt_stats.get('images', 0)} images, "
-        f"{result.dt_stats.get('annotations', 0)} detections, "
-        f"{result.dt_stats.get('categories', 0)} categories"
-    )
-    click.echo()
-    click.echo(format_metric_table(result.metrics))
-
-    if verbose and result.per_class:
-        click.echo()
-        click.echo(format_per_class_table(result.per_class))
-
-
-def _print_segmentation_result(result, verbose):
-    """Print segmentation evaluation results (mAP path)."""
-    from dataflow.evaluate.utils import format_metric_table, format_per_class_table
-
-    click.echo()
-    click.echo(
-        f"Evaluation: segmentation (mask)\n"
+        f"Evaluation: {iou_label}\n"
         f"Ground Truth: {result.gt_stats.get('images', 0)} images, "
         f"{result.gt_stats.get('annotations', 0)} annotations, "
         f"{result.gt_stats.get('categories', 0)} categories\n"

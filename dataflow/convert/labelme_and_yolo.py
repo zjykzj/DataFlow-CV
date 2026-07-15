@@ -256,9 +256,9 @@ class LabelMeAndYoloConverter(BaseConverter):
     ) -> ImageAnnotation:
         """Convert a single ImageAnnotation from source to target format.
 
-        Dispatches based on conversion direction.
+        Dispatches based on source format.
         """
-        if self.target_format == "yolo":
+        if self.source_format == "labelme":
             return self._absolute_to_normalized_one(image_ann)
         else:
             return self._normalized_to_absolute_one(image_ann)

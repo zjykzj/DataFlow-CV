@@ -9,7 +9,7 @@ from pathlib import Path
 
 import click
 
-from dataflow.cli.commands.utils import FormattedCommand, add_common_options
+from dataflow.cli.commands.utils import FormattedCommand
 from dataflow.cli.exceptions import RuntimeCLIError
 from dataflow.util.logging import LogConfig
 
@@ -31,9 +31,25 @@ def analyse_group():
 
 
 def _add_analyse_options(func):
-    """Decorator: add analyse-specific options shared by all subcommands."""
+    """Decorator: add analyse-specific options shared by all subcommands.
+
+    Includes --verbose, --log-dir, --class-file, --image-dir.
+    Does NOT include --no-strict (analyse is always read-only / non-strict).
+    """
     from functools import wraps
 
+    @click.option(
+        "--verbose",
+        is_flag=True,
+        help="Enable verbose log output",
+    )
+    @click.option(
+        "--log-dir",
+        type=click.Path(path_type=Path),
+        default="./logs",
+        show_default=True,
+        help="Log file output directory",
+    )
     @click.option(
         "-c",
         "--class-file",
@@ -47,9 +63,12 @@ def _add_analyse_options(func):
         default=None,
         help="Image directory for YOLO format (auto-detected if omitted)",
     )
+    @click.pass_context
     @wraps(func)
-    def wrapper(*args, **kwargs):
-        return func(*args, **kwargs)
+    def wrapper(ctx, verbose, log_dir, class_file, image_dir, *args, **kwargs):
+        ctx.obj["verbose"] = verbose
+        ctx.obj["log_dir"] = Path(log_dir)
+        return func(ctx, class_file=class_file, image_dir=image_dir, *args, **kwargs)
     return wrapper
 
 
@@ -59,7 +78,6 @@ def _add_analyse_options(func):
 
 
 @analyse_group.command(cls=FormattedCommand)
-@add_common_options
 @_add_analyse_options
 @click.option(
     "--sort-by",
@@ -151,7 +169,7 @@ def stats(
 
 
 @analyse_group.command(cls=FormattedCommand)
-@add_common_options
+@_add_analyse_options
 @click.argument(
     "label_path",
     type=click.Path(exists=True, path_type=Path),
@@ -177,19 +195,6 @@ def stats(
     default=42,
     show_default=True,
     help="Random seed for reproducible shuffling",
-)
-@click.option(
-    "-c",
-    "--class-file",
-    type=click.Path(exists=True, path_type=Path),
-    default=None,
-    help="Classes.txt (required for YOLO, copied to output dirs)",
-)
-@click.option(
-    "--image-dir",
-    type=click.Path(exists=True, file_okay=False, path_type=Path),
-    default=None,
-    help="Image directory for YOLO format (auto-detected if omitted)",
 )
 def split(
     ctx: click.Context,
@@ -246,7 +251,7 @@ def split(
 
 
 @analyse_group.command(cls=FormattedCommand)
-@add_common_options
+@_add_analyse_options
 @click.argument(
     "label_path",
     type=click.Path(exists=True, path_type=Path),
@@ -267,18 +272,13 @@ def split(
     type=click.Path(path_type=Path),
     metavar="OUTPUT_DIR",
 )
-@click.option(
-    "--image-dir",
-    type=click.Path(exists=True, file_okay=False, path_type=Path),
-    default=None,
-    help="Image directory for YOLO format (auto-detected if omitted)",
-)
 def filter(
     ctx: click.Context,
     label_path: Path,
     original_class_file: Path,
     new_class_file: Path,
     output_dir: Path,
+    class_file: Path,
     image_dir: Path,
 ):
     """Filter dataset at LABEL_PATH by category.

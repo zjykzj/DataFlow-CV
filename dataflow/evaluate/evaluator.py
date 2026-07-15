@@ -4,11 +4,9 @@ Concrete evaluator implementations for DataFlow-CV.
 Provides DetectionEvaluator (bbox IoU) and SegmentationEvaluator (mask IoU).
 """
 
-import logging
 from typing import Any, Optional
 
 from .base import BaseEvaluator
-from .utils import _validate_coco_available
 
 
 class DetectionEvaluator(BaseEvaluator):
@@ -34,8 +32,12 @@ class DetectionEvaluator(BaseEvaluator):
         return "bbox"
 
     def _create_cocoeval(self, coco_gt: Any, coco_dt: Any) -> Any:
-        """Create COCOeval for detection (bbox IoU)."""
-        _validate_coco_available()
+        """Create COCOeval for detection (bbox IoU).
+
+        ``_validate_coco_available()`` is called by
+        :meth:`BaseEvaluator.evaluate` before this method, so no
+        redundant check is needed here.
+        """
         from pycocotools.cocoeval import COCOeval
 
         return COCOeval(coco_gt, coco_dt, iouType="bbox")
@@ -66,8 +68,12 @@ class SegmentationEvaluator(BaseEvaluator):
         return "segm"
 
     def _create_cocoeval(self, coco_gt: Any, coco_dt: Any) -> Any:
-        """Create COCOeval for segmentation (mask IoU)."""
-        _validate_coco_available()
+        """Create COCOeval for segmentation (mask IoU).
+
+        ``_validate_coco_available()`` is called by
+        :meth:`BaseEvaluator.evaluate` before this method, so no
+        redundant check is needed here.
+        """
         from pycocotools.cocoeval import COCOeval
 
         return COCOeval(coco_gt, coco_dt, iouType="segm")

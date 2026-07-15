@@ -126,7 +126,7 @@ def _load_dt(
         with open(dt_path, "r", encoding="utf-8") as f:
             dt_data = json.load(f)
         if isinstance(dt_data, list):
-            return coco_gt.loadRes(str(dt_path))
+            return coco_gt.loadRes(dt_data)
         if isinstance(dt_data, dict):
             _validate_coco_dict(dt_data)
             return _create_coco_from_dict(dt_data)

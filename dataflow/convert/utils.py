@@ -119,6 +119,51 @@ def absolute_pixel_to_yolo(
 # COCO helpers
 # ---------------------------------------------------------------------------
 
+def ensure_coco_categories_for_streaming(
+    converter: Any,
+    source_handler: Any,
+    source_path: str,
+) -> None:
+    """Pre-load COCO categories from JSON for streaming conversions.
+
+    When the source format is COCO, the handler does not load categories
+    until ``iter_images()`` runs.  This reads them directly from the JSON
+    file so ``create_target_handler()`` can generate ``classes.txt``.
+
+    Args:
+        converter: The ``BaseConverter`` instance (needs
+            ``_source_annotations_for_target`` and ``source_format``).
+        source_handler: Source handler (unused; for compat with
+            super-class call pattern).
+        source_path: Path to the COCO JSON annotation file.
+    """
+    from ..label.models import AnnotationFormat, DatasetAnnotations
+
+    # Try default (handler.categories)
+    converter._source_annotations_for_target = None
+    cats = getattr(source_handler, "categories", None)
+    if isinstance(cats, dict) and cats:
+        converter._source_annotations_for_target = DatasetAnnotations(
+            format=AnnotationFormat.UNKNOWN,
+            categories=cats.copy(),
+        )
+
+    # If still no categories and source is COCO, read from JSON
+    if (
+        converter.source_format == "coco"
+        and (
+            not converter._source_annotations_for_target
+            or not converter._source_annotations_for_target.categories
+        )
+    ):
+        categories_dict = read_coco_categories(source_path)
+        if categories_dict:
+            converter._source_annotations_for_target = DatasetAnnotations(
+                format=AnnotationFormat.COCO,
+                categories=categories_dict,
+            )
+
+
 def read_coco_categories(json_path: str) -> Dict[int, str]:
     """Read categories from a COCO JSON file without loading the full dataset.
 
@@ -162,6 +207,8 @@ def generate_classes_file(categories: Dict[int, str], output_path: Path) -> bool
     """
     Generate classes.txt file from category mapping.
 
+    Delegates to ``dataflow.label.utils.generate_classes_file``.
+
     Args:
         categories: Dictionary mapping category IDs to names
         output_path: Path to output classes.txt file
@@ -169,22 +216,16 @@ def generate_classes_file(categories: Dict[int, str], output_path: Path) -> bool
     Returns:
         True if successful, False otherwise
     """
-    try:
-        with open(output_path, "w", encoding="utf-8") as f:
-            # Write categories sorted by ID
-            for cat_id in sorted(categories.keys()):
-                f.write(f"{categories[cat_id]}\n")
-        return True
-    except Exception as e:
-        logging.getLogger(__name__).error(
-            f"Failed to write classes file {output_path}: {e}"
-        )
-        return False
+    from dataflow.label.utils import generate_classes_file as _gen
+
+    return _gen(categories, output_path)
 
 
 def load_classes_file(class_file: Path) -> Dict[int, str]:
     """
     Load category mapping from classes.txt file.
+
+    Delegates to ``dataflow.label.utils.load_classes_file``.
 
     Args:
         class_file: Path to classes.txt file
@@ -192,18 +233,9 @@ def load_classes_file(class_file: Path) -> Dict[int, str]:
     Returns:
         Dictionary mapping index (starting from 0) to category name
     """
-    categories = {}
-    try:
-        with open(class_file, "r", encoding="utf-8") as f:
-            for i, line in enumerate(f):
-                line = line.strip()
-                if line:  # Skip empty lines
-                    categories[i] = line
-    except Exception as e:
-        logging.getLogger(__name__).error(
-            f"Failed to load classes file {class_file}: {e}"
-        )
-    return categories
+    from dataflow.label.utils import load_classes_file as _load
+
+    return _load(class_file)
 
 
 def extract_categories_from_coco(coco_data: Dict) -> Dict[int, str]:

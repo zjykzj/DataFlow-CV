@@ -25,8 +25,6 @@ class MockVisualizer(BaseVisualizer):
         """Mock conversion returning empty RenderData."""
         return RenderData(
             annotations=[],
-            image_width=image_ann.width,
-            image_height=image_ann.height,
         )
 
 
@@ -183,7 +181,7 @@ class TestBaseVisualizer:
         )
 
         # Create render data
-        render_data = RenderData(annotations=[], image_width=800, image_height=600)
+        render_data = RenderData(annotations=[])
         image_path = "/tmp/images/test.jpg"
 
         # Test Enter key (continue)
@@ -265,7 +263,7 @@ class TestBaseVisualizer:
 
         )
 
-        render_data = RenderData(annotations=[], image_width=800, image_height=600)
+        render_data = RenderData(annotations=[])
         image_path = "/tmp/images/test.jpg"
 
         success = visualizer._visualize_single_image(image_path, render_data)

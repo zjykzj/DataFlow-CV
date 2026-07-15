@@ -39,8 +39,6 @@ class RenderData:
     """Rendering data for a single image."""
 
     annotations: List[RenderAnnotation]
-    image_width: int
-    image_height: int
 
 
 @dataclass
@@ -627,6 +625,15 @@ class BaseVisualizer(ABC):
             self.config["text_thickness"],
             cv2.LINE_AA,
         )
+
+    @staticmethod
+    def _compute_bbox_from_polygon(
+        polygon: List[Tuple[int, int]],
+    ) -> Tuple[int, int, int, int]:
+        """Compute bbox [x1, y1, x2, y2] from polygon points."""
+        xs = [p[0] for p in polygon]
+        ys = [p[1] for p in polygon]
+        return (min(xs), min(ys), max(xs), max(ys))
 
     def _log_info(self, message: str) -> None:
         """Log info message."""

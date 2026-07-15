@@ -96,35 +96,6 @@ class StatsAnalyser(BaseAnalyser):
         return merged
 
     @staticmethod
-    def _validate_class_consistency(
-        per_class: Dict[str, int],
-        class_names_from_file: List[str],
-        source_label: str,
-    ) -> Optional[str]:
-        """Check that all observed classes exist in the class file.
-
-        Args:
-            per_class: ``{class_name: count}`` from data.
-            class_names_from_file: Class names from the class file
-                (values of ``load_class_names()``).
-            source_label: Human-readable label for error messages
-                (e.g. the path).
-
-        Returns:
-            An error message string if unknown classes are found,
-            or ``None`` if everything is consistent.
-        """
-        file_names = set(class_names_from_file)
-        data_names = set(per_class.keys())
-        unknown = data_names - file_names
-        if unknown:
-            return (
-                f"Categories in data not found in class file: "
-                f"{sorted(unknown)}. Source: {source_label}"
-            )
-        return None
-
-    @staticmethod
     def _order_per_class(
         per_class: Dict[str, int],
         class_file: Optional[Path],
@@ -138,18 +109,20 @@ class StatsAnalyser(BaseAnalyser):
         order.  Otherwise, order by *sort_by* / *descending*.
         """
         if class_file is not None and class_file.exists():
-            # Order by class_file lines
+            # Order by class_file lines (operate on a copy to avoid
+            # mutating the caller's dict)
+            remaining = dict(per_class)
             ordered: Dict[str, int] = {}
             try:
                 names_in_order = list(load_class_names(class_file).values())
             except (FileNotFoundError, ValueError):
                 names_in_order = []
             for name in names_in_order:
-                if name in per_class:
-                    ordered[name] = per_class.pop(name)
+                if name in remaining:
+                    ordered[name] = remaining.pop(name)
             # Remaining classes — sort alphabetically
-            for name in sorted(per_class):
-                ordered[name] = per_class[name]
+            for name in sorted(remaining):
+                ordered[name] = remaining[name]
             return ordered
 
         # No class_file — sort by id or count

@@ -75,13 +75,6 @@ def compute_pr_f1(
             "Expected 'macro' or 'micro'."
         )
 
-    # Logger setup
-    if log_config is not None:
-        from dataflow.util.logging import LogManager
-        logger = LogManager(log_config).logger
-    else:
-        logger = logging.getLogger(__name__)
-
     result = PRF1Result(
         success=False,
         iou_threshold=iou_threshold,

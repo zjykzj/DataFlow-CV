@@ -124,6 +124,10 @@ class BaseConverter(ABC):
         # (category extraction, image copying). Cleared in try/finally.
         self._source_annotations_for_target: Optional[DatasetAnnotations] = None
 
+        # Path to source annotations — set dynamically in stream_convert()
+        # for subclasses that need it during create_target_handler().
+        self._source_path: Optional[str] = None
+
     def _ensure_categories_for_streaming(
         self,
         source_handler: BaseAnnotationHandler,
@@ -186,7 +190,8 @@ class BaseConverter(ABC):
         Returns:
             ConversionResult with conversion statistics.
         """
-        start_time = datetime.datetime.now()
+        import time as _time
+        start_time = _time.time()
         result = ConversionResult(
             success=False,
             source_format=self.source_format,
@@ -277,7 +282,7 @@ class BaseConverter(ABC):
             result.num_images_converted = num_images
             result.num_objects_converted = num_objects
 
-            duration = (datetime.datetime.now() - start_time).total_seconds()
+            duration = _time.time() - start_time
             result.add_metadata("duration_seconds", f"{duration:.2f}")
             self._log_info(
                 f"Converted {num_images} images, {num_objects} objects "
@@ -295,6 +300,10 @@ class BaseConverter(ABC):
         finally:
             # Clean up state — must match the batch path guarantee
             self._source_annotations_for_target = None
+
+        # Log conversion result (always, regardless of success/failure)
+        from .log_templates import format_convert_result
+        self._log_info(format_convert_result(result))
 
         return result
 
@@ -429,6 +438,10 @@ class BaseConverter(ABC):
         # 6. Post-processing hook (e.g., RLE warnings)
         self._post_batch_convert(result, source_handler, kwargs)
 
+        # 7. Log conversion result
+        from .log_templates import format_convert_result
+        self._log_info(format_convert_result(result))
+
         return result
 
     def _post_batch_convert(
@@ -439,12 +452,19 @@ class BaseConverter(ABC):
     ) -> None:
         """Optional post-processing hook for batch conversions.
 
-        Called after a successful batch write. Subclasses override this
-        to add format-specific warnings or metadata (e.g., RLE accuracy
-        warnings).
+        Called after a successful batch write. Adds RLE accuracy warning
+        when segmentation data is encoded with do_rle=True.
 
-        Default: no-op.
+        Subclasses may override to add additional format-specific
+        warnings or metadata.
         """
+        do_rle = kwargs.get("do_rle", False)
+        if do_rle and getattr(source_handler, "is_seg", False):
+            from .rle_converter import RLEConverter
+            rle_converter = RLEConverter(logger=self.logger)
+            warning_msg = rle_converter.get_rle_accuracy_warning()
+            result.add_warning(warning_msg)
+            self.logger.warning(f"RLE conversion accuracy loss: {warning_msg}")
 
     def _post_stream_image(
         self,

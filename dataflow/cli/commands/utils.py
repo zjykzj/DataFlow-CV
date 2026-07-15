@@ -83,10 +83,15 @@ def validate_convert_params(
 
     input_path = validate_path_exists(input_path, "input path")
 
-    # Ensure output directory exists
-    if output_path.suffix:  # Is a file
+    # Ensure output directory exists.
+    # If the path already exists and is a directory, treat as directory.
+    # Otherwise use the suffix heuristic: no suffix → directory,
+    # has suffix → file (create parent dirs).
+    if output_path.is_dir():
+        output_path.mkdir(parents=True, exist_ok=True)
+    elif output_path.suffix:
         output_path.parent.mkdir(parents=True, exist_ok=True)
-    else:  # Is a directory
+    else:
         output_path.mkdir(parents=True, exist_ok=True)
 
     # Check required parameters based on conversion direction
@@ -167,17 +172,23 @@ class FormattedCommand(click.Command):
             formatter.write_dl(rows)
 
     def _get_argument_help(self, param_name):
-        """根据参数名获取帮助文本"""
-        # 参数名到帮助文本的映射
+        """Get help text by parameter name."""
         help_map = {
             "image_dir": "Image file directory (for obtaining image dimensions)",
             "label_dir": "YOLO label directory",
             "label_path": "Path to labels — directory (YOLO/LabelMe) or COCO .json file",
-            "class_file": "Class file path",
+            "label_paths": "One or more paths to labels",
+            "class_file": "Class file path (classes.txt)",
             "output_file": "Output COCO JSON file path",
-            "output_dir": "Output directory",
-            "output_path": "Output directory",
+            "output_dir": "Output directory for converted annotations",
+            "output_path": "Output directory for converted annotations",
             "labelme_dir": "LabelMe annotation directory",
             "input_path": "Input COCO JSON annotation file",
+            "gt_json": "COCO format Ground Truth JSON file",
+            "dt_json": "COCO format Detection/Prediction JSON file",
+            "coco_file": "COCO JSON annotation file",
+            "annotation_file": "COCO JSON annotation file",
+            "original_class_file": "Source classes.txt (all categories in dataset)",
+            "new_class_file": "Target classes.txt (categories to keep, new order/IDs)",
         }
         return help_map.get(param_name, "")

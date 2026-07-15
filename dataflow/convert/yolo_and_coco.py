@@ -14,7 +14,6 @@ from ..label.models import (AnnotationFormat, DatasetAnnotations,
                             ImageAnnotation, ObjectAnnotation)
 from ..label.yolo_handler import YoloAnnotationHandler
 from .base import BaseConverter, ConversionResult
-from .rle_converter import RLEConverter
 
 
 class YoloAndCocoConverter(BaseConverter):
@@ -48,20 +47,6 @@ class YoloAndCocoConverter(BaseConverter):
         super().__init__(source_format, target_format, log_config=log_config, **kwargs)
         self.source_to_target = source_to_target
         self.prediction = prediction
-
-    def _post_batch_convert(
-        self,
-        result: ConversionResult,
-        source_handler: BaseAnnotationHandler,
-        kwargs: Dict,
-    ) -> None:
-        """Add RLE accuracy warning when segmentation data is encoded."""
-        do_rle = kwargs.get("do_rle", False)
-        if do_rle and getattr(source_handler, "is_seg", False):
-            rle_converter = RLEConverter(logger=self.logger)
-            warning_msg = rle_converter.get_rle_accuracy_warning()
-            result.add_warning(warning_msg)
-            self.logger.warning(f"RLE conversion accuracy loss: {warning_msg}")
 
     def validate_inputs(self, source_path: str, target_path: str, kwargs: Dict) -> bool:
         """
@@ -121,7 +106,7 @@ class YoloAndCocoConverter(BaseConverter):
                         "Install with: pip install pycocotools"
                     )
                     self.logger.error(error_msg)
-                    raise ImportError(error_msg)
+                    return False
 
         else:  # COCO → YOLO
             # For COCO→YOLO, class_file is optional (can be extracted from COCO)
@@ -263,31 +248,11 @@ class YoloAndCocoConverter(BaseConverter):
     ) -> None:
         """Ensure COCO categories are loaded before streaming.
 
-        For COCO→YOLO, the COCO handler does not load categories until
-        ``iter_images()`` runs.  Read them directly from the JSON file
-        so ``create_target_handler()`` can generate ``classes.txt``.
+        For COCO→YOLO, delegates to
+        ``convert.utils.ensure_coco_categories_for_streaming()``.
         """
-        from .utils import read_coco_categories
-
-        # Try default (handler.categories)
-        super()._ensure_categories_for_streaming(
-            source_handler, source_path, kwargs
-        )
-
-        # If still no categories and source is COCO, read from JSON
-        if (
-            self.source_format == "coco"
-            and (
-                not self._source_annotations_for_target
-                or not self._source_annotations_for_target.categories
-            )
-        ):
-            categories_dict = read_coco_categories(source_path)
-            if categories_dict:
-                self._source_annotations_for_target = DatasetAnnotations(
-                    format=AnnotationFormat.COCO,
-                    categories=categories_dict,
-                )
+        from .utils import ensure_coco_categories_for_streaming
+        ensure_coco_categories_for_streaming(self, source_handler, source_path)
 
     def _convert_single_image(
         self, image_ann: ImageAnnotation, **kwargs
