@@ -26,10 +26,11 @@ sys.path.insert(0, str(project_root))
 
 def run_cli_command(cmd_args, check=True):
     """Run CLI command and return result"""
-    print(f"Executing command: dataflow-cv {' '.join(cmd_args)}")
+    cmd = [sys.executable, "-m", "dataflow.cli.main"] + cmd_args
+    print(f"Executing command: {' '.join(cmd)}")
     try:
         result = subprocess.run(
-            ["dataflow-cv"] + cmd_args,
+            cmd,
             capture_output=True,
             text=True,
             cwd=project_root,
@@ -49,7 +50,7 @@ def run_cli_command(cmd_args, check=True):
         print("Error: Command execution timeout")
         return False
     except FileNotFoundError:
-        print("Error: dataflow-cv command not found, please install package first: pip install -e .")
+        print("Error: Python interpreter not found")
         return False
     except Exception as e:
         print(f"Error: Exception occurred while executing command: {e}")
@@ -76,6 +77,7 @@ def step1_visualize_yolo():
 
     cmd = [
         "visualize", "yolo",
+        "--no-display",
         str(image_dir),  # image_dir (positional)
         str(yolo_dir / "labels"),  # label_dir (positional)
         str(class_file),  # class_file (positional)
@@ -144,6 +146,7 @@ def step3_visualize_coco(coco_file):
 
     cmd = [
         "visualize", "coco",
+        "--no-display",
         str(image_dir),  # image_dir (positional)
         str(coco_file),  # coco_file (positional)
         "--save",

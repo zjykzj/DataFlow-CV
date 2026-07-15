@@ -1,0 +1,1 @@
+"""Analyse module usage examples."""

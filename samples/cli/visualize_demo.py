@@ -22,10 +22,11 @@ sys.path.insert(0, str(project_root))
 
 def run_cli_command(cmd_args):
     """Run CLI command and return result"""
-    print(f"Executing command: dataflow-cv {' '.join(cmd_args)}")
+    cmd = [sys.executable, "-m", "dataflow.cli.main"] + cmd_args
+    print(f"Executing command: {' '.join(cmd)}")
     try:
         result = subprocess.run(
-            ["dataflow-cv"] + cmd_args,
+            cmd,
             capture_output=True,
             text=True,
             cwd=project_root,
@@ -41,7 +42,7 @@ def run_cli_command(cmd_args):
         print("Error: Command execution timeout")
         return False
     except FileNotFoundError:
-        print("Error: dataflow-cv command not found, please install package first: pip install -e .")
+        print("Error: Python interpreter not found")
         return False
     except Exception as e:
         print(f"Error: Exception occurred while executing command: {e}")
@@ -66,6 +67,7 @@ def demo_yolo_visualization():
 
     cmd = [
         "visualize", "yolo",
+        "--no-display",
         str(image_dir), str(label_dir), str(class_file),
         "--save", str(output_dir),
         "--verbose"
@@ -98,6 +100,7 @@ def demo_coco_visualization():
 
     cmd = [
         "visualize", "coco",
+        "--no-display",
         str(image_dir), str(coco_file),
         "--save", str(output_dir),
         "--verbose"
@@ -129,6 +132,7 @@ def demo_labelme_visualization():
     # LabelMe format: images and JSON files in the same directory
     cmd = [
         "visualize", "labelme",
+        "--no-display",
         str(labelme_dir), str(labelme_dir),
         "--save", str(output_dir),
         "--verbose"

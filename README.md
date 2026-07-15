@@ -239,7 +239,7 @@ prf1 = compute_pr_f1("anno_segm.json", "pred_segm.json", iou_type="segm")
 print(f"Segm F1: {prf1.overall.f1_score:.3f}")
 ```
 
-> 📂 See the `samples/` directory for complete examples: `samples/convert/` (6 conversion directions), `samples/visualize/` (YOLO, LabelMe, COCO), `samples/evaluate/` (detection & segmentation), `samples/cli/` (CLI workflows).
+> 📂 See the `samples/` directory for complete examples: `samples/analyse/` (statistics & split), `samples/convert/` (6 conversion directions), `samples/visualize/` (YOLO, LabelMe, COCO), `samples/evaluate/` (detection & segmentation), `samples/cli/` (CLI workflows).
 
 ---
 
@@ -271,7 +271,7 @@ For detailed developer guidance including advanced test commands, debugging, and
 
 ### 🧪 Testing
 
-**471 tests, 77% code coverage (3957 statements).**
+**517 tests, 77% code coverage (3957 statements).**
 
 ```bash
 pytest                                    # All tests
@@ -327,8 +327,8 @@ dataflow/
 ├── evaluate/        # pycocotools-based metrics, log templates
 ├── util/            # Unified logging (LogManager + format helpers)
 └── cli/             # CLI entry point, commands, validation
-tests/               # Unit & integration tests (471 tests, conftest fixtures)
-samples/             # Python API usage examples
+tests/               # Unit & integration tests (517 tests, conftest fixtures)
+samples/             # Python API usage examples (analyse, convert, visualize, evaluate, cli)
 assets/              # Test data (det/seg by format)
 specs/               # Canonical specifications (evaluate/ + formats/ + modules/)
 ```

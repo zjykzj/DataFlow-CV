@@ -237,8 +237,8 @@ Source Format → Handler.iter_images() → ImageAnnotation → _convert_single_
 - `_convert_single_image(image_ann, **kwargs)`: Abstract — per-image coordinate transform (single source of truth). Uses shared utilities from `convert/utils.py`.
 - `convert_annotations(source_annotations, kwargs)`: Abstract — batch coordinate transform. Base implementation raises `NotImplementedError` (no safe pass-through). Canonical delegation: calls `_convert_single_image()` per image.
 - `stream_convert(source_path, target_path, **kwargs)`: Concrete template method in `BaseConverter` — streaming pipeline. Sets `self._source_path` for handlers that need it during `create_target_handler()`.
-- `_ensure_categories_for_streaming()`: Pre-loads categories before streaming iteration. Base implementation checks `handler.categories`; COCO subclasses use `read_coco_categories()` from utils.
-- `_post_batch_convert(result, source_handler, kwargs)`: Optional post-processing hook (default no-op). Overridden to add RLE accuracy warnings when `do_rle=True` AND segmentation data exists.
+- `_ensure_categories_for_streaming()`: Pre-loads categories before streaming iteration. Base implementation checks `handler.categories`. COCO subclasses delegate to shared `ensure_coco_categories_for_streaming()` in `convert/utils.py`.
+- `_post_batch_convert(result, source_handler, kwargs)`: Post-processing hook called after successful batch write. Base implementation adds RLE accuracy warnings when `do_rle=True` AND segmentation data exists (was previously duplicated in two subclasses). Subclasses may override for additional behavior.
 
 **Shared coordinate transforms** (`convert/utils.py`):
 
@@ -331,10 +331,10 @@ COCO prediction files exist in **two variants** (see `spec_coco_format.md` §10)
 - `commands/evaluate.py`: 2 subcommands — `detection`, `segmentation`. Both support `--prf1` (P/R/F1 only — skips COCOeval, mutually exclusive with mAP), `--prf1-iou`, `--prf1-conf`, and `--prf1-method` (macro|micro) options.
 - `commands/utils.py`: Shared decorators (`add_common_options`, `add_visualize_options`), validators, and `FormattedCommand` (custom Click Command with aligned argument display in --help)
 - `exceptions.py`: Exception hierarchy with distinct exit codes:
-  - `ParameterError` (exit 1), `InputError` (exit 2), `OutputError` (exit 3), `RuntimeCLIError` (exit 4), `SystemError` (exit 5)
+  - `InputError` (exit 2), `RuntimeCLIError` (exit 4)
   - All extend `click.ClickException` for clean CLI error display
 
-Common CLI options: `--verbose` (enable file logging), `--log-dir` (log output directory, default `./logs/`), `--no-strict` (disable strict mode for convert), `--display/--no-display` (control visualization window for visualize).
+Common CLI options: `--verbose` (enable file logging), `--log-dir` (log output directory, default `./logs/`), `--no-strict` (disable strict mode; available for convert and visualize only — analyse is always non-strict), `--display/--no-display` (control visualization window for visualize).
 
 ### Utilities (`dataflow/util/`)
 
@@ -414,7 +414,7 @@ tests/
 ├── visualize/       # Visualizer unit tests
 ├── evaluate/        # Evaluator unit tests + metric computation tests
 ├── util/            # Utility unit tests (LogManager, format helpers)
-└── cli/             # CLI tests (convert, visualize, evaluate — 440 tests total)
+└── cli/             # CLI tests (convert, visualize, evaluate, analyse)
 ```
 
 Test data lives in `assets/test_data/`, organized by format (det/seg) and annotation type. Evaluate test data lives under `assets/test_data/evaluate/`.
@@ -458,3 +458,10 @@ Test data lives in `assets/test_data/`, organized by format (det/seg) and annota
 32. **YOLO confidence validation rejects NaN**: `YoloAnnotationHandler` uses `math.isfinite()` alongside the `[0, 1]` range check for confidence values. For `float('nan')`, both `nan < 0.0` and `nan > 1.0` are `False`, so NaN would silently pass a range-only check. The `math.isfinite()` guard catches NaN, Inf, and -Inf before the range check.
 33. **Evaluate `validate_inputs` raises with all errors**: All validation errors are collected and raised together via `ValueError("\n".join(errors))`. The `evaluate()` method catches this and splits the joined string into individual `result.errors` entries — all validation problems are visible in both the log and programmatic output. Previously only the last error appeared in `result.errors`.
 34. **YOLO class_id may be float-formatted**: Some YOLO tooling writes class IDs as integer-valued float strings like ``5.000000`` instead of ``5``. `YoloAnnotationHandler._parse_class_id()` handles this, but any code that parses YOLO .txt files directly (bypassing the handler) **must also handle it**. Use `_parse_class_id_token()` from `dataflow/analyse/utils.py` — it accepts both ``"5"`` and ``"5.000000"``, returning `Optional[int]`. Simple `int(token)` will raise `ValueError` on float strings and silently drop valid annotations. Only applies to YOLO — LabelMe/COCO use JSON native types.
+35. **`BaseConverter._post_batch_convert()` handles RLE warnings**: The base class implementation now includes the RLE accuracy warning logic (previously duplicated in `YoloAndCocoConverter` and `CocoAndLabelMeConverter`). Subclasses only need to override `_post_batch_convert()` for additional custom behavior — call `super()._post_batch_convert(result, source_handler, kwargs)` if extending.
+36. **COCO categories pre-loading is shared**: `ensure_coco_categories_for_streaming()` in `convert/utils.py` is the canonical implementation for pre-loading COCO categories before streaming conversion. Both `YoloAndCocoConverter` and `CocoAndLabelMeConverter` delegate to it — new COCO-source converters should use this shared utility.
+37. **`_source_path` declared in `BaseConverter.__init__`**: The attribute `self._source_path: Optional[str] = None` is now declared at class initialization time (was previously set dynamically in `stream_convert()`). It is still assigned the actual path value during streaming — the declaration simply makes it visible to static analysis.
+38. **`RenderData` has no width/height fields**: The dataclass only holds `annotations: List[RenderAnnotation]`. Image dimensions are read from the image file at draw time via `image.shape`. Do not add `image_width`/`image_height` back to `RenderData` — they are a redundant duplicate of information already present in the image array.
+39. **`--no-strict` unavailable for analyse commands**: Analyse is always read-only and non-strict. The `--no-strict` flag is only available on `convert` and `visualize` subcommands.
+40. **Deleted exception classes**: `ParameterError`, `OutputError`, and `SystemError` no longer exist in `cli/exceptions.py`. Use `InputError` (exit 2) for input validation failures and `RuntimeCLIError` (exit 4) for runtime/API errors.
+41. **Auto-generated class files are cleaned up at exit**: `_auto_generate_class_file()` in `analyse/utils.py` registers temporary `classes.txt` files for automatic cleanup via `atexit`. Do not add manual cleanup in callers.
