@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-07-17
+
+### Added
+
+- **Category filtering** (`analyse filter`): New `FilterAnalyser` keeps only specified classes and remaps class IDs to the new class file order. Supports YOLO (streaming), LabelMe (streaming), and COCO (batch) — same-format only, with automatic format detection.
+- **Multi-path stats and recursive traversal**: `analyse stats` now accepts multiple `LABEL_PATH` arguments (statistics merged across paths by class name) and `-R/--recursive` for recursive label discovery in subdirectories. When `--class-file` is provided, class IDs/names outside the class file produce an ERROR instead of being silently dropped.
+- **N-way dataset partitioning** (`analyse partition`): New `PartitionAnalyser` splits a dataset into N roughly-equal parts. Three modes: labels-only, images-only, or both (images matched by stem). Supports `--shuffle` with `--seed` for reproducible random distribution and `--move` for storage-constrained scenarios. YOLO and LabelMe only (COCO users are directed to `split`).
+
+### Changed
+
+- **Stats performance**: `StatsAnalyser` skips image loading for YOLO datasets (`skip_image_loading` parameter) — annotation counting no longer calls `cv2.imread()` per label file, reducing stats runtime from minutes to sub-second on typical datasets.
+- **Float-tolerant class ID parsing**: `parse_yolo_class_id()` in `dataflow/label/utils.py` is now the canonical parser for YOLO class IDs, accepting both `"5"` and float-formatted `"5.000000"` tokens.
+
+### Fixed
+
+- **Recursive discovery on WSL**: YOLO/LabelMe handlers now support a native `recursive` parameter using `rglob`, replacing the temp-dir + symlink approach that failed on WSL cross-filesystem setups.
+- **Code review findings**: Comprehensive review round — conversion result logging now runs in both batch and streaming pipelines, `atexit` cleanup for auto-generated class files, dead code removal (unused exception classes, `RenderData` dimension fields, duplicate validators), and shared-utility extraction (RLE warnings, COCO category pre-loading, classes-file I/O).
+- **CLI help text formatting**: Command descriptions no longer carry stray indentation (`inspect.cleandoc()` applied), the partition mode table is no longer rewrapped into garbled text (`\b` placement), and `analyse` subcommands show accurate `OUTPUT_DIR` descriptions.
+
+### Docs
+
+- **SDD workflow**: `/spec` skill now defines the spec-first development loop (update spec before coding, conformance-check after), backed by CLAUDE.md hard rules and a PreToolUse hook that injects the methodology reminder on any `specs/` edit.
+- **Skills portability**: Removed project-specific hardcoded paths from `/dev` and `/release`; all skills now document their required configuration and use template variables defined in CLAUDE.md.
+- **README sync**: Feature table, CLI quick start, and Python API examples now cover category filtering and N-way partitioning; test stats refreshed (535 tests, 79% coverage) with a rebuilt per-module coverage table.
+- **Spec updates**: `spec_analyse.md` documents the full FilterAnalyser/PartitionAnalyser contracts and multi-path stats; `skip_image_loading` and `parse_yolo_class_id()` documented in `spec_label.md`.
+
 ## [1.7.0] - 2026-07-12
 
 ### Added
