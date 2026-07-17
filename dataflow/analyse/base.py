@@ -146,6 +146,33 @@ class FilterResult:
     format: str = ""
 
 
+@dataclass
+class PartitionResult:
+    """Container for N-way dataset partition results.
+
+    Attributes:
+        num_partitions: Number of partitions (N).
+        partition_sizes: File count per partition, e.g. ``[20000, 20000, 20002]``.
+        partition_dirs: Path to each partition directory.
+        total_files: Total files processed.
+        seed: Random seed (meaningful only when ``shuffle=True``).
+        shuffle: Whether shuffle was applied.
+        mode: ``"images"`` | ``"labels"`` | ``"both"``.
+        format: ``"yolo"`` | ``"labelme"`` | ``""`` (empty for images-only mode).
+        move: Whether move mode was used.
+    """
+
+    num_partitions: int
+    partition_sizes: List[int] = field(default_factory=list)
+    partition_dirs: List[Path] = field(default_factory=list)
+    total_files: int = 0
+    seed: int = 42
+    shuffle: bool = False
+    mode: str = ""
+    format: str = ""
+    move: bool = False
+
+
 # ---------------------------------------------------------------------------
 # Base class
 # ---------------------------------------------------------------------------

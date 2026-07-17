@@ -93,3 +93,83 @@ def test_stats_recursive_flag_accepted(tmp_path):
     # Will fail because tmp_path has no label files, but the flag itself
     # should be recognised (not an "unknown option" error)
     assert "No such option" not in result.output
+
+
+# ---------------------------------------------------------------------------
+# Partition CLI tests
+# ---------------------------------------------------------------------------
+
+
+def test_partition_help():
+    """``analyse partition --help`` shows subcommand description."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["analyse", "partition", "--help"])
+    assert result.exit_code == 0
+    assert "partition" in result.output.lower()
+
+
+def test_partition_missing_num():
+    """``analyse partition`` without --num shows an error."""
+    runner = CliRunner()
+    result = runner.invoke(cli, [
+        "analyse", "partition", "/tmp/out",
+    ])
+    assert result.exit_code != 0
+
+
+def test_partition_no_input_error():
+    """``analyse partition`` without --label-dir or --image-dir errors."""
+    runner = CliRunner()
+    result = runner.invoke(cli, [
+        "analyse", "partition", "/tmp/out", "--num", "2",
+    ])
+    assert result.exit_code != 0
+    assert "at least one" in result.output.lower()
+
+
+def test_partition_move_declined(tmp_path):
+    """``analyse partition --move`` declined by user aborts."""
+    from pathlib import Path
+
+    test_data = (
+        Path(__file__).parent.parent.parent / "assets" / "test_data"
+    )
+    yolo_labels = test_data / "det" / "yolo" / "labels"
+    classes = test_data / "det" / "yolo" / "classes.txt"
+    output_dir = tmp_path / "out"
+
+    runner = CliRunner()
+    result = runner.invoke(cli, [
+        "analyse", "partition",
+        str(output_dir),
+        "--num", "2",
+        "--label-dir", str(yolo_labels),
+        "-c", str(classes),
+        "--move",
+    ], input="n\n")
+    # User declined → abort, exit code 1 (click.Abort)
+    assert result.exit_code != 0
+
+
+def test_partition_yolo_smoke(tmp_path):
+    """``analyse partition`` with YOLO labels succeeds."""
+    from pathlib import Path
+
+    test_data = (
+        Path(__file__).parent.parent.parent / "assets" / "test_data"
+    )
+    yolo_labels = test_data / "det" / "yolo" / "labels"
+    classes = test_data / "det" / "yolo" / "classes.txt"
+    output_dir = tmp_path / "out"
+
+    runner = CliRunner()
+    result = runner.invoke(cli, [
+        "analyse", "partition",
+        str(output_dir),
+        "--num", "2",
+        "--label-dir", str(yolo_labels),
+        "-c", str(classes),
+    ])
+    assert result.exit_code == 0
+    assert (output_dir / "part_1").is_dir()
+    assert (output_dir / "part_2").is_dir()

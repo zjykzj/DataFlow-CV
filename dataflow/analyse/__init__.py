@@ -32,11 +32,13 @@ from .base import (
     BaseAnalyser,
     CategoryMapping,
     FilterResult,
+    PartitionResult,
     RemovedCategory,
     SplitResult,
     StatsResult,
 )
 from .filter import FilterAnalyser
+from .partition import PartitionAnalyser
 from .split import SplitAnalyser
 from .stats import StatsAnalyser
 
@@ -45,11 +47,13 @@ __all__ = [
     "AnalysisResult",
     "CategoryMapping",
     "FilterResult",
+    "PartitionResult",
     "RemovedCategory",
     "StatsResult",
     "SplitResult",
     "StatsAnalyser",
     "SplitAnalyser",
     "FilterAnalyser",
+    "PartitionAnalyser",
     "utils",
 ]

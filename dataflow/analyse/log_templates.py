@@ -258,6 +258,54 @@ def format_filter_result(
     return "\n".join(lines)
 
 
+def format_partition_result(
+    num_partitions: int,
+    partition_sizes: List[int],
+    partition_dirs: List[Path],
+    total_files: int,
+    seed: int,
+    shuffle: bool,
+    mode: str,
+    move: bool,
+) -> str:
+    """Partition summary with per-partition breakdown.
+
+    Args:
+        num_partitions: Number of partitions (N).
+        partition_sizes: File count per partition.
+        partition_dirs: Output directory per partition.
+        total_files: Total files processed.
+        seed: Random seed used (meaningful when ``shuffle=True``).
+        shuffle: Whether shuffle was applied.
+        mode: ``"images"`` | ``"labels"`` | ``"both"``.
+        move: Whether move mode was used.
+
+    Returns:
+        Formatted partition summary.
+    """
+    mode_label = {"images": "Images only", "labels": "Labels only",
+                  "both": "Labels + Images"}[mode]
+
+    lines = [
+        format_kv("Mode", mode_label),
+        format_kv("Partitions", str(num_partitions)),
+        format_kv("Shuffle", f"{'Yes' if shuffle else 'No'}"
+                  f"{f' (seed={seed})' if shuffle else ''}"),
+        format_kv("Move", "Yes" if move else "No"),
+        format_kv("Total files", str(total_files)),
+        "",
+        format_section("Partition"),
+    ]
+
+    for i in range(num_partitions):
+        lines.append(
+            f"  Part {i + 1}:  {partition_sizes[i]:>6} files → "
+            f"{partition_dirs[i]}"
+        )
+
+    return "\n".join(lines)
+
+
 def format_analyse_result(
     status: str,
     log_path: str,
