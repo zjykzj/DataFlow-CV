@@ -20,7 +20,7 @@ A computer vision dataset processing library — analyse, convert, visualize, an
 
 | | | |
 |:---|:---|:---|
-| 🔍 **Analyse** | Dataset statistics & train/test splitting with format auto-detection | `dataflow-cv analyse stats ...` |
+| 🔍 **Analyse** | Stats, train/val split, category filter & N-way partition — format auto-detection | `dataflow-cv analyse stats ...` |
 | 🔄 **Convert** | 6 directions: YOLO ↔ LabelMe ↔ COCO, plus model predictions | `dataflow-cv convert yolo2coco ...` |
 | 🎨 **Visualize** | OpenCV rendering with color-coded classes, display & save modes | `dataflow-cv visualize yolo ...` |
 | 📊 **Evaluate** | COCO mAP via pycocotools, single-threshold P/R/F1 per class | `dataflow-cv evaluate detection ...` |
@@ -62,6 +62,14 @@ dataflow-cv analyse stats coco_annotations.json
 dataflow-cv analyse split yolo_labels/ output/ --ratio 0.8 --seed 42 --class-file classes.txt
 dataflow-cv analyse split coco_annotations.json output/ --ratio 0.8 --seed 42
 dataflow-cv analyse split labelme_json/ output/ --ratio 0.8
+
+# Category filter (keep a subset of categories, remap IDs per new classes.txt)
+dataflow-cv analyse filter yolo_labels/ classes.txt classes_new.txt filtered/
+dataflow-cv analyse filter coco_annotations.json classes.txt classes_new.txt filtered/
+
+# N-way partition — YOLO / LabelMe only (labels drive, images follow by stem)
+dataflow-cv analyse partition -n 4 --label-dir yolo_labels/ --image-dir images/ parts/
+dataflow-cv analyse partition -n 4 --image-dir images/ --shuffle parts/
 
 # Sort by count descending (default: class ID ascending)
 dataflow-cv analyse stats --sort-by count --descending yolo_labels/
@@ -177,7 +185,7 @@ Two evaluation modes, distinguished by how overlap is measured:
 
 ```python
 from dataflow.util.logging import LogConfig
-from dataflow.analyse import StatsAnalyser, SplitAnalyser
+from dataflow.analyse import StatsAnalyser, SplitAnalyser, FilterAnalyser, PartitionAnalyser
 from dataflow.convert import YoloAndCocoConverter
 from dataflow.visualize import YOLOVisualizer
 from dataflow.evaluate import DetectionEvaluator, compute_pr_f1
@@ -196,6 +204,20 @@ result = splitter.analyse(
     "yolo_labels/", "output/", ratio=0.8, seed=42, class_file="classes.txt",
 )
 print(f"Train: {result.data.train_count}, Val: {result.data.val_count}")
+
+# Category filter (keep / remap categories per new classes.txt)
+filterer = FilterAnalyser(log_config=log_cfg)
+result = filterer.analyse(
+    "yolo_labels/", original_class_file="classes.txt",
+    new_class_file="classes_new.txt", output_dir="filtered/",
+)
+
+# N-way partition (YOLO / LabelMe labels; images follow by stem)
+partitioner = PartitionAnalyser(log_config=log_cfg)
+result = partitioner.analyse(
+    output_dir="parts/", num=4,
+    label_dir="yolo_labels/", image_dir="images/",
+)
 
 # ── Convert ──────────────────────────────────────────
 # YOLO labels → COCO (label mode)
@@ -271,7 +293,7 @@ For detailed developer guidance including advanced test commands, debugging, and
 
 ### 🧪 Testing
 
-**517 tests, 77% code coverage (3957 statements).**
+**535 tests, 79% code coverage (5103 statements).**
 
 ```bash
 pytest                                    # All tests
@@ -285,11 +307,12 @@ pytest tests/evaluate/test_evaluator.py     # Single module
 
 | Module | Coverage | Highlights |
 |--------|:--------:|------------|
-| `dataflow/label/` | 70% | models (87%), coco_handler (75%), labelme_handler (70%), yolo_handler (61%) |
-| `dataflow/convert/` | 83% | yolo_and_coco (90%), labelme_and_yolo (86%), coco_and_labelme (87%), rle (80%), base (82%), utils (91%) |
-| `dataflow/visualize/` | 76% | yolo_vis (100%), labelme_vis (100%), coco_vis (88%), base (74%) |
-| `dataflow/evaluate/` | 87% | evaluator (100%), metrics (92%), result (99%), base (91%), utils (67%) |
-| `dataflow/cli/` | 76% | main (96%), convert cmd (49%), evaluate cmd (82%), visualize cmd (87%), utils (88%) |
+| `dataflow/label/` | 72% | models (87%), base (83%), coco_handler (76%), labelme_handler (71%), yolo_handler (61%) |
+| `dataflow/analyse/` | 79% | base (99%), utils (84%), stats (83%), filter (76%), partition (71%), split (63%) |
+| `dataflow/convert/` | 85% | labelme_and_yolo (93%), yolo_and_coco (89%), utils (89%), coco_and_labelme (86%), base (80%), rle (80%) |
+| `dataflow/visualize/` | 83% | yolo_vis (100%), labelme_vis (100%), coco_vis (93%), base (78%) |
+| `dataflow/evaluate/` | 87% | evaluator (100%), result (99%), metrics (93%), base (91%), utils (67%) |
+| `dataflow/cli/` | 75% | main (96%), visualize cmd (90%), utils (87%), evaluate cmd (83%), analyse cmd (64%), convert cmd (52%) |
 | `dataflow/util/` | 100% | logging (100%) |
 
 </details>
@@ -321,7 +344,7 @@ pre-commit run --all-files    # Manual run against all files
 ```
 dataflow/
 ├── label/           # Annotation handlers + data models
-├── analyse/         # Dataset statistics & train/test split
+├── analyse/         # Dataset stats, train/val split, category filter, N-way partition
 ├── convert/         # Format converters, RLE utility, log templates
 ├── visualize/       # OpenCV-based rendering, log templates
 ├── evaluate/        # pycocotools-based metrics, log templates
@@ -341,7 +364,7 @@ Contributions are welcome! Please review [CLAUDE.md](CLAUDE.md) for architecture
 
 1. 🍴 Fork the repository
 2. 🌿 Create a feature branch
-3. ✏️ Make your changes
+3. ✏️ Make your changes — **spec-first**: if a change affects a contract in [specs/](specs/), update the spec before the code (SDD, see the `/spec` skill)
 4. 🧪 Add or update tests as needed
 5. ✅ Ensure code passes formatting and linting checks
 6. 📬 Submit a pull request
