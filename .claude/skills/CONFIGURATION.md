@@ -11,7 +11,7 @@ When you copy `.claude/skills/` to a new project, check which skills need config
 | `/commit` | ✅ Yes | Git Operations section |
 | `/dev` | ✅ Yes | Development Commands section |
 | `/release` | ✅ Yes | Git Operations section |
-| `/spec` | ❌ No | Self-contained |
+| `/spec` | ⚠️ Optional | Specifications section + SDD enforcement hook (§3–4) |
 | `/claude` | ❌ No | Self-contained |
 
 ## Step-by-Step Configuration
@@ -54,7 +54,11 @@ Version bump locations for this project:
 
 Verify with: `grep -rn '"X\.Y\.Z"' [SEARCH_PATHS]` (exclude `CHANGELOG.md`).
 
-Repository URL: `[YOUR_REPO_URL]`
+Repository URL for the `/release` skill:
+
+\```
+{{REPO_URL}} = [YOUR_REPO_URL]
+\```
 
 **Examples:**
 - Python/Poetry: `pyproject.toml` + `src/package/__init__.py`
@@ -98,7 +102,7 @@ pip install -e .[dev]               # With test/lint deps
 
 ### 3. Specifications Section (Optional)
 
-Required by: Projects using `/spec`
+Required by: Projects using `/spec` for SDD (Spec-Driven Development)
 
 ```markdown
 ## Specifications
@@ -107,7 +111,43 @@ The `specs/` directory contains the **canonical specifications** — the single 
 
 ### Spec Maintenance
 
-Spec maintenance methodology is defined as a project skill. Use `/spec` when creating, modifying, or reviewing spec files.
+Spec maintenance methodology is defined as a project skill. Use `/spec` when creating, modifying, or reviewing spec files. The skill covers the SDD workflow, the two-reader model, classification principles, what belongs where, and deletion rules.
+
+**SDD hard rules:**
+
+1. **Invoke `/spec` before any edit to `specs/` files** — the methodology must be loaded before touching spec content.
+2. **Spec-first ordering**: any feat/fix that affects a contract documented in `specs/` must (a) update the affected spec to the target state **before** implementing, (b) verify the implementation against the spec **after** coding (conformance check), and (c) list affected spec files in the commit body — or state "No spec impact".
+```
+
+### 4. SDD Enforcement Hook (Optional, Recommended)
+
+The CLAUDE.md rules above rely on Claude honoring them; a PreToolUse hook makes the reminder **mechanical** — the harness injects the SDD methodology reminder into Claude's context on every `specs/` edit. Add to the project's `.claude/settings.json` (merge with existing hooks if present):
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c 'import json,sys; d=json.load(sys.stdin); p=str((d.get(\"tool_input\") or {}).get(\"file_path\") or \"\"); ok=(\"/specs/\" in p or p.startswith(\"specs/\")); print(json.dumps({\"hookSpecificOutput\": {\"hookEventName\": \"PreToolUse\", \"additionalContext\": \"You are about to modify a specs/ file. Follow the /spec skill SDD methodology: spec-first workflow, version bump per change type, classification rules. Invoke the spec skill first if it is not already loaded in this session.\"}, \"systemMessage\": \"specs/ edit detected - /spec SDD methodology applies\"})) if ok else None' 2>/dev/null || true",
+            "statusMessage": "Checking specs/ SDD reminder"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Requires `python3` on PATH. Verify after adding: pipe a synthetic payload through the command —
+
+```bash
+echo '{"tool_name":"Edit","tool_input":{"file_path":"specs/x.md"}}' \
+  | bash -c "$(jq -r '.hooks.PreToolUse[0].hooks[0].command' .claude/settings.json)"
+# Should print the reminder JSON; non-specs paths should print nothing
 ```
 
 ## Verification
@@ -118,7 +158,8 @@ After configuration, verify:
 # 1. Check all variables are defined
 grep "{{.*}}" CLAUDE.md
 
-# Should return actual values, not {{PLACEHOLDERS}}
+# Each required variable should appear as a "{{VARIABLE}} = actual-value"
+# definition line. No [PLACEHOLDER] values should remain.
 
 # 2. Test skills
 /dev        # Should use correct package name
@@ -128,21 +169,37 @@ grep "{{.*}}" CLAUDE.md
 
 ## Auto-Configuration Helper
 
-If you're Claude reading this in a new project, you can help the user by:
+If you're Claude reading this in a new project, help the user by:
 
-1. **Detecting project type** (check for `pyproject.toml`, `package.json`, `go.mod`, etc.)
-2. **Inferring package name** (read from config files)
-3. **Listing source directories** (find directories with code)
-4. **Suggesting configuration** based on detection results
-5. **Generating the CLAUDE.md sections** with detected values
+1. **Reading requirements** — each skill's `## Required Configuration` section lists its variables
+2. **Detecting project structure**:
+
+```bash
+# Detect project type
+ls pyproject.toml package.json go.mod 2>/dev/null
+
+# Detect package name (Python example)
+grep "^name = " pyproject.toml
+
+# Detect source directories
+ls -d */
+
+# Detect repo URL
+git remote get-url origin
+```
+
+3. **Asking for what cannot be detected** (e.g., AI model name/email) via `AskUserQuestion`
+4. **Generating the CLAUDE.md sections** with detected values, using the templates above
+5. **Asking the user to confirm** before writing
 
 **Example workflow:**
 ```
 User: "Configure skills for this project"
 
-Claude: 
+Claude:
 1. Reads pyproject.toml → detects package name "myapp"
 2. Lists directories → finds "myapp tests"
-3. Generates CLAUDE.md configuration with detected values
-4. Asks user to confirm or adjust
+3. Asks which AI model to credit in Co-Authored-By
+4. Generates CLAUDE.md configuration with detected values
+5. Asks user to confirm or adjust
 ```

@@ -90,7 +90,12 @@ specs/
 
 ### Spec Maintenance
 
-Spec maintenance methodology is defined as a project skill. Use `/spec` when creating, modifying, or reviewing spec files. The skill covers the two-reader model, classification principles, what belongs where, and deletion rules.
+Spec maintenance methodology is defined as a project skill. Use `/spec` when creating, modifying, or reviewing spec files. The skill covers the SDD workflow, the two-reader model, classification principles, what belongs where, and deletion rules.
+
+**SDD hard rules:**
+
+1. **Invoke `/spec` before any edit to `specs/` files** — the methodology must be loaded before touching spec content.
+2. **Spec-first ordering**: any feat/fix that affects a contract documented in `specs/` must (a) update the affected spec to the target state **before** implementing, (b) verify the implementation against the spec **after** coding (conformance check), and (c) list affected spec files in the commit body — or state "No spec impact".
 
 ## Git Operations
 
@@ -129,7 +134,11 @@ Version bump locations for this project:
 
 Verify with: `grep -rn '"X\.Y\.Z"' dataflow/ pyproject.toml` (exclude `CHANGELOG.md`).
 
-Repository URL: `https://github.com/zjykzj/DataFlow-CV`
+Repository URL for the `/release` skill:
+
+```
+{{REPO_URL}} = https://github.com/zjykzj/DataFlow-CV
+```
 
 ## Architecture
 

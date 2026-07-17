@@ -1,7 +1,7 @@
 ---
 name: release
 description: Bump version and publish a GitHub release
-allowed-tools: Bash
+allowed-tools: Bash, Read, Edit, Grep
 ---
 
 # Release Skill
@@ -85,3 +85,14 @@ Body template:
 ```
 
 **Rationale**: Full changelog content on the Release page lets readers see all changes without navigating away. The citation link at the bottom serves as an attribution reference.
+
+## Required Configuration
+
+Define these in the project's CLAUDE.md:
+
+| Item | Purpose | Example |
+|------|---------|---------|
+| `{{AI_MODEL_NAME}}` / `{{AI_MODEL_EMAIL}}` | `Co-Authored-By` line in bump commit | `DeepSeek-V4.0` / `noreply@deepseek.com` |
+| `{{PACKAGE_NAME}}` | Locate `__init__.py` version field | `dataflow` |
+| `{{REPO_URL}}` | CHANGELOG citation link in Release body | `https://github.com/owner/repo` |
+| Version bump locations table | Which files carry the version string | See CLAUDE.md "Release Configuration" |

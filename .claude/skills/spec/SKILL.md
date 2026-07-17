@@ -1,12 +1,36 @@
 ---
 name: spec
-description: Create or modify spec files following project methodology. Use when writing, editing, or reviewing specs/ files.
+description: Create or modify spec files following project methodology, and drive SDD (spec-first development). Use when writing, editing, or reviewing specs/ files — and BEFORE implementing any feature or behavior change that affects a contract documented in specs/.
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 ---
 
 # Spec Maintenance
 
 Apply this methodology when creating or modifying spec files.
+
+## SDD Workflow (Spec-Driven Development)
+
+Any feature or behavior change that touches a contract documented in `specs/` MUST follow this loop. Specs describe the **target state** — code follows specs, not the other way around.
+
+### Phase 1 — Spec First (before writing any code)
+
+1. **Impact analysis**: list which spec files/sections the change affects. If none, state "No spec impact" explicitly in the plan and later in the commit body.
+2. **Update the spec first**: the spec now describes the target state, not current code. Bump the version per §Version Management.
+3. **Confirm the contract**: present the spec change to the user for approval before implementing.
+
+### Phase 2 — Implement
+
+4. Write code to satisfy the updated spec. If during implementation the contract turns out to be wrong, go back to Phase 1 and change the spec — never silently diverge in code.
+
+### Phase 3 — Conformance Check (after code is complete)
+
+5. Re-read every spec section touched in Phase 1. Verify each contract line against the implementation: signatures, behaviors, edge cases, error/exit codes.
+6. On divergence: code bug → fix the code; contract was wrong → fix the spec (re-bump version), then re-verify.
+
+### Commit Ordering
+
+- Spec and code changes belong to the same commit series; the spec commit **precedes or accompanies** the code commit.
+- The feat/fix commit body lists affected spec files — or states "No spec impact".
 
 ## Specs Serve Two Readers
 
@@ -203,3 +227,12 @@ Each spec file starts with a version and last-updated date:
 | New definitions / extending existing contracts | Minor increment (v1.0 → v1.1) |
 | Behavioral change (breaking change) | Major increment (v1.2 → v2.0) |
 | Clarification / wording fix (no behavior change) | Update date only, keep version |
+
+## Required Configuration
+
+None for the methodology itself — templates are bundled in `templates/` within this skill's directory.
+
+For SDD enforcement (recommended), configure in the target project (templates in `skills/CONFIGURATION.md` §3–4):
+
+- CLAUDE.md "SDD hard rules" (invoke `/spec` before specs/ edits; spec-first ordering)
+- PreToolUse hook injecting the SDD reminder on `specs/` edits (`.claude/settings.json`)

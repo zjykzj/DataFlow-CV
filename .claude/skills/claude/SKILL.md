@@ -60,3 +60,7 @@ Good example: `"DB connections: Use connection pool (min=5, max=20), never creat
 - Each Gotcha keeps bidirectional references with related specs / Critical Details
 - If a Gotcha's corresponding bug has been eliminated by an architecture refactor, delete it
 - If exceeding 20 entries, consider upgrading some to Critical Implementation Details
+
+## Required Configuration
+
+None — self-contained. Pure methodology, no project-specific variables.

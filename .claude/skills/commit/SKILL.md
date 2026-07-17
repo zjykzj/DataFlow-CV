@@ -47,3 +47,12 @@ The `Co-Authored-By` line is **mandatory** for all commits. `{{AI_MODEL_NAME}}` 
 3. Add body if the change needs explanation
 4. Append the `Co-Authored-By` line
 5. Execute the commit command
+
+## Required Configuration
+
+Define these variables in the project's CLAUDE.md (Git Operations section):
+
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `{{AI_MODEL_NAME}}` | `Co-Authored-By` name | `DeepSeek-V4.0` |
+| `{{AI_MODEL_EMAIL}}` | `Co-Authored-By` email | `noreply@deepseek.com` |
