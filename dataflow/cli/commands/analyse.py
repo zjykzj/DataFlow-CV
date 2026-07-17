@@ -168,7 +168,12 @@ def stats(
 # ---------------------------------------------------------------------------
 
 
-@analyse_group.command(cls=FormattedCommand)
+@analyse_group.command(
+    cls=FormattedCommand,
+    argument_help={
+        "output_dir": "Output directory for train/val split results",
+    },
+)
 @_add_analyse_options
 @click.argument(
     "label_path",
@@ -250,7 +255,10 @@ def split(
 # ---------------------------------------------------------------------------
 
 
-@analyse_group.command(cls=FormattedCommand)
+@analyse_group.command(
+    cls=FormattedCommand,
+    argument_help={"output_dir": "Output directory for filtered labels"},
+)
 @_add_analyse_options
 @click.argument(
     "label_path",
@@ -327,7 +335,13 @@ def filter(
 # ---------------------------------------------------------------------------
 
 
-@analyse_group.command(cls=FormattedCommand)
+@analyse_group.command(
+    cls=FormattedCommand,
+    argument_help={
+        "output_dir": "Output directory receiving part_1/ through "
+                      "part_N/ subdirectories",
+    },
+)
 @click.option(
     "--verbose",
     is_flag=True,
@@ -412,8 +426,8 @@ def partition(
 ):
     """Partition dataset into N roughly-equal subsets.
 
-    Supports three modes:
     \b
+    Supports three modes:
       --label-dir only     Partition label files
       --image-dir only     Partition image files
       both specified       Labels drive partition; images follow by stem

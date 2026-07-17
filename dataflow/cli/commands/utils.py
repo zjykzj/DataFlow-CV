@@ -124,18 +124,47 @@ def validate_convert_params(
 
 
 class FormattedCommand(click.Command):
-    """自定义Command类，提供格式化的Arguments显示"""
+    """自定义Command类，提供格式化的Arguments显示
+
+    ``argument_help`` 允许单个命令覆盖 ``_get_argument_help`` 中的
+    通用参数描述（例如 analyse 子命令的 OUTPUT_DIR 语义与 convert 不同）。
+    """
+
+    def __init__(self, *args, argument_help=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.argument_help = argument_help or {}
+
+    def format_help_text(self, ctx, formatter):
+        """写入命令描述：首段（摘要）与标准格式对齐，其余段落额外缩进一级
+
+        cleandoc 会剥离 docstring 的统一缩进，因此层级差在这里实现，
+        而不是靠 docstring 里的空格。
+        """
+        if self.help is None:
+            return
+        text = inspect.cleandoc(self.help).partition("\f")[0]
+        if not text:
+            return
+
+        summary, _, body = text.partition("\n\n")
+        if self.deprecated:
+            summary = f"(Deprecated) {summary}"
+
+        formatter.write_paragraph()
+        with formatter.indentation():
+            formatter.write_text(summary)
+            if body:
+                formatter.write_paragraph()
+                with formatter.indentation():
+                    formatter.write_text(body)
 
     def format_help(self, ctx, formatter):
         """重写帮助输出格式"""
         # 写入用法
         self.format_usage(ctx, formatter)
 
-        # 写入命令描述（使用 Click 标准格式，与 main CLI 对齐）
-        if self.help:
-            formatter.write_paragraph()
-            with formatter.indentation():
-                formatter.write_text(self.help)
+        # 写入命令描述（摘要 + 缩进的正文，见 format_help_text）
+        self.format_help_text(ctx, formatter)
 
         # 写入Arguments（自定义格式）
         self._format_arguments(ctx, formatter)
@@ -172,7 +201,9 @@ class FormattedCommand(click.Command):
             formatter.write_dl(rows)
 
     def _get_argument_help(self, param_name):
-        """Get help text by parameter name."""
+        """Get help text by parameter name (per-command overrides first)."""
+        if param_name in self.argument_help:
+            return self.argument_help[param_name]
         help_map = {
             "image_dir": "Image file directory (for obtaining image dimensions)",
             "label_dir": "YOLO label directory",
