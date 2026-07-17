@@ -24,14 +24,15 @@ Review `git log` since the last tag. Classify each commit's conventional commit 
 
 ## Step 1: Bump Version
 
-Update **all** version locations configured for this project:
+Update **all** version locations configured for this project. See CLAUDE.md for the exact file paths — typical patterns include:
 
-| # | File | Field |
-|---|------|-------|
-| 1 | `modelflow/__init__.py` | `__version__ = "X.Y.Z"` |
-| 2 | `CHANGELOG.md` | `## [X.Y.Z] - YYYY-MM-DD` section header |
+| Pattern | Example File | Field |
+|---------|-------------|-------|
+| Package init | `{{PACKAGE_NAME}}/__init__.py` | `__version__ = "X.Y.Z"` |
+| Project config | `pyproject.toml` | `version = "X.Y.Z"` |
+| Changelog | `CHANGELOG.md` | `## [X.Y.Z] - YYYY-MM-DD` |
 
-The exact file paths and verification commands vary per project. See CLAUDE.md for this project's version bump locations.
+The `{{PACKAGE_NAME}}` variable is defined in CLAUDE.md.
 
 ## Step 2: Commit
 
