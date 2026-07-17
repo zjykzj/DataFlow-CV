@@ -95,7 +95,7 @@ Spec maintenance methodology is defined as a project skill. Use `/spec` when cre
 **SDD hard rules:**
 
 1. **Invoke `/spec` before any edit to `specs/` files** — the methodology must be loaded before touching spec content.
-2. **Spec-first ordering**: any feat/fix that affects a contract documented in `specs/` must (a) update the affected spec to the target state **before** implementing, (b) verify the implementation against the spec **after** coding (conformance check), and (c) list affected spec files in the commit body — or state "No spec impact".
+2. **Spec-first ordering**: any feat/fix that affects a contract documented in `specs/` must (a) update the affected spec to the target state **before** implementing, (b) verify the implementation against the spec **after** coding (conformance check), and (c) list the affected spec files in the commit body.
 
 ## Git Operations
 

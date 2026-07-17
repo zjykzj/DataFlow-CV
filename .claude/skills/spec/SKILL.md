@@ -14,7 +14,7 @@ Any feature or behavior change that touches a contract documented in `specs/` MU
 
 ### Phase 1 — Spec First (before writing any code)
 
-1. **Impact analysis**: list which spec files/sections the change affects. If none, state "No spec impact" explicitly in the plan and later in the commit body.
+1. **Impact analysis**: determine which spec files/sections the change affects. If none, the SDD loop does not apply — proceed with normal development.
 2. **Update the spec first**: the spec now describes the target state, not current code. Bump the version per §Version Management.
 3. **Confirm the contract**: present the spec change to the user for approval before implementing.
 
@@ -30,7 +30,7 @@ Any feature or behavior change that touches a contract documented in `specs/` MU
 ### Commit Ordering
 
 - Spec and code changes belong to the same commit series; the spec commit **precedes or accompanies** the code commit.
-- The feat/fix commit body lists affected spec files — or states "No spec impact".
+- The feat/fix commit body lists the affected spec files.
 
 ## Specs Serve Two Readers
 
