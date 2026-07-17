@@ -993,7 +993,7 @@ Split output write fails   → AnalysisResult(success=False, errors=[...])
 | New class file has entries not in source | WARNING per missing class; class recorded in `FilterResult.missing_categories` |
 | All annotations filtered out | Not an error — result reports `total_annotations_after=0` with warning |
 | Partition num < 2 | `AnalysisResult(success=False, errors=["Number of partitions must be at least 2, got: ..."])` |
-| Partition num > total files | `AnalysisResult(success=False, errors=["Number of partitions (...) exceeds total files (...)"]`) |
+| Partition num > total files | Not an error — some partitions will be empty (0 files). Files are distributed across as many partitions as possible. |
 | No input specified (both dirs None) | `AnalysisResult(success=False, errors=["At least one of label_dir or image_dir must be provided"])` |
 | COCO format for partition | `AnalysisResult(success=False, errors=["partition does not support COCO format. COCO is a single JSON file — use 'analyse split' for train/val split."])` |
 | Label-image stem mismatch (both mode) | WARNING per unmatched file; partition continues |
