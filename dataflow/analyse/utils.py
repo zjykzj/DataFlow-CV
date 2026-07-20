@@ -1,7 +1,8 @@
 """
 Utility functions for the Analyse module.
 
-Format auto-detection, handler factory, and class file parsing.
+Format auto-detection, handler factory, class file parsing,
+and shared file operations (image collection, copy/move).
 """
 
 from __future__ import annotations
@@ -10,8 +11,9 @@ import atexit
 import json
 import logging
 import os
+import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Optional, Set
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
 
 from dataflow.label.utils import parse_yolo_class_id
 
@@ -388,6 +390,62 @@ def _detect_format_recursive(root: Path) -> str:
     raise ValueError(
         f"Cannot determine annotation format from: {root}."
     )
+
+
+# ---------------------------------------------------------------------------
+# Shared file utilities — used by both split.py and partition.py
+# ---------------------------------------------------------------------------
+
+# Common image extensions for images-only mode
+_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"}
+
+
+def _collect_image_files(image_dir: Path) -> List[Tuple[Path, str]]:
+    """Collect image files from a directory, sorted by name.
+
+    Args:
+        image_dir: Directory containing image files.
+
+    Returns:
+        List of ``(image_path, stem)`` tuples, sorted by stem.
+    """
+    files: List[Tuple[Path, str]] = []
+    for p in sorted(image_dir.iterdir()):
+        if p.is_file() and p.suffix.lower() in _IMAGE_EXTENSIONS:
+            files.append((p, p.stem))
+    return files
+
+
+def _copy_or_move_file(
+    source: Path,
+    target_dir: Path,
+    move: bool,
+    logger: logging.Logger,
+) -> bool:
+    """Copy or move a single file to a target directory.
+
+    Args:
+        source: Source file path.
+        target_dir: Target directory (will be created if needed).
+        move: If True, use ``shutil.move``; else ``shutil.copy2``.
+        logger: Logger for warnings.
+
+    Returns:
+        True on success, False on failure.
+    """
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = target_dir / source.name
+        if move:
+            shutil.move(str(source), str(target))
+        else:
+            shutil.copy2(str(source), str(target))
+        return True
+    except Exception as e:
+        logger.warning(
+            f"Failed to {'move' if move else 'copy'} {source}: {e}"
+        )
+        return False
 
 
 def load_class_names(class_file: Path) -> Dict[int, str]:

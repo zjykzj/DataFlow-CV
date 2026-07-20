@@ -1,6 +1,6 @@
 # CLI Module Specification
 
-> **Version:** 2.1 | **Last Updated:** 2026-07-01
+> **Version:** 2.2 | **Last Updated:** 2026-07-20
 > **Layer:** Modules
 > **Dependencies:** Convert module + Visualize module + Evaluate module (public APIs only) + Logging module (LogConfig only)
 
@@ -232,9 +232,7 @@ Evaluates instance segmentation results using mask IoU (`iouType='segm'`).
 
 ### 5.1 Shared Options
 
-Both ``stats`` and ``split`` subcommands use the `@add_common_options` decorator (§2.1) which provides `--verbose`, `--no-strict`, and `--log-dir`.  (The ``--no-strict`` flag is accepted but has no effect — analyse operations always run in non-strict mode.)
-
-Both subcommands accept `--class-file` and `--image-dir`. The `_add_analyse_options` decorator (defined in ``commands/analyse.py``) provides these options and is used by the ``stats`` subcommand, while the ``split`` subcommand defines them inline (both as ``@click.option`` with identical signatures).
+Both ``stats`` and ``filter`` subcommands use the `_add_analyse_options` decorator (defined in ``commands/analyse.py``) which provides `--verbose`, `--log-dir`, `--class-file`, and `--image-dir`.  The ``split`` subcommand defines its own options inline (like `partition` does), sharing only `--verbose` and `--log-dir`.
 
 The ``stats`` subcommand additionally accepts `--sort-by` (`id`|`count`) and `--descending/--ascending` to control per-class output ordering when `--class-file` is not provided.
 
@@ -262,28 +260,31 @@ Compute dataset statistics. Auto-detects the annotation format from `LABEL_PATH`
 #### `split`
 
 ```
-dataflow-cv analyse split [OPTIONS] LABEL_PATH OUTPUT_DIR
+dataflow-cv analyse split [OPTIONS] OUTPUT_DIR
 ```
 
-Split dataset into train/val subsets with deterministic shuffling.
+Split dataset into train/val subsets with deterministic shuffling. At least one of ``-l`` / ``-i`` must be provided. Only YOLO and LabelMe formats are supported (not COCO).
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `LABEL_PATH` | Path (exists) | Path to labels — directory (YOLO/LabelMe) or JSON file (COCO) |
 | `OUTPUT_DIR` | Path | Output root directory (``train/`` and ``val/`` created inside) |
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
+| `--label-dir`, `-l` | Path | None | Label directory (YOLO or LabelMe). At least one of `-l` / `-i` required. |
+| `--image-dir`, `-i` | Path | None | Image directory. At least one of `-l` / `-i` required. |
+| `--class-file`, `-c` | Path | None | Classes.txt (copied to output directories) |
 | `--ratio`, `-r` | Float | 0.8 | Train proportion |
 | `--seed`, `-s` | Int | 42 | Random seed |
-| `--class-file`, `-c` | Path | None | Classes.txt (required for YOLO, copied to output dirs) |
-| `--image-dir` | Path | None | Image directory for YOLO format (auto-detected if omitted) |
+| `--move` | Flag | False | Move source files instead of copying (requires confirmation) |
+| `--verbose` | Flag | False | Enable verbose log output |
+| `--log-dir` | Path | ./logs | Log file output directory |
 
 ### 5.3 Output
 
 **`stats`** — Summary block (total files, total annotations, category count) + per-class table (Class, ID, Count columns; ID is 0-indexed). Output ordering: class-file order if `--class-file` is provided, otherwise controlled by `--sort-by` + `--descending/--ascending` (default: class_id ascending).
 
-**`split`** — Split summary block (train/val counts, output directories). Creates ``OUTPUT_DIR/train/`` and ``OUTPUT_DIR/val/``. For COCO, produces ``train.json`` and ``val.json``. For YOLO/LabelMe, produces per-file output via ``write_one()``.
+**`split`** — Split summary block (mode, ratio, seed, move, train/val counts, output directories). Creates ``OUTPUT_DIR/train/`` and ``OUTPUT_DIR/val/``. Layout varies by mode: labels-only → label files in train/ and val/; images-only → image files in train/ and val/; both → ``train/labels/`` + ``train/images/`` (same for val). Operation is file-level for YOLO/LabelMe — no annotation parsing.
 
 ## 6. Exception Hierarchy
 

@@ -160,24 +160,36 @@ def format_split_result(
     val_dir: Path,
     ratio: float,
     seed: int,
+    mode: str = "labels",
+    move: bool = False,
 ) -> str:
     """Split summary block.
 
     Args:
-        train_count: Number of images in training set.
-        val_count: Number of images in validation set.
+        train_count: Number of files in training set.
+        val_count: Number of files in validation set.
         train_dir: Output directory for training data.
         val_dir: Output directory for validation data.
         ratio: Train ratio used.
         seed: Random seed used.
+        mode: ``"labels"`` | ``"images"`` | ``"both"``.
+        move: Whether move mode was used.
 
     Returns:
         Formatted split summary.
     """
+    mode_label = {
+        "labels": "Labels only",
+        "images": "Images only",
+        "both": "Labels + Images",
+    }[mode]
+
     total = train_count + val_count
     lines = [
+        format_kv("Mode", mode_label),
         format_kv("Ratio", str(ratio)),
         format_kv("Seed", str(seed)),
+        format_kv("Move", "Yes" if move else "No"),
         "",
         format_section("Split"),
         format_kv("Train", f"{train_count} images → {train_dir}"),

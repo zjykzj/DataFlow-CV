@@ -189,22 +189,25 @@ The Analyse module provides dataset introspection and preparation — statistics
 
 - **Format auto-detection**: The label path is inspected to determine YOLO / LabelMe / COCO automatically. See `utils.detect_format()` for the detection rules. All handlers are created with `strict_mode=False` — analysis is read-only and lenient with imperfect data.
 - **`StatsAnalyser`**: Reads all annotations via `handler.read()`, counts total files/annotations, tallies per-class counts. Output ordering: class-file order (if provided) > `--sort-by` (`id`/`count`) + `--descending/--ascending` (default: class_id ascending).
-- **`SplitAnalyser`**: Reads all annotations, shuffles with `random.Random(seed)`, splits by ratio, writes to `output_dir/train/` and `output_dir/val/`. COCO uses batch `handler.write()`, YOLO/LabelMe use streaming `handler.write_one()`. The class file is copied to both output dirs.
-- **`AnalysisResult`**: Shared result container (`success`, `data`, `errors`, `warnings`, `log_path`). `StatsResult` / `SplitResult` provide domain-specific fields.
+- **`SplitAnalyser`**: Splits dataset into train/val with deterministic shuffling. Supports three modes (auto-detected): labels-only, images-only, or both. Only YOLO and LabelMe formats (not COCO). Labels-only mode is pure file-level — no annotation parsing. Both mode matches images to labels by file stem. Supports `--move` for relocating files instead of copying.
+- **`AnalysisResult`**: Shared result container (`success`, `data`, `errors`, `warnings`, `log_path`). `StatsResult` / `SplitResult` / `PartitionResult` / `FilterResult` provide domain-specific fields.
 
 ```
-Analyse pipeline (StatsAnalyser / SplitAnalyser):
-Label Path → detect_format() → create_handler(strict_mode=False) → handler.read() → DatasetAnnotations → count/split → AnalysisResult
+Analyse pipeline (StatsAnalyser):
+Label Path → detect_format() → create_handler(strict_mode=False) → handler.read() → DatasetAnnotations → count → AnalysisResult
+
+Analyse pipeline (SplitAnalyser — file-level, YOLO/LabelMe):
+label_dir → detect_format() → list files by extension → shuffle → split by ratio → copy/move to train/val → AnalysisResult
 ```
 
 ### Data Flow Pipeline
 
-**Batch path (used by Analyse→Stats/Split, Convert→COCO, Evaluate):**
+**Batch path (used by Analyse→Stats, Convert→COCO, Evaluate):**
 ```
-Source Format → Handler.read() → DatasetAnnotations → analyse/split | Converter.convert_annotations() | Evaluator.evaluate() → Target Handler.write() → Target Format
+Source Format → Handler.read() → DatasetAnnotations → analyse stats | Converter.convert_annotations() | Evaluator.evaluate() → Target Handler.write() → Target Format
 ```
 
-**Streaming path (used by Analyse→Split (YOLO/LabelMe), Visualize, Convert→YOLO/LabelMe):**
+**Streaming path (used by Visualize, Convert→YOLO/LabelMe):**
 ```
 Source Format → Handler.iter_images() → ImageAnnotation → _convert_single_image() | Handler.write_one() → Target Format
 ```

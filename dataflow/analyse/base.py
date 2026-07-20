@@ -71,13 +71,15 @@ class SplitResult:
     """Container for train/test split results.
 
     Attributes:
-        train_count: Number of images in the training set.
-        val_count: Number of images in the validation set.
+        train_count: Number of files in the training set.
+        val_count: Number of files in the validation set.
         train_dir: Path to the train output directory.
         val_dir: Path to the validation output directory.
         ratio: Train ratio used (e.g., 0.8).
         seed: Random seed used for reproducibility.
-        format: Detected format (``"yolo"`` | ``"labelme"`` | ``"coco"``).
+        format: Detected format (``"yolo"`` | ``"labelme"``).
+        mode: ``"labels"`` | ``"images"`` | ``"both"``.
+        move: Whether move mode was used.
     """
 
     train_count: int
@@ -87,6 +89,8 @@ class SplitResult:
     ratio: float
     seed: int
     format: str
+    mode: str = ""
+    move: bool = False
 
 
 @dataclass

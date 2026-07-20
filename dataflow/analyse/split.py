@@ -2,14 +2,17 @@
 Train/test dataset splitting.
 
 ``SplitAnalyser`` splits a dataset into training and validation subsets
-with deterministic shuffling.  Supports all annotation formats (YOLO,
-LabelMe, COCO).  The format is auto-detected from the label path.
+with deterministic shuffling.  Supports three modes (labels-only,
+images-only, or both) for YOLO and LabelMe formats.
+
+For labels-only mode, the operation is a pure file-level split —
+annotation content is never parsed, making it fast and dependency-free.
 """
 
 import random
 import shutil
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional, Tuple
 
 from .base import AnalysisResult, BaseAnalyser, SplitResult
 from .log_templates import (
@@ -17,7 +20,12 @@ from .log_templates import (
     format_analyse_result,
     format_split_result,
 )
-from .utils import create_handler, detect_format, load_class_names
+from .utils import (
+    _collect_image_files,
+    _copy_or_move_file,
+    _IMAGE_EXTENSIONS,
+    detect_format,
+)
 
 
 class SplitAnalyser(BaseAnalyser):
@@ -25,16 +33,25 @@ class SplitAnalyser(BaseAnalyser):
 
     Constructor: ``SplitAnalyser(log_config=None)``
 
+    Supports three modes (auto-detected from provided inputs):
+
+    - **Labels-only**: ``-l/--label-dir`` only — split label files.
+    - **Images-only**: ``-i/--image-dir`` only — split image files.
+    - **Both**: labels drive split; images matched by stem.
+
+    Only YOLO and LabelMe formats are supported (not COCO).
+
     Example::
 
         from dataflow.analyse import SplitAnalyser
 
         analyser = SplitAnalyser()
         result = analyser.analyse(
-            label_path=Path("yolo_labels/"),
             output_dir=Path("split_output/"),
             ratio=0.8,
             seed=42,
+            label_dir=Path("yolo_labels/"),
+            image_dir=Path("images/"),
             class_file=Path("classes.txt"),
         )
         if result.success:
@@ -44,217 +61,243 @@ class SplitAnalyser(BaseAnalyser):
 
     def analyse(
         self,
-        label_path: Path,
         output_dir: Path,
         ratio: float = 0.8,
         seed: int = 42,
-        class_file: Optional[Path] = None,
+        label_dir: Optional[Path] = None,
         image_dir: Optional[Path] = None,
+        class_file: Optional[Path] = None,
+        move: bool = False,
     ) -> AnalysisResult:
-        """Split the dataset at ``label_path`` into train and val.
+        """Split the dataset into train and val subsets.
+
+        At least one of ``label_dir`` or ``image_dir`` must be provided.
 
         Args:
-            label_path: Path to labels — directory (YOLO/LabelMe) or
-                JSON file (COCO).
-            output_dir: Output root directory.  For COCO, ``train.json``
-                and ``val.json`` are written here.  For YOLO/LabelMe,
-                ``train/`` and ``val/`` subdirectories are created.
+            output_dir: Output root directory.  Train and val outputs
+                are placed here (see mode-specific layouts below).
             ratio: Proportion of data for training (default 0.8).
             seed: Random seed for reproducible shuffling.
-            class_file: Optional classes.txt.  Required for YOLO format
-                (copied to both output directories).
-            image_dir: Optional image directory for YOLO format
-                (auto-detected if omitted).
+            label_dir: Optional label directory (YOLO or LabelMe).
+            image_dir: Optional image directory.
+            class_file: Optional classes.txt (copied to output dirs).
+            move: When True, move source files instead of copying.
 
         Returns:
             ``AnalysisResult`` with ``SplitResult`` in ``.data``.
+
+        Output layout by mode:
+
+        - **labels**: ``output_dir/train/*.txt``, ``output_dir/val/*.txt``
+          (or ``*.json`` for LabelMe)
+        - **images**: ``output_dir/train/*.jpg``, ``output_dir/val/*.jpg``
+        - **both**: ``output_dir/train/labels/`` + ``output_dir/train/images/``,
+          same for ``val/``
         """
         result = self._create_result()
 
-        # Validate ratio
+        # ------------------------------------------------------------------
+        # 1. Validate inputs
+        # ------------------------------------------------------------------
+        if label_dir is None and image_dir is None:
+            result.add_error(
+                "At least one of label_dir or image_dir must be provided"
+            )
+            return result
+
         if not 0.0 < ratio < 1.0:
             result.add_error(
                 f"Ratio must be between 0 and 1 (exclusive), got: {ratio}"
             )
             return result
 
-        # 1. Detect format
-        try:
-            fmt = detect_format(label_path)
-        except ValueError as e:
-            result.add_error(str(e))
-            return result
+        # ------------------------------------------------------------------
+        # 2. Determine mode and collect items
+        # ------------------------------------------------------------------
+        fmt = ""
+        items: list  # List of (Path, stem) tuples for all modes
+        image_stems: Dict[str, Path] = {}  # stem → source path (both mode)
 
-        # 2. Create handler for reading
-        try:
-            handler = create_handler(
-                label_path,
-                fmt,
-                class_file=class_file,
-                image_dir=image_dir,
-                logger=self.logger,
-            )
-        except (ValueError, FileNotFoundError) as e:
-            result.add_error(str(e))
-            return result
+        if label_dir is not None:
+            # Detect format (YOLO or LabelMe only)
+            try:
+                fmt = detect_format(label_dir)
+            except ValueError as e:
+                result.add_error(str(e))
+                return result
 
-        # 3. Read all annotations
-        try:
-            read_result = handler.read()
-        except Exception as e:
-            result.add_error(f"Failed to read annotations: {e}")
-            return result
+            if fmt == "coco":
+                result.add_error(
+                    "split does not support COCO format. "
+                    "COCO is a single JSON file — "
+                    "use 'analyse partition' for N-way split or "
+                    "convert to YOLO/LabelMe first."
+                )
+                return result
 
-        if not read_result.success:
-            for err in read_result.errors:
-                result.add_error(err)
-            return result
+            if image_dir is not None:
+                mode = "both"
+            else:
+                mode = "labels"
 
-        dataset = read_result.data
-        if dataset is None:
-            result.add_error("Handler returned no data")
-            return result
+            # Collect label files (file-level — no handler needed)
+            ext = ".txt" if fmt == "yolo" else ".json"
+            items = _collect_label_files(label_dir, ext)
+        else:
+            # Images-only mode
+            mode = "images"
+            fmt = ""
+            items = _collect_image_files(image_dir)
 
-        total = dataset.num_images
+        total = len(items)
+
         if total == 0:
             result.add_warning("Dataset is empty — nothing to split")
+            train_dir = output_dir / "train"
+            val_dir = output_dir / "val"
             split_result = SplitResult(
                 train_count=0,
                 val_count=0,
-                train_dir=output_dir / "train",
-                val_dir=output_dir / "val",
+                train_dir=train_dir,
+                val_dir=val_dir,
                 ratio=ratio,
                 seed=seed,
                 format=fmt,
+                mode=mode,
+                move=move,
             )
             result.data = split_result
             return result
 
-        # 4. Shuffle
-        images = list(dataset.images)
+        # ------------------------------------------------------------------
+        # 3. Pre-index image files for both mode
+        # ------------------------------------------------------------------
+        if mode == "both":
+            for p in sorted(image_dir.iterdir()):
+                if p.is_file() and p.suffix.lower() in _IMAGE_EXTENSIONS:
+                    stem = p.stem
+                    if stem not in image_stems:
+                        image_stems[stem] = p
+
+        # ------------------------------------------------------------------
+        # 4. Shuffle and split
+        # ------------------------------------------------------------------
         rng = random.Random(seed)
-        rng.shuffle(images)
+        rng.shuffle(items)
 
-        # 5. Split
-        split_idx = int(len(images) * ratio)
-        # Ensure at least 1 image in each split when dataset has ≥2 images
-        if split_idx == 0 and len(images) >= 2:
+        split_idx = int(len(items) * ratio)
+        # Ensure at least 1 item in each split when dataset has ≥2 items
+        if split_idx == 0 and len(items) >= 2:
             split_idx = 1
-        elif split_idx == len(images) and len(images) >= 2:
-            split_idx = len(images) - 1
+        elif split_idx == len(items) and len(items) >= 2:
+            split_idx = len(items) - 1
 
-        train_images = images[:split_idx]
-        val_images = images[split_idx:]
+        train_items = items[:split_idx]
+        val_items = items[split_idx:]
 
-        # 6. Create output DatasetAnnotations
-        from dataflow.label.models import AnnotationFormat, DatasetAnnotations
+        # ------------------------------------------------------------------
+        # 5. Create output directories
+        # ------------------------------------------------------------------
+        try:
+            output_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            result.add_error(f"Cannot create output directory: {e}")
+            return result
 
-        format_enum = {
-            "yolo": AnnotationFormat.YOLO,
-            "labelme": AnnotationFormat.LABELME,
-            "coco": AnnotationFormat.COCO,
-        }[fmt]
-
-        train_ds = DatasetAnnotations(
-            images=list(train_images),
-            categories=dict(dataset.categories),
-            format=format_enum,
-            dataset_info=dict(dataset.dataset_info),
-        )
-        val_ds = DatasetAnnotations(
-            images=list(val_images),
-            categories=dict(dataset.categories),
-            format=format_enum,
-            dataset_info=dict(dataset.dataset_info),
-        )
-
-        # 7. Write outputs
-        if fmt == "coco":
-            # Batch write — one JSON per split at output_dir level
-            try:
-                output_dir.mkdir(parents=True, exist_ok=True)
-            except OSError as e:
-                result.add_error(f"Cannot create output directory: {e}")
-                return result
-            train_path = output_dir / "train.json"
-            val_path = output_dir / "val.json"
-            try:
-                write_result = handler.write(train_ds, str(train_path))
-                if not write_result.success:
-                    for err in write_result.errors:
-                        result.add_error(f"Write train: {err}")
-                    return result
-                write_result = handler.write(val_ds, str(val_path))
-                if not write_result.success:
-                    for err in write_result.errors:
-                        result.add_error(f"Write val: {err}")
-                    return result
-            except Exception as e:
-                result.add_error(f"Failed to write split output: {e}")
-                return result
-            train_dir = train_path
-            val_dir = val_path
+        if mode == "both":
+            train_label_dir = output_dir / "train" / "labels"
+            train_image_dir = output_dir / "train" / "images"
+            val_label_dir = output_dir / "val" / "labels"
+            val_image_dir = output_dir / "val" / "images"
+            train_label_dir.mkdir(parents=True, exist_ok=True)
+            train_image_dir.mkdir(parents=True, exist_ok=True)
+            val_label_dir.mkdir(parents=True, exist_ok=True)
+            val_image_dir.mkdir(parents=True, exist_ok=True)
         else:
-            # Streaming write — per-file for YOLO and LabelMe
             train_dir = output_dir / "train"
             val_dir = output_dir / "val"
-            try:
-                train_dir.mkdir(parents=True, exist_ok=True)
-                val_dir.mkdir(parents=True, exist_ok=True)
-            except OSError as e:
-                result.add_error(f"Cannot create output directory: {e}")
-                return result
+            train_dir.mkdir(parents=True, exist_ok=True)
+            val_dir.mkdir(parents=True, exist_ok=True)
 
-            try:
-                for img in train_ds.images:
-                    wr = handler.write_one(img, train_dir)
-                    if not wr.success:
-                        for err in wr.errors:
-                            result.add_error(f"Write train/{img.image_id}: {err}")
-                        return result
-                for img in val_ds.images:
-                    wr = handler.write_one(img, val_dir)
-                    if not wr.success:
-                        for err in wr.errors:
-                            result.add_error(f"Write val/{img.image_id}: {err}")
-                        return result
-            except Exception as e:
-                result.add_error(f"Failed to write split output: {e}")
-                return result
+        # ------------------------------------------------------------------
+        # 6. Copy/move files
+        # ------------------------------------------------------------------
+        _split_files(
+            train_items,
+            val_items,
+            output_dir,
+            mode,
+            image_stems,
+            move,
+            self.logger,
+        )
 
-        # 8. Copy class_file to both output dirs if provided
-        if class_file is not None and class_file.exists():
-            try:
-                shutil.copy2(str(class_file), str(train_dir / class_file.name))
-                shutil.copy2(str(class_file), str(val_dir / class_file.name))
-            except OSError as e:
-                result.add_warning(f"Could not copy class file: {e}")
+        # Report unmatched images in both mode (copy only — move self-resolves)
+        if mode == "both" and not move:
+            label_stems = {stem for _, stem in train_items + val_items}
+            for stem, img_path in image_stems.items():
+                if stem not in label_stems:
+                    self._log_warning(
+                        f"Image '{img_path.name}' has no matching "
+                        f"label — skipped"
+                    )
 
-        # 9. Build result
+        # ------------------------------------------------------------------
+        # 7. Copy class_file to both output dirs if provided
+        # ------------------------------------------------------------------
+        _copy_class_file(class_file, output_dir, mode, move, self.logger)
+
+        # ------------------------------------------------------------------
+        # 8. Build result
+        # ------------------------------------------------------------------
+        if mode == "both":
+            train_path = output_dir / "train"
+            val_path = output_dir / "val"
+        else:
+            train_path = output_dir / "train"
+            val_path = output_dir / "val"
+
         split_result = SplitResult(
-            train_count=len(train_images),
-            val_count=len(val_images),
-            train_dir=train_dir,
-            val_dir=val_dir,
+            train_count=len(train_items),
+            val_count=len(val_items),
+            train_dir=train_path,
+            val_dir=val_path,
             ratio=ratio,
             seed=seed,
             format=fmt,
+            mode=mode,
+            move=move,
         )
         result.data = split_result
         result.log_path = self._log_manager.log_path
 
-        # 10. Log output
+        # ------------------------------------------------------------------
+        # 9. Log output
+        # ------------------------------------------------------------------
+        mode_label = {
+            "images": "Images Only",
+            "labels": "Labels Only",
+            "both": "Labels + Images",
+        }[mode]
+        source_path = label_dir if label_dir else image_dir
         self._log_info(
-            format_analyse_header("Train/Test Split", label_path, f"{fmt} (auto-detected)")
+            format_analyse_header(
+                f"Train/Test Split ({mode_label})",
+                source_path,
+                f"{fmt} (auto-detected)" if fmt else "images only",
+                class_file=class_file,
+            )
         )
         self._log_info(
             format_split_result(
-                len(train_images),
-                len(val_images),
-                train_dir,
-                val_dir,
-                ratio,
-                seed,
+                train_count=len(train_items),
+                val_count=len(val_items),
+                train_dir=train_path,
+                val_dir=val_path,
+                ratio=ratio,
+                seed=seed,
+                mode=mode,
+                move=move,
             )
         )
         if result.log_path:
@@ -263,3 +306,133 @@ class SplitAnalyser(BaseAnalyser):
             )
 
         return result
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _collect_label_files(
+    label_dir: Path,
+    ext: str,
+) -> List[Tuple[Path, str]]:
+    """Collect label files from a directory, sorted by stem.
+
+    Args:
+        label_dir: Directory containing label files.
+        ext: File extension (``".txt"`` for YOLO, ``".json"`` for LabelMe).
+
+    Returns:
+        List of ``(file_path, stem)`` tuples, sorted by stem.
+    """
+    files: List[Tuple[Path, str]] = []
+    for p in sorted(label_dir.iterdir()):
+        if p.is_file() and p.suffix == ext and p.name != "classes.txt":
+            files.append((p, p.stem))
+    return files
+
+
+def _split_files(
+    train_items: List[Tuple[Path, str]],
+    val_items: List[Tuple[Path, str]],
+    output_dir: Path,
+    mode: str,
+    image_stems: Dict[str, Path],
+    move: bool,
+    logger,
+) -> None:
+    """Copy or move split items to train/val output directories.
+
+    Args:
+        train_items: ``(source_path, stem)`` tuples for train set.
+        val_items: ``(source_path, stem)`` tuples for val set.
+        output_dir: Root output directory.
+        mode: ``"labels"`` | ``"images"`` | ``"both"``.
+        image_stems: ``{stem: source_path}`` mapping (both mode only).
+        move: If True, move; else copy.
+        logger: Logger for warnings.
+    """
+    if mode == "both":
+        train_label_dir = output_dir / "train" / "labels"
+        train_image_dir = output_dir / "train" / "images"
+        val_label_dir = output_dir / "val" / "labels"
+        val_image_dir = output_dir / "val" / "images"
+
+        for label_path, stem in train_items:
+            _copy_or_move_file(label_path, train_label_dir, move, logger)
+            if stem in image_stems:
+                _copy_or_move_file(
+                    image_stems[stem], train_image_dir, move, logger
+                )
+            else:
+                logger.warning(
+                    f"No matching image found for label '{stem}' in "
+                    f"image directory"
+                )
+
+        for label_path, stem in val_items:
+            _copy_or_move_file(label_path, val_label_dir, move, logger)
+            if stem in image_stems:
+                _copy_or_move_file(
+                    image_stems[stem], val_image_dir, move, logger
+                )
+            else:
+                logger.warning(
+                    f"No matching image found for label '{stem}' in "
+                    f"image directory"
+                )
+    else:
+        train_dir = output_dir / "train"
+        val_dir = output_dir / "val"
+
+        for src_path, _stem in train_items:
+            _copy_or_move_file(src_path, train_dir, move, logger)
+
+        for src_path, _stem in val_items:
+            _copy_or_move_file(src_path, val_dir, move, logger)
+
+
+def _copy_class_file(
+    class_file: Optional[Path],
+    output_dir: Path,
+    mode: str,
+    move: bool,
+    logger,
+) -> None:
+    """Copy classes.txt to train/val output directories.
+
+    Args:
+        class_file: Path to classes.txt (None → skip).
+        output_dir: Root output directory.
+        mode: ``"labels"`` | ``"images"`` | ``"both"``.
+        move: If True, move; else copy.
+        logger: Logger for warnings.
+    """
+    if class_file is None or not class_file.exists():
+        return
+
+    targets: List[Path] = []
+    if mode == "both":
+        targets = [
+            output_dir / "train" / class_file.name,
+            output_dir / "val" / class_file.name,
+        ]
+    else:
+        targets = [
+            output_dir / "train" / class_file.name,
+            output_dir / "val" / class_file.name,
+        ]
+
+    for target in targets:
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if not target.exists():
+                if move:
+                    shutil.move(str(class_file), str(target))
+                    # Only move once — subsequent iterations just skip
+                    break
+                else:
+                    shutil.copy2(str(class_file), str(target))
+        except OSError as e:
+            logger.warning(f"Could not copy class file to {target}: {e}")

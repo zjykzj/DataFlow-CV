@@ -1,6 +1,6 @@
 # Analyse Module Specification
 
-> **Version:** v1.3 | **Last Updated:** 2026-07-17
+> **Version:** v2.0 | **Last Updated:** 2026-07-20
 > **Status:** Stable
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
@@ -15,7 +15,7 @@ Unlike Convert and Visualize which use format-specific subclasses, Analyse uses 
 
 `StatsAnalyser` supports **multiple label paths** — statistics from each path are computed independently and merged into a single aggregated result. All paths must share the same format and, when a class file is provided, the same category list. A `--recursive` flag enables recursive traversal of subdirectories for YOLO and LabelMe formats.
 
-`PartitionAnalyser` supports **N-way dataset partitioning** — splitting a dataset into N equal(ish) parts. Three modes: labels-only, images-only, or labels+images together (labels drive the partition, images follow by stem matching). With `--shuffle` for random distribution and `--move` for storage-constrained scenarios where copying isn't feasible. Supports YOLO and LabelMe formats only (not COCO — single-file JSONs use `SplitAnalyser`).
+`PartitionAnalyser` supports **N-way dataset partitioning** — splitting a dataset into N equal(ish) parts. Three modes: labels-only, images-only, or labels+images together (labels drive the partition, images follow by stem matching). With `--shuffle` for random distribution and `--move` for storage-constrained scenarios where copying isn't feasible. Supports YOLO and LabelMe formats only (not COCO).
 
 ### 1.2 Module Contract
 
@@ -85,13 +85,15 @@ Container for train/test split results:
 ```python
 @dataclass
 class SplitResult:
-    train_count: int                    # Number of images in train set
-    val_count: int                      # Number of images in validation set
+    train_count: int                    # Number of files in train set
+    val_count: int                      # Number of files in validation set
     train_dir: Path                     # Path to train output directory
     val_dir: Path                       # Path to validation output directory
     ratio: float                        # Train ratio (e.g., 0.8)
     seed: int                           # Random seed used
-    format: str                         # "yolo" | "labelme" | "coco"
+    format: str                         # "yolo" | "labelme" | "" (empty for images-only)
+    mode: str                           # "labels" | "images" | "both"
+    move: bool                          # Whether move mode was used
 ```
 
 ### 2.4 `FilterResult`
@@ -248,7 +250,7 @@ After all paths:
 
 ### 3.3 `SplitAnalyser` (`split.py`)
 
-Splits a dataset into train and validation subsets.
+Splits a dataset into train and validation subsets. Supports three modes (auto-detected from provided inputs). Only YOLO and LabelMe formats are supported (not COCO).
 
 ```python
 class SplitAnalyser(BaseAnalyser):
@@ -259,59 +261,82 @@ class SplitAnalyser(BaseAnalyser):
 
     def analyse(
         self,
-        label_path: Path,
         output_dir: Path,
         ratio: float = 0.8,
         seed: int = 42,
-        class_file: Optional[Path] = None,
+        label_dir: Optional[Path] = None,
         image_dir: Optional[Path] = None,
+        class_file: Optional[Path] = None,
+        move: bool = False,
     ) -> AnalysisResult:
-        """Split the dataset at ``label_path`` into train and val.
+        """Split the dataset into train and val subsets.
+
+        At least one of label_dir or image_dir must be provided.
 
         Args:
-            label_path: Path to labels — directory (YOLO/LabelMe) or JSON file (COCO)
-            output_dir: Output root directory (train/ and val/ created inside)
-            ratio: Proportion of data for training (default 0.8)
-            seed: Random seed for reproducibility
-            class_file: Optional classes.txt (required for YOLO)
-            image_dir: Optional image directory (needed for YOLO format to locate image dimensions)
+            output_dir: Output root directory (train/ and val/ created inside).
+            ratio: Proportion of data for training (default 0.8).
+            seed: Random seed for reproducible shuffling.
+            label_dir: Optional label directory (YOLO or LabelMe).
+            image_dir: Optional image directory.
+            class_file: Optional classes.txt (copied to output dirs).
+            move: When True, move source files instead of copying.
 
         Returns:
             AnalysisResult with SplitResult in ``.data``
         """
 ```
 
-**Pipeline**:
+**Pipeline** (file-level — no handler for YOLO/LabelMe labels mode):
 
 ```
-1. detect_format(label_path)     → "yolo" | "labelme" | "coco"
-2. create_handler(format, label_path, class_file, image_dir, logger)
-3. handler.read()                → DatasetAnnotations
-4. Shuffle images:
-   a. random.Random(seed).shuffle(dataset.images)
-5. Split by ratio:
-   a. split_idx = int(len(images) * ratio)
-   b. If split_idx == 0 and len(images) >= 2 → silently adjust to 1
-   c. If split_idx == len(images) and len(images) >= 2 → silently adjust to len(images)-1
-   d. train_images = images[:split_idx]
-   e. val_images = images[split_idx:]
-6. Create two DatasetAnnotations (train, val) from image subsets
-7. Write outputs:
-   a. COCO: handler.write() for train.json and val.json in output_dir/
-   b. YOLO/LabelMe: iterate images, handler.write_one() per image
-      into output_dir/train/ and output_dir/val/
-8. Copy class_file to both train/ and val/ (if provided)
-9. Return AnalysisResult(success=True, data=SplitResult(...))
+1. Validate: at least one of label_dir/image_dir required
+   (both → error)
+2. Validate ratio in (0, 1)
+3. Determine mode:
+   a. label_dir + image_dir → "both"
+   b. label_dir only → "labels"
+   c. image_dir only → "images"
+4. Detect format from label_dir (labels/both mode):
+   a. YOLO → .txt extension
+   b. LabelMe → .json extension
+   c. COCO → error (not supported)
+5. Collect items:
+   a. labels mode: list *.txt (YOLO) or *.json (LabelMe), sorted by stem
+   b. images mode: list image files via _collect_image_files()
+   c. both mode: list label files + pre-index image files by stem
+6. Shuffle items with random.Random(seed)
+7. Split by ratio:
+   a. split_idx = int(len(items) * ratio)
+   b. If split_idx == 0 and len(items) >= 2 → silently adjust to 1
+   c. If split_idx == len(items) and len(items) >= 2 → silently adjust to len(items)-1
+   d. train_items = items[:split_idx]
+   e. val_items = items[split_idx:]
+8. Copy/move files to output_dir/train/ and output_dir/val/:
+   a. labels mode: copy label files directly (no annotation parsing)
+   b. images mode: copy image files directly
+   c. both mode: labels/ and images/ subdirectories under train/ and val/
+      Labels drive split; images matched by stem
+9. Copy class_file to both output dirs (if provided)
+10. Warn on unmatched images (both mode, copy only — move self-resolves)
+11. Return AnalysisResult(success=True, data=SplitResult(...))
 ```
 
 **Split behavior contract**:
 
 | Property | Behavior |
 |----------|----------|
+| Modes | Three auto-detected: labels-only, images-only, both |
+| Formats | YOLO and LabelMe only (COCO → error) |
+| Labels-only | Pure file-level — no annotation parsing. List files by extension, copy/move to train/val |
+| Images-only | Pure file-level — scan image dir by extension, copy/move to train/val |
+| Both | Labels drive split; images matched by file stem. Output: `train/labels/` + `train/images/` (same for val) |
+| Shuffle | Always on — `random.Random(seed).shuffle(items)` before splitting (ML train/val split must be randomized) |
 | Random seed | `random.Random(seed)` for deterministic shuffling |
-| Ratio | `train_count = int(total_images * ratio)`, remainder to val |
-| Minimum size | If ratio results in empty train or val set and dataset has >= 2 images, silently adjust boundaries (min 1 per side). Single-image datasets produce empty val set with a warning. |
-| Image copying | Images are NOT copied in v1 — only labels are split |
+| Ratio | `train_count = int(total * ratio)`, remainder to val |
+| Minimum size | If ratio results in empty train or val set and dataset has >= 2 items, silently adjust boundaries (min 1 per side) |
+| Image copying | Images ARE copied when --image-dir is provided (both mode) or images-only mode |
+| Move mode | `--move` relocates files instead of copying (requires confirmation via CLI) |
 | Class file | Copied to both output directories if provided |
 
 ### 3.4 `FilterAnalyser` (`filter.py`)
@@ -568,18 +593,19 @@ Compute dataset statistics for one or more label paths. Auto-detects the annotat
 | `descending` | bool | No | False | When True, reverse sort direction |
 | `recursive` | bool | No | False | When True, recursively find label files in subdirectories (YOLO/LabelMe only). Ignored for COCO. |
 
-### 4.2 `SplitAnalyser.analyse(label_path, output_dir, ratio, seed, class_file, image_dir) → AnalysisResult`
+### 4.2 `SplitAnalyser.analyse(output_dir, ratio, seed, label_dir, image_dir, class_file, move) → AnalysisResult`
 
-Split dataset into train and validation subsets.
+Split dataset into train and validation subsets. At least one of ``label_dir`` or ``image_dir`` must be provided.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `label_path` | Path | Yes | — | Path to labels (directory or file) |
-| `output_dir` | Path | Yes | — | Output root directory |
-| `ratio` | float | No | 0.8 | Train proportion |
-| `seed` | int | No | 42 | Random seed |
-| `class_file` | Path | No | None | Classes.txt (required for YOLO) |
-| `image_dir` | Path | No | None | Image directory (needed for YOLO format to locate image dimensions) |
+| `output_dir` | Path | Yes | — | Output root directory. Receives train/ and val/ subdirectories. |
+| `ratio` | float | No | 0.8 | Train proportion (0 < ratio < 1) |
+| `seed` | int | No | 42 | Random seed for reproducible shuffling |
+| `label_dir` | Path | No | None | Label directory (YOLO or LabelMe). At least one of `label_dir` / `image_dir` required. |
+| `image_dir` | Path | No | None | Image directory. At least one of `label_dir` / `image_dir` required. |
+| `class_file` | Path | No | None | Classes.txt (copied to output directories) |
+| `move` | bool | No | False | Move source files instead of copying |
 
 ### 4.3 `FilterAnalyser.analyse(label_path, original_class_file, new_class_file, output_dir, image_dir) → AnalysisResult`
 
@@ -869,7 +895,7 @@ Log templates are in `dataflow/analyse/log_templates.py`:
 - `format_analyse_header(operation, label_paths, format_name, class_file, recursive)` — header block (shows "Source:" for single path, "Sources:" for multi-path)
 - `format_stats_result(total_files, total_annotations, per_class, categories)` — stats table with per-class breakdown
 - `format_stats_path_breakdown(path_stats)` — per-path file/annotation counts (multi-path only)
-- `format_split_result(train_count, val_count, train_dir, val_dir, ratio, seed)` — split summary
+- `format_split_result(train_count, val_count, train_dir, val_dir, ratio, seed, mode, move)` — split summary
 - `format_filter_result(total_files, total_files_with_annotations, annotations_before, annotations_after, kept_categories, removed_categories, missing_categories, output_dir)` — filter comparison + summary
 - `format_partition_result(num_partitions, partition_sizes, partition_dirs, total_files, seed, shuffle, mode, move)` — partition summary with per-partition breakdown
 - `format_analyse_result(status, log_path)` — final result block
@@ -1143,8 +1169,8 @@ Python API callers can pass ``move=True`` directly without interactive confirmat
 |-----|----------|---------|
 | `StatsAnalyser(log_config)` | `stats.py` | Dataset statistics computation (single or multi-path, optional recursive) |
 | `analyser.analyse(label_paths, class_file, image_dir, sort_by, descending, recursive) → AnalysisResult` | `stats.py` | Run statistics |
-| `SplitAnalyser(log_config)` | `split.py` | Train/val dataset splitting |
-| `analyser.analyse(label_path, output_dir, ratio, seed, class_file, image_dir) → AnalysisResult` | `split.py` | Run split |
+| `SplitAnalyser(log_config)` | `split.py` | Train/val dataset splitting (labels, images, or both). YOLO/LabelMe only. |
+| `analyser.analyse(output_dir, ratio, seed, label_dir, image_dir, class_file, move) → AnalysisResult` | `split.py` | Run split |
 | `FilterAnalyser(log_config)` | `filter.py` | Category-based annotation filtering |
 | `analyser.analyse(label_path, original_class_file, new_class_file, output_dir, image_dir) → AnalysisResult` | `filter.py` | Run filter |
 | `PartitionAnalyser(log_config)` | `partition.py` | N-way dataset partitioning (labels, images, or both). YOLO/LabelMe only. |

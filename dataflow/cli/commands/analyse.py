@@ -174,16 +174,40 @@ def stats(
         "output_dir": "Output directory for train/val split results",
     },
 )
-@_add_analyse_options
-@click.argument(
-    "label_path",
-    type=click.Path(exists=True, path_type=Path),
-    metavar="LABEL_PATH",
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Enable verbose log output",
 )
-@click.argument(
-    "output_dir",
+@click.option(
+    "--log-dir",
     type=click.Path(path_type=Path),
-    metavar="OUTPUT_DIR",
+    default="./logs",
+    show_default=True,
+    help="Log file output directory",
+)
+@click.option(
+    "-l",
+    "--label-dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=None,
+    help="Label directory (YOLO or LabelMe). "
+         "At least one of --label-dir / --image-dir required.",
+)
+@click.option(
+    "-i",
+    "--image-dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=None,
+    help="Image directory. "
+         "At least one of --label-dir / --image-dir required.",
+)
+@click.option(
+    "-c",
+    "--class-file",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="Classes.txt (copied to output directories)",
 )
 @click.option(
     "-r",
@@ -201,25 +225,60 @@ def stats(
     show_default=True,
     help="Random seed for reproducible shuffling",
 )
+@click.option(
+    "--move",
+    is_flag=True,
+    default=False,
+    help="Move source files instead of copying "
+         "(destructive — requires confirmation)",
+)
+@click.argument(
+    "output_dir",
+    type=click.Path(path_type=Path),
+    metavar="OUTPUT_DIR",
+)
+@click.pass_context
 def split(
     ctx: click.Context,
-    label_path: Path,
     output_dir: Path,
     ratio: float,
     seed: int,
-    class_file: Path,
+    label_dir: Path,
     image_dir: Path,
+    class_file: Path,
+    move: bool,
+    verbose: bool,
+    log_dir: Path,
 ):
-    """Split dataset at LABEL_PATH into train/val subsets.
+    """Split dataset into train/val subsets.
 
-    LABEL_PATH is a directory (YOLO .txt or LabelMe .json) or a single COCO JSON file. The format is auto-detected.
+    \b
+    Supports three modes:
+      --label-dir only     Split label files
+      --image-dir only     Split image files
+      both specified       Labels drive split; images follow by stem
 
-    COCO creates train.json and val.json in OUTPUT_DIR. YOLO/LabelMe create train/ and val/ subdirectories in OUTPUT_DIR.
+    OUTPUT_DIR receives train/ and val/ subdirectories.
+    Only YOLO and LabelMe formats are supported (not COCO).
     """
     from dataflow.analyse import SplitAnalyser
 
-    verbose = ctx.obj["verbose"]
-    log_dir = ctx.obj["log_dir"]
+    # Validate at least one input source
+    if label_dir is None and image_dir is None:
+        raise click.UsageError(
+            "At least one of --label-dir / --image-dir is required."
+        )
+
+    # Move confirmation
+    if move:
+        click.echo(
+            f"\nWARNING: --move will permanently relocate source files.\n"
+            f"  Source label dir:  {label_dir if label_dir else 'N/A'}\n"
+            f"  Source image dir:  {image_dir if image_dir else 'N/A'}\n"
+            f"  Target:            {output_dir}/\n"
+        )
+        if not click.confirm("Continue?", default=False):
+            raise click.Abort()
 
     log_config = LogConfig(
         name="analyse.split",
@@ -228,12 +287,13 @@ def split(
     )
     analyser = SplitAnalyser(log_config=log_config)
     result = analyser.analyse(
-        label_path,
-        output_dir,
+        output_dir=output_dir,
         ratio=ratio,
         seed=seed,
-        class_file=class_file,
+        label_dir=label_dir,
         image_dir=image_dir,
+        class_file=class_file,
+        move=move,
     )
 
     if result.success and result.data is not None:

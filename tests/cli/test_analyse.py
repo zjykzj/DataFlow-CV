@@ -29,6 +29,62 @@ def test_split_help():
     assert "split" in result.output.lower()
 
 
+def test_split_no_input_error():
+    """``analyse split`` without --label-dir or --image-dir errors."""
+    runner = CliRunner()
+    result = runner.invoke(cli, [
+        "analyse", "split", "/tmp/out",
+    ])
+    assert result.exit_code != 0
+    assert "at least one" in result.output.lower()
+
+
+def test_split_move_declined(tmp_path):
+    """``analyse split --move`` declined by user aborts."""
+    from pathlib import Path
+
+    test_data = (
+        Path(__file__).parent.parent.parent / "assets" / "test_data"
+    )
+    yolo_labels = test_data / "det" / "yolo" / "labels"
+    classes = test_data / "det" / "yolo" / "classes.txt"
+    output_dir = tmp_path / "out"
+
+    runner = CliRunner()
+    result = runner.invoke(cli, [
+        "analyse", "split",
+        str(output_dir),
+        "--label-dir", str(yolo_labels),
+        "-c", str(classes),
+        "--move",
+    ], input="n\n")
+    # User declined → abort, exit code 1 (click.Abort)
+    assert result.exit_code != 0
+
+
+def test_split_yolo_smoke(tmp_path):
+    """``analyse split`` with YOLO labels succeeds."""
+    from pathlib import Path
+
+    test_data = (
+        Path(__file__).parent.parent.parent / "assets" / "test_data"
+    )
+    yolo_labels = test_data / "det" / "yolo" / "labels"
+    classes = test_data / "det" / "yolo" / "classes.txt"
+    output_dir = tmp_path / "out"
+
+    runner = CliRunner()
+    result = runner.invoke(cli, [
+        "analyse", "split",
+        str(output_dir),
+        "--label-dir", str(yolo_labels),
+        "-c", str(classes),
+    ])
+    assert result.exit_code == 0
+    assert (output_dir / "train").is_dir()
+    assert (output_dir / "val").is_dir()
+
+
 def test_filter_help():
     """``analyse filter --help`` shows subcommand description."""
     runner = CliRunner()

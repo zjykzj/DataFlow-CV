@@ -58,10 +58,10 @@ dataflow-cv analyse stats yolo_labels/ --image-dir images/ --class-file classes.
 dataflow-cv analyse stats labelme_json/
 dataflow-cv analyse stats coco_annotations.json
 
-# Train / test split
-dataflow-cv analyse split yolo_labels/ output/ --ratio 0.8 --seed 42 --class-file classes.txt
-dataflow-cv analyse split coco_annotations.json output/ --ratio 0.8 --seed 42
-dataflow-cv analyse split labelme_json/ output/ --ratio 0.8
+# Train / test split (YOLO / LabelMe only — labels / images / both modes)
+dataflow-cv analyse split -l yolo_labels/ outputs/ --ratio 0.8 --seed 42 -c classes.txt
+dataflow-cv analyse split -i images/ outputs/ --ratio 0.8
+dataflow-cv analyse split -l yolo_labels/ -i images/ outputs/ --ratio 0.8
 
 # Category filter (keep a subset of categories, remap IDs per new classes.txt)
 dataflow-cv analyse filter yolo_labels/ classes.txt classes_new.txt filtered/
@@ -198,12 +198,20 @@ analyser = StatsAnalyser(log_config=log_cfg)
 result = analyser.analyse("yolo_labels/", class_file="classes.txt")
 print(f"{result.data.total_files} images, {result.data.total_annotations} objects")
 
-# Train/test split
+# Train/test split (YOLO / LabelMe)
 splitter = SplitAnalyser(log_config=log_cfg)
 result = splitter.analyse(
-    "yolo_labels/", "output/", ratio=0.8, seed=42, class_file="classes.txt",
+    output_dir="output/", ratio=0.8, seed=42,
+    label_dir="yolo_labels/", class_file="classes.txt",
 )
 print(f"Train: {result.data.train_count}, Val: {result.data.val_count}")
+
+# Split with images (both mode — labels drive, images follow by stem)
+result = splitter.analyse(
+    output_dir="output/", ratio=0.8, seed=42,
+    label_dir="yolo_labels/", image_dir="images/",
+    class_file="classes.txt",
+)
 
 # Category filter (keep / remap categories per new classes.txt)
 filterer = FilterAnalyser(log_config=log_cfg)

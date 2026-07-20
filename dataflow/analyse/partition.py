@@ -20,87 +20,14 @@ from .log_templates import (
     format_analyse_result,
     format_partition_result,
 )
-from .utils import create_handler, detect_format, load_class_names
-
-# Common image extensions for images-only mode
-_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"}
-
-
-def _collect_image_files(image_dir: Path) -> List[Tuple[Path, str]]:
-    """Collect image files from a directory, sorted by name.
-
-    Args:
-        image_dir: Directory containing image files.
-
-    Returns:
-        List of ``(image_path, stem)`` tuples, sorted by stem.
-    """
-    files: List[Tuple[Path, str]] = []
-    for p in sorted(image_dir.iterdir()):
-        if p.is_file() and p.suffix.lower() in _IMAGE_EXTENSIONS:
-            files.append((p, p.stem))
-    return files
-
-
-def _resolve_source_image(
-    image_path_str: str,
-    image_dir: Path,
-) -> Optional[Path]:
-    """Resolve an image's source path from the annotation's image_path.
-
-    Args:
-        image_path_str: ``ImageAnnotation.image_path`` value.
-        image_dir: User-specified image directory.
-
-    Returns:
-        Resolved absolute path, or None if the file cannot be found.
-    """
-    source = Path(image_path_str)
-    if source.is_absolute():
-        return source if source.exists() else None
-
-    # Try relative to image_dir
-    candidate = image_dir / source
-    if candidate.exists():
-        return candidate
-
-    # Try just the filename
-    candidate = image_dir / source.name
-    if candidate.exists():
-        return candidate
-
-    return None
-
-
-def _copy_or_move_file(
-    source: Path,
-    target_dir: Path,
-    move: bool,
-    logger,
-) -> bool:
-    """Copy or move a single file to a target directory.
-
-    Args:
-        source: Source file path.
-        target_dir: Target directory (will be created if needed).
-        move: If True, use ``shutil.move``; else ``shutil.copy2``.
-        logger: Logger for warnings.
-
-    Returns:
-        True on success, False on failure.
-    """
-    try:
-        target_dir.mkdir(parents=True, exist_ok=True)
-        target = target_dir / source.name
-        if move:
-            shutil.move(str(source), str(target))
-        else:
-            shutil.copy2(str(source), str(target))
-        return True
-    except Exception as e:
-        logger.warning(f"Failed to {'move' if move else 'copy'} "
-                       f"{source}: {e}")
-        return False
+from .utils import (
+    _collect_image_files,
+    _copy_or_move_file,
+    _IMAGE_EXTENSIONS,
+    create_handler,
+    detect_format,
+    load_class_names,
+)
 
 
 class PartitionAnalyser(BaseAnalyser):
