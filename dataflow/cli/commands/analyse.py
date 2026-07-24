@@ -13,7 +13,6 @@ from dataflow.cli.commands.utils import FormattedCommand
 from dataflow.cli.exceptions import RuntimeCLIError
 from dataflow.util.logging import LogConfig
 
-
 # ---------------------------------------------------------------------------
 # Command group
 # ---------------------------------------------------------------------------
@@ -551,3 +550,166 @@ def partition(
         if len(result.errors) > 1:
             error_msg += "\n" + "\n".join(result.errors[1:])
         raise RuntimeCLIError(error_msg)
+
+
+# ---------------------------------------------------------------------------
+# Subcommand: sample
+# ---------------------------------------------------------------------------
+
+
+@analyse_group.command(
+    cls=FormattedCommand,
+    argument_help={
+        "output_dir": "Output directory for sampled files",
+    },
+)
+@click.argument(
+    "output_dir",
+    type=click.Path(path_type=Path),
+    metavar="OUTPUT_DIR",
+)
+@click.option(
+    "-n",
+    "--count",
+    type=int,
+    required=True,
+    help="Number of files to collect (>= 1)",
+)
+@click.option(
+    "-l",
+    "--label-dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=None,
+    help="Label directory (YOLO or LabelMe). "
+         "At least one of --label-dir / --image-dir required.",
+)
+@click.option(
+    "-i",
+    "--image-dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=None,
+    help="Image directory. "
+         "At least one of --label-dir / --image-dir required.",
+)
+@click.option(
+    "--shuffle/--no-shuffle",
+    default=True,
+    show_default=True,
+    help="Randomly sample (--shuffle) or take first N in sort order (--no-shuffle)",
+)
+@click.option(
+    "-s",
+    "--seed",
+    type=int,
+    default=42,
+    show_default=True,
+    help="Random seed for shuffle reproducibility",
+)
+@click.option(
+    "-c",
+    "--class-file",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="Classes.txt (copied to output directory)",
+)
+@click.option(
+    "--move",
+    is_flag=True,
+    default=False,
+    help="Move source files instead of copying "
+         "(destructive — requires confirmation)",
+)
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Enable verbose log output",
+)
+@click.option(
+    "--log-dir",
+    type=click.Path(path_type=Path),
+    default="./logs",
+    show_default=True,
+    help="Log file output directory",
+)
+@click.pass_context
+def sample(
+    ctx: click.Context,
+    output_dir: Path,
+    count: int,
+    label_dir: Path,
+    image_dir: Path,
+    shuffle: bool,
+    seed: int,
+    move: bool,
+    verbose: bool,
+    log_dir: Path,
+    class_file: Path,
+):
+    """Collect N files from a dataset.
+
+    \b
+    Supports three modes:
+      --label-dir only     Sample label files
+      --image-dir only     Sample image files
+      both specified       Labels drive sampling; images follow by stem
+
+    OUTPUT_DIR receives the sampled files in a flat layout
+    (or labels/ + images/ subdirectories for both mode).
+
+    Only YOLO and LabelMe label formats are supported (not COCO).
+    """
+    from dataflow.analyse import SampleAnalyser
+
+    # Validate at least one input source
+    if label_dir is None and image_dir is None:
+        raise click.UsageError(
+            "At least one of --label-dir / --image-dir is required."
+        )
+
+    # Validate count
+    if count < 1:
+        raise click.BadParameter(
+            f"Count must be at least 1, got: {count}",
+            param_hint="--count",
+        )
+
+    # Move confirmation
+    if move:
+        click.echo(
+            f"\nWARNING: --move will permanently relocate source files.\n"
+            f"  Source label dir:  {label_dir if label_dir else 'N/A'}\n"
+            f"  Source image dir:  {image_dir if image_dir else 'N/A'}\n"
+            f"  Target:            {output_dir}/\n"
+        )
+        if not click.confirm("Continue?", default=False):
+            raise click.Abort()
+
+    log_config = LogConfig(
+        name="analyse.sample",
+        verbose=verbose,
+        log_dir=log_dir,
+    )
+    analyser = SampleAnalyser(log_config=log_config)
+    result = analyser.analyse(
+        output_dir=output_dir,
+        count=count,
+        label_dir=label_dir,
+        image_dir=image_dir,
+        shuffle=shuffle,
+        seed=seed,
+        class_file=class_file,
+        move=move,
+    )
+
+    if result.success and result.data is not None:
+        if result.log_path:
+            click.echo(f"\nLog saved to: {result.log_path}")
+        for warning in result.warnings:
+            click.echo(f"Warning: {warning}", err=True)
+    else:
+        for warning in result.warnings:
+            click.echo(f"Warning: {warning}", err=True)
+        err_msg = result.errors[0] if result.errors else "Dataset sampling failed"
+        if len(result.errors) > 1:
+            err_msg += "\n" + "\n".join(result.errors[1:])
+        raise RuntimeCLIError(err_msg)

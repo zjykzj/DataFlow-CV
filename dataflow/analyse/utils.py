@@ -241,9 +241,9 @@ def create_handler(
     Raises:
         ValueError: If format is unknown.
     """
-    from dataflow.label.yolo_handler import YoloAnnotationHandler
-    from dataflow.label.labelme_handler import LabelMeAnnotationHandler
     from dataflow.label.coco_handler import CocoAnnotationHandler
+    from dataflow.label.labelme_handler import LabelMeAnnotationHandler
+    from dataflow.label.yolo_handler import YoloAnnotationHandler
 
     handler_kwargs = {
         "strict_mode": False,
@@ -412,6 +412,26 @@ def _collect_image_files(image_dir: Path) -> List[Tuple[Path, str]]:
     files: List[Tuple[Path, str]] = []
     for p in sorted(image_dir.iterdir()):
         if p.is_file() and p.suffix.lower() in _IMAGE_EXTENSIONS:
+            files.append((p, p.stem))
+    return files
+
+
+def _collect_label_files(
+    label_dir: Path,
+    ext: str,
+) -> List[Tuple[Path, str]]:
+    """Collect label files from a directory, sorted by stem.
+
+    Args:
+        label_dir: Directory containing label files.
+        ext: File extension (``".txt"`` for YOLO, ``".json"`` for LabelMe).
+
+    Returns:
+        List of ``(file_path, stem)`` tuples, sorted by stem.
+    """
+    files: List[Tuple[Path, str]] = []
+    for p in sorted(label_dir.iterdir()):
+        if p.is_file() and p.suffix == ext and p.name != "classes.txt":
             files.append((p, p.stem))
     return files
 

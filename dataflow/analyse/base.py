@@ -9,7 +9,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-
 # ---------------------------------------------------------------------------
 # Result data models
 # ---------------------------------------------------------------------------
@@ -172,6 +171,33 @@ class PartitionResult:
     total_files: int = 0
     seed: int = 42
     shuffle: bool = False
+    mode: str = ""
+    format: str = ""
+    move: bool = False
+
+
+@dataclass
+class SampleResult:
+    """Container for dataset sample results.
+
+    Attributes:
+        sampled_count: Number of files actually collected (≤ *count*).
+        total_count: Total available files in the source directory.
+        output_dir: Path to the output directory.
+        count: Requested sample count.
+        shuffle: Whether random sampling was used.
+        seed: Random seed (meaningful only when ``shuffle=True``).
+        mode: ``"images"`` | ``"labels"`` | ``"both"``.
+        format: ``"yolo"`` | ``"labelme"`` | ``""`` (empty for images-only).
+        move: Whether move mode was used.
+    """
+
+    sampled_count: int
+    total_count: int
+    output_dir: Path
+    count: int
+    shuffle: bool = True
+    seed: int = 42
     mode: str = ""
     format: str = ""
     move: bool = False

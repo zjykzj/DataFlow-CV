@@ -318,6 +318,53 @@ def format_partition_result(
     return "\n".join(lines)
 
 
+def format_sample_result(
+    sampled_count: int,
+    total_count: int,
+    requested_count: int,
+    output_dir: Path,
+    shuffle: bool,
+    seed: int,
+    mode: str,
+    move: bool,
+) -> str:
+    """Sample summary block.
+
+    Args:
+        sampled_count: Number of files actually collected.
+        total_count: Total available files in source.
+        requested_count: Number of files requested.
+        output_dir: Output directory.
+        shuffle: Whether random sampling was used.
+        seed: Random seed used (meaningful when ``shuffle=True``).
+        mode: ``"images"`` | ``"labels"`` | ``"both"``.
+        move: Whether move mode was used.
+
+    Returns:
+        Formatted sample summary.
+    """
+    mode_label = {
+        "images": "Images only",
+        "labels": "Labels only",
+        "both": "Labels + Images",
+    }[mode]
+
+    strategy = f"Random (seed={seed})" if shuffle else "Sequential (first N)"
+
+    lines = [
+        format_kv("Mode", mode_label),
+        format_kv("Requested", str(requested_count)),
+        format_kv("Collected", str(sampled_count)),
+        format_kv("Available", str(total_count)),
+        format_kv("Strategy", strategy),
+        format_kv("Move", "Yes" if move else "No"),
+        "",
+        format_section("Output"),
+        f"  {sampled_count} files → {output_dir}",
+    ]
+    return "\n".join(lines)
+
+
 def format_analyse_result(
     status: str,
     log_path: str,

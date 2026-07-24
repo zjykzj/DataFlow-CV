@@ -1,6 +1,6 @@
 # CLI Module Specification
 
-> **Version:** 2.2 | **Last Updated:** 2026-07-20
+> **Version:** 2.3 | **Last Updated:** 2026-07-24
 > **Layer:** Modules
 > **Dependencies:** Convert module + Visualize module + Evaluate module (public APIs only) + Logging module (LogConfig only)
 
@@ -285,6 +285,48 @@ Split dataset into train/val subsets with deterministic shuffling. At least one 
 **`stats`** — Summary block (total files, total annotations, category count) + per-class table (Class, ID, Count columns; ID is 0-indexed). Output ordering: class-file order if `--class-file` is provided, otherwise controlled by `--sort-by` + `--descending/--ascending` (default: class_id ascending).
 
 **`split`** — Split summary block (mode, ratio, seed, move, train/val counts, output directories). Creates ``OUTPUT_DIR/train/`` and ``OUTPUT_DIR/val/``. Layout varies by mode: labels-only → label files in train/ and val/; images-only → image files in train/ and val/; both → ``train/labels/`` + ``train/images/`` (same for val). Operation is file-level for YOLO/LabelMe — no annotation parsing.
+
+**`filter`** — Filter comparison block (kept/remapped, removed, missing categories) + filter summary (files before/after, annotations before/after, output directory). Output follows new class file order. Streaming for YOLO/LabelMe, batch for COCO.
+
+**`partition`** — Partition summary block (mode, num partitions, shuffle/seed, move, total files) + per-partition breakdown (file counts and directories). Output: ``part_1/`` through ``part_N/``. Operation requires handler for labels mode (YOLO/LabelMe only), pure file-level for images-only.
+
+**`sample`** — Sample summary block (mode, requested count, collected count, available total, strategy, move) + output path. Creates ``OUTPUT_DIR/`` with sampled files. Operation is pure file-level for all modes (YOLO/LabelMe only for labels) — no annotation parsing.
+
+### 5.4 Sample Subcommand
+
+```
+dataflow-cv analyse sample [OPTIONS] OUTPUT_DIR --count N [--label-dir L] [--image-dir I]
+```
+
+Collect N files from a dataset. Supports random sampling (default) or sequential (first N in sort order).
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `OUTPUT_DIR` | Path | Output root directory |
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--count`, `-n` | Int | *(required)* | Number of files to collect (>= 1) |
+| `--label-dir`, `-l` | Path | None | Label directory (YOLO or LabelMe). At least one of `-l` / `-i` required. |
+| `--image-dir`, `-i` | Path | None | Image directory. At least one of `-l` / `-i` required. |
+| `--shuffle / --no-shuffle` | Flag | `--shuffle` | Randomly sample or take first N in sort order |
+| `--seed`, `-s` | Int | 42 | Random seed for shuffle reproducibility |
+| `--class-file`, `-c` | Path | None | Classes.txt (copied to output directory) |
+| `--move` | Flag | False | Move source files instead of copying (requires confirmation) |
+| `--verbose` | Flag | False | Enable verbose log output |
+| `--log-dir` | Path | ./logs | Log file output directory |
+
+**Three modes**:
+
+| Mode | CLI invocation | Behavior |
+|------|---------------|----------|
+| Labels-only | ``sample OUT --count 10 --label-dir labels/`` | Sample label files |
+| Images-only | ``sample OUT --count 10 --image-dir images/`` | Sample image files |
+| Both | ``sample OUT --count 10 --label-dir labels/ --image-dir images/`` | Labels drive sampling; images matched by stem |
+
+**Move mode confirmation flow** (CLI layer only): same as ``partition`` — displays source/target paths and requires ``click.confirm()``.
+
+Plus shared options: ``--verbose``, ``--log-dir``.
 
 ## 6. Exception Hierarchy
 

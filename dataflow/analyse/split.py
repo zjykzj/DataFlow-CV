@@ -21,9 +21,10 @@ from .log_templates import (
     format_split_result,
 )
 from .utils import (
-    _collect_image_files,
-    _copy_or_move_file,
     _IMAGE_EXTENSIONS,
+    _collect_image_files,
+    _collect_label_files,
+    _copy_or_move_file,
     detect_format,
 )
 
@@ -311,26 +312,6 @@ class SplitAnalyser(BaseAnalyser):
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
-
-
-def _collect_label_files(
-    label_dir: Path,
-    ext: str,
-) -> List[Tuple[Path, str]]:
-    """Collect label files from a directory, sorted by stem.
-
-    Args:
-        label_dir: Directory containing label files.
-        ext: File extension (``".txt"`` for YOLO, ``".json"`` for LabelMe).
-
-    Returns:
-        List of ``(file_path, stem)`` tuples, sorted by stem.
-    """
-    files: List[Tuple[Path, str]] = []
-    for p in sorted(label_dir.iterdir()):
-        if p.is_file() and p.suffix == ext and p.name != "classes.txt":
-            files.append((p, p.stem))
-    return files
 
 
 def _split_files(

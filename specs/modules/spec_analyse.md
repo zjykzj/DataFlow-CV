@@ -1,6 +1,6 @@
 # Analyse Module Specification
 
-> **Version:** v2.0 | **Last Updated:** 2026-07-20
+> **Version:** v2.1 | **Last Updated:** 2026-07-24
 > **Status:** Stable
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
@@ -11,11 +11,13 @@ The Analyse module (`dataflow/analyse/`) provides dataset introspection and prep
 
 ### 1.1 Key Design: Format-Agnostic with Auto-Detection
 
-Unlike Convert and Visualize which use format-specific subclasses, Analyse uses **operation-specific** concrete classes (`StatsAnalyser`, `SplitAnalyser`, `FilterAnalyser`, `PartitionAnalyser`) that work across all annotation formats via the handler interface. The format is automatically detected from the label path, eliminating the need for the user to specify it explicitly.
+Unlike Convert and Visualize which use format-specific subclasses, Analyse uses **operation-specific** concrete classes (`StatsAnalyser`, `SplitAnalyser`, `FilterAnalyser`, `PartitionAnalyser`, `SampleAnalyser`) that work across all annotation formats via the handler interface. The format is automatically detected from the label path, eliminating the need for the user to specify it explicitly.
 
 `StatsAnalyser` supports **multiple label paths** — statistics from each path are computed independently and merged into a single aggregated result. All paths must share the same format and, when a class file is provided, the same category list. A `--recursive` flag enables recursive traversal of subdirectories for YOLO and LabelMe formats.
 
 `PartitionAnalyser` supports **N-way dataset partitioning** — splitting a dataset into N equal(ish) parts. Three modes: labels-only, images-only, or labels+images together (labels drive the partition, images follow by stem matching). With `--shuffle` for random distribution and `--move` for storage-constrained scenarios where copying isn't feasible. Supports YOLO and LabelMe formats only (not COCO).
+
+`SampleAnalyser` supports **file-level sampling** — collecting N files from a dataset without modifying contents. Three modes: labels-only, images-only, or labels+images together. Supports both random sampling (with ``--shuffle`` and ``--seed``) and sequential sampling (first N in sort order). Supports YOLO and LabelMe formats only (not COCO).
 
 ### 1.2 Module Contract
 
@@ -27,13 +29,14 @@ Unlike Convert and Visualize which use format-specific subclasses, Analyse uses 
 ```
 dataflow/analyse/
 ├── __init__.py             # Public API exports
-├── base.py                 # BaseAnalyser + AnalysisResult + StatsResult + SplitResult + FilterResult + PartitionResult
+├── base.py                 # BaseAnalyser + AnalysisResult + StatsResult + SplitResult + FilterResult + PartitionResult + SampleResult
 ├── stats.py                # StatsAnalyser
 ├── split.py                # SplitAnalyser
 ├── filter.py               # FilterAnalyser
 ├── partition.py            # PartitionAnalyser
+├── sample.py               # SampleAnalyser
 ├── log_templates.py        # Pure formatting functions
-└── utils.py                # Format detection, handler factory, class file parsing
+└── utils.py                # Format detection, handler factory, class file parsing, shared file utilities
 ```
 
 ## 2. Data Models (`base.py`)
@@ -46,7 +49,7 @@ Top-level return type shared by all analysers:
 @dataclass
 class AnalysisResult:
     success: bool = True
-    data: Optional[Any] = None          # StatsResult, SplitResult, FilterResult, or PartitionResult
+    data: Optional[Any] = None          # StatsResult, SplitResult, FilterResult, PartitionResult, or SampleResult
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
     log_path: Optional[str] = None
@@ -143,6 +146,24 @@ class PartitionResult:
     mode: str                                     # "images" | "labels" | "both"
     format: str                                   # "yolo" | "labelme" | "" (empty for images-only mode)
     move: bool                                    # Whether move mode was used
+```
+
+### 2.6 `SampleResult`
+
+Container for dataset file sampling results.
+
+```python
+@dataclass
+class SampleResult:
+    sampled_count: int          # Number of files actually collected (≤ count)
+    total_count: int            # Total available files in the source directory
+    output_dir: Path            # Output directory
+    count: int                  # Requested sample count
+    shuffle: bool                # Whether random sampling was used (default True)
+    seed: int                    # Random seed (meaningful only when shuffle=True)
+    mode: str                    # "images" | "labels" | "both"
+    format: str                  # "yolo" | "labelme" | "" (empty for images-only)
+    move: bool                   # Whether move mode was used
 ```
 
 ## 3. Core Classes
@@ -572,7 +593,123 @@ OUTPUT_DIR/
 | Failure | Single file move failure → WARNING, continues (no partial-state abort) |
 | Source dirs | Not deleted — only matched files are moved out |
 
-### 3.6 Constructor Parameters
+### 3.6 `SampleAnalyser` (`sample.py`)
+
+Collects N files from a dataset without modifying contents. Supports three modes: labels-only, images-only, or labels+images together. YOLO and LabelMe formats only (not COCO).
+
+```python
+class SampleAnalyser(BaseAnalyser):
+    """Collect N files from a dataset.
+
+    Constructor: ``SampleAnalyser(log_config=None)``
+    """
+
+    def analyse(
+        self,
+        output_dir: Path,
+        count: int,
+        label_dir: Optional[Path] = None,
+        image_dir: Optional[Path] = None,
+        shuffle: bool = True,
+        seed: int = 42,
+        class_file: Optional[Path] = None,
+        move: bool = False,
+    ) -> AnalysisResult:
+        """Collect *count* files from the dataset.
+
+        At least one of ``label_dir`` or ``image_dir`` must be provided.
+
+        Args:
+            output_dir: Output directory.  Sampled files are placed here
+                (flat layout for single mode, ``labels/`` + ``images/``
+                subdirectories for both mode).
+            count: Number of files to collect (>= 1).
+            label_dir: Optional label directory (YOLO or LabelMe).
+            image_dir: Optional image directory.
+            shuffle: When True (default), randomly sample.  When False,
+                take the first *count* files in sort order.
+            seed: Random seed for reproducible shuffling.
+            class_file: Optional classes.txt (copied to output dir).
+            move: When True, move source files instead of copying.
+
+        Returns:
+            AnalysisResult with SampleResult in ``.data``
+        """
+```
+
+**Pipeline** (pure file-level — no handler, no annotation parsing):
+
+```
+1. Validate inputs:
+   - At least one of label_dir / image_dir provided (else error)
+   - count >= 1 (else error)
+2. Determine mode:
+   - label_dir only     → "labels"
+   - image_dir only     → "images"
+   - both specified     → "both"
+3. Collect source items:
+   Labels mode / Both mode:
+     - detect_format(label_dir) → "yolo" | "labelme"
+     - COCO → ERROR: "sample does not support COCO format"
+     - Collect *.txt (YOLO) or *.json (LabelMe), sorted by stem
+   Images-only mode:
+     - _collect_image_files(image_dir) — sorted by stem
+4. Apply sampling strategy:
+   - shuffle=True:  random.Random(seed).shuffle(items)
+   - shuffle=False: items already sorted (sequential — first N)
+   - actual_count = min(count, total)
+   - If count > total → WARNING, collect all
+5. Copy/move files:
+   - labels mode: files → output_dir/* (flat layout)
+   - images mode: files → output_dir/* (flat layout)
+   - both mode: labels → output_dir/labels/, images → output_dir/images/
+   - Class file → output_dir/classes.txt (if provided)
+6. Log formatted output via log_templates
+7. Return AnalysisResult(success=True, data=SampleResult(...))
+```
+
+**Sampling behavior contract**:
+
+| Property | Behavior |
+|----------|----------|
+| Modes | Three auto-detected: labels-only, images-only, both |
+| Formats | YOLO and LabelMe only (COCO → error) |
+| Labels-only | Pure file-level — no annotation parsing. List by extension, copy/move to output_dir |
+| Images-only | Pure file-level — scan image dir by extension, copy/move to output_dir |
+| Both | Labels drive sampling; images matched by file stem. Output: ``output_dir/labels/`` + ``output_dir/images/`` |
+| Shuffle | ``shuffle=True`` (default) → random; ``shuffle=False`` → sequential (first N) |
+| Random seed | ``random.Random(seed).shuffle(items)`` — deterministic when ``shuffle=True`` |
+| Count overflow | ``count > total`` → WARNING, ``sampled_count = total`` (collects all) |
+| Move mode | ``--move`` relocates files instead of copying |
+| Class file | Copied to output_dir if provided |
+
+**Output structure**:
+
+```
+# Labels-only / Images-only:
+OUTPUT_DIR/
+  file_001.ext, file_002.ext, ...
+  classes.txt          # if --class-file provided
+
+# Both mode:
+OUTPUT_DIR/
+  labels/
+    file_001.txt, file_002.txt, ...
+  images/
+    file_001.jpg, file_002.jpg, ...
+  classes.txt
+```
+
+**Move mode contract** (same as PartitionAnalyser):
+
+| Property | Behavior |
+|----------|----------|
+| Scope | ``--move`` affects both labels and images (when specified) |
+| Method | ``shutil.move()`` per file |
+| Confirmation | CLI layer uses ``click.confirm()`` before proceeding; Python API skips confirmation |
+| Failure | Single file move failure → WARNING, continues (no partial-state abort) |
+
+### 3.7 Constructor Parameters
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
@@ -634,7 +771,22 @@ Partition dataset into N roughly-equal subsets. Supports YOLO and LabelMe for la
 | `class_file` | Path | No | None | Classes.txt (label mode only) |
 | `move` | bool | No | False | Move source files instead of copying (destructive) |
 
-### 4.5 Module-Level Utilities (`utils.py`)
+### 4.5 `SampleAnalyser.analyse(output_dir, count, label_dir, image_dir, shuffle, seed, class_file, move) → AnalysisResult`
+
+Collect N files from a dataset. Supports YOLO and LabelMe for label mode; images-only has no format restriction. COCO is rejected for label mode.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `output_dir` | Path | Yes | — | Output root directory |
+| `count` | int | Yes | — | Number of files to collect (>= 1) |
+| `label_dir` | Path | No | None | Label directory (YOLO or LabelMe). At least one of `label_dir` / `image_dir` required. |
+| `image_dir` | Path | No | None | Image directory. At least one of `label_dir` / `image_dir` required. |
+| `shuffle` | bool | No | True | When True, randomly sample. When False, take first N in sort order. |
+| `seed` | int | No | 42 | Random seed for shuffle reproducibility |
+| `class_file` | Path | No | None | Classes.txt (copied to output directory) |
+| `move` | bool | No | False | Move source files instead of copying (destructive) |
+
+### 4.6 Module-Level Utilities (`utils.py`)
 
 ```python
 def detect_format(label_path: Path) -> str:
@@ -898,7 +1050,33 @@ Log templates are in `dataflow/analyse/log_templates.py`:
 - `format_split_result(train_count, val_count, train_dir, val_dir, ratio, seed, mode, move)` — split summary
 - `format_filter_result(total_files, total_files_with_annotations, annotations_before, annotations_after, kept_categories, removed_categories, missing_categories, output_dir)` — filter comparison + summary
 - `format_partition_result(num_partitions, partition_sizes, partition_dirs, total_files, seed, shuffle, mode, move)` — partition summary with per-partition breakdown
+- `format_sample_result(sampled_count, total_count, requested_count, output_dir, shuffle, seed, mode, move)` — sample summary
 - `format_analyse_result(status, log_path)` — final result block
+
+### 6.6 Sample Output Format
+
+```
+══════════════════════════════════════
+Analyse: Dataset Sampling (Labels Only)
+  Source: yolo_labels/
+  Format: yolo (auto-detected)
+
+  Mode:       Labels only
+  Requested:  10
+  Collected:  10
+  Available:  100
+  Strategy:   Random (seed=42)
+  Move:       No
+
+── Output ──
+  10 files → output/
+
+── Result ──
+  Status: ✓ Success
+
+  Log saved to: logs/analyse_sample_20260724_100000.log
+══════════════════════════════════════
+```
 
 ### 6.5 Partition Output Format
 
@@ -1025,6 +1203,10 @@ Split output write fails   → AnalysisResult(success=False, errors=[...])
 | Label-image stem mismatch (both mode) | WARNING per unmatched file; partition continues |
 | Move confirmation declined (CLI) | `click.Abort()` — no files touched |
 | Move single file fails | WARNING, continues with remaining files |
+| Sample count < 1 | ``AnalysisResult(success=False, errors=["Count must be at least 1, got: ..."])`` |
+| Sample count > total | WARNING, ``sampled_count = total`` (collects all available) |
+| COCO format for sample | ``AnalysisResult(success=False, errors=["sample does not support COCO format. COCO is a single JSON file — ..."])`` |
+| No input specified (both dirs None) | ``AnalysisResult(success=False, errors=["At least one of label_dir or image_dir must be provided"])`` |
 
 ### 9.3 Non-Strict Mode
 
@@ -1041,9 +1223,10 @@ All analyser operations run in **non-strict mode by default** (handlers created 
 
 ```
 dataflow-cv analyse stats [OPTIONS] LABEL_PATH [LABEL_PATH ...]
-dataflow-cv analyse split [OPTIONS] LABEL_PATH OUTPUT_DIR
+dataflow-cv analyse split [OPTIONS] OUTPUT_DIR
 dataflow-cv analyse filter [OPTIONS] LABEL_PATH ORIGINAL_CLASS_FILE NEW_CLASS_FILE OUTPUT_DIR
 dataflow-cv analyse partition [OPTIONS] OUTPUT_DIR --num N [--label-dir L] [--image-dir I]
+dataflow-cv analyse sample [OPTIONS] OUTPUT_DIR --count N [--label-dir L] [--image-dir I]
 ```
 
 ### 10.2 Options
@@ -1064,6 +1247,40 @@ dataflow-cv analyse partition [OPTIONS] OUTPUT_DIR --num N [--label-dir L] [--im
 | `--move` | partition | Flag | False | Move source files instead of copying (CLI requires confirmation) |
 | `--label-dir`, `-l` | partition | Path | None | Label directory (YOLO or LabelMe). At least one of `--label-dir` / `--image-dir` required. |
 | `--image-dir`, `-i` | partition | Path | None | Image directory. At least one of `--label-dir` / `--image-dir` required. |
+
+### 10.6 Sample Command
+
+```
+dataflow-cv analyse sample [OPTIONS] OUTPUT_DIR --count N [--label-dir L] [--image-dir I]
+```
+
+| Argument / Option | Type | Default | Description |
+|-------------------|------|---------|-------------|
+| `OUTPUT_DIR` (argument) | Path | *(required)* | Output root directory |
+| `--count`, `-n` | Int | *(required)* | Number of files to collect (>= 1) |
+| `--label-dir`, `-l` | Path | None | Label directory (YOLO or LabelMe). At least one of `--label-dir` / `--image-dir` required. |
+| `--image-dir`, `-i` | Path | None | Image directory. At least one of `--label-dir` / `--image-dir` required. |
+| `--shuffle / --no-shuffle` | Flag | `--shuffle` (default) | Randomly sample (--shuffle) or take first N in sort order (--no-shuffle) |
+| `--seed`, `-s` | Int | 42 | Random seed (only meaningful with `--shuffle`) |
+| `--class-file`, `-c` | Path | None | Classes.txt (copied to output directory) |
+| `--move` | Flag | False | Move source files instead of copying. Requires CLI confirmation via `click.confirm()`. |
+| `--verbose` | Flag | False | Enable verbose log output |
+| `--log-dir` | Path | `./logs` | Log file output directory |
+
+**Three modes**:
+
+| Mode | CLI invocation | Behavior |
+|------|---------------|----------|
+| Labels-only | ``sample OUT --count 10 --label-dir labels/`` | Sample label files only |
+| Images-only | ``sample OUT --count 10 --image-dir images/`` | Sample image files only |
+| Both | ``sample OUT --count 10 --label-dir labels/ --image-dir images/`` | Labels drive sampling; images matched by stem |
+
+**Behavior by format** (label mode):
+
+| Format | Behavior | Output |
+|--------|----------|--------|
+| YOLO / LabelMe | Pure file-level copy/move (no annotation parsing) | Individual files in ``OUTPUT_DIR/`` (or ``OUTPUT_DIR/labels/`` + ``OUTPUT_DIR/images/`` in both mode) |
+| COCO | — | **Rejected** — error directing to ``filter`` or ``convert`` |
 
 ### 10.3 Stats Command (Multi-Path)
 
@@ -1175,6 +1392,8 @@ Python API callers can pass ``move=True`` directly without interactive confirmat
 | `analyser.analyse(label_path, original_class_file, new_class_file, output_dir, image_dir) → AnalysisResult` | `filter.py` | Run filter |
 | `PartitionAnalyser(log_config)` | `partition.py` | N-way dataset partitioning (labels, images, or both). YOLO/LabelMe only. |
 | `analyser.analyse(output_dir, num, label_dir, image_dir, shuffle, seed, class_file, move) → AnalysisResult` | `partition.py` | Run partition |
+| `SampleAnalyser(log_config)` | `sample.py` | File-level dataset sampling (labels, images, or both). YOLO/LabelMe only. |
+| `analyser.analyse(output_dir, count, label_dir, image_dir, shuffle, seed, class_file, move) → AnalysisResult` | `sample.py` | Run sampling |
 | `detect_format(label_path) → str` | `utils.py` | Auto-detect annotation format |
 | `create_handler(label_path, format, class_file, image_dir, logger, skip_image_loading=False, recursive=False) → BaseAnnotationHandler` | `utils.py` | Handler factory. `recursive=True` enables handler-side rglob file discovery. |
 | `load_class_names(class_file) → Dict[int, str]` | `utils.py` | Parse classes.txt |
