@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-07-24
+
+### Added
+
+- **File sampling** (`analyse sample`): New `SampleAnalyser` collects N files from a dataset with three modes (labels-only, images-only, both) and two strategies — random (`--shuffle`, default) or sequential (`--no-shuffle`, first N in sort order). Pure file-level operation with no annotation parsing. Supports `--move` for relocating files and `--class-file` for copying classes.txt to the output. YOLO and LabelMe only (COCO rejected).
+- **`_collect_label_files` shared utility**: Extracted from `split.py` to `utils.py` for reuse across `SplitAnalyser`, `SampleAnalyser`, and future analysers.
+
+### Docs
+
+- **Specs**: `spec_analyse.md` v2.1 documents the full SampleAnalyser contract (pipeline, behavior table, output layout, error scenarios). `spec_cli.md` v2.3 adds the `sample` subcommand with option table and mode documentation.
+- **README & CLAUDE.md**: Feature table updated with file sampling; CLI quick-start and Python API examples added for `sample`; test count refreshed (535→556). CLAUDE.md Analyse section now covers all five analysers.
+- **Samples**: `sample_demo.py` demonstrates all three modes and both strategies with test data.
+
 ## [1.8.0] - 2026-07-17
 
 ### Added
