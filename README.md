@@ -20,7 +20,7 @@ A computer vision dataset processing library — analyse, convert, visualize, an
 
 | | | |
 |:---|:---|:---|
-| 🔍 **Analyse** | Stats, train/val split, category filter & N-way partition — format auto-detection | `dataflow-cv analyse stats ...` |
+| 🔍 **Analyse** | Stats, train/val split, category filter, N-way partition & file sampling — format auto-detection | `dataflow-cv analyse stats ...` |
 | 🔄 **Convert** | 6 directions: YOLO ↔ LabelMe ↔ COCO, plus model predictions | `dataflow-cv convert yolo2coco ...` |
 | 🎨 **Visualize** | OpenCV rendering with color-coded classes, display & save modes | `dataflow-cv visualize yolo ...` |
 | 📊 **Evaluate** | COCO mAP via pycocotools, single-threshold P/R/F1 per class | `dataflow-cv evaluate detection ...` |
@@ -70,6 +70,11 @@ dataflow-cv analyse filter coco_annotations.json classes.txt classes_new.txt fil
 # N-way partition — YOLO / LabelMe only (labels drive, images follow by stem)
 dataflow-cv analyse partition -n 4 --label-dir yolo_labels/ --image-dir images/ parts/
 dataflow-cv analyse partition -n 4 --image-dir images/ --shuffle parts/
+
+# File sampling — collect N files (random or sequential, labels / images / both modes)
+dataflow-cv analyse sample -l yolo_labels/ output/ -n 10
+dataflow-cv analyse sample -i images/ output/ -n 10 --no-shuffle
+dataflow-cv analyse sample -l yolo_labels/ -i images/ output/ -n 5 --seed 42
 
 # Sort by count descending (default: class ID ascending)
 dataflow-cv analyse stats --sort-by count --descending yolo_labels/
@@ -185,7 +190,7 @@ Two evaluation modes, distinguished by how overlap is measured:
 
 ```python
 from dataflow.util.logging import LogConfig
-from dataflow.analyse import StatsAnalyser, SplitAnalyser, FilterAnalyser, PartitionAnalyser
+from dataflow.analyse import StatsAnalyser, SplitAnalyser, FilterAnalyser, PartitionAnalyser, SampleAnalyser
 from dataflow.convert import YoloAndCocoConverter
 from dataflow.visualize import YOLOVisualizer
 from dataflow.evaluate import DetectionEvaluator, compute_pr_f1
@@ -225,6 +230,13 @@ partitioner = PartitionAnalyser(log_config=log_cfg)
 result = partitioner.analyse(
     output_dir="parts/", num=4,
     label_dir="yolo_labels/", image_dir="images/",
+)
+
+# File sampling (labels, images, or both — random or sequential)
+sampler = SampleAnalyser(log_config=log_cfg)
+result = sampler.analyse(
+    output_dir="sampled/", count=10,
+    label_dir="yolo_labels/", shuffle=True, seed=42,
 )
 
 # ── Convert ──────────────────────────────────────────
@@ -301,7 +313,7 @@ For detailed developer guidance including advanced test commands, debugging, and
 
 ### 🧪 Testing
 
-**535 tests, 79% code coverage (5103 statements).**
+**556 tests, 79% code coverage (5103 statements).**
 
 ```bash
 pytest                                    # All tests
@@ -352,13 +364,13 @@ pre-commit run --all-files    # Manual run against all files
 ```
 dataflow/
 ├── label/           # Annotation handlers + data models
-├── analyse/         # Dataset stats, train/val split, category filter, N-way partition
+├── analyse/         # Dataset stats, train/val split, category filter, N-way partition, file sampling
 ├── convert/         # Format converters, RLE utility, log templates
 ├── visualize/       # OpenCV-based rendering, log templates
 ├── evaluate/        # pycocotools-based metrics, log templates
 ├── util/            # Unified logging (LogManager + format helpers)
 └── cli/             # CLI entry point, commands, validation
-tests/               # Unit & integration tests (517 tests, conftest fixtures)
+tests/               # Unit & integration tests (556 tests, conftest fixtures)
 samples/             # Python API usage examples (analyse, convert, visualize, evaluate, cli)
 assets/              # Test data (det/seg by format)
 specs/               # Canonical specifications (evaluate/ + formats/ + modules/)

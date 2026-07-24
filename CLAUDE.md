@@ -30,7 +30,7 @@ specs/
 └── modules/                        # HOW — internal module architecture & interface contracts
     ├── index.md                    # Modules layer overview + dependency diagram
     ├── spec_label.md               # Label module (data models + handler interface)
-    ├── spec_analyse.md             # Analyse module (BaseAnalyser, stats, split, auto-detection)
+    ├── spec_analyse.md             # Analyse module (BaseAnalyser, stats, split, filter, partition, sample, auto-detection)
     ├── spec_convert.md             # Convert module (pipeline, converters, RLE)
     ├── spec_visualize.md           # Visualize module (rendering pipeline, ColorManager, interaction)
     ├── spec_evaluate.md            # Evaluate module (evaluation pipeline, API, data models)
@@ -190,7 +190,10 @@ The Analyse module provides dataset introspection and preparation — statistics
 - **Format auto-detection**: The label path is inspected to determine YOLO / LabelMe / COCO automatically. See `utils.detect_format()` for the detection rules. All handlers are created with `strict_mode=False` — analysis is read-only and lenient with imperfect data.
 - **`StatsAnalyser`**: Reads all annotations via `handler.read()`, counts total files/annotations, tallies per-class counts. Output ordering: class-file order (if provided) > `--sort-by` (`id`/`count`) + `--descending/--ascending` (default: class_id ascending).
 - **`SplitAnalyser`**: Splits dataset into train/val with deterministic shuffling. Supports three modes (auto-detected): labels-only, images-only, or both. Only YOLO and LabelMe formats (not COCO). Labels-only mode is pure file-level — no annotation parsing. Both mode matches images to labels by file stem. Supports `--move` for relocating files instead of copying.
-- **`AnalysisResult`**: Shared result container (`success`, `data`, `errors`, `warnings`, `log_path`). `StatsResult` / `SplitResult` / `PartitionResult` / `FilterResult` provide domain-specific fields.
+- **`PartitionAnalyser`**: Partitions dataset into N roughly-equal subsets. Supports three modes and optional shuffle. YOLO/LabelMe only.
+- **`FilterAnalyser`**: Filters annotations by category, remapping class IDs to match a target class file. Supports all three formats (YOLO/LabelMe/COCO).
+- **`SampleAnalyser`**: Collects N files from a dataset. Supports three modes (labels-only, images-only, both), random (`--shuffle`) or sequential (`--no-shuffle`) selection, and `--move`. Pure file-level operation — no annotation parsing. YOLO/LabelMe only.
+- **`AnalysisResult`**: Shared result container (`success`, `data`, `errors`, `warnings`, `log_path`). `StatsResult` / `SplitResult` / `PartitionResult` / `FilterResult` / `SampleResult` provide domain-specific fields.
 
 ```
 Analyse pipeline (StatsAnalyser):
@@ -198,6 +201,9 @@ Label Path → detect_format() → create_handler(strict_mode=False) → handler
 
 Analyse pipeline (SplitAnalyser — file-level, YOLO/LabelMe):
 label_dir → detect_format() → list files by extension → shuffle → split by ratio → copy/move to train/val → AnalysisResult
+
+Analyse pipeline (SampleAnalyser — file-level, YOLO/LabelMe):
+label_dir/image_dir → detect_format() → list files → shuffle (or not) → take N → copy/move to output_dir → AnalysisResult
 ```
 
 ### Data Flow Pipeline
