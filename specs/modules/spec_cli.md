@@ -375,7 +375,8 @@ Missing required parameters raise `InputError`.
 
 ```
 CLI module imports FROM:
-├── dataflow.analyse                (StatsAnalyser, SplitAnalyser)
+├── dataflow.analyse                (StatsAnalyser, SplitAnalyser, FilterAnalyser,
+│                                    PartitionAnalyser, SampleAnalyser)
 ├── dataflow.convert                (YoloAndCocoConverter, LabelMeAndYoloConverter, CocoAndLabelMeConverter)
 ├── dataflow.visualize              (YOLOVisualizer, COCOVisualizer, LabelMeVisualizer)
 ├── dataflow.evaluate               (DetectionEvaluator, SegmentationEvaluator, compute_pr_f1)
