@@ -1,7 +1,7 @@
 # Visualize Module Specification
 
 > **Version:** v4.4 | **Last Updated:** 2026-07-29
-> **Status:** Draft — bidirectional arrow-key navigation in display mode
+> **Status:** Draft — bidirectional arrow-key navigation; batch/interactive dispatch documented
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
 
@@ -180,26 +180,39 @@ Abstract base class implementing the template method pattern.
 
 ### 4.1 Template Method: `visualize()`
 
+The ``visualize()`` method dispatches between two code paths based on ``is_show``:
+
+**Interactive mode** (``is_show=True``) — buffered bidirectional navigation:
 ```
 visualize()
 ├── 1. Validate output_dir              # Required if is_save=True
-├── 2. Obtain image iterator             # From handler.iter_images()
-├── 3. For each image (streaming):
-│   ├── handler.iter_images() → ImageAnnotation (format-native)
-│   ├── _convert_to_render_data()  → RenderData (absolute pixel)
+├── 2. Create handler                    # handler.iter_images()
+├── 3. Prime buffer with first image     # next(image_iter) → RenderData
+├── 4. Navigation loop:
 │   ├── _visualize_single_image()
 │   │   ├── Load image (resolve path, cv2.imread)
 │   │   ├── For each RenderAnnotation:
 │   │   │   ├── _draw_bbox()       # If bbox exists
 │   │   │   ├── _draw_polygon()    # If polygon exists
 │   │   │   └── _draw_rle_mask()   # If RLE exists
-│   │   ├── Display (cv2.imshow + cv2.waitKeyEx)   # If is_show=True
+│   │   ├── Display (cv2.imshow + cv2.waitKeyEx)
 │   │   ├── Dispatch key:
-│   │   │   ├── q/ESC → quit (return to step 4)
-│   │   │   ├── ←/↑ → go to previous buffered image (current_idx -= 1)
-│   │   │   └── →/↓/Enter/Space/other → go to next image (fetch if needed)
+│   │   │   ├── q/ESC → quit (return to step 5)
+│   │   │   ├── ←/↑ → go to previous buffered image
+│   │   │   └── →/↓/Enter/Space/other → advance (fetch if needed)
 │   │   └── Save (cv2.imwrite)     # If is_save=True
-│   └── (loop continues until quit or buffer exhausted)
+│   └── (loop until quit or buffer exhausted)
+└── 5. Return VisualizationResult
+```
+
+**Batch mode** (``is_show=False``) — streaming forward-only, no display:
+```
+visualize()
+├── 1-2. Same as interactive
+├── 3. for image_ann in handler.iter_images():
+│   ├── _convert_to_render_data()  → RenderData
+│   ├── _visualize_single_image()  → render + save (no display, no waitKey)
+│   └── (always advances forward — no keyboard interaction)
 └── 4. Return VisualizationResult
 ```
 
@@ -249,27 +262,41 @@ def _convert_to_render_data(self, image_ann: ImageAnnotation) -> RenderData:
     """
 ```
 
-**Streaming loading flow in `visualize()`:**
+**Loading flow in `visualize()`:**
 
+*Batch path* (``is_show=False`` — forward-only streaming, no display):
+```python
+def visualize(self) -> VisualizationResult:
+    handler = self._create_handler()
+    for image_ann in handler.iter_images():
+        render_data = self._convert_to_render_data(image_ann)
+        action = self._visualize_single_image(image_ann.image_path, render_data)
+        # action is "next" (success) or None (load failure)
+        ...
+```
+
+*Interactive path* (``is_show=True`` — buffered bidirectional):
 ```python
 def visualize(self) -> VisualizationResult:
     handler = self._create_handler()
     image_iter = handler.iter_images()
-    for image_ann in image_iter:
-        render_data = self._convert_to_render_data(image_ann)
-        success = self._visualize_single_image(image_ann.image_path, render_data)
-        ...
+    # Prime buffer with first image
+    image_ann = next(image_iter)
+    render_data = self._convert_to_render_data(image_ann)
+    buffer.append((image_ann.image_path, render_data))
+    # Navigation loop — fetch on demand when advancing past buffer end
+    ...
 ```
 
 **Key design points:**
-1. **Handler creates the iterator** — `_create_handler()` replaces the old
-   `load_annotations()` setup step. The handler is created once and its
+1. **Handler creates the iterator** — `_create_handler()` is called once and its
    `iter_images()` method provides the streaming iterator.
-2. **Per-image coordinate conversion** — `_convert_to_render_data()` replaces the
-   old bulk conversion loop inside `load_annotations()`. It operates on a single
-   `ImageAnnotation` at a time.
-3. **No `Dict[str, RenderData]` accumulator** — RenderData is created and consumed
-   in the same loop iteration. Nothing is stored for later.
+2. **Per-image coordinate conversion** — `_convert_to_render_data()` operates on a
+   single `ImageAnnotation` at a time, identical in both code paths.
+3. **Buffer in interactive mode** — When ``is_show=True``, a list of
+   ``(image_path, RenderData)`` tuples is kept for backward navigation.  Pixel
+   data is never cached.  In batch mode (``is_show=False``), RenderData is
+   created and consumed in the same loop iteration with no accumulation.
 4. **Format awareness** — Each concrete visualizer knows its source format and
    applies the corresponding coordinate transform from Section 2.3.
 
@@ -404,17 +431,23 @@ When `is_save=True`:
 
 ### 4.6 Progress Feedback
 
-When a progress logger is available (verbose mode), progress is reported every 10 images
-with a counter-based format (total count is unknown in streaming mode):
+**Batch mode** (``is_show=False``): When a progress logger is available (verbose
+mode), progress is reported every 10 images with a counter-based format (total
+count is unknown in streaming mode):
 
 ```
 [====] Processed 40 images, 0 failed
 ```
 
-Percentage-based progress bars are not used because the total image count is not
-known until the iterator exhausts. If the handler provides a total count hint
-(e.g., from file enumeration), the visualizer may optionally display both count
-and percentage.
+**Interactive mode** (``is_show=True``): Progress is displayed in the window
+title bar as ``[N/T] filename.jpg`` (see §4.4).  Console progress lines are not
+emitted during interactive navigation — the window title is the real-time
+progress indicator.  A final summary is logged to console when the session ends.
+
+Percentage-based progress bars are not used in either mode because the total
+image count is not known until the iterator exhausts. If the handler provides a
+total count hint (e.g., from file enumeration), the visualizer may optionally
+display both count and percentage.
 
 ## 5. Concrete Visualizers
 
