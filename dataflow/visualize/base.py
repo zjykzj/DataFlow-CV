@@ -174,12 +174,15 @@ class BaseVisualizer(ABC):
         is_show: bool = True,
         is_save: bool = False,
         log_config: Optional[Any] = None,
+        max_buffer_size: Optional[int] = None,
     ):
         self.label_dir = Path(label_dir)
         self.image_dir = Path(image_dir)
         self.output_dir = Path(output_dir) if output_dir else None
         self.is_show = is_show
         self.is_save = is_save
+        self.max_buffer_size = max_buffer_size  # None = unlimited
+        self._saved_stems: Set[str] = set()  # deduplicate saves across navigations
 
         # Configure logger via unified LogManager
         from dataflow.util.logging import LogConfig, LogManager
@@ -290,6 +293,8 @@ class BaseVisualizer(ABC):
             # 3. Visualization pipeline — dispatches between interactive
             #    (buffered, bidirectional navigation) and batch (streaming)
             #    based on is_show.
+            self._saved_stems: Set[str] = set()  # deduplicate saves
+
             if self.is_show:
                 # ── Interactive mode: buffered bidirectional navigation ──
                 #
@@ -351,6 +356,16 @@ class BaseVisualizer(ABC):
                                         f"Buffered image: {image_ann.image_path}"
                                         f" ({len(render_data.annotations)} objects)"
                                     )
+                                # Evict oldest if buffer exceeds limit
+                                _max = self.max_buffer_size
+                                if _max is not None and len(buffer) > _max:
+                                    excess = len(buffer) - _max
+                                    del buffer[:excess]
+                                    current_idx = max(0, current_idx - excess)
+                                    displayed_indices = {
+                                        i - excess for i in displayed_indices
+                                        if i >= excess
+                                    }
                             else:
                                 break
                         else:
@@ -386,6 +401,16 @@ class BaseVisualizer(ABC):
                                             f"Buffered image: {image_ann.image_path}"
                                             f" ({len(render_data.annotations)} objects)"
                                         )
+                                    # Evict oldest if buffer exceeds limit
+                                    _max = self.max_buffer_size
+                                    if _max is not None and len(buffer) > _max:
+                                        excess = len(buffer) - _max
+                                        del buffer[:excess]
+                                        current_idx = max(0, current_idx - excess)
+                                        displayed_indices = {
+                                            i - excess for i in displayed_indices
+                                            if i >= excess
+                                        }
                                 else:
                                     current_idx = len(buffer) - 1
                             else:
@@ -399,7 +424,7 @@ class BaseVisualizer(ABC):
                         hints_shown = True
 
                     self._update_window_title(
-                        current_idx, len(buffer), image_path_str
+                        current_idx, len(buffer), buffer[current_idx][0]
                     )
                     self.summary_data["processed_images"] = len(displayed_indices)
 
@@ -577,14 +602,17 @@ class BaseVisualizer(ABC):
                     self._log_warning(f"Failed to display visualization window: {e}")
 
             if self.is_save:
-                output_file = (
-                    self.output_dir
-                    / f"{Path(image_path_str).stem}_visualized.jpg"
-                )
-                cv2.imwrite(
-                    str(output_file), image, [cv2.IMWRITE_JPEG_QUALITY, 95]
-                )
-                self._log_info(f"Saved visualization to: {output_file}")
+                stem = Path(image_path_str).stem
+                if stem not in self._saved_stems:
+                    output_file = (
+                        self.output_dir
+                        / f"{stem}_visualized.jpg"
+                    )
+                    cv2.imwrite(
+                        str(output_file), image, [cv2.IMWRITE_JPEG_QUALITY, 95]
+                    )
+                    self._log_info(f"Saved visualization to: {output_file}")
+                    self._saved_stems.add(stem)
 
             return "next"
 

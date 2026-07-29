@@ -1,7 +1,7 @@
 # Visualize Module Specification
 
-> **Version:** v4.4 | **Last Updated:** 2026-07-29
-> **Status:** Draft — bidirectional arrow-key navigation; batch/interactive dispatch documented
+> **Version:** v4.5 | **Last Updated:** 2026-07-29
+> **Status:** Draft — bidirectional nav; buffer limit; save dedup
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
 
@@ -163,6 +163,7 @@ Abstract base class implementing the template method pattern.
 | `is_show` | bool | No | True | Display visualization window |
 | `is_save` | bool | No | False | Save rendered images |
 | `log_config` | Optional[Any] | No | None | Logging configuration (see `spec_logging.md`) |
+| `max_buffer_size` | Optional[int] | No | None | Max buffered images for backward navigation. ``None`` = unlimited. When exceeded, oldest entries are evicted from the front — ``current_idx`` and ``displayed_indices`` are adjusted accordingly. |
 
 **Drawing configuration (`self.config`):**
 
@@ -428,6 +429,9 @@ When `is_save=True`:
 - Rendered images are saved to `output_dir/{image_id}_visualized.jpg`
 - JPEG quality: 95
 - `output_dir` is created if it doesn't exist
+- **Duplicate prevention**: Each image is saved at most once per visualization
+  session.  Navigating back to a previously-viewed image and re-rendering it
+  will **not** overwrite the saved file (tracked via ``_saved_stems`` set).
 
 ### 4.6 Progress Feedback
 
