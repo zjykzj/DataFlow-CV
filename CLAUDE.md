@@ -291,23 +291,48 @@ Handles polygon-to-RLE and RLE-to-polygon conversion using pycocotools. **Critic
 - `LabelMeVisualizer(label_dir, image_dir, class_file=None, **kwargs)`: LabelMe annotation visualization
 - `CocoVisualizer(annotation_file, image_dir, **kwargs)`: COCO annotation visualization
 
-All extend `BaseVisualizer` which provides `ColorManager` (HSV-based palette, max 1000 colors), image loading/drawing, counter-based progress, and both display (`is_show`) and save (`is_save`) modes.
+All extend `BaseVisualizer` which provides `ColorManager` (HSV-based palette, max 1000 colors), image loading/drawing, and both display (`is_show`) and save (`is_save`) modes.
 
-**Streaming pipeline** (no batch accumulation):
+**Two pipelines**, auto-selected by `BaseVisualizer.visualize()` based on `is_show`:
+
+| Pipeline | Method | When Used |
+|----------|--------|-----------|
+| **Interactive** | Buffered while-loop → `handler.iter_images()` on demand → `_visualize_single_image()` → key dispatch | `is_show=True` (display window) |
+| **Batch** | Streaming for-loop → `handler.iter_images()` → `_visualize_single_image()` → save | `is_show=False` (headless/save-only) |
+
+**Interactive pipeline** (bidirectional navigation):
+```
+visualize()
+├── handler = _create_handler()
+├── image_iter = handler.iter_images()
+├── Prime buffer with first image (next(image_iter) → RenderData)
+├── Navigation loop:
+│   ├── render_data = buffer[current_idx]          ← reuse cached RenderData
+│   ├── _visualize_single_image(image_path, render_data)
+│   │   ├── Load image, draw annotations, display/save
+│   │   └── cv2.waitKeyEx(0) → return "next" | "prev" | "quit" | None
+│   └── Dispatch: "next" → advance (fetch from iter if needed)
+│                 "prev" → current_idx -= 1 (no-op at first)
+│                 "quit" → stop
+│                 None   → skip (image load failure)
+```
+
+**Batch pipeline** (forward-only streaming, no display):
+
 ```
 visualize()
 ├── handler = _create_handler()
 ├── for image_ann in handler.iter_images():
 │   ├── render_data = _convert_to_render_data(image_ann)  ← per-image coordinate conversion
-│   └── _visualize_single_image(image_path, render_data)   ← display or save
+│   └── _visualize_single_image(image_path, render_data)   ← render + save (no waitKey)
 ```
 
 **Template method hierarchy:**
 - `_create_handler()`: Abstract — creates format-specific Label handler (lazy, not in `__init__`)
 - `_convert_to_render_data(image_ann)`: Abstract — converts single ImageAnnotation (format-native coords) to RenderData (absolute pixel coords)
-- `_visualize_single_image(image_path, render_data)`: Concrete — load image, draw annotations, display/save
+- `_visualize_single_image(image_path, render_data)`: Concrete — load image, draw annotations, display/save. Returns `"next"` (advance), `"prev"` (go back), `"quit"` (q/ESC), or `None` (load failure).
 
-**Display behavior**: Uses a single persistent OpenCV window (created once, reused across images) with fixed position. The window auto-sizes to match each image's dimensions. Keyboard controls: `Enter`/`Space` to advance to next image, `q`/`ESC` to exit early, any other key to continue.
+**Display behavior**: Uses a single persistent OpenCV window named `"DataFlow-CV Visualization"` (created once, reused across images) with fixed position. The window auto-sizes to match each image's dimensions, capped at 1920×1080. Title bar shows `[N/T] filename.jpg` for navigation context. Keyboard controls: `←`/`↑` for previous image (no-op at first), `→`/`↓`/`Enter`/`Space` for next image (no-op at last when iterator exhausted), `q`/`ESC` to exit. The window manager close button (X) may not work reliably — always use keyboard to close.
 
 ### Evaluators (`dataflow/evaluate/`)
 
@@ -383,7 +408,7 @@ Never use UTF-8 for RLE counts — it cannot represent all 256 byte values and w
 
 ### Visualizer Rendering Pipeline
 
-Visualizers convert annotations per-image to `RenderAnnotation` (absolute pixel integers) during `_convert_to_render_data()`. Drawing methods receive pre-computed absolute pixel coordinates — no coordinate math happens in the draw path. The first image appears as soon as the first annotation file is parsed (streaming).
+Visualizers convert annotations per-image to `RenderAnnotation` (absolute pixel integers) during `_convert_to_render_data()`. Drawing methods receive pre-computed absolute pixel coordinates — no coordinate math happens in the draw path. The first image appears as soon as the first annotation file is parsed (primed into the buffer in interactive mode; streamed in batch mode).
 
 ### Validation Behavior
 
@@ -444,9 +469,9 @@ Test data lives in `assets/test_data/`, organized by format (det/seg) and annota
 3. **LabelMe imageData**: Not required on read; valid external files may omit it.
 4. **Converter state**: `_source_annotations_for_target` must be cleared in a `finally` block to prevent stale state on exceptions.
 5. **COCO image_id fallback**: When `img.image_id` is not a digit string, use a dedicated image counter (not the annotation counter).
-6. **Progress bar at 100%**: Guard against `filled == width` causing `"." * -1`. Note: Visualize module now uses counter-based progress (streaming), so this only applies to batch-mode progress bars in utility code.
-7. **Visualization keyboard control**: The OpenCV window captures keyboard input. Press `Enter`/`Space` to advance, `q`/`ESC` to exit. The window manager close button (X) may not work reliably — always use keyboard to close.
-8. **Single persistent window**: The visualizer creates one window (named by format) and reuses it for all images. Window auto-sizes to each image's dimensions. Fixed window position prevents flickering across images.
+6. **Progress bar at 100%**: Guard against `filled == width` causing `"." * -1`. This only applies to batch-mode progress bars in utility code.  Visualize interactive mode uses the window title bar for progress, not console bars.
+7. **Visualization keyboard control**: The OpenCV window captures keyboard input via `cv2.waitKeyEx(0)`. Arrow keys (`←/↑` previous, `→/↓` next) use cross-platform code tuples. Press `Enter`/`Space` to advance, `q`/`ESC` to exit. The window manager close button (X) may not work reliably — always use keyboard to close.
+8. **Single persistent window**: The visualizer creates one window (named `"DataFlow-CV Visualization"`) and reuses it for all images. Title bar shows `[N/T] filename.jpg`. Window auto-sizes to each image's dimensions. Fixed window position prevents flickering across images.
 9. **BoundingBox semantics depend on format**: The same `BoundingBox` class is used for all formats. Always check `DatasetAnnotations.format` to interpret `(x, y, width, height)` correctly.
 10. **DT predictions require `score`**: COCO prediction JSON must include `"score"` field in every annotation. The evaluate module validates this — missing scores cause errors in strict mode.
 11. **DT predictions require `area`**: pycocotools `COCOeval` requires `area` on both GT and DT annotations. When generating DT JSON, ensure area is populated (typically `bbox.width * bbox.height`).
