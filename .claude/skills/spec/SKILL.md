@@ -8,35 +8,71 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 
 Apply this methodology when creating or modifying spec files.
 
+## TL;DR
+
+```
+Spec-first → Cross-file scan → Bump version → Implement → Full conformance check → Commit
+```
+
+| What you're doing | How to do it |
+|---|---|
+| Feature / bug fix | Spec first, bump version, then code |
+| **Impact scan (key!)** | `grep` CLAUDE.md, README.md, other specs/ for references to the changed contract — add to change list |
+| New definition | Minor bump (v1.0 → v1.1) |
+| Behavioral change (breaking) | Major bump (v1.2 → v2.0) |
+| Clarification / wording | Update date only, keep version |
+| Commit | List **all** affected specs/docs in body |
+| Unsure if content belongs | See [curation-guide.md](references/curation-guide.md) |
+
 ## SDD Workflow (Spec-Driven Development)
 
 Any feature or behavior change that touches a contract documented in `specs/` MUST follow this loop. Specs describe the **target state** — code follows specs, not the other way around.
 
 ### Phase 1 — Spec First (before writing any code)
 
-1. **Impact analysis**: determine which spec files/sections the change affects. If none, the SDD loop does not apply — proceed with normal development.
-2. **Update the spec first**: the spec now describes the target state, not current code. Bump the version per §Version Management.
-3. **Confirm the contract**: present the spec change to the user for approval before implementing.
+1. **Impact analysis**: determine which spec files/sections the change affects.
+   If none, the SDD loop does not apply — proceed with normal development.
+2. **Cross-file scan (mandatory)**: search the entire repo for other files that
+   reference the contract being changed — CLAUDE.md, README.md, other specs in
+   `specs/`, and any doc files.  These are also affected and must be updated.
+   Use `grep -rn "<key-term>" CLAUDE.md README.md specs/` to find ripple effects.
+3. **Update all affected docs**: the primary spec first (bump version per
+   §Version Management), then every cross-referenced file found in step 2.
+4. **Confirm the contract**: present the spec change to the user for approval
+   before implementing.
 
 ### Phase 2 — Implement
 
-4. Write code to satisfy the updated spec. If during implementation the contract turns out to be wrong, go back to Phase 1 and change the spec — never silently diverge in code.
+5. Write code to satisfy the updated spec. If during implementation the contract
+   turns out to be wrong, go back to Phase 1 and change the spec — never silently
+   diverge in code.
 
 ### Phase 3 — Conformance Check (after code is complete)
 
-5. Re-read every spec section touched in Phase 1. Verify each contract line against the implementation: signatures, behaviors, edge cases, error/exit codes.
-6. On divergence: code bug → fix the code; contract was wrong → fix the spec (re-bump version), then re-verify.
+6. **Primary spec**: Re-read every section touched in Phase 1. Verify each
+   contract line against the implementation: signatures, behaviors, edge cases,
+   error/exit codes.
+7. **Ripple check (mandatory)**: Re-read every cross-referenced file found in
+   Phase 1 step 2.  Verify they are still aligned with the implementation —
+   stale keyboard shortcuts, outdated pipeline descriptions, missing new
+   parameters, etc.
+8. On divergence: code bug → fix the code; contract was wrong → fix the spec
+   (re-bump version), then re-verify.
 
 ### Commit Ordering
 
-- Spec and code changes belong to the same commit series; the spec commit **precedes or accompanies** the code commit.
-- The feat/fix commit body lists the affected spec files.
+- Spec and code changes belong to the same commit series; the spec commit
+  **precedes or accompanies** the code commit.
+- The feat/fix commit body lists **all** affected files — primary spec(s) plus
+  any cross-referenced docs (CLAUDE.md, README.md) found in Phase 1 step 2.
+- Any ripple-fix commits (CLAUDE.md, README.md alignment) discovered during
+  Phase 3 belong in the same series, not deferred to a later session.
 
 ## Specs Serve Two Readers
 
 | Reader | Needs from specs |
 |--------|-----------------|
-| **Agent** (Claude Code) | Behavioral contracts — "what is correct" to verify compliance |
+| **Agent** (AI coding assistant) | Behavioral contracts — "what is correct" to verify compliance |
 | **Human developer** | Understanding — "why" a contract exists and "what are the boundaries" |
 
 Both readers matter. Content that explains a contract (not just defines it) should be kept.
@@ -54,90 +90,12 @@ For each piece of content, ask: **"When would I read this while writing code?"**
 
 WHAT layer naming depends on project domain (see §Spec Directory Structure for the project-type mapping). HOW has exactly one `modules/` layer.
 
-## What Does NOT Belong in Specs
+## Content Curation
 
-These are not "delete on sight" rules — each requires case-by-case judgment. The key question is always: **does this define or help understand a behavioral contract?**
-
-### 1. Change History / Version Changelogs → Delete
-
-Version history belongs in `git log` / `CHANGELOG.md`. Specs define current contracts, not how they evolved. Example: "Key change from v1: Internal Model removed" → delete; the spec should just describe current behavior.
-
-### 2. Implementation Pseudocode / Code Examples → Judge
-
-**Keep** if the code **defines or clarifies a behavioral contract** — it specifies what the code must do more precisely than prose could. Examples that ARE contracts:
-
-- Greedy matching algorithm pseudocode — without it, the matching contract is ambiguous
-- Coordinate transformation formulas (`cx_abs = cx * image_width`) — these ARE the mathematical contract
-- A `try/finally` code block showing which variable must be cleaned up and how — prose "must clean up" is ambiguous; the code says exactly what
-- Constructor calls showing parameter values like `strict_mode=False` — these define the behavioral contract ("visualizers never reject data")
-
-**Delete** only if the code is **truly redundant** — the prose already defines the same requirement with equal precision, and the code adds nothing. Example: `data = json.load(open(path))` when the prose says "read the file as JSON".
-
-**Key distinction:** Is the code the *clearest*, *most precise* expression of the requirement? If yes → keep. The fact that something is "implementation-like" (variable names, function calls) does NOT make it a violation — those can be the contract when they specify required behavior.
-
-**Tiebreaker:** "If I replaced this code with prose, would the behavioral requirement become less precise or ambiguous?" If yes → keep.
-
-### 3. CLI Command Signatures → Keep (with nuance)
-
-**Keep** command signatures — they ARE the module's public API contract. Example:
-```
-dataflow-cv convert yolo2coco [OPTIONS] IMAGE_DIR LABEL_DIR CLASS_FILE OUTPUT_FILE
-```
-This defines: subcommand name, positional argument order, argument count. Code must implement this exact signature.
-
-**Don't copy** full `--help` output verbatim — the executable is the authority for option descriptions.
-
-### 4. Migration Guides / Legacy API Tables → Delete
-
-One-time transition docs. Ship with the release, delete after migration is complete.
-
-### 5. Directory Tree File Listings → Judge by Level
-
-**Keep** module-level file listings — they ARE architecture documentation. Example:
-```
-dataflow/convert/
-├── base.py                # BaseConverter + shared pipelines
-├── yolo_and_coco.py       # YOLO ↔ COCO converter
-└── utils.py               # Shared coordinate transforms
-```
-This tells the reader: what files exist in this module, what each is responsible for. Essential for both agent and human to navigate the codebase.
-
-**Simplify** project-level recursive trees that just mirror `ls` output. Example: a full `specs/` tree in an index.md → redundant; the Documents table already serves as the index.
-
-### 6. Tutorials / How-To Guides → Keep, Label as Usage Guide
-
-**Keep** if it helps readers understand or apply the contract. Example: "Metric Selection Guide" telling users which metric to pick for small-object detection — it's not a contract, but it's context the reader needs when using evaluate specs.
-
-**Label** these sections clearly (e.g., "## Usage Guide") so readers know they're guidance, not behavioral requirements.
-
-**Delete** only truly standalone workflow recipes that don't reference any contract (e.g., "How to set up your first ML project").
-
-**Comparison tables** are a special case of this rule: keep if the table defines differentiated behavioral requirements between entities. If it just helps the user choose between options (e.g., "Metric Selection Guide"), keep it but label as `## Usage Guide`. Tiebreaker: "does this table help the reader apply a contract defined in this file?"
-
-## Pre-Deletion Checks
-
-Before deleting any content, apply two checks:
-
-**1. Contract check:** "Does this content help explain a behavioral contract — even if it reads like education or FAQ?" If yes, keep it. Contract-defining clarifications (e.g., "coordinates must be in [0, 1]", "TN is not applicable because there is no negative class") define the contract by explaining its boundaries.
-
-**2. Framing check:** Before deleting a section that seems "about the old architecture", check whether the *substance* is still correct but the *framing* is stale. Example: coordinate transformation formulas labeled "for Internal Model" are still mathematically correct — fix by renaming the section and adding a note about current architecture, not by deleting the formulas.
-
-## Extra Check for `modules/` Specs — Interface Contract or Implementation Description?
-
-The classification table below is a **starting point**, not a hard rule. Apply the "behavioral contract" test before deleting:
-
-| Interface contract → keep | Implementation description → likely delete |
-|---------------------------|-------------------------------------|
-| Public API signatures, return types, command signatures | Function-internal variable assignments |
-| Design constraints and rules (e.g., "must not import X from Y") | Step-by-step internal plumbing (e.g., "then call `ctx.obj['verbose']`") |
-| Option/parameter definition tables | Internal helper function docstrings that mirror code comments |
-| Exception types and exit codes | Directory tree of nested subdirectories |
-
-**Nuance for common borderline cases:**
-
-- **Step-by-step pipeline flow**: Keep if it defines the **contractual sequence** of steps (what must happen in what order). Delete if it describes **how** each step is implemented internally.
-- **Code snippets showing constructor calls**: Judge — a constructor call with specific parameter values can define behavioral requirements (e.g., `strict_mode=False` means "visualizers never reject data"; `logger=self.logger` means "visualizer passes its logger to the handler"). Delete only if the call merely repeats the signature without adding contract-relevant information.
-- **Internal utility function tables**: Delete if they duplicate what's in the module file listing. Keep if they define behavioral differences between utilities that the file listing alone doesn't convey.
+The key question: **does this define or help understand a behavioral contract?**
+If unsure, see the [curation guide](references/curation-guide.md) for detailed
+judgment rules (6 content types, pre-deletion checks, interface-vs-implementation
+table).
 
 ## Spec Directory Structure
 
