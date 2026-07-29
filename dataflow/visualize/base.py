@@ -415,11 +415,14 @@ class BaseVisualizer(ABC):
                                     current_idx = len(buffer) - 1
                             else:
                                 current_idx = len(buffer) - 1
+                    elif action == "hint":
+                        hints_shown = False  # re-trigger the log below
 
                     if not hints_shown:
                         self.logger.info(
                             "Controls: Enter/Space/→/↓ = next"
-                            " | ←/↑ = previous | q/ESC = quit"
+                            " | ←/↑ = previous"
+                            " | h = show hints | q/ESC = quit"
                         )
                         hints_shown = True
 
@@ -594,6 +597,8 @@ class BaseVisualizer(ABC):
 
                     if key == ord("q") or key == 27:  # q or ESC — quit
                         return "quit"
+                    if key == ord("h"):  # h — show keyboard hints
+                        return "hint"
                     if key in _ARROW_LEFT or key in _ARROW_UP:  # ← or ↑ — prev
                         return "prev"
                     # →, ↓, Enter, Space, or any other key — advance forward

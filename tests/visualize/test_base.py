@@ -275,6 +275,11 @@ class TestBaseVisualizer:
         action = visualizer._visualize_single_image(image_path, render_data)
         assert action == "next"
 
+        # Test 'h' key — show hints
+        mock_wait_key_ex.return_value = ord("h")
+        action = visualizer._visualize_single_image(image_path, render_data)
+        assert action == "hint"
+
         # Test unrecognized key — default forward
         mock_wait_key_ex.return_value = ord("x")
         action = visualizer._visualize_single_image(image_path, render_data)
