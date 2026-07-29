@@ -1,7 +1,7 @@
 # Visualize Module Specification
 
-> **Version:** v4.5 | **Last Updated:** 2026-07-29
-> **Status:** Draft — bidirectional nav; buffer limit; save dedup
+> **Version:** v4.6 | **Last Updated:** 2026-07-29
+> **Status:** Draft — bidirectional nav; buffer limit; save dedup; h hints; s snapshot
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
 
@@ -200,7 +200,9 @@ visualize()
 │   │   ├── Dispatch key:
 │   │   │   ├── q/ESC → quit (return to step 5)
 │   │   │   ├── ←/↑ → go to previous buffered image
-│   │   │   └── →/↓/Enter/Space/other → advance (fetch if needed)
+│   │   │   ├── →/↓/Enter/Space/other → advance (fetch if needed)
+│   │   │   ├── h → re-display keyboard hints (stay on current image)
+│   │   │   └── s → save snapshot to ./visualized_snapshots/ (stay on current image)
 │   │   └── Save (cv2.imwrite)     # If is_save=True
 │   └── (loop until quit or buffer exhausted)
 └── 5. Return VisualizationResult
@@ -388,6 +390,8 @@ enables backward navigation without re-parsing annotation files.
 |-----|--------|
 | `Enter` / `Space` / `→` / `↓` | Advance to next image |
 | `←` / `↑` | Return to previous image |
+| `h` | Re-display keyboard hints |
+| `s` | Save current image snapshot (see §4.5a) |
 | `q` / `ESC` | Stop visualization |
 
 **Navigation semantics:**
@@ -416,9 +420,10 @@ When the user interrupts, `VisualizationResult.data` includes
 codes are defined as cross-platform tuples covering Linux X11 keysyms and
 Windows extended key codes.
 
-**Keyboard hints**: A one-time INFO log message summarizing key bindings is
-emitted when the first image is displayed. The window title bar displays the
-current position and image filename:
+**Keyboard hints**: An INFO log message summarizing key bindings is emitted
+when the first image is displayed.  Press ``h`` at any time to re-display
+the hints (e.g. after they have scrolled past).  The window title bar
+displays the current position and image filename:
 `"DataFlow-CV Visualization [N/T] filename.jpg"`.
 
 **Window management**: A single OpenCV window named `"DataFlow-CV Visualization"` is created with `cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO` flags. On first display, it is positioned at `(100, 100)`. The window auto-sizes to fit the image dimensions, capped at 1920x1080 — larger images are scaled down proportionally while maintaining aspect ratio via `WINDOW_KEEPRATIO`.
@@ -432,6 +437,21 @@ When `is_save=True`:
 - **Duplicate prevention**: Each image is saved at most once per visualization
   session.  Navigating back to a previously-viewed image and re-rendering it
   will **not** overwrite the saved file (tracked via ``_saved_stems`` set).
+
+### 4.5a Snapshot Save (Interactive Mode)
+
+Pressing ``s`` during interactive visualization saves the **currently displayed**
+image (with all annotations rendered) to `./visualized_snapshots/`:
+
+- Output path: `./visualized_snapshots/{image_stem}_snapshot.jpg`
+- JPEG quality: 95
+- The directory is auto-created on first use
+- **Independent of ``--save``**: snapshot is always available and always writes
+  to `./visualized_snapshots/`.  It does not interact with `output_dir`,
+  `is_save`, or the duplicate-prevention ``_saved_stems`` set.
+- The save happens synchronously before returning from
+  ``_visualize_single_image``; the image stays on screen (no index change).
+- An INFO log message records the full path of each saved snapshot.
 
 ### 4.6 Progress Feedback
 

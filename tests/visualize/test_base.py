@@ -154,6 +154,7 @@ class TestBaseVisualizer:
         except ValueError:
             pytest.fail("_log_error should not raise exception")
 
+    @patch("cv2.imwrite")
     @patch("cv2.imshow")
     @patch("cv2.waitKeyEx")
     @patch("cv2.resizeWindow")
@@ -170,6 +171,7 @@ class TestBaseVisualizer:
         mock_resize_window,
         mock_wait_key_ex,
         mock_imshow,
+        mock_imwrite,
     ):
         """Test visualization in is_show mode with keyboard interaction."""
         mock_image = Mock()
@@ -279,6 +281,13 @@ class TestBaseVisualizer:
         mock_wait_key_ex.return_value = ord("h")
         action = visualizer._visualize_single_image(image_path, render_data)
         assert action == "hint"
+
+        # Test 's' key — save snapshot
+        mock_wait_key_ex.return_value = ord("s")
+        mock_imwrite.reset_mock()
+        action = visualizer._visualize_single_image(image_path, render_data)
+        assert action == "snapshot"
+        mock_imwrite.assert_called_once()
 
         # Test unrecognized key — default forward
         mock_wait_key_ex.return_value = ord("x")

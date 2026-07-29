@@ -422,7 +422,7 @@ class BaseVisualizer(ABC):
                         self.logger.info(
                             "Controls: Enter/Space/→/↓ = next"
                             " | ←/↑ = previous"
-                            " | h = show hints | q/ESC = quit"
+                            " | s = snapshot | h = hints | q/ESC = quit"
                         )
                         hints_shown = True
 
@@ -599,6 +599,17 @@ class BaseVisualizer(ABC):
                         return "quit"
                     if key == ord("h"):  # h — show keyboard hints
                         return "hint"
+                    if key == ord("s"):  # s — save snapshot
+                        snap_dir = Path("./visualized_snapshots/")
+                        snap_dir.mkdir(parents=True, exist_ok=True)
+                        snap_file = (
+                            snap_dir / f"{Path(image_path_str).stem}_snapshot.jpg"
+                        )
+                        cv2.imwrite(
+                            str(snap_file), image, [cv2.IMWRITE_JPEG_QUALITY, 95]
+                        )
+                        self.logger.info(f"Snapshot saved: {snap_file}")
+                        return "snapshot"
                     if key in _ARROW_LEFT or key in _ARROW_UP:  # ← or ↑ — prev
                         return "prev"
                     # →, ↓, Enter, Space, or any other key — advance forward
