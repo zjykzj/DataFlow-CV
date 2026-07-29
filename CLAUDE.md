@@ -310,9 +310,11 @@ visualize()
 │   ├── render_data = buffer[current_idx]          ← reuse cached RenderData
 │   ├── _visualize_single_image(image_path, render_data)
 │   │   ├── Load image, draw annotations, display/save
-│   │   └── cv2.waitKeyEx(0) → return "next" | "prev" | "quit" | None
+│   │   └── cv2.waitKeyEx(0) → return "next" | "prev" | "hint" | "snapshot" | "quit" | None
 │   └── Dispatch: "next" → advance (fetch from iter if needed)
 │                 "prev" → current_idx -= 1 (no-op at first)
+│                 "hint" → re-log keyboard controls (stay on current image)
+│                 "snapshot" → save to ./visualized_snapshots/ (stay on current image)
 │                 "quit" → stop
 │                 None   → skip (image load failure)
 ```
@@ -330,9 +332,9 @@ visualize()
 **Template method hierarchy:**
 - `_create_handler()`: Abstract — creates format-specific Label handler (lazy, not in `__init__`)
 - `_convert_to_render_data(image_ann)`: Abstract — converts single ImageAnnotation (format-native coords) to RenderData (absolute pixel coords)
-- `_visualize_single_image(image_path, render_data)`: Concrete — load image, draw annotations, display/save. Returns `"next"` (advance), `"prev"` (go back), `"quit"` (q/ESC), or `None` (load failure).
+- `_visualize_single_image(image_path, render_data)`: Concrete — load image, draw annotations, display/save. Returns `"next"` (advance), `"prev"` (go back), `"hint"` (re-display hints), `"snapshot"` (save current image), `"quit"` (q/ESC), or `None` (load failure).
 
-**Display behavior**: Uses a single persistent OpenCV window named `"DataFlow-CV Visualization"` (created once, reused across images) with fixed position. The window auto-sizes to match each image's dimensions, capped at 1920×1080. Title bar shows `[N/T] filename.jpg` for navigation context. Keyboard controls: `←`/`↑` for previous image (no-op at first), `→`/`↓`/`Enter`/`Space` for next image (no-op at last when iterator exhausted), `q`/`ESC` to exit. The window manager close button (X) may not work reliably — always use keyboard to close.
+**Display behavior**: Uses a single persistent OpenCV window named `"DataFlow-CV Visualization"` (created once, reused across images) with fixed position. The window auto-sizes to match each image's dimensions, capped at 1920×1080. Title bar shows `[N/T] filename.jpg` for navigation context. Keyboard controls: `←`/`↑` for previous image (no-op at first), `→`/`↓`/`Enter`/`Space` for next image (no-op at last when iterator exhausted), `s` to save snapshot, `h` to re-display hints, `q`/`ESC` to exit. The window manager close button (X) may not work reliably — always use keyboard to close.
 
 ### Evaluators (`dataflow/evaluate/`)
 
@@ -470,7 +472,7 @@ Test data lives in `assets/test_data/`, organized by format (det/seg) and annota
 4. **Converter state**: `_source_annotations_for_target` must be cleared in a `finally` block to prevent stale state on exceptions.
 5. **COCO image_id fallback**: When `img.image_id` is not a digit string, use a dedicated image counter (not the annotation counter).
 6. **Progress bar at 100%**: Guard against `filled == width` causing `"." * -1`. This only applies to batch-mode progress bars in utility code.  Visualize interactive mode uses the window title bar for progress, not console bars.
-7. **Visualization keyboard control**: The OpenCV window captures keyboard input via `cv2.waitKeyEx(0)`. Arrow keys (`←/↑` previous, `→/↓` next) use cross-platform code tuples. Press `Enter`/`Space` to advance, `q`/`ESC` to exit. The window manager close button (X) may not work reliably — always use keyboard to close.
+7. **Visualization keyboard control**: The OpenCV window captures keyboard input via `cv2.waitKeyEx(0)`. Arrow keys (`←/↑` previous, `→/↓` next) use cross-platform code tuples. Press `s` to save a snapshot, `h` to re-display keyboard hints, `Enter`/`Space` to advance, `q`/`ESC` to exit. The window manager close button (X) may not work reliably — always use keyboard to close.
 8. **Single persistent window**: The visualizer creates one window (named `"DataFlow-CV Visualization"`) and reuses it for all images. Title bar shows `[N/T] filename.jpg`. Window auto-sizes to each image's dimensions. Fixed window position prevents flickering across images.
 9. **BoundingBox semantics depend on format**: The same `BoundingBox` class is used for all formats. Always check `DatasetAnnotations.format` to interpret `(x, y, width, height)` correctly.
 10. **DT predictions require `score`**: COCO prediction JSON must include `"score"` field in every annotation. The evaluate module validates this — missing scores cause errors in strict mode.
