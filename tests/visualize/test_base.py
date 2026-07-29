@@ -15,10 +15,15 @@ from dataflow.visualize.base import (BaseVisualizer, ColorManager,
 class MockVisualizer(BaseVisualizer):
     """Concrete visualizer for testing base class."""
 
+    def __init__(self, label_dir, image_dir, mock_images=None, **kwargs):
+        super().__init__(label_dir, image_dir, **kwargs)
+        self._mock_images = mock_images
+
     def _create_handler(self):
-        """Mock handler with empty iterator for testing."""
+        """Mock handler with configurable iterator for testing."""
         handler = Mock()
-        handler.iter_images.return_value = iter([])
+        images = self._mock_images if self._mock_images is not None else []
+        handler.iter_images.return_value = iter(images)
         return handler
 
     def _convert_to_render_data(self, image_ann):
@@ -150,7 +155,7 @@ class TestBaseVisualizer:
             pytest.fail("_log_error should not raise exception")
 
     @patch("cv2.imshow")
-    @patch("cv2.waitKey")
+    @patch("cv2.waitKeyEx")
     @patch("cv2.resizeWindow")
     @patch("cv2.moveWindow")
     @patch("cv2.namedWindow")
@@ -163,7 +168,7 @@ class TestBaseVisualizer:
         mock_named_window,
         mock_move_window,
         mock_resize_window,
-        mock_wait_key,
+        mock_wait_key_ex,
         mock_imshow,
     ):
         """Test visualization in is_show mode with keyboard interaction."""
@@ -185,60 +190,95 @@ class TestBaseVisualizer:
         image_path = "/tmp/images/test.jpg"
 
         # Test Enter key (continue)
-        mock_wait_key.return_value = 13
-        success = visualizer._visualize_single_image(image_path, render_data)
-        assert success is True
+        mock_wait_key_ex.return_value = 13
+        action = visualizer._visualize_single_image(image_path, render_data)
+        assert action == "next"
         mock_named_window.assert_called_once()
         mock_move_window.assert_called_once()
         mock_resize_window.assert_called_once()
         mock_imshow.assert_called_once()
-        mock_wait_key.assert_called_once_with(0)
+        mock_wait_key_ex.assert_called_once_with(0)
 
         mock_named_window.reset_mock()
         mock_move_window.reset_mock()
         mock_resize_window.reset_mock()
         mock_imshow.reset_mock()
-        mock_wait_key.reset_mock()
+        mock_wait_key_ex.reset_mock()
         mock_imread.reset_mock()
 
         # Test space key
-        mock_wait_key.return_value = 32
-        success = visualizer._visualize_single_image(image_path, render_data)
-        assert success is True
+        mock_wait_key_ex.return_value = 32
+        action = visualizer._visualize_single_image(image_path, render_data)
+        assert action == "next"
         mock_named_window.assert_called_once()
         mock_move_window.assert_not_called()
         mock_resize_window.assert_called_once()
         mock_imshow.assert_called_once()
-        mock_wait_key.assert_called_once_with(0)
+        mock_wait_key_ex.assert_called_once_with(0)
 
         mock_named_window.reset_mock()
         mock_move_window.reset_mock()
         mock_resize_window.reset_mock()
         mock_imshow.reset_mock()
-        mock_wait_key.reset_mock()
+        mock_wait_key_ex.reset_mock()
         mock_imread.reset_mock()
 
         # Test 'q' key
-        mock_wait_key.return_value = ord("q")
-        success = visualizer._visualize_single_image(image_path, render_data)
-        assert success is None
+        mock_wait_key_ex.return_value = ord("q")
+        action = visualizer._visualize_single_image(image_path, render_data)
+        assert action == "quit"
         mock_named_window.assert_called_once()
         mock_move_window.assert_not_called()
         mock_resize_window.assert_called_once()
         mock_imshow.assert_called_once()
-        mock_wait_key.assert_called_once_with(0)
+        mock_wait_key_ex.assert_called_once_with(0)
 
         mock_named_window.reset_mock()
         mock_move_window.reset_mock()
         mock_resize_window.reset_mock()
         mock_imshow.reset_mock()
-        mock_wait_key.reset_mock()
+        mock_wait_key_ex.reset_mock()
         mock_imread.reset_mock()
 
         # Test ESC key
-        mock_wait_key.return_value = 27
-        success = visualizer._visualize_single_image(image_path, render_data)
-        assert success is None
+        mock_wait_key_ex.return_value = 27
+        action = visualizer._visualize_single_image(image_path, render_data)
+        assert action == "quit"
+
+        # Test Left arrow (Linux X11) — navigate backward
+        mock_wait_key_ex.return_value = 65361
+        action = visualizer._visualize_single_image(image_path, render_data)
+        assert action == "prev"
+
+        # Test Right arrow (Linux X11) — navigate forward
+        mock_wait_key_ex.return_value = 65363
+        action = visualizer._visualize_single_image(image_path, render_data)
+        assert action == "next"
+
+        # Test Up arrow (Linux X11) — navigate backward
+        mock_wait_key_ex.return_value = 65362
+        action = visualizer._visualize_single_image(image_path, render_data)
+        assert action == "prev"
+
+        # Test Down arrow (Linux X11) — navigate forward
+        mock_wait_key_ex.return_value = 65364
+        action = visualizer._visualize_single_image(image_path, render_data)
+        assert action == "next"
+
+        # Test Windows Left arrow — navigate backward
+        mock_wait_key_ex.return_value = 2424832
+        action = visualizer._visualize_single_image(image_path, render_data)
+        assert action == "prev"
+
+        # Test Windows Right arrow — navigate forward
+        mock_wait_key_ex.return_value = 2555904
+        action = visualizer._visualize_single_image(image_path, render_data)
+        assert action == "next"
+
+        # Test unrecognized key — default forward
+        mock_wait_key_ex.return_value = ord("x")
+        action = visualizer._visualize_single_image(image_path, render_data)
+        assert action == "next"
 
     @patch("cv2.imwrite")
     @patch("cv2.imread")
@@ -266,8 +306,8 @@ class TestBaseVisualizer:
         render_data = RenderData(annotations=[])
         image_path = "/tmp/images/test.jpg"
 
-        success = visualizer._visualize_single_image(image_path, render_data)
-        assert success is True
+        action = visualizer._visualize_single_image(image_path, render_data)
+        assert action == "next"
         mock_imwrite.assert_called_once()
         call_args = mock_imwrite.call_args
         assert str(call_args[0][0]) == str(output_dir / "test_visualized.jpg")
@@ -277,6 +317,237 @@ class TestBaseVisualizer:
             output_dir.rmdir()
         except OSError:
             pass
+
+
+class TestBidirectionalNavigation:
+    """Test bidirectional navigation in the interactive visualize() loop."""
+
+    def _make_mock_image_ann(self, idx: int):
+        """Create a mock ImageAnnotation for testing."""
+        from dataflow.label.models import (BoundingBox, ImageAnnotation,
+                                           ObjectAnnotation)
+
+        return ImageAnnotation(
+            image_id=f"img_{idx:03d}",
+            image_path=f"/tmp/images/img_{idx:03d}.jpg",
+            width=800,
+            height=600,
+            objects=[
+                ObjectAnnotation(
+                    class_id=0,
+                    class_name="test",
+                    bbox=BoundingBox(x=10, y=10, width=100, height=100),
+                )
+            ],
+        )
+
+    @patch("cv2.waitKeyEx")
+    @patch("cv2.imshow")
+    @patch("cv2.resizeWindow")
+    @patch("cv2.moveWindow")
+    @patch("cv2.namedWindow")
+    @patch("cv2.imread")
+    @patch("pathlib.Path.exists")
+    def test_navigate_forward_through_all_images(
+        self,
+        mock_exists,
+        mock_imread,
+        mock_named,
+        mock_move,
+        mock_resize,
+        mock_imshow,
+        mock_wait_ex,
+    ):
+        """Forward navigation visits all images in sequence."""
+        mock_image = Mock()
+        mock_image.shape = [600, 800, 3]
+        mock_imread.return_value = mock_image
+        mock_exists.return_value = True
+
+        # 3 images, user presses next twice then quits
+        mock_wait_ex.side_effect = [
+            65363,       # → (next) after img_000
+            65363,       # → (next) after img_001
+            ord("q"),    # quit after img_002
+        ]
+
+        mock_images = [
+            self._make_mock_image_ann(0),
+            self._make_mock_image_ann(1),
+            self._make_mock_image_ann(2),
+        ]
+
+        visualizer = MockVisualizer(
+            label_dir="/tmp/labels",
+            image_dir="/tmp/images",
+            is_show=True,
+            is_save=False,
+            mock_images=mock_images,
+        )
+        result = visualizer.visualize()
+        assert result.success is True
+        assert result.data["processed_count"] == 3
+        assert "interrupted" in result.data
+        assert mock_imshow.call_count == 3
+
+    @patch("cv2.waitKeyEx")
+    @patch("cv2.imshow")
+    @patch("cv2.resizeWindow")
+    @patch("cv2.moveWindow")
+    @patch("cv2.namedWindow")
+    @patch("cv2.imread")
+    @patch("pathlib.Path.exists")
+    def test_backward_navigation_noop_at_first_image(
+        self,
+        mock_exists,
+        mock_imread,
+        mock_named,
+        mock_move,
+        mock_resize,
+        mock_imshow,
+        mock_wait_ex,
+    ):
+        """Left arrow at first image is a no-op — stays at first image."""
+        mock_image = Mock()
+        mock_image.shape = [600, 800, 3]
+        mock_imread.return_value = mock_image
+        mock_exists.return_value = True
+
+        # ← at first image → stays at first, then → next, then quit
+        mock_wait_ex.side_effect = [
+            65361,       # ← at img_000 (no-op — already at first)
+            65363,       # → (next) to img_001
+            ord("q"),    # quit
+        ]
+
+        mock_images = [
+            self._make_mock_image_ann(0),
+            self._make_mock_image_ann(1),
+        ]
+
+        visualizer = MockVisualizer(
+            label_dir="/tmp/labels",
+            image_dir="/tmp/images",
+            is_show=True,
+            is_save=False,
+            mock_images=mock_images,
+        )
+        result = visualizer.visualize()
+        assert result.success is True
+        # img_000 displayed twice (initial + after ← no-op), img_001 once
+        assert result.data["processed_count"] == 2
+        assert result.data["interrupted"] is True
+
+    @patch("cv2.waitKeyEx")
+    @patch("cv2.imshow")
+    @patch("cv2.resizeWindow")
+    @patch("cv2.moveWindow")
+    @patch("cv2.namedWindow")
+    @patch("cv2.imread")
+    @patch("pathlib.Path.exists")
+    def test_forward_noop_at_last_image(
+        self,
+        mock_exists,
+        mock_imread,
+        mock_named,
+        mock_move,
+        mock_resize,
+        mock_imshow,
+        mock_wait_ex,
+    ):
+        """Right arrow at last image with exhausted iterator is a no-op."""
+        mock_image = Mock()
+        mock_image.shape = [600, 800, 3]
+        mock_imread.return_value = mock_image
+        mock_exists.return_value = True
+
+        # Single image dataset, → twice then quit
+        mock_wait_ex.side_effect = [
+            65363,       # → at img_000 (no-op — iterator exhausted)
+            65363,       # → again (still no-op)
+            ord("q"),    # quit
+        ]
+
+        mock_images = [self._make_mock_image_ann(0)]
+
+        visualizer = MockVisualizer(
+            label_dir="/tmp/labels",
+            image_dir="/tmp/images",
+            is_show=True,
+            is_save=False,
+            mock_images=mock_images,
+        )
+        result = visualizer.visualize()
+        assert result.success is True
+        assert result.data["processed_count"] == 1
+
+    @patch("cv2.waitKeyEx")
+    @patch("cv2.imshow")
+    @patch("cv2.resizeWindow")
+    @patch("cv2.moveWindow")
+    @patch("cv2.namedWindow")
+    @patch("cv2.imread")
+    @patch("pathlib.Path.exists")
+    def test_back_and_forth_counts_unique_images(
+        self,
+        mock_exists,
+        mock_imread,
+        mock_named,
+        mock_move,
+        mock_resize,
+        mock_imshow,
+        mock_wait_ex,
+    ):
+        """Navigating back and forth counts unique images, not total events."""
+        mock_image = Mock()
+        mock_image.shape = [600, 800, 3]
+        mock_imread.return_value = mock_image
+        mock_exists.return_value = True
+
+        # 3 images, navigate: → → ← ← → → quit
+        #   img_000 → img_001 → img_002 → img_001 → img_000 → img_001 → img_002
+        # Unique displayed: 3 (img_000, img_001, img_002)
+        mock_wait_ex.side_effect = [
+            65363,       # → img_001
+            65363,       # → img_002
+            65361,       # ← img_001
+            65361,       # ← img_000
+            65363,       # → img_001
+            65363,       # → img_002
+            ord("q"),    # quit
+        ]
+
+        mock_images = [
+            self._make_mock_image_ann(0),
+            self._make_mock_image_ann(1),
+            self._make_mock_image_ann(2),
+        ]
+
+        visualizer = MockVisualizer(
+            label_dir="/tmp/labels",
+            image_dir="/tmp/images",
+            is_show=True,
+            is_save=False,
+            mock_images=mock_images,
+        )
+        result = visualizer.visualize()
+        assert result.success is True
+        # 3 unique images displayed, not 7 display events
+        assert result.data["processed_count"] == 3
+        assert result.data["interrupted"] is True
+
+    def test_empty_dataset_returns_gracefully(self):
+        """Empty dataset returns success with processed_count=0."""
+        visualizer = MockVisualizer(
+            label_dir="/tmp/labels",
+            image_dir="/tmp/images",
+            is_show=True,
+            is_save=False,
+            mock_images=[],  # empty
+        )
+        result = visualizer.visualize()
+        assert result.success is True
+        assert result.data["processed_count"] == 0
 
 
 def test_draw_methods_signatures():

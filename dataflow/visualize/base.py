@@ -11,13 +11,22 @@ import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import cv2
 import numpy as np
 
 from dataflow.label.base import BaseAnnotationHandler
 from dataflow.label.models import ImageAnnotation
+
+# Arrow key codes for cv2.waitKeyEx() — cross-platform tuples.
+# Linux (waitKey):             81, 82, 83, 84
+# Linux (waitKeyEx, X11):      65361, 65362, 65363, 65364
+# Windows (waitKeyEx):         2424832, 2490368, 2555904, 2621440
+_ARROW_LEFT = (81, 65361, 2424832)
+_ARROW_UP = (82, 65362, 2490368)
+_ARROW_RIGHT = (83, 65363, 2555904)
+_ARROW_DOWN = (84, 65364, 2621440)
 
 
 @dataclass
@@ -243,9 +252,11 @@ class BaseVisualizer(ABC):
             success=False, log_path=self._log_manager.log_path
         )
 
-        processed_count = 0
-        image_index = 0
         total_objects = 0
+        # Navigation state (declared here so ValueError handler can read them
+        # even when the exception fires before the main loop starts).
+        buffer: List[Tuple[str, RenderData]] = []
+        displayed_indices: Set[int] = set()
 
         try:
             # 1. Validate output directory
@@ -276,62 +287,183 @@ class BaseVisualizer(ABC):
                 )
             )
 
-            # 3. Process images one at a time (streaming)
-            user_interrupted = False
+            # 3. Visualization pipeline — dispatches between interactive
+            #    (buffered, bidirectional navigation) and batch (streaming)
+            #    based on is_show.
+            if self.is_show:
+                # ── Interactive mode: buffered bidirectional navigation ──
+                #
+                # Images are fetched on demand and buffered as (image_path,
+                # RenderData) tuples.  When navigating backward the RenderData
+                # is reused (pixels re-loaded from disk).  Advancing past the
+                # buffer end fetches the next item from the iterator.
+                current_idx = 0
+                iterator_exhausted = False
+                user_interrupted = False
+                hints_shown = False
 
-            for image_ann in image_iter:
-                image_index += 1
+                image_iter = handler.iter_images()
 
-                # Convert to render data (per-image)
-                render_data = self._convert_to_render_data(image_ann)
-                total_objects += len(render_data.annotations)
+                # Prime the buffer with the first image
+                try:
+                    image_ann = next(image_iter)
+                except StopIteration:
+                    iterator_exhausted = True
 
-                # Per-image progress (every 10th to console, every
-                # image when verbose with log file)
-                if image_index % 10 == 0 or self._log_manager.log_path is not None:
-                    n_obj = len(render_data.annotations)
-                    self._log_progress(
-                        image_index,
-                        message=str(image_ann.image_path),
-                        n_objects=n_obj,
+                if not iterator_exhausted:
+                    render_data = self._convert_to_render_data(image_ann)
+                    buffer.append((image_ann.image_path, render_data))
+                    total_objects += len(render_data.annotations)
+                    if self._log_manager.log_path is not None:
+                        self.logger.debug(
+                            f"Buffered image: {image_ann.image_path}"
+                            f" ({len(render_data.annotations)} objects)"
+                        )
+
+                # Navigation loop
+                while buffer and 0 <= current_idx < len(buffer):
+                    image_path_str, render_data = buffer[current_idx]
+                    displayed_idx = current_idx
+
+                    action = self._visualize_single_image(
+                        image_path_str, render_data
                     )
 
-                if self._log_manager.log_path is not None:
-                    self.logger.debug(
-                        f"Processing image: {image_ann.image_path}"
-                        f" ({len(render_data.annotations)} objects)"
-                    )
+                    if action is None:
+                        # Image load failure — advance forward
+                        self.summary_data["failed_images"] += 1
+                        if current_idx < len(buffer) - 1:
+                            current_idx += 1
+                        elif not iterator_exhausted:
+                            try:
+                                image_ann = next(image_iter)
+                            except StopIteration:
+                                iterator_exhausted = True
+                            if not iterator_exhausted:
+                                render_data = self._convert_to_render_data(
+                                    image_ann
+                                )
+                                buffer.append((image_ann.image_path, render_data))
+                                total_objects += len(render_data.annotations)
+                                current_idx = len(buffer) - 1
+                                if self._log_manager.log_path is not None:
+                                    self.logger.debug(
+                                        f"Buffered image: {image_ann.image_path}"
+                                        f" ({len(render_data.annotations)} objects)"
+                                    )
+                            else:
+                                break
+                        else:
+                            break
+                        continue
 
-                # Visualize
-                success = self._visualize_single_image(
-                    image_ann.image_path, render_data
-                )
-                if success is None:
-                    user_interrupted = True
-                    break
-                elif success:
-                    processed_count += 1
-                    self.summary_data["processed_images"] = processed_count
+                    displayed_indices.add(displayed_idx)
+
+                    if action == "quit":
+                        user_interrupted = True
+                        break
+                    elif action == "prev":
+                        if current_idx > 0:
+                            current_idx -= 1
+                    elif action == "next":
+                        current_idx += 1
+                        if current_idx >= len(buffer):
+                            if not iterator_exhausted:
+                                try:
+                                    image_ann = next(image_iter)
+                                except StopIteration:
+                                    iterator_exhausted = True
+                                if not iterator_exhausted:
+                                    render_data = self._convert_to_render_data(
+                                        image_ann
+                                    )
+                                    buffer.append(
+                                        (image_ann.image_path, render_data)
+                                    )
+                                    total_objects += len(render_data.annotations)
+                                    if self._log_manager.log_path is not None:
+                                        self.logger.debug(
+                                            f"Buffered image: {image_ann.image_path}"
+                                            f" ({len(render_data.annotations)} objects)"
+                                        )
+                                else:
+                                    current_idx = len(buffer) - 1
+                            else:
+                                current_idx = len(buffer) - 1
+
+                    if not hints_shown:
+                        self.logger.info(
+                            "Controls: Enter/Space/→/↓ = next"
+                            " | ←/↑ = previous | q/ESC = quit"
+                        )
+                        hints_shown = True
+
+                    self._update_window_title(
+                        current_idx, len(buffer), image_path_str
+                    )
+                    self.summary_data["processed_images"] = len(displayed_indices)
+
+                self.summary_data["total_images"] = len(buffer)
+                self.summary_data["total_objects"] = total_objects
+
+                if user_interrupted:
+                    result.success = True
+                    result.message = (
+                        f"Visualization interrupted by user after "
+                        f"{len(displayed_indices)} unique images displayed. "
+                        f"{self.summary_data['failed_images']} failed out of "
+                        f"{len(buffer)} images"
+                    )
+                    result.data = {
+                        "processed_count": len(displayed_indices),
+                        "interrupted": True,
+                    }
                 else:
-                    self.summary_data["failed_images"] += 1
-
-            # Update summary data with actual counts
-            self.summary_data["total_images"] = image_index
-            self.summary_data["total_objects"] = total_objects
-
-            if user_interrupted:
-                result.success = True
-                result.message = (
-                    f"Visualization interrupted by user after "
-                    f"{processed_count} images. "
-                    f"{self.summary_data['failed_images']} failed out of "
-                    f"{image_index} images"
-                )
-                result.data = {
-                    "processed_count": processed_count,
-                    "interrupted": True,
-                }
+                    result.success = True
+                    failed_count = self.summary_data["failed_images"]
+                    result.message = (
+                        f"Visualization completed: {len(displayed_indices)} rendered, "
+                        f"{failed_count} failed out of {len(buffer)} images"
+                    )
+                    result.data = {"processed_count": len(displayed_indices)}
             else:
+                # ── Batch mode: streaming forward-only (no display) ──
+                processed_count = 0
+                image_index = 0
+
+                for image_ann in handler.iter_images():
+                    image_index += 1
+
+                    render_data = self._convert_to_render_data(image_ann)
+                    total_objects += len(render_data.annotations)
+
+                    if image_index % 10 == 0 or self._log_manager.log_path is not None:
+                        self._log_progress(
+                            image_index,
+                            message=str(image_ann.image_path),
+                            n_objects=len(render_data.annotations),
+                        )
+
+                    if self._log_manager.log_path is not None:
+                        self.logger.debug(
+                            f"Processing image: {image_ann.image_path}"
+                            f" ({len(render_data.annotations)} objects)"
+                        )
+
+                    action = self._visualize_single_image(
+                        image_ann.image_path, render_data
+                    )
+                    if action == "quit":
+                        break
+                    elif action is not None:
+                        processed_count += 1
+                        self.summary_data["processed_images"] = processed_count
+                    else:
+                        self.summary_data["failed_images"] += 1
+
+                self.summary_data["total_images"] = image_index
+                self.summary_data["total_objects"] = total_objects
+
                 result.success = True
                 failed_count = self.summary_data["failed_images"]
                 result.message = (
@@ -348,16 +480,16 @@ class BaseVisualizer(ABC):
             # during iteration. Partial results before the error are valid.
             error_msg = str(e)
             result.add_error(error_msg)
-            self.summary_data["total_images"] = image_index
+            self.summary_data["total_images"] = len(buffer)
             self.summary_data["total_objects"] = total_objects
-            if processed_count > 0:
+            if len(displayed_indices) > 0:
                 result.success = True
                 result.message = (
                     f"Visualization completed with partial results: "
-                    f"{processed_count} processed. Error: {error_msg}"
+                    f"{len(displayed_indices)} displayed. Error: {error_msg}"
                 )
                 result.data = {
-                    "processed_count": processed_count,
+                    "processed_count": len(displayed_indices),
                     "partial": True,
                 }
             else:
@@ -381,8 +513,15 @@ class BaseVisualizer(ABC):
 
     def _visualize_single_image(
         self, image_path_str: str, render_data: RenderData
-    ) -> Optional[bool]:
-        """Visualize a single image using pre-computed RenderData."""
+    ) -> Optional[str]:
+        """Visualize a single image using pre-computed RenderData.
+
+        Returns:
+            ``"next"`` — advance to next image (Enter/Space/→/↓/any key).
+            ``"prev"`` — go back to previous image (←/↑).
+            ``"quit"`` — user pressed q/ESC, stop visualization.
+            ``None`` — image file not found or failed to load.
+        """
         try:
             # 1. Resolve and load image
             image_path = Path(image_path_str)
@@ -391,12 +530,12 @@ class BaseVisualizer(ABC):
 
             if not image_path.exists():
                 self._log_warning(f"Image file not found: {image_path}")
-                return False
+                return None
 
             image = cv2.imread(str(image_path))
             if image is None:
                 self._log_warning(f"Failed to load image: {image_path}")
-                return False
+                return None
 
             # 2. Draw all render annotations
             for render_ann in render_data.annotations:
@@ -426,10 +565,14 @@ class BaseVisualizer(ABC):
                         cv2.resizeWindow(window_name, int(w * scale), int(h * scale))
 
                     cv2.imshow(window_name, image)
-                    key = cv2.waitKey(0)
+                    key = cv2.waitKeyEx(0)
 
-                    if key == ord("q") or key == 27:
-                        return None
+                    if key == ord("q") or key == 27:  # q or ESC — quit
+                        return "quit"
+                    if key in _ARROW_LEFT or key in _ARROW_UP:  # ← or ↑ — prev
+                        return "prev"
+                    # →, ↓, Enter, Space, or any other key — advance forward
+                    return "next"
                 except Exception as e:
                     self._log_warning(f"Failed to display visualization window: {e}")
 
@@ -443,11 +586,11 @@ class BaseVisualizer(ABC):
                 )
                 self._log_info(f"Saved visualization to: {output_file}")
 
-            return True
+            return "next"
 
         except Exception as e:
             self._log_error(f"Error visualizing image {image_path_str}: {e}")
-            return False
+            return None
 
     def _draw_render_annotation(
         self, image: np.ndarray, render_ann: RenderAnnotation
@@ -718,3 +861,22 @@ class BaseVisualizer(ABC):
         else:
             bar = "[" + "=" * filled + ">" + "." * (width - filled - 1) + "]"
         return bar
+
+    @staticmethod
+    def _update_window_title(
+        cursor: int, buffer_len: int, image_path_str: str
+    ) -> None:
+        """Update the OpenCV window title with navigation position.
+
+        Shows ``[N/T] filename`` in the title bar for user orientation.
+        Cosmetic only — failures are silently ignored.
+        """
+        try:
+            fname = Path(image_path_str).name
+            title = (
+                f"DataFlow-CV Visualization"
+                f" [{cursor + 1}/{buffer_len}] {fname}"
+            )
+            cv2.setWindowTitle("DataFlow-CV Visualization", title)
+        except Exception:
+            pass  # Window title update is cosmetic; ignore failures

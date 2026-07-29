@@ -1,7 +1,7 @@
 # Visualize Module Specification
 
-> **Version:** v4.3 | **Last Updated:** 2026-07-02
-> **Status:** Draft — industry-standard label positioning (top-left, class-color background, inside-bbox edge flip)
+> **Version:** v4.4 | **Last Updated:** 2026-07-29
+> **Status:** Draft — bidirectional arrow-key navigation in display mode
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
 
@@ -193,20 +193,29 @@ visualize()
 │   │   │   ├── _draw_bbox()       # If bbox exists
 │   │   │   ├── _draw_polygon()    # If polygon exists
 │   │   │   └── _draw_rle_mask()   # If RLE exists
-│   │   ├── Display (cv2.imshow)   # If is_show=True
+│   │   ├── Display (cv2.imshow + cv2.waitKeyEx)   # If is_show=True
+│   │   ├── Dispatch key:
+│   │   │   ├── q/ESC → quit (return to step 4)
+│   │   │   ├── ←/↑ → go to previous buffered image (current_idx -= 1)
+│   │   │   └── →/↓/Enter/Space/other → go to next image (fetch if needed)
 │   │   └── Save (cv2.imwrite)     # If is_save=True
-│   └── Handle keyboard input (q/ESC stops iteration)
+│   └── (loop continues until quit or buffer exhausted)
 └── 4. Return VisualizationResult
 ```
 
-**Streaming semantics**: Images are loaded, converted, and displayed one at a time.
-The handler's `iter_images()` yields each `ImageAnnotation` incrementally — no
-batch accumulation. This means:
-- **Low first-image latency**: The first image appears as soon as parsing completes
-  for the first annotation file, not after all files are processed.
-- **Low memory**: Only the current image's annotation data is held in memory.
+**Buffered navigation semantics**: When `is_show=True`, images are fetched from
+`handler.iter_images()` on demand and buffered as `(image_path, RenderData)`
+tuples. When navigating backward, the `RenderData` is retrieved from the buffer
+and re-rendered (image pixel data is re-loaded from disk). When navigating
+forward past the buffer end, the next item is fetched from the iterator. This
+preserves low first-image latency while enabling bidirectional navigation.
+
+- **First-image latency**: Unchanged — the first image is buffered and displayed
+  immediately, before fetching subsequent images.
+- **Memory**: `RenderData` (annotation coordinates only) is buffered, not pixel
+  data. Per-image memory is ~1-2 KB (detection) to ~50 KB (complex segmentation).
 - **Incremental summary**: `total_images` and `total_objects` are updated as images
-  are processed, rather than known upfront.
+  are fetched from the iterator.
 - **Progress display**: Uses counter format (`Processing image 5`) instead of
   percentage-based progress bars (total count unknown until iteration completes).
 
@@ -341,14 +350,48 @@ Requires pycocotools — logs error and returns without drawing if unavailable.
 
 ### 4.4 Keyboard Interaction (Display Mode)
 
-When `is_show=True`, each image is shown in a window:
+When `is_show=True`, visualization supports bidirectional navigation through a
+buffer of previously seen images. Images that have been fetched from the handler
+iterator are cached as `(image_path, RenderData)` tuples in memory — pixel data
+is **not** cached (images are re-loaded from disk on each display). The buffer
+enables backward navigation without re-parsing annotation files.
 
 | Key | Action |
 |-----|--------|
-| Any key | Continue to next image (the documented Enter/Space contract is satisfied by this behavior) |
-| `q` / ESC | Stop visualization (returns `None` from `_visualize_single_image`) |
+| `Enter` / `Space` / `→` / `↓` | Advance to next image |
+| `←` / `↑` | Return to previous image |
+| `q` / `ESC` | Stop visualization |
 
-When the user interrupts, `VisualizationResult.data` includes `{"interrupted": True}`.
+**Navigation semantics:**
+
+- At the **first image**, left/up arrows are a no-op (stay at first image).
+- At the **last image** (buffer end + iterator exhausted), right/down arrows
+  and Enter/Space are a no-op.
+- When advancing forward past the last buffered image, the next item is fetched
+  from `handler.iter_images()`, converted to `RenderData`, and appended to the
+  buffer.
+- When navigating backward, the `RenderData` (annotation coordinates) is
+  retrieved from the buffer — the image file is re-loaded from disk and
+  annotations are re-drawn. Pixel data is never cached.
+
+**processed_count semantics**: The `processed_count` field in
+`VisualizationResult.data` counts **unique images** that were rendered at least
+once (displayed in the window at least once), not total display events. If the
+user navigates back and forth between images 1-5 and quits, `processed_count`
+is 5 (not the number of individual display events).
+
+When the user interrupts, `VisualizationResult.data` includes
+`{"interrupted": True}`.
+
+**Implementation note — waitKeyEx**: Uses `cv2.waitKeyEx(0)` instead of
+`cv2.waitKey(0)` to reliably detect arrow keys on Linux (X11). Arrow key
+codes are defined as cross-platform tuples covering Linux X11 keysyms and
+Windows extended key codes.
+
+**Keyboard hints**: A one-time INFO log message summarizing key bindings is
+emitted when the first image is displayed. The window title bar displays the
+current position and image filename:
+`"DataFlow-CV Visualization [N/T] filename.jpg"`.
 
 **Window management**: A single OpenCV window named `"DataFlow-CV Visualization"` is created with `cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO` flags. On first display, it is positioned at `(100, 100)`. The window auto-sizes to fit the image dimensions, capped at 1920x1080 — larger images are scaled down proportionally while maintaining aspect ratio via `WINDOW_KEEPRATIO`.
 
