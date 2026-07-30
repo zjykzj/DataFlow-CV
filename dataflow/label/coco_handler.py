@@ -200,7 +200,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 img_anns, img_info["width"], img_info["height"]
             )
             image_ann = IA(
-                image_id=str(img_id),
+                image_id=self._sanitize_image_id(img_id),
                 image_path=img_info["file_name"],
                 width=img_info["width"],
                 height=img_info["height"],
@@ -242,6 +242,44 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                     return True
         return False
 
+    @staticmethod
+    def _sanitize_image_id(img_id: Any) -> str:
+        """Sanitize an image_id from a COCO JSON ``images`` entry.
+
+        COCO ``id`` fields are typically integers, but this method also
+        handles float and string values safely.  Path traversal sequences
+        (``/``, ``\\``, ``..``) and null bytes in string IDs are
+        rejected.
+
+        Returns:
+            Sanitized image ID as a string.
+
+        Raises:
+            ValueError: If *img_id* is ``None``, empty, contains path
+                traversal characters, or is an invalid type.
+        """
+        if img_id is None:
+            raise ValueError("image_id must not be None")
+        if isinstance(img_id, (int, float)):
+            return str(int(img_id))
+        if isinstance(img_id, str):
+            cleaned = img_id.strip()
+            if not cleaned:
+                raise ValueError("image_id must not be empty")
+            if "\x00" in cleaned:
+                raise ValueError(
+                    f"image_id contains null byte: {cleaned!r}"
+                )
+            if any(ch in cleaned for ch in ("/", "\\", "..")):
+                raise ValueError(
+                    f"image_id contains path traversal characters: "
+                    f"{cleaned!r}"
+                )
+            return cleaned
+        raise ValueError(
+            f"Unsupported image_id type: {type(img_id).__name__}"
+        )
+
     def _create_dataset(self) -> DatasetAnnotations:
         """Create DatasetAnnotations from loaded COCO data."""
         dataset = DatasetAnnotations(format=AnnotationFormat.COCO)
@@ -259,7 +297,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             )
 
             image_ann = ImageAnnotation(
-                image_id=str(img_id),
+                image_id=self._sanitize_image_id(img_id),
                 image_path=img_info["file_name"],
                 width=img_info["width"],
                 height=img_info["height"],
@@ -342,7 +380,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                                 points = self._decode_rle_to_polygon(
                                     seg_data, img_width, img_height
                                 )
-                            except Exception as e:
+                            except (ImportError, ValueError, TypeError) as e:
                                 self._log_warning(
                                     f"Failed to decode RLE for annotation {ann.get('id')}: {e}"
                                 )
@@ -379,7 +417,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 )
                 objects.append(obj)
 
-            except Exception as e:
+            except (ValueError, KeyError, TypeError) as e:
                 self._log_warning(f"Error processing annotation {ann.get('id')}: {e}")
                 continue
 
@@ -435,7 +473,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
             return points
 
-        except Exception as e:
+        except (ImportError, ValueError, TypeError) as e:
             self._log_error(f"Error decoding RLE: {e}")
             return []
 
@@ -482,7 +520,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 self._log_warning(f"Unexpected RLE type: {type(rle)}")
                 return rle
 
-        except Exception as e:
+        except (ImportError, ValueError, TypeError) as e:
             self._log_error(f"Error encoding polygon to RLE: {e}")
             raise
 

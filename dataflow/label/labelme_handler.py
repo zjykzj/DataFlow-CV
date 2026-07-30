@@ -477,6 +477,9 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 "imageWidth": image_ann.width,
             }
 
+            # Validate image_id is safe for path construction (defense in depth)
+            self._validate_image_id_for_path(image_ann.image_id)
+
             # Write JSON file
             output_file = output_dir / f"{image_ann.image_id}.json"
             with open(output_file, "w", encoding="utf-8") as f:

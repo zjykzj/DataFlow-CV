@@ -78,10 +78,9 @@ def test_coco_visualize_integration():
                 "coco",
                 str(coco_images_dir),  # IMAGE_DIR (positional)
                 str(coco_annotations),  # COCO_FILE (positional)
+                "--no-display",          # headless mode — no OpenCV window
                 "--save",
                 str(output_dir),  # output directory for --save
-                # Note: --display flag is not used, default is to display
-                # Use --no-display if the visualizer supports it, but our CLI doesn't have that flag
             ]
         )
 

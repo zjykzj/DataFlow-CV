@@ -156,6 +156,27 @@ class BaseAnnotationHandler(ABC):
         """Log debug message."""
         self.logger.debug(message)
 
+    @staticmethod
+    def _validate_image_id_for_path(image_id: str, suffix: str = "") -> None:
+        """Validate that *image_id* is safe for use in a file path.
+
+        Rejects empty strings, null bytes, and path traversal sequences
+        (``/``, ``\\``, ``..``).  Called by ``write_one()`` methods as
+        a defense-in-depth check before path construction.
+
+        Raises:
+            ValueError: If *image_id* is unsafe.
+        """
+        if not image_id:
+            raise ValueError("image_id must not be empty")
+        if "\x00" in image_id:
+            raise ValueError(f"image_id contains null byte: {image_id!r}")
+        if any(ch in image_id for ch in ("/", "\\", "..")):
+            raise ValueError(
+                f"image_id contains path traversal characters: "
+                f"{image_id!r}"
+            )
+
     def _set_annotation_flags(self, annotations: DatasetAnnotations):
         """Set handler flags based on annotation data."""
         has_detection = any(
@@ -228,7 +249,17 @@ class BaseAnnotationHandler(ABC):
         Tolerates minor floating-point imprecision at image edges (e.g.,
         x=-0.39 → 0). Emits a WARNING if any coordinate value is modified.
         Returns (x, y, w, h) clamped to [0, img_width] × [0, img_height].
+
+        Raises:
+            ValueError: If any input value is NaN or Inf.
         """
+        # Reject NaN/Inf early — Python min/max silently coerce them
+        for name, val in (("x", x), ("y", y), ("w", w), ("h", h)):
+            if not math.isfinite(val):
+                raise ValueError(
+                    f"bbox.{name} must be finite, got: {val!r}"
+                )
+
         x_orig, y_orig, w_orig, h_orig = x, y, w, h
         right_orig = x_orig + w_orig
         bottom_orig = y_orig + h_orig
@@ -245,10 +276,10 @@ class BaseAnnotationHandler(ABC):
         bottom_new = y + h
 
         changed = (
-            abs(x - x_orig) > 1e-9
-            or abs(y - y_orig) > 1e-9
-            or abs(right_new - right_orig) > 1e-9
-            or abs(bottom_new - bottom_orig) > 1e-9
+            abs(x - x_orig) > 1e-6
+            or abs(y - y_orig) > 1e-6
+            or abs(right_new - right_orig) > 1e-6
+            or abs(bottom_new - bottom_orig) > 1e-6
         )
 
         if changed:
@@ -271,6 +302,9 @@ class BaseAnnotationHandler(ABC):
         Each point (x, y) is clamped to [0, img_width] × [0, img_height].
         Emits a single WARNING if any point coordinate is modified.
         Returns list of clamped (x, y) tuples.
+
+        Raises:
+            ValueError: If any point coordinate is NaN or Inf.
         """
         clamped_points = []
         changed = False
@@ -279,7 +313,7 @@ class BaseAnnotationHandler(ABC):
             cx = max(0.0, min(float(img_width), float(x)))
             cy = max(0.0, min(float(img_height), float(y)))
             clamped_points.append((cx, cy))
-            if abs(cx - x) > 1e-9 or abs(cy - y) > 1e-9:
+            if abs(cx - x) > 1e-6 or abs(cy - y) > 1e-6:
                 changed = True
 
         if changed:
@@ -298,7 +332,20 @@ class BaseAnnotationHandler(ABC):
         Tolerates minor floating-point imprecision at [0,1] boundaries (e.g.,
         cx + w/2 = 1.00000015 → 1.0). Emits a WARNING if any edge value is
         modified. Returns (cx, cy, w, h) with all edges clamped to [0, 1].
+
+        Raises:
+            ValueError: If any input value is NaN or Inf.
         """
+        # Reject NaN/Inf early — Python min/max silently coerce them
+        for name, val in (
+            ("cx", cx), ("cy", cy), ("w", w), ("h", h),
+        ):
+            if not math.isfinite(val):
+                raise ValueError(
+                    f"normalized bbox.{name} must be finite, got: "
+                    f"{val!r}"
+                )
+
         cx_orig, cy_orig, w_orig, h_orig = cx, cy, w, h
 
         # Compute edges from center format
@@ -345,6 +392,9 @@ class BaseAnnotationHandler(ABC):
 
         Each point (x, y) is clamped to [0, 1]. Emits a single WARNING if any
         point coordinate is modified. Returns list of clamped (x, y) tuples.
+
+        Raises:
+            ValueError: If any point coordinate is NaN or Inf.
         """
         clamped_points = []
         changed = False

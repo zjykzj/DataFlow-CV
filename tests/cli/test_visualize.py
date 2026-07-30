@@ -65,7 +65,7 @@ def test_visualize_yolo_success():
         mock_visualizer = Mock()
         mock_visualizer.visualize.return_value = mock_result
 
-        with patch('dataflow.visualize.yolo_visualizer.YOLOVisualizer', return_value=mock_visualizer):
+        with patch('dataflow.visualize.YOLOVisualizer', return_value=mock_visualizer):
             result = runner.invoke(
                 cli,
                 [
@@ -140,7 +140,7 @@ def test_visualize_coco_success():
         mock_visualizer = Mock()
         mock_visualizer.visualize.return_value = mock_result
 
-        with patch('dataflow.visualize.coco_visualizer.COCOVisualizer', return_value=mock_visualizer):
+        with patch('dataflow.visualize.COCOVisualizer', return_value=mock_visualizer):
             result = runner.invoke(
                 cli,
                 [
@@ -183,7 +183,7 @@ def test_visualize_labelme_success():
         mock_visualizer = Mock()
         mock_visualizer.visualize.return_value = mock_result
 
-        with patch('dataflow.visualize.labelme_visualizer.LabelMeVisualizer', return_value=mock_visualizer):
+        with patch('dataflow.visualize.LabelMeVisualizer', return_value=mock_visualizer):
             result = runner.invoke(
                 cli,
                 [
@@ -227,7 +227,7 @@ def test_visualize_failure():
         mock_visualizer = Mock()
         mock_visualizer.visualize.return_value = mock_result
 
-        with patch('dataflow.visualize.yolo_visualizer.YOLOVisualizer', return_value=mock_visualizer):
+        with patch('dataflow.visualize.YOLOVisualizer', return_value=mock_visualizer):
             result = runner.invoke(
                 cli,
                 [

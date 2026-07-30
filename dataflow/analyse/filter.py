@@ -24,7 +24,8 @@ from .log_templates import (
     format_filter_result,
 )
 from .utils import create_handler, detect_format, load_class_names
-from dataflow.label.models import DatasetAnnotations, ImageAnnotation
+from dataflow.label.models import (DatasetAnnotations, ImageAnnotation,
+                                    ObjectAnnotation)
 
 
 class FilterAnalyser(BaseAnalyser):
@@ -295,14 +296,22 @@ class FilterAnalyser(BaseAnalyser):
                     total_files += 1
                     total_before += len(image_ann.objects)
 
-                    filtered_objects = [
-                        obj for obj in image_ann.objects
-                        if obj.class_id in old_to_new
-                    ]
-                    for obj in filtered_objects:
-                        mapping = old_to_new[obj.class_id]
-                        obj.class_id = mapping.new_id
-                        obj.class_name = mapping.name
+                    filtered_objects = []
+                    for obj in image_ann.objects:
+                        mapping = old_to_new.get(obj.class_id)
+                        if mapping is not None:
+                            # Create a new object with remapped ID/name
+                            # rather than mutating the original (avoid
+                            # aliasing — the original may be reused by the
+                            # iterator or shared across images).
+                            filtered_objects.append(ObjectAnnotation(
+                                class_id=mapping.new_id,
+                                class_name=mapping.name,
+                                bbox=obj.bbox,
+                                segmentation=obj.segmentation,
+                                confidence=obj.confidence,
+                                is_crowd=obj.is_crowd,
+                            ))
                     total_after += len(filtered_objects)
 
                     if filtered_objects:

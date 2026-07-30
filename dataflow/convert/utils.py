@@ -7,6 +7,7 @@ conversion validation, and shared coordinate transforms.
 
 import json
 import logging
+import math
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -45,6 +46,14 @@ def yolo_to_absolute_pixel(
             raise ValueError(
                 f"Image dimensions must be positive, got {img_width}x{img_height}"
             )
+        # Reject NaN/Inf before arithmetic (Python min/max silently
+        # coerce them in downstream clamping).
+        for field_name in ("x", "y", "width", "height"):
+            val = getattr(bbox, field_name)
+            if not math.isfinite(val):
+                raise ValueError(
+                    f"bbox.{field_name} must be finite, got: {val!r}"
+                )
         cx_abs = bbox.x * img_width
         cy_abs = bbox.y * img_height
         w_abs = bbox.width * img_width
@@ -61,6 +70,13 @@ def yolo_to_absolute_pixel(
         new_points = [
             (x * img_width, y * img_height) for x, y in seg.points
         ]
+        # Validate points are finite before using them
+        for i, (x, y) in enumerate(new_points):
+            if not math.isfinite(x) or not math.isfinite(y):
+                raise ValueError(
+                    f"segmentation point[{i}] must be finite, "
+                    f"got: ({x!r}, {y!r})"
+                )
         new_seg = Segmentation(points=new_points, rle=seg.rle)
 
     return new_bbox, new_seg
@@ -94,6 +110,14 @@ def absolute_pixel_to_yolo(
             raise ValueError(
                 f"Image dimensions must be positive, got {img_width}x{img_height}"
             )
+        # Reject NaN/Inf before arithmetic (Python min/max silently
+        # coerce them in downstream clamping).
+        for field_name in ("x", "y", "width", "height"):
+            val = getattr(bbox, field_name)
+            if not math.isfinite(val):
+                raise ValueError(
+                    f"bbox.{field_name} must be finite, got: {val!r}"
+                )
         cx_abs = bbox.x + bbox.width / 2
         cy_abs = bbox.y + bbox.height / 2
         cx_norm = cx_abs / img_width
@@ -110,6 +134,13 @@ def absolute_pixel_to_yolo(
         new_points = [
             (x / img_width, y / img_height) for x, y in seg.points
         ]
+        # Validate points are finite before using them
+        for i, (x, y) in enumerate(new_points):
+            if not math.isfinite(x) or not math.isfinite(y):
+                raise ValueError(
+                    f"segmentation point[{i}] must be finite, "
+                    f"got: ({x!r}, {y!r})"
+                )
         new_seg = Segmentation(points=new_points, rle=seg.rle)
 
     return new_bbox, new_seg
@@ -187,7 +218,7 @@ def read_coco_categories(json_path: str) -> Dict[int, str]:
             if cat_id is not None:
                 categories[cat_id] = cat_name
         return categories
-    except Exception:
+    except (json.JSONDecodeError, OSError, KeyError, TypeError):
         return {}
 
 

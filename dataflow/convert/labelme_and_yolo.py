@@ -235,19 +235,21 @@ class LabelMeAndYoloConverter(BaseConverter):
             # Resolve relative to the source path
             source_image_path = Path(self._source_path) / source_image_path
 
-        if not source_image_path.exists():
+        target_image_path = images_dir / source_image_path.name
+
+        try:
+            # `exists()` is an optimization, not a TOCTOU guard —
+            # `copy2()` overwriting an already-present file is harmless
+            # (content is identical by stem), and the only downside is
+            # redundant I/O.  A genuine race here would at worst cost an
+            # extra copy.
+            if not target_image_path.exists():
+                shutil.copy2(source_image_path, target_image_path)
+        except FileNotFoundError:
             self.logger.warning(
                 f"Source image does not exist, skipping copy: {source_image_path}"
             )
-            return
-
-        target_image_path = images_dir / source_image_path.name
-        if target_image_path.exists():
-            return  # Already copied (e.g., shared images between annotations)
-
-        try:
-            shutil.copy2(source_image_path, target_image_path)
-        except Exception as e:
+        except OSError as e:
             self.logger.warning(
                 f"Failed to copy image {source_image_path}: {e}"
             )

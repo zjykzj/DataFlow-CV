@@ -72,7 +72,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
         return categories
 
-    def _detect_annotation_type(self, line_items: List[str]) -> Tuple[bool, bool, bool]:
+    def _detect_annotation_type(self, line_items: List) -> Tuple[bool, bool, bool]:
         """
         Detect annotation type from line data.
 
@@ -81,7 +81,8 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
         Prediction mode: even token count (class_id + pairs of coords + confidence).
 
         Args:
-            line_items: Split line data items
+            line_items: Split line data items (first token is class_id str,
+                remaining tokens are already converted to float).
 
         Returns:
             Tuple[is_detection, is_segmentation, has_confidence]
@@ -168,7 +169,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
             height, width = img.shape[:2]
             return width, height
-        except Exception as e:
+        except (OSError, cv2.error) as e:
             self._log_error(f"Error getting image size for {image_path}: {e}")
             return 0, 0
 
@@ -696,6 +697,8 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
         result = AnnotationResult(success=False)
 
         try:
+            # Validate image_id is safe for path construction (defense in depth)
+            self._validate_image_id_for_path(image_ann.image_id)
             output_file = output_dir / f"{image_ann.image_id}.txt"
             lines = []
 
@@ -783,7 +786,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                 )
                 return None
 
-        except Exception as e:
+        except (ValueError, KeyError, TypeError) as e:
             self._log_error(
                 f"Error converting object {obj.class_name} to YOLO format: {e}"
             )

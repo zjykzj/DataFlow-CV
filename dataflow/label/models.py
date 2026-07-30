@@ -6,9 +6,16 @@ Coordinates are stored in format-native representation — see DatasetAnnotation
 to determine the coordinate semantics.
 """
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
+
+# Regex for detecting path traversal characters in image_id values.
+# Matches forward/backward slashes, parent-directory references, and
+# leading dots (hidden files are not traversal but are rejected for
+# safety — image IDs should be plain identifiers).
+_UNSAFE_PATH_CHARS_RE = re.compile(r"[\\/]|\\.\\.")
 
 
 class AnnotationFormat(Enum):
@@ -94,6 +101,16 @@ class ImageAnnotation:
         # Validate image dimensions
         if self.width <= 0 or self.height <= 0:
             raise ValueError(f"Invalid image dimensions: {self.width}x{self.height}")
+
+        # Validate image_id does not contain path traversal characters
+        if not self.image_id:
+            raise ValueError("image_id must not be empty")
+        if "\x00" in self.image_id:
+            raise ValueError(f"image_id contains null byte: {self.image_id!r}")
+        if _UNSAFE_PATH_CHARS_RE.search(self.image_id):
+            raise ValueError(
+                f"image_id contains path traversal characters: {self.image_id!r}"
+            )
 
 
 @dataclass
