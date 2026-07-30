@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.1] - 2026-07-30
+
+### Security
+
+- **COCO `image_id` path traversal**: Added sanitization of image IDs from COCO JSON (`CocoAnnotationHandler._sanitize_image_id()`) to prevent writing files outside the output directory. Defense-in-depth validation added in `ImageAnnotation.__post_init__()` and `write_one()` methods.
+- **Broad exception narrowing**: Replaced broad `except Exception` with specific exception types in internal methods to prevent silent swallowing of `MemoryError`, `KeyboardInterrupt`, and programming errors.
+
+### Fixed
+
+- **NaN/Inf clamping**: Added `math.isfinite()` guards in `_clamp_abs_bbox`, `_clamp_normalized_bbox`, `_clamp_abs_points`, `_clamp_normalized_points` and coordinate transforms (`yolo_to_absolute_pixel`, `absolute_pixel_to_yolo`) to reject non-finite values early instead of silently coercing them to boundary values.
+- **YOLO `validate()` NaN acceptance**: Three of four validation branches accepted NaN coordinates (only checked range `[0,1]` without `isfinite()`). Now all branches reject NaN/Inf, matching `read()` behavior.
+- **LabelMe `validate()` shape handling**: Unsupported shapes (`circle`, `line`, `point`) now return `False` instead of merely logging a warning, matching `read()` rejection behavior.
+- **Mixed-dataset segmentation warning**: `_validate_segm_data()` now detects partially-annotated datasets and emits warnings with per-side counts of missing-segmentation annotations.
+- **Filter streaming aliasing**: `FilterAnalyser` now creates new `ObjectAnnotation` instances with remapped class IDs instead of mutating shared originals.
+
+### Changed
+
+- **Clamp epsilon unified**: Absolute coordinate clamp threshold changed from `1e-9` to `1e-6`, matching the normalized coordinate threshold. This suppresses spurious warnings from sub-nanometer FP noise in absolute pixels.
+- **TOCTOU in LabelMe image copy**: Replaced sequential file existence checks with direct `try/except` around `shutil.copy2()`.
+- **Specs aligned with code**: Updated all 14 spec documents — version bumps, fixed subcommand counts (13→16), removed stale exception classes, corrected clamp thresholds, documented recursive mode, clamping behavior, `ImageError`, and validation utilities. All Draft→Canonical.
+
+### Test
+
+- Fixed mock patch targets in `test_visualize.py` (submodule → package re-export path).
+- Added `--no-display` to COCO visualization integration test to prevent OpenCV window popup.
+
 ## [1.9.0] - 2026-07-24
 
 ### Added
