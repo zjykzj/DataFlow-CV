@@ -2,6 +2,34 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Quick Reference (Read First)
+
+**Critical Rules:**
+- **Format ordering**: YOLO → LabelMe → COCO (applies everywhere: enums, imports, docs, CLI help, specs)
+- **Module ordering**: Analyse → Convert → Visualize → Evaluate (applies everywhere: imports, docs, CLI help)
+- **Spec-first workflow**: Always invoke `/spec` before editing any file in `specs/` directory
+- **Git commits**: Always use `/commit` skill (includes AI model co-author line)
+- **Zero cross-dependencies**: Analyse/Convert/Visualize/Evaluate modules cannot import from each other
+
+**Architecture Constraint Summary:**
+```
+CLI → Analyse/Convert/Visualize/Evaluate → Label → util/logging
+     (zero cross-dependency between sibling modules)
+```
+
+**Common Tasks:**
+- Adding features affecting specs: Update spec to target state → implement → verify conformance
+- Git commits: Use `/commit` skill
+- Releases: Use `/release` skill  
+- Development: Use `/dev` skill for test/lint/typecheck
+- Spec maintenance: Use `/spec` skill when creating/modifying spec files
+
+**Critical Implementation Details:**
+- Coordinate semantics depend on `DatasetAnnotations.format` (see "Coordinate Systems" section)
+- RLE encoding: Always `latin1`, never `utf-8` for byte↔string conversion
+- Handlers store coordinates in format-native representation (no unified internal model)
+- COCO `write_one()` raises `NotImplementedError` (always batch output)
+
 ## Project Overview
 
 DataFlow-CV is a computer vision dataset processing library for dataset analysis, format conversion, visualization, and evaluation between YOLO, LabelMe, and COCO annotation formats. It provides both a Python API and a command-line interface (CLI) with `analyse`, `convert`, `visualize`, and `evaluate` subcommands.
@@ -87,6 +115,19 @@ specs/
 - **CLAUDE.md** (this file) is loaded automatically every session — it carries **high-frequency rules** needed for every code change: architecture constraints, ordering conventions, critical gotchas. It is the always-online reference.
 - **Specs** are loaded on demand for specific tasks — they are the **authoritative contracts** for external formats, evaluation metrics, and module interfaces. When a spec and code disagree, the spec wins.
 - CLAUDE.md and specs serve different consumption modes: one is always in context, the other is looked up when needed. Neither replaces the other.
+
+**What belongs where:**
+
+| | CLAUDE.md (always-online) | specs/ (on-demand) |
+|---|---|---|
+| **Architecture constraints** | ✅ Module boundaries, dependency rules | ✅ Detailed interface contracts |
+| **Ordering conventions** | ✅ Format & module ordering rules | — |
+| **Critical gotchas** | ✅ Cross-cutting surprises (RLE, coords, validation) | ✅ Format-specific edge cases |
+| **Git workflows** | ✅ Skill references (`/commit`, `/release`) | — |
+| **External formats** | ❌ (defer to specs) | ✅ YOLO/LabelMe/COCO contracts |
+| **Metric definitions** | ❌ (defer to specs) | ✅ mAP, P/R/F1, matching rules |
+| **Conversion rules** | ❌ (defer to specs) | ✅ Coordinate transforms, category mapping |
+| **Implementation history** | ✅ "Previously X was Y, now Z" (gotcha context) | ❌ (specs describe target state only) |
 
 ### Spec Maintenance
 
@@ -400,6 +441,8 @@ Common CLI options: `--verbose` (enable file logging), `--log-dir` (log output d
 
 **Coordinate transforms** happen exclusively in converters (`dataflow/convert/`), not in handlers or visualizers. The single source of truth is `_convert_single_image()`, which delegates to shared utilities in `convert/utils.py` (`yolo_to_absolute_pixel()` / `absolute_pixel_to_yolo()`). The batch `convert_annotations()` delegates to `_convert_single_image()` in a loop. Visualizers do per-image coordinate conversion to `RenderData` in `_convert_to_render_data()` (format-native → absolute pixels for OpenCV drawing).
 
+> **Related gotchas**: [Coordinate Systems](#coordinate-systems-1), [Cross-Format Conversion](#cross-format-conversion)
+
 ### RLE Serialization
 
 pycocotools `mask.encode()` returns binary `counts` bytes. For JSON serialization:
@@ -408,9 +451,13 @@ pycocotools `mask.encode()` returns binary `counts` bytes. For JSON serializatio
 
 Never use UTF-8 for RLE counts — it cannot represent all 256 byte values and will cause `UnicodeDecodeError` crashes.
 
+> **Related gotchas**: [RLE & Encoding](#rle--encoding)
+
 ### Visualizer Rendering Pipeline
 
 Visualizers convert annotations per-image to `RenderAnnotation` (absolute pixel integers) during `_convert_to_render_data()`. Drawing methods receive pre-computed absolute pixel coordinates — no coordinate math happens in the draw path. The first image appears as soon as the first annotation file is parsed (primed into the buffer in interactive mode; streamed in batch mode).
+
+> **Related gotchas**: [Visualizer Behavior](#visualizer-behavior)
 
 ### Validation Behavior
 
@@ -419,9 +466,20 @@ Visualizers convert annotations per-image to `RenderAnnotation` (absolute pixel 
 - **Image errors**: Missing/unreadable images are always treated as warnings regardless of strict mode. **Exception — LabelMe**: When JSON contains valid `imageWidth`/`imageHeight`, the image file is not required and its absence produces no warning (dimensions are read from JSON).
 - **Coordinate validation**: Format-aware — YOLO coords checked in [0,1]; LabelMe/COCO coords are **clamped to image boundaries before validation** (`_clamp_abs_bbox()` / `_clamp_abs_points()` in base handler). Clamping emits a WARNING but is independent of strict_mode — it is data normalization, not error handling. Only non-finite values or zero-area bboxes after clamping are rejected.
 
+> **Related gotchas**: [Coordinate Systems](#coordinate-systems-1), [Analyse Module](#analyse-module)
+
 ## Development Commands
 
-General development workflows are defined as a project skill — use `/dev` for test, lint, and typecheck commands. This section documents DataFlow-CV-specific additions.
+Use the `/dev` skill for standard development workflows:
+
+| Command | What It Does |
+|---------|-------------|
+| `/dev test` | Run pytest suite |
+| `/dev lint` | Run ruff/flake8 checks |
+| `/dev typecheck` | Run mypy static type checking |
+| `/dev` (no args) | Run all three (test + lint + typecheck) |
+
+The `/dev` skill is configured for this project with `{{PACKAGE_NAME}} = dataflow` and `{{SRC_DIRS}} = dataflow tests samples`.
 
 ### Installation
 
@@ -466,47 +524,81 @@ Test data lives in `assets/test_data/`, organized by format (det/seg) and annota
 
 ## Known Gotchas
 
-1. **COCO↔YOLO precision loss**: Cross-format conversion between normalized (YOLO) and absolute pixel (LabelMe/COCO) is inherently lossy (±1 px). The converter's `convert_annotations()` performs the transform explicitly — see `spec_conversion.md` for details.
-2. **RLE encoding**: Always `latin1`, never `utf-8`, for byte↔string round-trips.
-3. **LabelMe imageData**: Not required on read; valid external files may omit it.
-4. **Converter state**: `_source_annotations_for_target` must be cleared in a `finally` block to prevent stale state on exceptions.
-5. **COCO image_id fallback**: When `img.image_id` is not a digit string, use a dedicated image counter (not the annotation counter).
-6. **Progress bar at 100%**: Guard against `filled == width` causing `"." * -1`. This only applies to batch-mode progress bars in utility code.  Visualize interactive mode uses the window title bar for progress, not console bars.
-7. **Visualization keyboard control**: The OpenCV window captures keyboard input via `cv2.waitKeyEx(0)`. Arrow keys (`←/↑` previous, `→/↓` next) use cross-platform code tuples. Press `s` to save a snapshot, `h` to re-display keyboard hints, `Enter`/`Space` to advance, `q`/`ESC` to exit. The window manager close button (X) may not work reliably — always use keyboard to close.
-8. **Single persistent window**: The visualizer creates one window (named `"DataFlow-CV Visualization"`) and reuses it for all images. Title bar shows `[N/T] filename.jpg`. Window auto-sizes to each image's dimensions. Fixed window position prevents flickering across images.
-9. **BoundingBox semantics depend on format**: The same `BoundingBox` class is used for all formats. Always check `DatasetAnnotations.format` to interpret `(x, y, width, height)` correctly.
-10. **DT predictions require `score`**: COCO prediction JSON must include `"score"` field in every annotation. The evaluate module validates this — missing scores cause errors in strict mode.
-11. **DT predictions require `area`**: pycocotools `COCOeval` requires `area` on both GT and DT annotations. When generating DT JSON, ensure area is populated (typically `bbox.width * bbox.height`).
-12. **Segmentation evaluation with mask IoU**: pycocotools automatically converts polygon → RLE internally during `COCOeval.evaluate()`. Pre-converting to RLE in pred.json is unnecessary — polygon format is recommended.
-13. **YOLO prediction format**: YOLO prediction files use 6 tokens (detection) or even tokens (segmentation) vs 5/odd for labels. Use `--prediction` flag with `yolo2coco` to convert model outputs. Mixed label/prediction files are not supported — the flag applies dataset-wide.
-14. **`convert_annotations()` must be overridden**: The base class raises `NotImplementedError` — there is no safe pass-through default. Every concrete converter must explicitly implement coordinate transformation.
-15. **Shared coordinate transforms are in `convert/utils.py`**: `yolo_to_absolute_pixel()` and `absolute_pixel_to_yolo()` are the canonical implementations. New YOLO-involving converters must use these, not reimplement the math.
-16. **`write_one()` is part of the handler contract**: `BaseAnnotationHandler` declares it as abstract. COCO handler raises `NotImplementedError`; YOLO/LabelMe handlers write per-file. New handlers must implement it.
-17. **RLE warning is conditional**: Only added when `do_rle=True` AND the source dataset actually contains segmentation data (`handler.is_seg`). Detection-only datasets with `--do-rle` no longer produce misleading warnings.
-18. **`_log_error` is inline per base class**: Each base class implements its own `_log_error()` directly (no shared utility). Label: ERROR + raise in strict mode. Convert: ERROR + raise in strict mode. Visualize: ERROR (never raises — read-only). Evaluate: ERROR + always raise.
-19. **COCO prediction file formats**: Prediction files exist in two variants. Variant A (full COCO dict) is the annotation-like format from `yolo2coco`. Variant B (plain JSON list) is the standard model-inference format from `yolo2coco --prediction`, Detectron2, MMDetection, etc. The Evaluate module accepts both via `_load_dt()`; the Convert module produces Variant A for labels and Variant B for predictions. See `spec_coco_format.md` §10.
-20. **`CocoAnnotationHandler.prediction` parameter**: When `True`, `write()` outputs list format (Variant B). When `False` (default), outputs full COCO dict (Variant A). The parameter is propagated from `YoloAndCocoConverter(prediction=True)` → `create_target_handler()` → `CocoAnnotationHandler`.
-21. **Prediction `score` field in list format**: In list-format prediction output, `score` is always included (not gated by `confidence < 1.0`). No `id` field is written — pycocotools `loadRes()` auto-assigns IDs.
-22. **Prediction conversion is `yolo2coco` only**: Only `yolo2coco` supports `--prediction`. `labelme2coco` has no prediction mode — LabelMe format has no structural label vs prediction distinction (unlike YOLO's 5/odd token vs 6/even token difference), so there is no alternative prediction source format to convert from. When preparing evaluation data, if your predictions are not in YOLO format, they are likely already in COCO-compatible list format (e.g., Detectron2, MMDetection output).
-23. **P/R/F1 macro vs micro averaging**: `compute_pr_f1(method="macro")` (default) computes overall P/R as the mean of per-class values — each category has equal weight. `method="micro"` computes overall P/R from summed TP/FP/FN across all categories — categories with more annotations have more weight. Per-class results are identical in both modes. `result.method` records which was used. `result.overall.tp/fp/fn` are always the summed totals.
-24. **Mask IoU for segmentation PRF1**: `compute_pr_f1(iou_type='segm')` uses pycocotools `mask` module (`mask.frPyObjects()` + `mask.merge()` for polygon→RLE, `mask.iou()` for batched IoU computation). Both polygon and RLE input formats are supported. Image dimensions are fetched from `coco_gt.loadImgs()` for polygon→RLE conversion. Crowd annotations are handled via `mask.iou()`'s built-in `iscrowd` parameter.
-25. **`--prf1` skips mAP**: The `--prf1` CLI flag computes P/R/F1 only — COCOeval is not invoked. mAP and P/R/F1 are mutually exclusive paths. To get both metrics, run the command twice (once without `--prf1` for mAP, once with `--prf1` for P/R/F1).
-26. **`LogConfig` is the single entry point for logging**: All modules accept `log_config: Optional[LogConfig] = None` instead of `verbose`/`logger`/`log_file_path`. `LogConfig` is a frozen dataclass with `name`, `verbose`, `log_dir`. `LogManager(log_config)` creates the configured logger. The old `LoggingOperations`, `VerboseLoggingOperations`, and `FileOperations` classes have been removed.
-27. **Coordinate clamping**: All handlers clamp out-of-bounds coordinates before validation:
-   - **YOLO**: Bbox edges and polygon points are clamped to `[0, 1]` via `_clamp_normalized_bbox()` / `_clamp_normalized_points()`. Change detection threshold is `1e-6` (1 unit in YOLO `.6f` output precision) — sub-threshold changes are silent to suppress string↔float round-trip noise and FP comparison edge cases.
-   - **LabelMe / COCO**: Bbox and polygon points are clamped to `[0, width] × [0, height]` via `_clamp_abs_bbox()` / `_clamp_abs_points()`. Change detection threshold is `1e-9`.
-   Clamping emits a WARNING only when the change exceeds the threshold, and is independent of `strict_mode` — it is data normalization, not error handling. Only values that cannot be fixed (NaN, zero-area bbox after clamping) are rejected during validation.
-28. **Analyse format auto-detection**: `detect_format()` in `dataflow/analyse/utils.py` determines the annotation format by inspecting the label path. Single `.json` files → COCO. Directories with only `.txt` files → YOLO. Directories with `.json` files → the first `.json` is opened: `"shapes"` key → LabelMe, `"images"` key → COCO. Mixed extensions or empty directories raise `ValueError`.
-29. **Analyse is read-only**: All analyse operations run handlers with `strict_mode=False` — errors are accumulated in `AnalysisResult.errors` and logged at ERROR level, but exceptions are never raised for data issues. This differs from Convert (raises in strict mode) and Evaluate (always raises).
-30. **COCO handler derives bbox from polygon for seg-only objects**: When an `ObjectAnnotation` has `segmentation` but no `bbox`, `_object_to_coco_annotation()` computes the bbox from the polygon extent (`min/max` of x and y). Previously it left `bbox` as an empty list `[]`, violating the COCO format requirement that every annotation includes a 4-element bbox array (`spec_coco_format.md` §4).
-31. **Evaluate segm validation aborts on missing data**: `_validate_segm_data()` returns error messages (not warnings). When `iouType='segm'` and either GT or DT lacks segmentation annotations, evaluation aborts with a clear error instead of silently falling back to bbox IoU — mask-based metrics on bbox data would be misleading.
-32. **YOLO confidence validation rejects NaN**: `YoloAnnotationHandler` uses `math.isfinite()` alongside the `[0, 1]` range check for confidence values. For `float('nan')`, both `nan < 0.0` and `nan > 1.0` are `False`, so NaN would silently pass a range-only check. The `math.isfinite()` guard catches NaN, Inf, and -Inf before the range check.
-33. **Evaluate `validate_inputs` raises with all errors**: All validation errors are collected and raised together via `ValueError("\n".join(errors))`. The `evaluate()` method catches this and splits the joined string into individual `result.errors` entries — all validation problems are visible in both the log and programmatic output. Previously only the last error appeared in `result.errors`.
-34. **YOLO class_id may be float-formatted**: Some YOLO tooling writes class IDs as integer-valued float strings like ``5.000000`` instead of ``5``. `YoloAnnotationHandler._parse_class_id()` handles this, but any code that parses YOLO .txt files directly (bypassing the handler) **must also handle it**. Use `_parse_class_id_token()` from `dataflow/analyse/utils.py` — it accepts both ``"5"`` and ``"5.000000"``, returning `Optional[int]`. Simple `int(token)` will raise `ValueError` on float strings and silently drop valid annotations. Only applies to YOLO — LabelMe/COCO use JSON native types.
-35. **`BaseConverter._post_batch_convert()` handles RLE warnings**: The base class implementation now includes the RLE accuracy warning logic (previously duplicated in `YoloAndCocoConverter` and `CocoAndLabelMeConverter`). Subclasses only need to override `_post_batch_convert()` for additional custom behavior — call `super()._post_batch_convert(result, source_handler, kwargs)` if extending.
-36. **COCO categories pre-loading is shared**: `ensure_coco_categories_for_streaming()` in `convert/utils.py` is the canonical implementation for pre-loading COCO categories before streaming conversion. Both `YoloAndCocoConverter` and `CocoAndLabelMeConverter` delegate to it — new COCO-source converters should use this shared utility.
-37. **`_source_path` declared in `BaseConverter.__init__`**: The attribute `self._source_path: Optional[str] = None` is now declared at class initialization time (was previously set dynamically in `stream_convert()`). It is still assigned the actual path value during streaming — the declaration simply makes it visible to static analysis.
-38. **`RenderData` has no width/height fields**: The dataclass only holds `annotations: List[RenderAnnotation]`. Image dimensions are read from the image file at draw time via `image.shape`. Do not add `image_width`/`image_height` back to `RenderData` — they are a redundant duplicate of information already present in the image array.
-39. **`--no-strict` unavailable for analyse commands**: Analyse is always read-only and non-strict. The `--no-strict` flag is only available on `convert` and `visualize` subcommands.
-40. **Deleted exception classes**: `ParameterError`, `OutputError`, and `SystemError` no longer exist in `cli/exceptions.py`. Use `InputError` (exit 2) for input validation failures and `RuntimeCLIError` (exit 4) for runtime/API errors.
-41. **Auto-generated class files are cleaned up at exit**: `_auto_generate_class_file()` in `analyse/utils.py` registers temporary `classes.txt` files for automatic cleanup via `atexit`. Do not add manual cleanup in callers.
+> Categorized by topic and severity. **[!]** = critical (causes silent bugs or crashes if missed). **[*]** = important (affects correctness or design decisions). No marker = reference (behavioral context).
+
+### [!] Coordinate Systems
+
+1. **BoundingBox semantics depend on format**: The same `BoundingBox` class is used for all formats. Always check `DatasetAnnotations.format` to interpret `(x, y, width, height)` correctly. See [Coordinate Systems](#coordinate-systems) for the authoritative table.
+2. **Shared coordinate transforms are in `convert/utils.py`**: `yolo_to_absolute_pixel()` and `absolute_pixel_to_yolo()` are the canonical implementations. New YOLO-involving converters must use these, not reimplement the math.
+3. **Coordinate clamping**: All handlers clamp out-of-bounds coordinates before validation:
+   - **YOLO**: Bbox edges and polygon points clamped to `[0, 1]` via `_clamp_normalized_bbox()` / `_clamp_normalized_points()`. Change detection threshold is `1e-6` — sub-threshold changes are silent (suppresses string↔float round-trip noise).
+   - **LabelMe / COCO**: Bbox and polygon points clamped to `[0, width] × [0, height]` via `_clamp_abs_bbox()` / `_clamp_abs_points()`. Change detection threshold is `1e-9`.
+   Clamping emits a WARNING only when the change exceeds the threshold, and is independent of `strict_mode` — it is data normalization, not error handling. Only non-finite values or zero-area bboxes after clamping are rejected during validation.
+
+### [!] RLE & Encoding
+
+4. **RLE encoding**: Always `latin1`, never `utf-8`, for byte↔string round-trips. UTF-8 cannot represent all 256 byte values and will crash on arbitrary binary RLE data.
+5. **RLE warning is conditional**: Only added when `do_rle=True` AND the source dataset actually contains segmentation data (`handler.is_seg`). Detection-only datasets with `--do-rle` no longer produce misleading warnings.
+
+### [!] Architecture Constraints
+
+6. **`convert_annotations()` must be overridden**: The base class raises `NotImplementedError` — there is no safe pass-through default. Every concrete converter must explicitly implement coordinate transformation.
+7. **`write_one()` is part of the handler contract**: `BaseAnnotationHandler` declares it as abstract. COCO handler raises `NotImplementedError`; YOLO/LabelMe handlers write per-file. New handlers must implement it.
+8. **`_log_error` is inline per base class**: Each base class implements its own `_log_error()` directly (no shared utility). Label: ERROR + raise in strict mode. Convert: ERROR + raise in strict mode. Visualize: ERROR (never raises — read-only). Evaluate: ERROR + always raise.
+
+### [!] Cross-Format Conversion
+
+9. **COCO↔YOLO precision loss**: Cross-format conversion between normalized (YOLO) and absolute pixel (LabelMe/COCO) is inherently lossy (±1 px). See `spec_conversion.md` for details.
+
+### [*] Converter Implementation
+
+10. **Converter state**: `_source_annotations_for_target` must be cleared in a `finally` block to prevent stale state on exceptions.
+11. **COCO image_id fallback**: When `img.image_id` is not a digit string, use a dedicated image counter (not the annotation counter).
+12. **`BaseConverter._post_batch_convert()` handles RLE warnings**: The base class implementation includes RLE accuracy warning logic (previously duplicated in two subclasses). Subclasses should call `super()._post_batch_convert(result, source_handler, kwargs)` if extending.
+13. **COCO categories pre-loading is shared**: `ensure_coco_categories_for_streaming()` in `convert/utils.py` is the canonical implementation. Both `YoloAndCocoConverter` and `CocoAndLabelMeConverter` delegate to it.
+14. **`_source_path` declared in `BaseConverter.__init__`**: Set to `None` at init time; assigned the actual path during streaming. Declaration makes it visible to static analysis.
+
+### [*] COCO & Evaluation
+
+15. **DT predictions require `score`**: COCO prediction JSON must include `"score"` in every annotation. Missing scores cause errors in strict mode.
+16. **DT predictions require `area`**: pycocotools `COCOeval` requires `area` on both GT and DT. Populate as `bbox.width * bbox.height`.
+17. **Segmentation evaluation with mask IoU**: pycocotools automatically converts polygon → RLE internally during `COCOeval.evaluate()`. Pre-converting to RLE is unnecessary — polygon format is recommended.
+18. **COCO prediction file formats**: Two variants — Variant A (full COCO dict, from `yolo2coco`), Variant B (plain JSON list, from `yolo2coco --prediction`, Detectron2, MMDetection). Evaluate accepts both via `_load_dt()`. See `spec_coco_format.md` §10.
+19. **`CocoAnnotationHandler.prediction` parameter**: `True` → list format (Variant B). `False` → full COCO dict (Variant A). Propagated via `YoloAndCocoConverter(prediction=True)` → `create_target_handler()` → `CocoAnnotationHandler`.
+20. **Prediction `score` field in list format**: Always included (not gated by `confidence < 1.0`). No `id` field — pycocotools `loadRes()` auto-assigns IDs.
+21. **Prediction conversion is `yolo2coco` only**: Only `yolo2coco` supports `--prediction`. LabelMe has no structural label vs prediction distinction. Non-YOLO predictions are typically already in COCO list format.
+22. **P/R/F1 macro vs micro averaging**: `method="macro"` (default) = mean of per-class values (equal weight). `method="micro"` = summed TP/FP/FN across all categories (weighted by annotation count). Per-class results identical in both modes.
+23. **Mask IoU for segmentation PRF1**: `compute_pr_f1(iou_type='segm')` uses pycocotools `mask` module. Both polygon and RLE input supported. Image dimensions from `coco_gt.loadImgs()`. Crowd annotations handled via `mask.iou()`'s `iscrowd` parameter.
+24. **`--prf1` skips mAP**: The `--prf1` CLI flag computes P/R/F1 only — COCOeval is not invoked. mAP and P/R/F1 are mutually exclusive. Run twice to get both.
+25. **COCO handler derives bbox from polygon for seg-only objects**: When `segmentation` exists without `bbox`, `_object_to_coco_annotation()` computes bbox from polygon extent. Previously left `bbox` as `[]`, violating COCO format requirements (`spec_coco_format.md` §4).
+26. **Evaluate segm validation aborts on missing data**: `_validate_segm_data()` returns errors, not warnings. When `iouType='segm'` and GT/DT lacks segmentation, evaluation aborts — mask-based metrics on bbox data would be misleading.
+
+### [*] YOLO Format
+
+27. **YOLO prediction format**: 6 tokens for detection, even tokens for segmentation, vs 5/odd for labels. Use `--prediction` with `yolo2coco`. Mixed label/prediction files not supported.
+28. **YOLO confidence validation rejects NaN**: `YoloAnnotationHandler` uses `math.isfinite()` alongside `[0, 1]` range check. `float('nan')` passes a range-only check silently — the `isfinite()` guard catches NaN, Inf, and -Inf.
+29. **YOLO class_id may be float-formatted**: Some tooling writes ``5.000000`` instead of ``5``. `YoloAnnotationHandler._parse_class_id()` handles this, but code parsing YOLO `.txt` directly must also handle it. Use `_parse_class_id_token()` from `dataflow/analyse/utils.py` — `int(token)` on float strings raises `ValueError`.
+
+### [*] Logging
+
+30. **`LogConfig` is the single entry point**: All modules accept `log_config: Optional[LogConfig] = None`. `LogConfig` is a frozen dataclass with `name`, `verbose`, `log_dir`. The old `LoggingOperations`, `VerboseLoggingOperations`, and `FileOperations` classes have been removed.
+
+### Visualizer Behavior
+
+31. **Progress bar edge case**: Guard against `filled == width` causing `"." * -1`. Batch-mode progress bars only — interactive mode uses window title bar.
+32. **Visualization keyboard control**: OpenCV window captures input via `cv2.waitKeyEx(0)`. Arrow keys (`←/↑` prev, `→/↓` next), `s` = snapshot, `h` = hints, `Enter`/`Space` = advance, `q`/`ESC` = exit. Window manager close button (X) may not work — always use keyboard.
+33. **Single persistent window**: One window (`"DataFlow-CV Visualization"`), reused for all images. Title bar: `[N/T] filename.jpg`. Auto-sizes to image dimensions, fixed position.
+34. **`RenderData` has no width/height fields**: Only holds `annotations: List[RenderAnnotation]`. Image dimensions read from `image.shape` at draw time. Do not add `image_width`/`image_height` — redundant.
+
+### Analyse Module
+
+35. **Format auto-detection**: `detect_format()` inspects the label path — single `.json` → COCO, directory of only `.txt` → YOLO, directory of `.json` (first checked: `"shapes"` → LabelMe, `"images"` → COCO). Mixed extensions or empty directories raise `ValueError`.
+36. **Analyse is read-only**: All operations run handlers with `strict_mode=False` — errors accumulated in `AnalysisResult.errors`, never raised. Differs from Convert (raises in strict mode) and Evaluate (always raises).
+37. **`--no-strict` unavailable for analyse**: Analyse is always non-strict. `--no-strict` only available on `convert` and `visualize` subcommands.
+
+### Misc
+
+38. **LabelMe imageData**: Not required on read; valid external files may omit it.
+39. **Evaluate `validate_inputs` raises with all errors**: All validation errors collected and raised together via `ValueError("\n".join(errors))`. `evaluate()` catches this and splits into individual `result.errors` entries — all problems visible in log and programmatic output.
+40. **Deleted exception classes**: `ParameterError`, `OutputError`, `SystemError` no longer exist. Use `InputError` (exit 2) and `RuntimeCLIError` (exit 4).
+41. **Auto-generated class files cleaned up at exit**: `_auto_generate_class_file()` registers temp `classes.txt` for cleanup via `atexit`. Do not add manual cleanup in callers.
