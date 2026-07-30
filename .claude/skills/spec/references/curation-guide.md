@@ -3,6 +3,20 @@
 > Reference for judging what belongs in specs vs. CLAUDE.md vs. deletion.
 > Linked from the main `/spec` skill.
 
+## TL;DR
+
+| Content Type | Judgment | Quick Rule |
+|---|---|---|
+| Change history / version changelogs | **Delete** | Belongs in `git log` / `CHANGELOG.md` |
+| Implementation pseudocode / code examples | **Judge** | Keep if it defines a contract more precisely than prose could |
+| CLI command signatures | **Keep** | They ARE the public API contract |
+| Migration guides / legacy API tables | **Delete** | One-time docs — delete after migration complete |
+| Directory tree file listings | **Judge by level** | Keep module-level; simplify project-level |
+| Tutorials / how-to guides | **Keep, label** | Mark as `## Usage Guide` |
+| Interface contracts vs implementation | **Keep contracts** | Public API, design constraints, exit codes → keep; internal plumbing → delete |
+
+> The key question is always: **does this define or help understand a behavioral contract?**
+
 ## What Does NOT Belong in Specs
 
 These are not "delete on sight" rules — each requires case-by-case judgment.

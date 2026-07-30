@@ -7,7 +7,7 @@ This directory contains reusable Claude Code skills. Each skill is designed to b
 | Skill | Purpose | Needs Config? |
 |-------|---------|---------------|
 | `/commit` | Git commit message format | ✅ Yes — AI model name/email |
-| `/dev` | Development commands (test, lint, typecheck) — **Python projects only** | ✅ Yes — Package name, source dirs |
+| `/dev` | Development commands (test, lint, typecheck) — Python projects only. Auto-detects ruff vs black+isort+flake8 | ✅ Yes — Package name, source dirs |
 | `/release` | Version bump and GitHub release | ✅ Yes — Version locations, repo URL |
 | `/spec` | Spec authoring methodology + SDD workflow (spec-first → implement → conformance check) | ⚠️ Optional — SDD hard rules in CLAUDE.md + enforcement hook (see `CONFIGURATION.md` §3–4) |
 | `/claude` | CLAUDE.md authoring guidelines | ❌ No — Pure methodology |
