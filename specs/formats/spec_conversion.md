@@ -1,6 +1,6 @@
 # Annotation Format Conversion Specification
 
-> **Version:** v2.0 | **Last Updated:** 2026-07-02
+> **Version:** v2.1 | **Last Updated:** 2026-07-30
 > **Status:** Draft — updated to reflect native-coordinate architecture
 
 ## 1. Conversion Architecture
@@ -96,7 +96,7 @@ When converting YOLO **prediction** files to COCO **prediction** JSON (`--predic
 
 1. Coordinate transform is **identical** to the label conversion path (§3.1 YOLO → COCO bbox, §3.2 YOLO → COCO segmentation)
 2. The converter passes `prediction=True` to **both** `YoloHandler` (source) and `CocoAnnotationHandler` (target)
-3. **Output format**: Plain JSON list of annotation dicts (Variant B per `spec_coco_format.md` §10.1) — NOT a full COCO dict with `images`/`categories`. This is the standard prediction format used by Detectron2, MMDetection, and pycocotools' `loadRes()`. Images and categories are sourced from GT at evaluation time.
+3. **Output format**: Plain JSON list of annotation dicts (Variant B per `spec_coco_format.md` §9.1) — NOT a full COCO dict with `images`/`categories`. This is the standard prediction format used by Detectron2, MMDetection, and pycocotools' `loadRes()`. Images and categories are sourced from GT at evaluation time.
 4. YOLO confidence values are preserved as the COCO `score` field in every annotation
 
 **Data flow:**
@@ -118,7 +118,7 @@ YOLO pred (.txt):   class_id cx cy w h confidence  (6 tokens, detection)
   → pred.json: {"info": {...}, "images": [...], "annotations": [...], "categories": [...]}
 ```
 
-**Segmentation prediction output**: Polygon format is recommended (default `do_rle=False`). pycocotools `COCOeval` handles polygon→RLE conversion internally during mask IoU computation. See `spec_coco_format.md` §10.4 for rationale.
+**Segmentation prediction output**: Polygon format is recommended (default `do_rle=False`). pycocotools `COCOeval` handles polygon→RLE conversion internally during mask IoU computation. See `spec_coco_format.md` §9.4 for rationale.
 
 ### 3.2 YOLO ↔ COCO (segmentation)
 
@@ -380,6 +380,25 @@ of the binary mask, which is already an approximation of the original polygon.
 - Converters use `try/finally` to guarantee state cleanup
 - `write_result.errors` are collected and reported in `ConversionResult.errors`
 - Non-strict mode allows processing to continue past recoverable errors
+
+### 10.3 `ImageError` Exception
+
+``ImageError`` (defined in ``dataflow/label/base.py``) is a dedicated
+exception type for image-related errors that **always** skip processing
+regardless of ``strict_mode``:
+
+| Error Condition | Behavior |
+|----------------|----------|
+| Missing image file | ``ImageError`` raised, image skipped with warning |
+| Unreadable image (OpenCV failure) | ``ImageError`` raised, image skipped with warning |
+| Invalid image dimensions (≤0 or non-integer) | ``ImageError`` raised, image skipped with warning |
+| No corresponding image found for label | ``ImageError`` raised, image skipped with warning |
+
+Unlike validation errors which respect ``strict_mode`` (abort in strict,
+skip in non-strict), ``ImageError`` exceptions are **always caught** and
+treated as warnings, causing the affected image to be skipped while
+processing continues. This ensures that problems with individual image
+files never halt batch processing, even in strict mode.
 
 ## 11. Parameter Reference
 

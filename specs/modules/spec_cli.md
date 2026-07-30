@@ -1,6 +1,6 @@
 # CLI Module Specification
 
-> **Version:** 2.3 | **Last Updated:** 2026-07-24
+> **Version:** 2.4 | **Last Updated:** 2026-07-30
 > **Layer:** Modules
 > **Dependencies:** Convert module + Visualize module + Evaluate module (public APIs only) + Logging module (LogConfig only)
 
@@ -334,19 +334,19 @@ All CLI exceptions extend `click.ClickException` with specific exit codes:
 
 ```
 CLIError (base, exit_code configurable)
-├── ParameterError  (exit 1)  — Invalid/missing command-line parameters
 ├── InputError      (exit 2)  — Input file/directory does not exist
-├── OutputError     (exit 3)  — Cannot create/write output
-├── RuntimeCLIError (exit 4)  — API execution failed (converter, visualizer, or evaluator)
-└── SystemError     (exit 5)  — System-level failure (disk full, pycocotools not installed, etc.)
+└── RuntimeCLIError (exit 4)  — API execution failed (converter, visualizer, or evaluator)
 ```
+
+Parameter errors (invalid/missing command-line parameters) are handled by `click.UsageError` and `click.BadParameter`, which Click raises automatically — the CLI does not need custom exception types for these.
+
+pycocotools availability is checked via `_validate_coco_available()` which raises `ImportError` with a helpful installation message when pycocotools is not installed.
 
 **Usage:**
 - `validate_convert_params()` / `validate_evaluate_params()` raise `InputError` for missing/invalid inputs
 - `validate_path_exists()` raises `InputError` for non-existent paths
 - Post-conversion/visualization/evaluation failures raise `RuntimeCLIError`
-- `SystemError` is used when pycocotools is not installed for evaluate commands
-- `ParameterError`, `OutputError` are defined but used sparingly
+- `_validate_coco_available()` raises `ImportError` when pycocotools is not installed for commands that require it
 
 ## 7. Validators
 
@@ -382,7 +382,7 @@ CLI module imports FROM:
 ├── dataflow.evaluate               (DetectionEvaluator, SegmentationEvaluator, compute_pr_f1)
 ├── dataflow.evaluate.utils         (format_prf1_output, format_metric_table, format_per_class_table)
 ├── dataflow.util.logging           (LogConfig only)
-├── dataflow.cli.exceptions         (InputError, RuntimeCLIError, SystemError)
+├── dataflow.cli.exceptions         (InputError, RuntimeCLIError)
 └── click                           (Framework)
 
 CLI module does NOT import FROM:

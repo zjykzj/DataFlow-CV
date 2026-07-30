@@ -14,7 +14,8 @@ Key features:
 
 Example usage:
     >>> from dataflow.evaluate import DetectionEvaluator, compute_pr_f1
-    >>> evaluator = DetectionEvaluator(verbose=True)
+    >>> from dataflow.util.logging import LogConfig
+    >>> evaluator = DetectionEvaluator(log_config=LogConfig(name="eval", verbose=True))
     >>> result = evaluator.evaluate("gt.json", "dt.json")
     >>> print(result.get_summary())
     >>> # Quick P/R/F1 at IoU=0.5:

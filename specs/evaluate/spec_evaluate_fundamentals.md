@@ -1,7 +1,7 @@
 # Evaluation Fundamentals Specification
 
-> **Version:** v1.0 | **Last Updated:** 2026-07-02
-> **Status:** Draft
+> **Version:** v1.1 | **Last Updated:** 2026-07-30
+> **Status:** Canonical
 > **Layer:** Evaluate
 > **Dependencies:** None (foundation document)
 

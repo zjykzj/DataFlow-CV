@@ -231,8 +231,9 @@ class BaseEvaluator(ABC):
 
         # Rule 7: Segmentation data check for segm IoU type
         if self._iou_type() == "segm":
-            segm_errors = self._validate_segm_data(coco_gt, coco_dt)
+            segm_errors, segm_warnings = self._validate_segm_data(coco_gt, coco_dt)
             errors.extend(segm_errors)
+            warnings.extend(segm_warnings)
 
         if errors:
             # Log all validation errors individually, then raise with
@@ -245,29 +246,35 @@ class BaseEvaluator(ABC):
         return True, warnings
 
     @staticmethod
-    def _validate_segm_data(coco_gt: Any, coco_dt: Any) -> List[str]:
+    def _validate_segm_data(coco_gt: Any, coco_dt: Any) -> Tuple[List[str], List[str]]:
         """Check segmentation data presence for mask IoU evaluation.
 
-        Returns a list of error messages (not warnings).  When
-        ``iouType='segm'`` is requested but segmentation data is missing,
-        evaluation cannot produce meaningful mask-based metrics — bbox
-        fallback would silently produce incorrect results.
-
-        Returns an empty list if both GT and DT contain segmentation data.
+        Returns:
+            Tuple of ``(errors, warnings)``.
+            *errors* are hard failures (complete absence of segmentation
+            data — evaluation cannot proceed).  *warnings* are advisory
+            (mixed dataset — some annotations lack segmentation, they
+            will be silently excluded by pycocotools).
         """
         errors: List[str] = []
+        warnings: List[str] = []
 
-        gt_has_segm = False
+        gt_total = 0
+        gt_with_segm = 0
         for ann in coco_gt.loadAnns(coco_gt.getAnnIds()):
+            gt_total += 1
             if ann.get("segmentation") and ann["segmentation"]:
-                gt_has_segm = True
-                break
+                gt_with_segm += 1
 
-        dt_has_segm = False
+        dt_total = 0
+        dt_with_segm = 0
         for ann in coco_dt.loadAnns(coco_dt.getAnnIds()):
+            dt_total += 1
             if ann.get("segmentation") and ann["segmentation"]:
-                dt_has_segm = True
-                break
+                dt_with_segm += 1
+
+        gt_has_segm = gt_with_segm > 0
+        dt_has_segm = dt_with_segm > 0
 
         if not gt_has_segm and not dt_has_segm:
             errors.append(
@@ -288,7 +295,25 @@ class BaseEvaluator(ABC):
                 "annotations."
             )
 
-        return errors
+        # Mixed-dataset detection: some annotations have segmentation,
+        # others don't — pycocotools silently excludes the ones without
+        # segmentation during mask IoU computation.
+        if gt_has_segm and gt_with_segm < gt_total:
+            missing = gt_total - gt_with_segm
+            warnings.append(
+                f"GT is a mixed dataset: {missing}/{gt_total} "
+                f"annotations lack segmentation and will be excluded "
+                f"from mask IoU evaluation."
+            )
+        if dt_has_segm and dt_with_segm < dt_total:
+            missing = dt_total - dt_with_segm
+            warnings.append(
+                f"DT is a mixed dataset: {missing}/{dt_total} "
+                f"annotations lack segmentation and will be excluded "
+                f"from mask IoU evaluation."
+            )
+
+        return errors, warnings
 
     # ------------------------------------------------------------------
     # Metric extraction

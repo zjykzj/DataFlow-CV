@@ -1,6 +1,6 @@
 # Modules Layer — Specification Index
 
-> **Version:** v1.1 | **Last Updated:** 2026-07-09
+> **Version:** v1.2 | **Last Updated:** 2026-07-30
 > **Status:** Canonical — these documents define the authoritative module architecture and interface contracts for DataFlow-CV.
 
 ## What This Layer Covers
@@ -66,7 +66,7 @@ The Modules layer defines **how** the software components work — their archite
 | 3 | [`spec_convert.md`](spec_convert.md) | **Convert module** — `BaseConverter` pipeline, `ConversionResult`, three converter classes, RLE converter, state management contract |
 | 4 | [`spec_visualize.md`](spec_visualize.md) | **Visualize module** — `BaseVisualizer` rendering pipeline, `ColorManager`, three visualizers, display/save modes, keyboard interaction |
 | 5 | [`spec_evaluate.md`](spec_evaluate.md) | **Evaluate module** — `BaseEvaluator` pipeline, `DetectionEvaluator` / `SegmentationEvaluator`, `EvaluationResult` / `PRF1Result` data models, pycocotools wrapper, per-class metrics, P/R/F1 API |
-| 6 | [`spec_cli.md`](spec_cli.md) | **CLI module** — Click-based command structure, 13 subcommands (2 analyse + 6 convert + 3 visualize + 2 evaluate), option decorators, exception hierarchy, exit code system |
+| 6 | [`spec_cli.md`](spec_cli.md) | **CLI module** — Click-based command structure, 16 subcommands (5 analyse + 6 convert + 3 visualize + 2 evaluate), option decorators, exception hierarchy, exit code system |
 | 7 | [`spec_logging.md`](spec_logging.md) | **Logging module** — `LogManager` unified logging infrastructure, `LogConfig`, format helpers, module log templates, CLI logging contract |
 
 ## Relationship to Formats Layer

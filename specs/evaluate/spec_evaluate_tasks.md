@@ -1,7 +1,7 @@
 # Evaluation Task Specification
 
-> **Version:** v1.0 | **Last Updated:** 2026-07-02
-> **Status:** Draft
+> **Version:** v1.1 | **Last Updated:** 2026-07-30
+> **Status:** Canonical
 > **Layer:** Evaluate
 > **Dependencies:** `spec_evaluate_fundamentals.md` (IoU, matching, TP/FP/FN), `spec_evaluate_metrics.md` (P/R/F1, AP/mAP, AR, scales)
 
@@ -154,8 +154,18 @@ The following 12 metrics are the standard output of COCO evaluation. These are p
 
 ## 6. Mixed Datasets
 
-When a dataset contains some annotations with segmentation and some without:
+A "mixed dataset" is one in which some (but not all) annotations carry segmentation
+data.  The ``_validate_segm_data`` function inspects both ground truth (GT) and
+detection (DT) inputs and returns two categories of feedback:
 
-1. **Detection evaluation**: All annotations are usable. Those without segmentation are evaluated with bbox IoU.
-2. **Segmentation evaluation**: Annotations without segmentation are **excluded** from evaluation with a warning.
-3. The Evaluate module should log a warning when the dataset is mixed, to alert the user.
+| Return | Meaning |
+|--------|---------|
+| **Errors** | Fatal conditions that prevent evaluation (e.g., *no* annotations in GT or DT contain segmentation when ``iouType='segm'``) |
+| **Warnings** | Non-fatal conditions that may affect results (e.g., a mixed dataset where *some but not all* annotations lack segmentation) |
+
+When a mixed-dataset warning is emitted, it indicates that pycocotools will
+**silently exclude** annotations without segmentation data during mask IoU
+computation.  This means:
+
+1. **Detection evaluation**: All annotations are usable regardless of segmentation presence.
+2. **Segmentation evaluation**: Only annotations that have segmentation data participate in mask IoU matching; annotations lacking segmentation are silently dropped by pycocotools.  ``_validate_segm_data`` surfaces this as a warning so the user is aware of the discrepancy.

@@ -1,7 +1,7 @@
 # Logging Module Specification
 
-> **Version:** v1.0 | **Last Updated:** 2026-07-02
-> **Status:** Draft — unified logging infrastructure
+> **Version:** v1.1 | **Last Updated:** 2026-07-30
+> **Status:** Canonical
 > **Layer:** Modules
 > **Dependencies:** None (foundation module, parallel to Label)
 
@@ -62,7 +62,7 @@ This ensures:
 ```
 
 All modules (Label, Convert, Visualize, Evaluate) and CLI may import from `dataflow.util.logging`.
-The `LogManager` is the single entry point — it replaces both `LoggingOperations` and `VerboseLoggingOperations`.
+The `LogManager` is the single entry point for all module logging operations.
 
 ## 2. Core Classes
 
@@ -90,7 +90,7 @@ class LogConfig:
 
 ### 2.2 `LogManager`
 
-Unified logging manager — the single replacement for `LoggingOperations` and `VerboseLoggingOperations`.
+Unified logging manager — the single entry point for all logging operations.
 
 ```python
 class LogManager:
@@ -397,7 +397,6 @@ if result.log_path:
 
 ### 6.2 What CLI Does NOT Do
 
-- CLI does **NOT** create `LoggingOperations` or `VerboseLoggingOperations`
 - CLI does **NOT** write log messages (`logger.info(...)`)
 - CLI does **NOT** pass raw `logger` objects to module constructors
 - CLI does **NOT** store `log_file_path` in `ctx.obj`

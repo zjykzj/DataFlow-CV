@@ -836,7 +836,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                                 (width, "width"),
                                 (height, "height"),
                             ]:
-                                if value < 0 or value > 1:
+                                if not math.isfinite(value) or value < 0 or value > 1:
                                     self.logger.error(
                                         f"{name} out of range [0, 1] in line {line_num}: {value}"
                                     )
@@ -865,12 +865,12 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
                             for i in range(0, len(coords), 2):
                                 x, y = coords[i], coords[i + 1]
-                                if x < 0 or x > 1:
+                                if not math.isfinite(x) or x < 0 or x > 1:
                                     self.logger.error(
                                         f"x coordinate out of range [0,1] in line {line_num}: {x}"
                                     )
                                     return False
-                                if y < 0 or y > 1:
+                                if not math.isfinite(y) or y < 0 or y > 1:
                                     self.logger.error(
                                         f"y coordinate out of range [0,1] in line {line_num}: {y}"
                                     )
@@ -948,12 +948,12 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
                             for i in range(0, len(coords), 2):
                                 x, y = coords[i], coords[i + 1]
-                                if x < 0 or x > 1:
+                                if not math.isfinite(x) or x < 0 or x > 1:
                                     self.logger.error(
                                         f"x coordinate out of range [0,1] in line {line_num}: {x}"
                                     )
                                     return False
-                                if y < 0 or y > 1:
+                                if not math.isfinite(y) or y < 0 or y > 1:
                                     self.logger.error(
                                         f"y coordinate out of range [0,1] in line {line_num}: {y}"
                                     )

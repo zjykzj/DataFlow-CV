@@ -1,6 +1,6 @@
 # Label Module Specification
 
-> **Version:** v4.4 | **Last Updated:** 2026-07-02
+> **Version:** v4.5 | **Last Updated:** 2026-07-30
 > **Status:** Draft — logger receives from caller's LogManager via `logger=` parameter
 > **Layer:** Modules
 > **Dependencies:** None (foundation module; logging via stdlib `logging.Logger` only)
@@ -91,6 +91,7 @@ Per-image container:
 
 **Invariants:**
 - `width > 0` and `height > 0` (validated in `__post_init__`)
+- `image_id` is not empty, contains no null bytes, and contains no path traversal characters (``/``, ``\``, ``..``) — validated in `__post_init__`
 - `image_path` is stored as a relative path when the image is under the source directory
 
 ### 2.3 `ObjectAnnotation`
@@ -268,12 +269,13 @@ def iter_images(self) -> Iterator[ImageAnnotation]:
 | `_validate_bbox(bbox, format)` | Format-aware bbox validation |
 | `_validate_segmentation_points(points, format)` | Format-aware polygon validation |
 | `_set_annotation_flags(dataset)` | Sets `is_det`/`is_seg` flags based on data |
+| `_validate_image_id_for_path(image_id)` | Validates image_id is safe for file path construction — rejects empty strings, null bytes, and path traversal characters (``/``, ``\``, ``..``). Called by `write_one()` methods as defense-in-depth. |
 
 **Additional private methods for coordinate clamping:**
 
 | Method | Description |
 |--------|-------------|
-| `_clamp_abs_bbox(bbox, w, h)` | Clamp COCO/LabelMe bbox to `[0, width] x [0, height]`; emits WARNING when clamping changes a value by > 1e-9 |
+| `_clamp_abs_bbox(bbox, w, h)` | Clamp COCO/LabelMe bbox to `[0, width] x [0, height]`; emits WARNING when clamping changes a value by > 1e-6 |
 | `_clamp_abs_points(points, w, h)` | Clamp COCO/LabelMe polygon points to image boundaries; same threshold |
 | `_clamp_normalized_bbox(bbox)` | Clamp YOLO bbox to `[0, 1]`; emits WARNING when clamping changes a value by > 1e-6 |
 | `_clamp_normalized_points(points)` | Clamp YOLO polygon points to `[0, 1]`; same threshold |
@@ -529,7 +531,7 @@ and discarding partial results if needed.
 - **COCO / LabelMe**: coordinates are in absolute pixels. Before validation, they are
   **clamped to image boundaries** `[0, width] × [0, height]`. This tolerates minor
   floating-point imprecision at image edges (e.g., `x = -0.39` → `0`). A WARNING is
-  emitted when clamping modifies a value by more than `1e-9` pixels. Clamping is
+  emitted when clamping modifies a value by more than `1e-6` pixels. Clamping is
   applied regardless of `strict_mode` — it is data normalization, not error handling.
   After clamping, if the bbox has zero area or non-finite values, it is rejected as
   an invalid bbox.

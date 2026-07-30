@@ -558,9 +558,10 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 points = shape["points"]
 
                 if shape_type not in ("rectangle", "polygon", "circle", "line", "point"):
-                    self.logger.warning(
+                    self.logger.error(
                         f"Unsupported shape_type '{shape_type}' in {annotation_file}"
                     )
+                    return False
 
                 if shape_type == "rectangle":
                     if len(points) != 2:

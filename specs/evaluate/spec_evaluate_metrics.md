@@ -1,7 +1,7 @@
 # Evaluation Metrics Specification
 
-> **Version:** v1.1 | **Last Updated:** 2026-07-02
-> **Status:** Draft
+> **Version:** v1.2 | **Last Updated:** 2026-07-30
+> **Status:** Canonical
 > **Layer:** Evaluate
 > **Dependencies:** `spec_evaluate_fundamentals.md` (IoU, matching, TP/FP/FN)
 
@@ -273,6 +273,12 @@ AR(maxDets) = (2/10) × Σ[τ ∈ thresholds] Recall(τ, maxDets)
 ```
 
 Where `Recall(τ, maxDets)` is the recall achieved when taking the top `maxDets` detections (by score) per image, evaluated at IoU threshold `τ`.
+
+> **Implementation note:** The actual AR values are read from pycocotools'
+> ``COCOeval.stats`` array (statistics indices), which delegates the full
+> computation to pycocotools.  The formula above is a mathematical description
+> of the AR concept; the literal code at ``BaseEvaluator._extract_metrics()``
+> reads pre-computed statistics rather than directly evaluating this summation.
 
 ### 7.2 Why AR Uses maxDets
 

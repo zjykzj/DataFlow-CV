@@ -1,6 +1,6 @@
 # Visualize Module Specification
 
-> **Version:** v4.6 | **Last Updated:** 2026-07-29
+> **Version:** v4.7 | **Last Updated:** 2026-07-30
 > **Status:** Draft — bidirectional nav; buffer limit; save dedup; h hints; s snapshot
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
@@ -65,8 +65,9 @@ class RenderAnnotation:
 @dataclass
 class RenderData:
     annotations: List[RenderAnnotation]
-    image_width: int
-    image_height: int
+
+Image dimensions are read from the image at draw time (via ``image.shape`` in OpenCV),
+not stored in ``RenderData``.
 ```
 
 ### 2.3 Coordinate Conversion to RenderData
@@ -508,7 +509,7 @@ For each `ObjectAnnotation` in `image_ann.objects`:
    absolute pixel `(int(x * width), int(y * height))`
 3. **Bbox from polygon fallback**: If polygon exists but bbox is None, compute
    bbox from polygon's axis-aligned bounds: `(min(xs), min(ys), max(xs), max(ys))`
-4. Return `RenderData(annotations=[...], image_width, image_height)`
+4. Return `RenderData(annotations=[...])`
 
 ### 5.2 `COCOVisualizer`
 
@@ -565,7 +566,7 @@ For each `ObjectAnnotation` in `image_ann.objects`:
 2. If `obj.segmentation`: use absolute pixel polygon points as-is, truncate to int
 3. **Bbox from polygon fallback**: If polygon exists but bbox is None, compute
    bbox from polygon's axis-aligned bounds: `(min(xs), min(ys), max(xs), max(ys))`
-4. Return `RenderData(annotations=[...], image_width, image_height)`
+4. Return `RenderData(annotations=[...])`
 
 ## 6. Dependency Contract
 

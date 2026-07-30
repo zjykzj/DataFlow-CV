@@ -1,7 +1,7 @@
 # Evaluate Module Specification
 
-> **Version:** v2.0 | **Last Updated:** 2026-07-02
-> **Status:** Draft — unified logging via `LogManager`
+> **Version:** v2.1 | **Last Updated:** 2026-07-30
+> **Status:** Canonical
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager), pycocotools
 

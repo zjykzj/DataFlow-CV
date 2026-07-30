@@ -1,6 +1,6 @@
 # LabelMe Annotation Format Specification
 
-> **Version:** v1.0 | **Last Updated:** 2026-07-02
+> **Version:** v1.1 | **Last Updated:** 2026-07-30
 > **Status:** Canonical — this document defines the authoritative LabelMe format contract for DataFlow-CV.
 
 ## 1. File Organization
@@ -9,7 +9,7 @@
 
 - **One `.json` file per image**, using the same stem name as the corresponding image file.
 - Example: `image_001.jpg` → `image_001.json`
-- All label files reside in a single flat directory.
+- By default (`recursive=False`), label files reside in a single flat directory (no subdirectories). When `recursive=True`, the handler uses `rglob` for file discovery, traversing all subdirectories recursively.
 - Encoding: **UTF-8**.
 
 ### 1.2 Directory Layout
