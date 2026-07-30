@@ -1,4 +1,4 @@
-{
+{ 
   "hooks": {
     "PreToolUse": [
       {
@@ -6,8 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -c 'import json,sys; d=json.load(sys.stdin); p=str((d.get(\"tool_input\") or {}).get(\"file_path\") or \"\"); ok=(\"/specs/\" in p or p.startswith(\"specs/\")); print(json.dumps({\"hookSpecificOutput\": {\"hookEventName\": \"PreToolUse\", \"additionalContext\": \"You are about to modify a specs/ file. Follow the /spec skill SDD methodology: spec-first workflow, version bump per change type, classification rules. Invoke the spec skill first if it is not already loaded in this session.\"}, \"systemMessage\": \"specs/ edit detected - /spec SDD methodology applies\"})) if ok else None' 2>/dev/null || true",
-            "statusMessage": "Checking specs/ SDD reminder"
+            "command": "sh .claude/skills/spec/scripts/sdd-reminder.sh"
           }
         ]
       }
