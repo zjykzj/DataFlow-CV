@@ -62,7 +62,7 @@ requirement become less precise or ambiguous?" If yes → keep.
 **Keep** command signatures — they ARE the module's public API contract.
 Example:
 ```
-dataflow-cv convert yolo2coco [OPTIONS] IMAGE_DIR LABEL_DIR CLASS_FILE OUTPUT_FILE
+<tool> convert <src>2<dst> [OPTIONS] <SOURCE> <TARGET>
 ```
 This defines: subcommand name, positional argument order, argument count.
 Code must implement this exact signature.
@@ -80,10 +80,10 @@ complete.
 **Keep** module-level file listings — they ARE architecture documentation.
 Example:
 ```
-dataflow/convert/
-├── base.py                # BaseConverter + shared pipelines
-├── yolo_and_coco.py       # YOLO ↔ COCO converter
-└── utils.py               # Shared coordinate transforms
+<package>/<module>/
+├── base.py                # Base class + shared pipeline
+├── converter.py           # Format converter
+└── utils.py               # Shared utilities
 ```
 This tells the reader: what files exist in this module, what each is
 responsible for. Essential for both agent and human to navigate the codebase.

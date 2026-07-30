@@ -121,7 +121,11 @@ Spec maintenance methodology is defined as a project skill. Use `/spec` when cre
 
 ### 4. SDD Enforcement Hook (Optional, Recommended)
 
-The CLAUDE.md rules above rely on Claude honoring them; a PreToolUse hook makes the reminder **mechanical** — the harness injects the SDD methodology reminder into Claude's context on every `specs/` edit. Add to the project's `.claude/settings.json` (merge with existing hooks if present):
+The CLAUDE.md rules above rely on Claude honoring them; a PreToolUse hook makes the reminder **mechanical** — the harness injects the SDD methodology reminder into Claude's context on every `specs/` edit.
+
+#### Quick Setup
+
+The `/spec` skill ships with a ready-to-use hook script. Add to `.claude/settings.json` (merge with existing hooks if present):
 
 ```json
 {
@@ -132,8 +136,7 @@ The CLAUDE.md rules above rely on Claude honoring them; a PreToolUse hook makes 
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -c 'import json,sys; d=json.load(sys.stdin); p=str((d.get(\"tool_input\") or {}).get(\"file_path\") or \"\"); ok=(\"/specs/\" in p or p.startswith(\"specs/\")); print(json.dumps({\"hookSpecificOutput\": {\"hookEventName\": \"PreToolUse\", \"additionalContext\": \"You are about to modify a specs/ file. Follow the /spec skill SDD methodology: spec-first workflow, version bump per change type, classification rules. Invoke the spec skill first if it is not already loaded in this session.\"}, \"systemMessage\": \"specs/ edit detected - /spec SDD methodology applies\"})) if ok else None' 2>/dev/null || true",
-            "statusMessage": "Checking specs/ SDD reminder"
+            "command": "sh .claude/skills/spec/scripts/sdd-reminder.sh"
           }
         ]
       }
@@ -142,11 +145,15 @@ The CLAUDE.md rules above rely on Claude honoring them; a PreToolUse hook makes 
 }
 ```
 
-Requires `python3` on PATH. Verify after adding: pipe a synthetic payload through the command —
+#### How It Works
+
+The script (`.claude/skills/spec/scripts/sdd-reminder.sh`) reads the tool input from stdin, checks if the target path contains `specs/`, and outputs a hook payload that injects the SDD reminder. The script is self-contained, commented, and can be inspected before installation.
+
+Requires `python3` on PATH (for JSON parsing). Verify:
 
 ```bash
 echo '{"tool_name":"Edit","tool_input":{"file_path":"specs/x.md"}}' \
-  | bash -c "$(jq -r '.hooks.PreToolUse[0].hooks[0].command' .claude/settings.json)"
+  | sh .claude/skills/spec/scripts/sdd-reminder.sh
 # Should print the reminder JSON; non-specs paths should print nothing
 ```
 
