@@ -71,16 +71,18 @@ copy skills → Claude reads Required Configuration sections
 
 ## Templates
 
-The `/spec` skill includes reusable templates:
+The `/spec` skill includes reusable templates and an SDD enforcement hook:
 
 ```
 .claude/skills/spec/
 ├── SKILL.md                          # Methodology
-└── templates/
-    ├── index_template.md             # For layer index files
-    ├── spec_template.md              # For spec documents
-    └── examples/
-        └── example_format_spec.md    # Reference example
+├── scripts/
+│   └── sdd-reminder.sh               # SDD enforcement hook (PreToolUse)
+├── templates/
+│   ├── index_template.md             # For layer index files
+│   ├── spec_template.md              # For spec documents
+│   └── examples/
+│       └── example_format_spec.md    # Reference example
 ```
 
 Copy these templates when creating specs in a new project.
