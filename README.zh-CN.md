@@ -7,6 +7,7 @@
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.8+-blue.svg" alt="Python 3.8+"></a>
   <a href="https://github.com/zjykzj/DataFlow-CV/actions/workflows/python-publish.yml"><img src="https://github.com/zjykzj/DataFlow-CV/actions/workflows/python-publish.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
+  <a href="https://deepwiki.com/zjykzj/DataFlow-CV"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
   <br>
   <img src="https://img.shields.io/badge/Linux-Supported-fcc624?logo=linux" alt="Linux">
   <img src="https://img.shields.io/badge/Windows-Supported-00a2e8?logo=windows" alt="Windows">
