@@ -20,7 +20,7 @@ Review `git log` since the last tag. Classify each commit's conventional commit 
 
 **Rule:** the highest-severity commit wins. If all commits are `docs`/`refactor`/`chore` → PATCH. If any `feat` → MINOR. If any breaking change → MAJOR.
 
-**Concrete check:** before picking a version, look at the CHANGELOG diff you're about to write. If the `### Added` section is empty (no new features) → PATCH.
+**Concrete check:** before picking a version, look at the `### Added` subsection under `## [Unreleased]` (the section you're about to rename). If it's empty (no new features) → PATCH.
 
 ## Step 1: Bump Version
 
@@ -30,9 +30,11 @@ Update **all** version locations configured for this project. See CLAUDE.md for 
 |---------|-------------|-------|
 | Package init | `{{PACKAGE_NAME}}/__init__.py` | `__version__ = "X.Y.Z"` |
 | Project config | `pyproject.toml` | `version = "X.Y.Z"` |
-| Changelog | `CHANGELOG.md` | `## [X.Y.Z] - YYYY-MM-DD` |
+| Changelog | `CHANGELOG.md` | Rename `## [Unreleased]` → `## [X.Y.Z] - YYYY-MM-DD`, then add a fresh empty `## [Unreleased]` at the top |
 
 The `{{PACKAGE_NAME}}` variable is defined in CLAUDE.md.
+
+**CHANGELOG rename, not rewrite**: the commit skill maintains `## [Unreleased]` on every commit, so the release does not write new entries. Rename the section header and reset it — the section content flows unchanged into the version bump commit (Step 2) and the GitHub Release body (Step 5).
 
 ## Step 2: Commit
 

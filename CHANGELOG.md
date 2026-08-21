@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Docs
+
+- **Commit skill CHANGELOG maintenance**: `/commit` now appends user-facing changes (feat/fix/docs/chore) to the `## [Unreleased]` section of CHANGELOG.md in the same commit, auto-creating CHANGELOG.md with the standard Keep a Changelog header if missing; internal housekeeping (test/ci/build/style, pure refactor/perf) is skipped. `/release` renames Unreleased to the versioned header instead of writing entries at release time.
+
 ## [1.9.1] - 2026-07-30
 
 ### Security

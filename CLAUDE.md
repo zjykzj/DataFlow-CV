@@ -142,8 +142,8 @@ Spec maintenance methodology is defined as a project skill. Use `/spec` when cre
 
 Git workflows are defined as project skills. Use the corresponding skill for each task:
 
-- **`/commit`** — commit message format, `Co-Authored-By` line, and conventional commit types. Invoke for every `git commit`.
-- **`/release`** — version bump checklist, version bump commit, annotated tag, push, and GitHub Release body template. Invoke when publishing a new release.
+- **`/commit`** — commit message format, `Co-Authored-By` line, conventional commit types, and per-commit CHANGELOG.md `[Unreleased]` maintenance for user-facing changes. Invoke for every `git commit`.
+- **`/release`** — version bump checklist, version bump commit (renames the `[Unreleased]` CHANGELOG section to the version header), annotated tag, push, and GitHub Release body template. Invoke when publishing a new release.
 
 ### AI Model Configuration
 
