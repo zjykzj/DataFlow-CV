@@ -20,7 +20,7 @@ Review `git log` since the last tag. Classify each commit's conventional commit 
 
 **Rule:** the highest-severity commit wins. If all commits are `docs`/`refactor`/`chore` → PATCH. If any `feat` → MINOR. If any breaking change → MAJOR.
 
-**Concrete check:** before picking a version, look at the `### Added` subsection under `## [Unreleased]` (the section you're about to rename). If it's empty (no new features) → PATCH.
+**Concrete check:** before picking a version, look at the `## [Unreleased]` section you're about to rename. If `### Added` is empty (no new features) → PATCH. If any entry is marked `(breaking)` → MAJOR.
 
 ## Step 1: Bump Version
 

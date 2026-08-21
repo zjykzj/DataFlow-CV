@@ -68,6 +68,8 @@ If the file exists but has no `[Unreleased]` section, create it above the most r
 
 Entry style follows the existing changelog: `- **Bold summary**: description.` One line per logical change; closely related changes may share one entry. Order subsections as Added → Changed → Fixed → Removed → Security → Docs.
 
+**Breaking changes** (`feat!` / `fix!` / `BREAKING CHANGE` in the commit body, or any change that breaks users regardless of type) **must** be explicitly marked: append `(breaking)` to the entry, e.g. `- **Async is one deployment shape** (breaking): ...`. The release skill reads these markers to decide the MAJOR version bump.
+
 **Skip CHANGELOG for:**
 - `test` / `ci` / `build` / `style` commits — internal housekeeping with no user-visible effect
 - Pure-internal `refactor` / `perf` commits — if a refactor/perf change IS user-visible (significant speedup, behavior adjustment), record it under `### Changed`
