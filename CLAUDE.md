@@ -7,8 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Critical Rules:**
 - **Format ordering**: YOLO → LabelMe → COCO (applies everywhere: enums, imports, docs, CLI help, specs)
 - **Module ordering**: Analyse → Convert → Visualize → Evaluate (applies everywhere: imports, docs, CLI help)
-- **Spec-first workflow**: Always invoke `/spec` before editing any file in `specs/` directory
-- **Git commits**: Always use `/commit` skill (includes AI model co-author line)
+- **Spec-first workflow**: Invoke `/maestro:spec` (if installed) before editing any file in `specs/` directory
+- **Git commits**: Use `/maestro:commit` (if installed; includes AI model co-author line)
 - **Zero cross-dependencies**: Analyse/Convert/Visualize/Evaluate modules cannot import from each other
 
 **Architecture Constraint Summary:**
@@ -19,10 +19,17 @@ CLI → Analyse/Convert/Visualize/Evaluate → Label → util/logging
 
 **Common Tasks:**
 - Adding features affecting specs: Update spec to target state → implement → verify conformance
-- Git commits: Use `/commit` skill
-- Releases: Use `/release` skill  
-- Development: Use `/dev` skill for test/lint/typecheck
-- Spec maintenance: Use `/spec` skill when creating/modifying spec files
+- Git commits: Use `/maestro:commit`
+- Releases: Use `/maestro:release`
+- Development: Run test/lint/typecheck — see "Development Commands" section
+- Spec maintenance: Use `/maestro:spec` when creating/modifying spec files
+
+**Optional Workflow Skills:**
+The `/maestro:*` skills ship in the `maestro` plugin from the `claude-skills` marketplace ([zjykzj/claude-skills](https://github.com/zjykzj/claude-skills)). They are **optional accelerators** — this project develops normally without them; the rules in this file are self-contained.
+
+- **Install (once per machine)**: `claude plugin install maestro@claude-skills` (in-session: `/plugin marketplace add zjykzj/claude-skills`, then `/plugin install maestro@claude-skills`)
+- **No plugin installed**: no hooks, no skill invocations, no errors — follow the rules written in this file instead
+- **Plugin installed**: the SDD reminder hook activates automatically on `specs/` edits; the skills read the configuration sections in "Git Operations" below
 
 **Critical Implementation Details:**
 - Coordinate semantics depend on `DatasetAnnotations.format` (see "Coordinate Systems" section)
@@ -123,7 +130,7 @@ specs/
 | **Architecture constraints** | ✅ Module boundaries, dependency rules | ✅ Detailed interface contracts |
 | **Ordering conventions** | ✅ Format & module ordering rules | — |
 | **Critical gotchas** | ✅ Cross-cutting surprises (RLE, coords, validation) | ✅ Format-specific edge cases |
-| **Git workflows** | ✅ Skill references (`/commit`, `/release`) | — |
+| **Git workflows** | ✅ Optional skill references (`/maestro:commit`, `/maestro:release`) | — |
 | **External formats** | ❌ (defer to specs) | ✅ YOLO/LabelMe/COCO contracts |
 | **Metric definitions** | ❌ (defer to specs) | ✅ mAP, P/R/F1, matching rules |
 | **Conversion rules** | ❌ (defer to specs) | ✅ Coordinate transforms, category mapping |
@@ -131,36 +138,27 @@ specs/
 
 ### Spec Maintenance
 
-Spec maintenance methodology is defined as a project skill. Use `/spec` when creating, modifying, or reviewing spec files. The skill covers the SDD workflow, the two-reader model, classification principles, what belongs where, and deletion rules.
+Spec maintenance methodology is defined in the `/maestro:spec` skill (maestro plugin). Use it when creating, modifying, or reviewing spec files. The skill covers the SDD workflow, the two-reader model, classification principles, what belongs where, and deletion rules.
 
 **SDD hard rules:**
 
-1. **Invoke `/spec` before any edit to `specs/` files** — the methodology must be loaded before touching spec content.
+1. **Invoke `/maestro:spec` before any edit to `specs/` files** — if the plugin is installed, the methodology must be loaded before touching spec content; without it, apply the rules below directly.
 2. **Spec-first ordering**: any feat/fix that affects a contract documented in `specs/` must (a) update the affected spec to the target state **before** implementing, (b) verify the implementation against the spec **after** coding (conformance check), and (c) list the affected spec files in the commit body.
 
 ## Git Operations
 
-Git workflows are defined as project skills. Use the corresponding skill for each task:
+Git workflows are defined in the maestro plugin skills. Use the corresponding skill for each task when installed; without the plugin, follow the same rules manually:
 
-- **`/commit`** — commit message format, `Co-Authored-By` line, conventional commit types, and per-commit CHANGELOG.md `[Unreleased]` maintenance for user-facing changes. Invoke for every `git commit`.
-- **`/release`** — version bump checklist, version bump commit (renames the `[Unreleased]` CHANGELOG section to the version header), annotated tag, push, and GitHub Release body template. Invoke when publishing a new release.
+- **`/maestro:commit`** — commit message format, `Co-Authored-By` line, conventional commit types, and per-commit CHANGELOG.md `[Unreleased]` maintenance for user-facing changes. Invoke for every `git commit`.
+- **`/maestro:release`** — version bump checklist, version bump commit (renames the `[Unreleased]` CHANGELOG section to the version header), annotated tag, push, and GitHub Release body template. Invoke when publishing a new release.
 
 ### AI Model Configuration
 
-The AI model used in this project is **DeepSeek-V4.0**. Configured in skills as:
+The AI model used in this project is **DeepSeek-V4.0**. Configured for the maestro skills as:
 
 ```
 {{AI_MODEL_NAME}} = DeepSeek-V4.0
 {{AI_MODEL_EMAIL}} = noreply@deepseek.com
-```
-
-### Development Configuration
-
-Template variables for `/dev` skill:
-
-```
-{{PACKAGE_NAME}} = dataflow
-{{SRC_DIRS}} = dataflow tests samples
 ```
 
 ### Release Configuration
@@ -175,9 +173,10 @@ Version bump locations for this project:
 
 Verify with: `grep -rn '"X\.Y\.Z"' dataflow/ pyproject.toml` (exclude `CHANGELOG.md`).
 
-Repository URL for the `/release` skill:
+Package name and repository URL for `/maestro:release`:
 
 ```
+{{PACKAGE_NAME}} = dataflow
 {{REPO_URL}} = https://github.com/zjykzj/DataFlow-CV
 ```
 
@@ -470,16 +469,15 @@ Visualizers convert annotations per-image to `RenderAnnotation` (absolute pixel 
 
 ## Development Commands
 
-Use the `/dev` skill for standard development workflows:
-
 | Command | What It Does |
 |---------|-------------|
-| `/dev test` | Run pytest suite |
-| `/dev lint` | Run ruff/flake8 checks |
-| `/dev typecheck` | Run mypy static type checking |
-| `/dev` (no args) | Run all three (test + lint + typecheck) |
+| `pytest` | Run full test suite |
+| `pytest -x -q` | Stop on first failure, quiet |
+| `ruff check dataflow tests samples` | Lint |
+| `ruff format --check dataflow tests samples` | Format check |
+| `mypy dataflow` | Type check |
 
-The `/dev` skill is configured for this project with `{{PACKAGE_NAME}} = dataflow` and `{{SRC_DIRS}} = dataflow tests samples`.
+Run all three: `pytest -q && ruff check dataflow tests samples && ruff format --check dataflow tests samples && mypy dataflow`
 
 ### Installation
 

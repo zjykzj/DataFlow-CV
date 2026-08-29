@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Workflow skills moved to the maestro plugin** (breaking): The in-repo development skills under `.claude/skills/` are removed and now ship as the `maestro` plugin from the `claude-skills` marketplace (github.com/zjykzj/claude-skills), invoked as `/maestro:<skill>`. The project remains fully developable without the plugin — CLAUDE.md rules are self-contained, the SDD reminder hook ships with the plugin (`$CLAUDE_PLUGIN_ROOT`), and development commands are documented directly in CLAUDE.md. The `dev` skill was dropped entirely; its toolchain guidance moved into the `claude` skill as a CLAUDE.md authoring guide.
+
 ### Docs
 
 - **DeepWiki badge**: Added DeepWiki badge to both READMEs (English and Chinese), linking to `deepwiki.com/zjykzj/DataFlow-CV` and enabling weekly automatic wiki re-indexing.

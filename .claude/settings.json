@@ -1,15 +1,13 @@
-{ 
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "sh .claude/skills/spec/scripts/sdd-reminder.sh"
-          }
-        ]
+{
+  "extraKnownMarketplaces": {
+    "claude-skills": {
+      "source": {
+        "source": "github",
+        "repo": "zjykzj/claude-skills"
       }
-    ]
+    }
+  },
+  "enabledPlugins": {
+    "maestro@claude-skills": true
   }
 }
