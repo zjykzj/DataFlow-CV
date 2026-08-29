@@ -310,7 +310,7 @@ print(f"Segm F1: {prf1.overall.f1_score:.3f}")
 
 ## 🔧 开发
 
-详细的开发者指南(包括高级测试命令、调试和架构概述)见 [CLAUDE.md](CLAUDE.md)。项目还包含用于常见任务的 [Claude Code 技能](.claude/skills/):`/commit`、`/release`、`/dev`、`/spec` 和 `/claude`。
+详细的开发者指南(包括高级测试命令、调试和架构概述)见 [CLAUDE.md](CLAUDE.md)。常见任务的可选 Claude Code 技能(`/maestro:spec`、`/maestro:commit`、`/maestro:release`、`/maestro:claude`)可通过 [maestro 插件](https://github.com/zjykzj/claude-skills)获取——未安装时项目也能正常开发。
 
 ### 🧪 测试
 
@@ -385,7 +385,7 @@ specs/               # 权威规范(evaluate/ + formats/ + modules/)
 
 1. 🍴 Fork 本仓库
 2. 🌿 创建功能分支
-3. ✏️ 进行修改 —— **规范优先**:如果修改影响了 [specs/](specs/) 中的契约,请先更新规范再改代码(SDD,见 `/spec` 技能)
+3. ✏️ 进行修改 —— **规范优先**:如果修改影响了 [specs/](specs/) 中的契约,请先更新规范再改代码(SDD,见 `/maestro:spec` 技能)
 4. 🧪 按需添加或更新测试
 5. ✅ 确保代码通过格式化和代码检查
 6. 📬 提交 Pull Request

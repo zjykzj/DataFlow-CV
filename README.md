@@ -310,7 +310,7 @@ print(f"Segm F1: {prf1.overall.f1_score:.3f}")
 
 ## 🔧 Development
 
-For detailed developer guidance including advanced test commands, debugging, and architecture overview, see [CLAUDE.md](CLAUDE.md). The project also includes [Claude Code skills](.claude/skills/) for common tasks: `/commit`, `/release`, `/dev`, `/spec`, and `/claude`.
+For detailed developer guidance including advanced test commands, debugging, and architecture overview, see [CLAUDE.md](CLAUDE.md). Optional Claude Code skills for common tasks (`/maestro:spec`, `/maestro:commit`, `/maestro:release`, `/maestro:claude`) are available via the [maestro plugin](https://github.com/zjykzj/claude-skills) — the project develops normally without them.
 
 ### 🧪 Testing
 
@@ -385,7 +385,7 @@ Contributions are welcome! Please review [CLAUDE.md](CLAUDE.md) for architecture
 
 1. 🍴 Fork the repository
 2. 🌿 Create a feature branch
-3. ✏️ Make your changes — **spec-first**: if a change affects a contract in [specs/](specs/), update the spec before the code (SDD, see the `/spec` skill)
+3. ✏️ Make your changes — **spec-first**: if a change affects a contract in [specs/](specs/), update the spec before the code (SDD, see the `/maestro:spec` skill)
 4. 🧪 Add or update tests as needed
 5. ✅ Ensure code passes formatting and linting checks
 6. 📬 Submit a pull request
