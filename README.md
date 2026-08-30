@@ -33,7 +33,7 @@ A computer vision dataset processing library — analyse, convert, visualize, an
 
 ```bash
 pip install dataflow-cv               # from PyPI
-pip install pycocotools               # optional: COCO RLE + evaluation
+pip install dataflow-cv[coco]         # optional: COCO RLE + evaluation
 ```
 
 Or from source:
@@ -312,9 +312,19 @@ print(f"Segm F1: {prf1.overall.f1_score:.3f}")
 
 For detailed developer guidance including advanced test commands, debugging, and architecture overview, see [CLAUDE.md](CLAUDE.md). Optional Claude Code skills for common tasks (`/maestro:spec`, `/maestro:commit`, `/maestro:release`, `/maestro:claude`) are available via the [maestro plugin](https://github.com/zjykzj/claude-skills) — the project develops normally without them.
 
+### 🤖 AI Assistant Skills
+
+Optional Claude Code skills for working with dataflow-cv — `/dataflow:dataflow-cv` (CLI and Python API reference, canonical examples, and known gotchas) — are available via the [dataflow plugin](https://github.com/zjykzj/claude-skills) from the claude-skills marketplace:
+
+```bash
+claude plugin install dataflow@claude-skills
+```
+
+The skill lets AI assistants operate the dataflow-cv CLI and Python API correctly. The project develops normally without it.
+
 ### 🧪 Testing
 
-**556 tests, 79% code coverage (5103 statements).**
+**561 tests, 80% code coverage (5462 statements).**
 
 ```bash
 pytest                                    # All tests
@@ -328,12 +338,12 @@ pytest tests/evaluate/test_evaluator.py     # Single module
 
 | Module | Coverage | Highlights |
 |--------|:--------:|------------|
-| `dataflow/label/` | 72% | models (87%), base (83%), coco_handler (76%), labelme_handler (71%), yolo_handler (61%) |
-| `dataflow/analyse/` | 79% | base (99%), utils (84%), stats (83%), filter (76%), partition (71%), split (63%) |
-| `dataflow/convert/` | 85% | labelme_and_yolo (93%), yolo_and_coco (89%), utils (89%), coco_and_labelme (86%), base (80%), rle (80%) |
-| `dataflow/visualize/` | 83% | yolo_vis (100%), labelme_vis (100%), coco_vis (93%), base (78%) |
-| `dataflow/evaluate/` | 87% | evaluator (100%), result (99%), metrics (93%), base (91%), utils (67%) |
-| `dataflow/cli/` | 75% | main (96%), visualize cmd (90%), utils (87%), evaluate cmd (83%), analyse cmd (64%), convert cmd (52%) |
+| `dataflow/label/` | 71% | models (84%), base (82%), utils (78%), coco_handler (74%), labelme_handler (71%), yolo_handler (61%) |
+| `dataflow/analyse/` | 84% | base (99%), log_templates (92%), sample (87%), utils (85%), split (85%), stats (83%), filter (76%), partition (74%) |
+| `dataflow/convert/` | 85% | labelme_and_yolo (93%), yolo_and_coco (89%), utils (87%), coco_and_labelme (86%), base (80%), rle (80%) |
+| `dataflow/visualize/` | 81% | yolo_vis (100%), labelme_vis (100%), coco_vis (93%), base (76%) |
+| `dataflow/evaluate/` | 87% | evaluator (100%), result (99%), metrics (93%), base (90%), utils (67%) |
+| `dataflow/cli/` | 74% | main (96%), visualize cmd (87%), utils (87%), evaluate cmd (83%), analyse cmd (65%), convert cmd (52%) |
 | `dataflow/util/` | 100% | logging (100%) |
 
 </details>
@@ -371,7 +381,7 @@ dataflow/
 ├── evaluate/        # pycocotools-based metrics, log templates
 ├── util/            # Unified logging (LogManager + format helpers)
 └── cli/             # CLI entry point, commands, validation
-tests/               # Unit & integration tests (556 tests, conftest fixtures)
+tests/               # Unit & integration tests (561 tests, conftest fixtures)
 samples/             # Python API usage examples (analyse, convert, visualize, evaluate, cli)
 assets/              # Test data (det/seg by format)
 specs/               # Canonical specifications (evaluate/ + formats/ + modules/)

@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **DeepWiki badge**: Added DeepWiki badge to both READMEs (English and Chinese), linking to `deepwiki.com/zjykzj/DataFlow-CV` and enabling weekly automatic wiki re-indexing.
 - **Commit skill CHANGELOG maintenance**: `/commit` now appends user-facing changes (feat/fix/docs/chore) to the `## [Unreleased]` section of CHANGELOG.md in the same commit, auto-creating CHANGELOG.md with the standard Keep a Changelog header if missing; internal housekeeping (test/ci/build/style, pure refactor/perf) is skipped; breaking changes must be explicitly marked `(breaking)` in the entry. `/release` renames Unreleased to the versioned header instead of writing entries at release time, reading the `(breaking)` markers for MAJOR bumps.
+- **AI Assistant Skills section added to both READMEs**: `/dataflow:dataflow-cv` — CLI and Python API reference, canonical examples, and known gotchas — available via the `dataflow` plugin from the claude-skills marketplace. Test stats refreshed (556→561 tests, 79%→80% coverage, 5103→5462 statements, per-module table regenerated); install instructions now advertise `pip install dataflow-cv[coco]`.
 
 ## [1.9.1] - 2026-07-30
 

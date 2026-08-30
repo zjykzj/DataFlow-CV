@@ -33,7 +33,7 @@ DataFlow-CV 是一个计算机视觉数据集处理库 —— 支持在 YOLO、L
 
 ```bash
 pip install dataflow-cv               # 从 PyPI 安装
-pip install pycocotools               # 可选:COCO RLE 编码 + 评估
+pip install dataflow-cv[coco]         # 可选:COCO RLE 编码 + 评估
 ```
 
 或者从源码安装:
@@ -312,9 +312,19 @@ print(f"Segm F1: {prf1.overall.f1_score:.3f}")
 
 详细的开发者指南(包括高级测试命令、调试和架构概述)见 [CLAUDE.md](CLAUDE.md)。常见任务的可选 Claude Code 技能(`/maestro:spec`、`/maestro:commit`、`/maestro:release`、`/maestro:claude`)可通过 [maestro 插件](https://github.com/zjykzj/claude-skills)获取——未安装时项目也能正常开发。
 
+### 🤖 AI 助手技能
+
+处理 dataflow-cv 的可选 Claude Code 技能 —— `/dataflow:dataflow-cv`(CLI 与 Python API 参考、权威示例、已知坑点)—— 可通过 claude-skills 市场的 [dataflow 插件](https://github.com/zjykzj/claude-skills)获取:
+
+```bash
+claude plugin install dataflow@claude-skills
+```
+
+该技能让 AI 助手能正确操作 dataflow-cv 的 CLI 与 Python API。未安装时项目也能正常开发。
+
 ### 🧪 测试
 
-**556 个测试,79% 代码覆盖率(5103 条语句)。**
+**561 个测试,80% 代码覆盖率(5462 条语句)。**
 
 ```bash
 pytest                                    # 全部测试
@@ -328,12 +338,12 @@ pytest tests/evaluate/test_evaluator.py     # 单个模块
 
 | 模块 | 覆盖率 | 亮点 |
 |--------|:--------:|------------|
-| `dataflow/label/` | 72% | models (87%), base (83%), coco_handler (76%), labelme_handler (71%), yolo_handler (61%) |
-| `dataflow/analyse/` | 79% | base (99%), utils (84%), stats (83%), filter (76%), partition (71%), split (63%) |
-| `dataflow/convert/` | 85% | labelme_and_yolo (93%), yolo_and_coco (89%), utils (89%), coco_and_labelme (86%), base (80%), rle (80%) |
-| `dataflow/visualize/` | 83% | yolo_vis (100%), labelme_vis (100%), coco_vis (93%), base (78%) |
-| `dataflow/evaluate/` | 87% | evaluator (100%), result (99%), metrics (93%), base (91%), utils (67%) |
-| `dataflow/cli/` | 75% | main (96%), visualize cmd (90%), utils (87%), evaluate cmd (83%), analyse cmd (64%), convert cmd (52%) |
+| `dataflow/label/` | 71% | models (84%), base (82%), utils (78%), coco_handler (74%), labelme_handler (71%), yolo_handler (61%) |
+| `dataflow/analyse/` | 84% | base (99%), log_templates (92%), sample (87%), utils (85%), split (85%), stats (83%), filter (76%), partition (74%) |
+| `dataflow/convert/` | 85% | labelme_and_yolo (93%), yolo_and_coco (89%), utils (87%), coco_and_labelme (86%), base (80%), rle (80%) |
+| `dataflow/visualize/` | 81% | yolo_vis (100%), labelme_vis (100%), coco_vis (93%), base (76%) |
+| `dataflow/evaluate/` | 87% | evaluator (100%), result (99%), metrics (93%), base (90%), utils (67%) |
+| `dataflow/cli/` | 74% | main (96%), visualize cmd (87%), utils (87%), evaluate cmd (83%), analyse cmd (65%), convert cmd (52%) |
 | `dataflow/util/` | 100% | logging (100%) |
 
 </details>
@@ -371,7 +381,7 @@ dataflow/
 ├── evaluate/        # 基于 pycocotools 的指标计算、日志模板
 ├── util/            # 统一日志(LogManager + 格式化辅助)
 └── cli/             # CLI 入口、命令、校验
-tests/               # 单元与集成测试(556 个测试、conftest 夹具)
+tests/               # 单元与集成测试(561 个测试、conftest 夹具)
 samples/             # Python API 使用示例(analyse、convert、visualize、evaluate、cli)
 assets/              # 测试数据(按格式分类的 det/seg)
 specs/               # 权威规范(evaluate/ + formats/ + modules/)
