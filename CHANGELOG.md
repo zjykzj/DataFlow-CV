@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Workflow skills moved to the maestro plugin** (breaking): The in-repo development skills under `.claude/skills/` are removed and now ship as the `maestro` plugin from the `claude-skills` marketplace (github.com/zjykzj/claude-skills), invoked as `/maestro:<skill>`. The project remains fully developable without the plugin — CLAUDE.md rules are self-contained, the SDD reminder hook ships with the plugin (`$CLAUDE_PLUGIN_ROOT`), and development commands are documented directly in CLAUDE.md. The `dev` skill was dropped entirely; its toolchain guidance moved into the `claude` skill as a CLAUDE.md authoring guide.
 - **Repo fully decoupled from the skills marketplace**: Removed the committed `.claude/settings.json` (plugin auto-registration for clones) so the repository carries no reference to the personal claude-skills marketplace. Install steps remain documented in CLAUDE.md. README skill references (EN + zh-CN) updated to the `/maestro:<skill>` plugin form, noting the project develops normally without the plugin.
+- **Packaging metadata upgraded for v2.0.0**: trove classifier `Development Status :: 3 - Alpha` → `5 - Production/Stable`; Python 3.13/3.14 classifiers added; project description now names the four capabilities across YOLO, LabelMe, and COCO.
 
 ### Docs
 
