@@ -180,6 +180,8 @@ Package name and repository URL for `/maestro:release`:
 {{REPO_URL}} = https://github.com/zjykzj/DataFlow-CV
 ```
 
+**Post-release checklist**: after each release, sync the external `/dataflow:dataflow-cv` skill's minimum version (the `dataflow>=X.Y.Z` check in `plugins/dataflow/skills/dataflow-cv/SKILL.md` in the claude-skills repo) if the new release changes the CLI/API surface the skill documents.
+
 ## Architecture
 
 ### Format Ordering Convention
