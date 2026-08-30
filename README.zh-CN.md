@@ -284,6 +284,22 @@ print(f"Segm F1: {prf1.overall.f1_score:.3f}")
 
 > 📂 完整示例见 `samples/` 目录:`samples/analyse/`(统计与划分)、`samples/convert/`(6 个转换方向)、`samples/visualize/`(YOLO、LabelMe、COCO)、`samples/evaluate/`(检测与分割)、`samples/cli/`(CLI 工作流)。
 
+### 🤖 AI 助手技能
+
+我们为 dataflow-cv 创建了专用的 Claude Code 技能 —— `/dataflow:dataflow-cv`,让 LLM / AI Agent 在任意项目中都能正确调用它的 CLI 与 Python API。技能内容涵盖:
+
+- **CLI 命令树与任务映射**:analyse / convert / visualize / evaluate 共 16 个子命令
+- **Python API 参考**:handlers、analysers、converters、visualizers、evaluators
+- **权威示例命令**与**已知坑点**(坐标语义、预测格式、RLE 编码等)
+
+安装(每台机器一次):
+
+```bash
+claude plugin install dataflow@claude-skills
+```
+
+安装后,AI 助手在处理数据集转换、评估等任务时会按需自动加载该技能,也可通过 `/dataflow:dataflow-cv` 显式调用。未安装时不影响库本身的正常使用。
+
 ---
 
 ## 📖 文档
@@ -311,16 +327,6 @@ print(f"Segm F1: {prf1.overall.f1_score:.3f}")
 ## 🔧 开发
 
 详细的开发者指南(包括高级测试命令、调试和架构概述)见 [CLAUDE.md](CLAUDE.md)。常见任务的可选 Claude Code 技能(`/maestro:spec`、`/maestro:commit`、`/maestro:release`、`/maestro:claude`)可通过 [maestro 插件](https://github.com/zjykzj/claude-skills)获取——未安装时项目也能正常开发。
-
-### 🤖 AI 助手技能
-
-处理 dataflow-cv 的可选 Claude Code 技能 —— `/dataflow:dataflow-cv`(CLI 与 Python API 参考、权威示例、已知坑点)—— 可通过 claude-skills 市场的 [dataflow 插件](https://github.com/zjykzj/claude-skills)获取:
-
-```bash
-claude plugin install dataflow@claude-skills
-```
-
-该技能让 AI 助手能正确操作 dataflow-cv 的 CLI 与 Python API。未安装时项目也能正常开发。
 
 ### 🧪 测试
 

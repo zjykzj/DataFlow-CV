@@ -284,6 +284,22 @@ print(f"Segm F1: {prf1.overall.f1_score:.3f}")
 
 > 📂 See the `samples/` directory for complete examples: `samples/analyse/` (statistics & split), `samples/convert/` (6 conversion directions), `samples/visualize/` (YOLO, LabelMe, COCO), `samples/evaluate/` (detection & segmentation), `samples/cli/` (CLI workflows).
 
+### 🤖 AI Assistant Skills
+
+We maintain a dedicated Claude Code skill for dataflow-cv — `/dataflow:dataflow-cv` — so LLMs and AI agents can operate its CLI and Python API correctly in any project. The skill covers:
+
+- **CLI command tree and task mapping**: 16 subcommands across analyse / convert / visualize / evaluate
+- **Python API reference**: handlers, analysers, converters, visualizers, evaluators
+- **Canonical example commands** and **known gotchas** (coordinate semantics, prediction formats, RLE encoding, …)
+
+Install once per machine:
+
+```bash
+claude plugin install dataflow@claude-skills
+```
+
+Once installed, AI assistants load the skill on demand when working on dataset conversion, evaluation, or similar tasks — it can also be invoked explicitly via `/dataflow:dataflow-cv`. The library works normally without it.
+
 ---
 
 ## 📖 Documentation
@@ -311,16 +327,6 @@ print(f"Segm F1: {prf1.overall.f1_score:.3f}")
 ## 🔧 Development
 
 For detailed developer guidance including advanced test commands, debugging, and architecture overview, see [CLAUDE.md](CLAUDE.md). Optional Claude Code skills for common tasks (`/maestro:spec`, `/maestro:commit`, `/maestro:release`, `/maestro:claude`) are available via the [maestro plugin](https://github.com/zjykzj/claude-skills) — the project develops normally without them.
-
-### 🤖 AI Assistant Skills
-
-Optional Claude Code skills for working with dataflow-cv — `/dataflow:dataflow-cv` (CLI and Python API reference, canonical examples, and known gotchas) — are available via the [dataflow plugin](https://github.com/zjykzj/claude-skills) from the claude-skills marketplace:
-
-```bash
-claude plugin install dataflow@claude-skills
-```
-
-The skill lets AI assistants operate the dataflow-cv CLI and Python API correctly. The project develops normally without it.
 
 ### 🧪 Testing
 
