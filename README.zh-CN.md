@@ -26,6 +26,7 @@ DataFlow-CV 是一个计算机视觉数据集处理库 —— 支持在 YOLO、L
 | 🎨 **可视化** | OpenCV 渲染、按类别着色,支持显示与保存模式 | `dataflow-cv visualize yolo ...` |
 | 📊 **评估** | 基于 pycocotools 的 COCO mAP、按类别的单阈值 P/R/F1 | `dataflow-cv evaluate detection ...` |
 | 💻 **CLI + API** | 基于 Click 的 CLI,带丰富的 `--help`;Python API 用于构建流水线 | `from dataflow.convert import ...` |
+| 🤖 **AI 助手技能** | 面向 AI 助手的 Claude Code 技能(`/dataflow:dataflow-cv`)—— CLI/API 参考与已知坑点 | `claude plugin install dataflow@claude-skills` |
 
 ---
 
