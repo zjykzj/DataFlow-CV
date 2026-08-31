@@ -7,8 +7,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Critical Rules:**
 - **Format ordering**: YOLO → LabelMe → COCO (applies everywhere: enums, imports, docs, CLI help, specs)
 - **Module ordering**: Analyse → Convert → Visualize → Evaluate (applies everywhere: imports, docs, CLI help)
-- **Spec-first workflow**: Invoke `/maestro:spec` (if installed) before editing any file in `specs/` directory
-- **Git commits**: Use `/maestro:commit` (if installed; includes AI model co-author line)
 - **Zero cross-dependencies**: Analyse/Convert/Visualize/Evaluate modules cannot import from each other
 
 **Architecture Constraint Summary:**
@@ -19,17 +17,7 @@ CLI → Analyse/Convert/Visualize/Evaluate → Label → util/logging
 
 **Common Tasks:**
 - Adding features affecting specs: Update spec to target state → implement → verify conformance
-- Git commits: Use `/maestro:commit`
-- Releases: Use `/maestro:release`
 - Development: Run test/lint/typecheck — see "Development Commands" section
-- Spec maintenance: Use `/maestro:spec` when creating/modifying spec files
-
-**Optional Workflow Skills:**
-The `/maestro:*` skills ship in the `maestro` plugin from the `claude-skills` marketplace ([zjykzj/claude-skills](https://github.com/zjykzj/claude-skills)). They are **optional accelerators** — this project develops normally without them; the rules in this file are self-contained.
-
-- **Install (once per machine)**: `claude plugin install maestro@claude-skills` (in-session: `/plugin marketplace add zjykzj/claude-skills`, then `/plugin install maestro@claude-skills`)
-- **No plugin installed**: no hooks, no skill invocations, no errors — follow the rules written in this file instead
-- **Plugin installed**: the SDD reminder hook activates automatically on `specs/` edits; the skills read the configuration sections in "Git Operations" below
 
 **Critical Implementation Details:**
 - Coordinate semantics depend on `DatasetAnnotations.format` (see "Coordinate Systems" section)
@@ -130,7 +118,7 @@ specs/
 | **Architecture constraints** | ✅ Module boundaries, dependency rules | ✅ Detailed interface contracts |
 | **Ordering conventions** | ✅ Format & module ordering rules | — |
 | **Critical gotchas** | ✅ Cross-cutting surprises (RLE, coords, validation) | ✅ Format-specific edge cases |
-| **Git workflows** | ✅ Optional skill references (`/maestro:commit`, `/maestro:release`) | — |
+| **Git workflows** | ✅ Config section (`## Maestro Configuration`) | — |
 | **External formats** | ❌ (defer to specs) | ✅ YOLO/LabelMe/COCO contracts |
 | **Metric definitions** | ❌ (defer to specs) | ✅ mAP, P/R/F1, matching rules |
 | **Conversion rules** | ❌ (defer to specs) | ✅ Coordinate transforms, category mapping |
@@ -138,49 +126,25 @@ specs/
 
 ### Spec Maintenance
 
-Spec maintenance methodology is defined in the `/maestro:spec` skill (maestro plugin). Use it when creating, modifying, or reviewing spec files. The skill covers the SDD workflow, the two-reader model, classification principles, what belongs where, and deletion rules.
-
 **SDD hard rules:**
 
 1. **Invoke `/maestro:spec` before any edit to `specs/` files** — if the plugin is installed, the methodology must be loaded before touching spec content; without it, apply the rules below directly.
 2. **Spec-first ordering**: any feat/fix that affects a contract documented in `specs/` must (a) update the affected spec to the target state **before** implementing, (b) verify the implementation against the spec **after** coding (conformance check), and (c) list the affected spec files in the commit body.
 
-## Git Operations
+## Maestro Configuration
 
-Git workflows are defined in the maestro plugin skills. Use the corresponding skill for each task when installed; without the plugin, follow the same rules manually:
-
-- **`/maestro:commit`** — commit message format, `Co-Authored-By` line, conventional commit types, and per-commit CHANGELOG.md `[Unreleased]` maintenance for user-facing changes. Invoke for every `git commit`.
-- **`/maestro:release`** — version bump checklist, version bump commit (renames the `[Unreleased]` CHANGELOG section to the version header), annotated tag, push, and GitHub Release body template. Invoke when publishing a new release.
-
-### AI Model Configuration
-
-The AI model used in this project is **DeepSeek-V4.0**. Configured for the maestro skills as:
-
-```
 {{AI_MODEL_NAME}} = DeepSeek-V4.0
 {{AI_MODEL_EMAIL}} = noreply@deepseek.com
-```
+{{REPO_URL}} = https://github.com/zjykzj/DataFlow-CV
+{{PACKAGE_NAME}} = dataflow
 
-### Release Configuration
-
-Version bump locations for this project:
+### Version Bump Locations
 
 | # | File | Field |
 |---|------|-------|
 | 1 | `pyproject.toml` | `version = "X.Y.Z"` |
 | 2 | `dataflow/__init__.py` | `__version__ = "X.Y.Z"` |
 | 3 | `CHANGELOG.md` | `## [X.Y.Z] - YYYY-MM-DD` section header |
-
-Verify with: `grep -rn '"X\.Y\.Z"' dataflow/ pyproject.toml` (exclude `CHANGELOG.md`).
-
-Package name and repository URL for `/maestro:release`:
-
-```
-{{PACKAGE_NAME}} = dataflow
-{{REPO_URL}} = https://github.com/zjykzj/DataFlow-CV
-```
-
-**Post-release checklist**: after each release, sync the external `/dataflow:dataflow-cv` skill's minimum version (the `dataflow>=X.Y.Z` check in `plugins/dataflow/skills/dataflow-cv/SKILL.md` in the claude-skills repo) if the new release changes the CLI/API surface the skill documents.
 
 ## Architecture
 
@@ -602,3 +566,4 @@ Test data lives in `assets/test_data/`, organized by format (det/seg) and annota
 39. **Evaluate `validate_inputs` raises with all errors**: All validation errors collected and raised together via `ValueError("\n".join(errors))`. `evaluate()` catches this and splits into individual `result.errors` entries — all problems visible in log and programmatic output.
 40. **Deleted exception classes**: `ParameterError`, `OutputError`, `SystemError` no longer exist. Use `InputError` (exit 2) and `RuntimeCLIError` (exit 4).
 41. **Auto-generated class files cleaned up at exit**: `_auto_generate_class_file()` registers temp `classes.txt` for cleanup via `atexit`. Do not add manual cleanup in callers.
+42. **dataflow-cv skill version sync after release**: after each release that changes the CLI/API surface, sync the `dataflow>=X.Y.Z` minimum-version check in `plugins/dataflow/skills/dataflow-cv/SKILL.md` (claude-skills repo).
