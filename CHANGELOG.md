@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-09-03
+
 ### Docs
 
 - **AI Skills row added to README feature tables** (EN + zh-CN): The feature overview table now lists the `/dataflow:dataflow-cv` Claude Code skill — skill name and purpose in the description column, `claude plugin install dataflow@claude-skills` install command in the command column.
