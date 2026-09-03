@@ -29,8 +29,11 @@ def main():
         image_dir=str(data_dir / "images"),
     )
 
-    logger.info(f"✓ {result.num_images_converted} images → {output_dir}" if result.success
-                else f"✗ {result.errors[0] if result.errors else 'Failed'}")
+    logger.info(
+        f"✓ {result.num_images_converted} images → {output_dir}"
+        if result.success
+        else f"✗ {result.errors[0] if result.errors else 'Failed'}"
+    )
 
 
 if __name__ == "__main__":

@@ -33,6 +33,7 @@ class TestDetectionEvaluator:
 
     def test_verbose_init(self):
         from dataflow.util.logging import LogConfig
+
         log_config = LogConfig(name="test_det", verbose=True)
         ev = DetectionEvaluator(log_config=log_config)
         assert ev._log_manager.log_path is not None
@@ -47,6 +48,7 @@ class TestDetectionEvaluator:
 
     def test_evaluate_verbose(self, gt_path, dt_path):
         from dataflow.util.logging import LogConfig
+
         log_config = LogConfig(name="test_det_v", verbose=True)
         ev = DetectionEvaluator(log_config=log_config)
         result = ev.evaluate(gt_path, dt_path)
@@ -59,6 +61,7 @@ class TestDetectionEvaluator:
 
     def test_evaluate_per_class_names(self, gt_path, dt_path):
         from dataflow.util.logging import LogConfig
+
         log_config = LogConfig(name="test_det_names", verbose=True)
         ev = DetectionEvaluator(log_config=log_config)
         result = ev.evaluate(gt_path, dt_path)
@@ -86,6 +89,7 @@ class TestSegmentationEvaluator:
 
     def test_verbose_init(self):
         from dataflow.util.logging import LogConfig
+
         log_config = LogConfig(name="test_segm", verbose=True)
         ev = SegmentationEvaluator(log_config=log_config)
         assert ev._log_manager.log_path is not None
@@ -126,6 +130,7 @@ class TestSegmentationEvaluatorSuccess:
     def test_evaluate_segmentation_verbose(self, gt_segm_path, dt_segm_path):
         """Verbose segmentation eval should produce per-class breakdown."""
         from dataflow.util.logging import LogConfig
+
         log_config = LogConfig(name="test_segm_verbose", verbose=True)
         ev = SegmentationEvaluator(log_config=log_config)
         result = ev.evaluate(gt_segm_path, dt_segm_path)

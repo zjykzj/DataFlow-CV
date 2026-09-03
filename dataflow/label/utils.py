@@ -106,9 +106,7 @@ def generate_classes_file(categories: Dict[int, str], output_path: Path) -> bool
     except Exception as e:
         import logging
 
-        logging.getLogger(__name__).error(
-            f"Failed to write classes file {output_path}: {e}"
-        )
+        logging.getLogger(__name__).error(f"Failed to write classes file {output_path}: {e}")
         return False
 
 
@@ -132,7 +130,5 @@ def load_classes_file(class_file: Path) -> Dict[int, str]:
     except Exception as e:
         import logging
 
-        logging.getLogger(__name__).error(
-            f"Failed to load classes file {class_file}: {e}"
-        )
+        logging.getLogger(__name__).error(f"Failed to load classes file {class_file}: {e}")
     return categories

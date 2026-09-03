@@ -2,8 +2,6 @@
 Unit tests for labelme_and_yolo.py
 """
 
-import logging
-import shutil
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -13,9 +11,13 @@ import pytest
 from dataflow.convert.base import ConversionResult
 from dataflow.convert.labelme_and_yolo import LabelMeAndYoloConverter
 from dataflow.label.base import AnnotationResult
-from dataflow.label.models import (AnnotationFormat, BoundingBox,
-                                   DatasetAnnotations, ImageAnnotation,
-                                   ObjectAnnotation)
+from dataflow.label.models import (
+    AnnotationFormat,
+    BoundingBox,
+    DatasetAnnotations,
+    ImageAnnotation,
+    ObjectAnnotation,
+)
 
 
 class TestLabelMeAndYoloConverter:
@@ -55,9 +57,7 @@ class TestLabelMeAndYoloConverter:
             target_path = Path(tmpdir) / "target"
 
             kwargs = {"class_file": "/nonexistent/classes.txt"}
-            assert not converter.validate_inputs(
-                str(source_path), str(target_path), kwargs
-            )
+            assert not converter.validate_inputs(str(source_path), str(target_path), kwargs)
 
     def test_validate_inputs_yolo_to_labelme_missing_image_dir(self):
         """Test validation for YOLO→LabelMe with missing image_dir."""
@@ -73,9 +73,7 @@ class TestLabelMeAndYoloConverter:
 
             kwargs = {"class_file": str(class_file)}
             # Missing image_dir parameter
-            assert not converter.validate_inputs(
-                str(source_path), str(target_path), kwargs
-            )
+            assert not converter.validate_inputs(str(source_path), str(target_path), kwargs)
 
     def test_validate_inputs_yolo_to_labelme_invalid_image_dir(self):
         """Test validation for YOLO→LabelMe with non-existent image_dir."""
@@ -90,9 +88,7 @@ class TestLabelMeAndYoloConverter:
             class_file.write_text("cat\ndog\n")
 
             kwargs = {"class_file": str(class_file), "image_dir": "/nonexistent/images"}
-            assert not converter.validate_inputs(
-                str(source_path), str(target_path), kwargs
-            )
+            assert not converter.validate_inputs(str(source_path), str(target_path), kwargs)
 
     def test_validate_inputs_valid_labelme_to_yolo(self):
         """Test validation for valid LabelMe→YOLO inputs."""
@@ -203,7 +199,7 @@ class TestLabelMeAndYoloConverter:
         target_path = "/path/to/target"
         kwargs = {"class_file": "/path/to/classes.txt"}
 
-        with patch.object(Path, "mkdir") as mock_mkdir:
+        with patch.object(Path, "mkdir"):
             handler = converter.create_target_handler(target_path, kwargs)
 
             # Verify handler was created
@@ -370,9 +366,7 @@ class TestLabelMeAndYoloConverter:
         from dataflow.util.logging import LogConfig
 
         # Test verbose=False (default)
-        converter_no_verbose = LabelMeAndYoloConverter(
-            source_to_target=True
-        )
+        converter_no_verbose = LabelMeAndYoloConverter(source_to_target=True)
         assert converter_no_verbose._log_manager.log_path is None
 
         # Test verbose=True
@@ -383,14 +377,11 @@ class TestLabelMeAndYoloConverter:
 
         # Test verbose parameter in YOLO→LabelMe direction
         log_config2 = LogConfig(name="test_v2", verbose=True)
-        converter_reverse = LabelMeAndYoloConverter(
-            source_to_target=False, log_config=log_config2
-        )
+        converter_reverse = LabelMeAndYoloConverter(source_to_target=False, log_config=log_config2)
         assert converter_reverse._log_manager.log_path is not None
 
     def test_conversion_result_verbose_log(self):
         """Test ConversionResult verbose logging."""
-        from dataflow.convert.base import ConversionResult
 
         result = ConversionResult(
             success=True,

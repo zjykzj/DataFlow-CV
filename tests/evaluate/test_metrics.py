@@ -109,7 +109,7 @@ class TestGreedyMatch:
         gt = [{"bbox": [100, 200, 150, 180]}]
         dt = [
             {"bbox": [105, 205, 145, 175], "score": 0.95},  # Good match
-            {"bbox": [500, 500, 50, 50], "score": 0.40},     # Bad match (far away)
+            {"bbox": [500, 500, 50, 50], "score": 0.40},  # Bad match (far away)
         ]
         tp, fp, fn = _greedy_match(gt, dt, iou_threshold=0.5)
         assert tp == 1
@@ -156,7 +156,7 @@ class TestGreedyMatch:
     def test_dt_matches_crowd_ignored(self):
         """DT that matches a crowd GT (and no non-crowd GT) should be ignored."""
         gt = [
-            {"bbox": [0, 0, 100, 100], "iscrowd": 1},   # crowd
+            {"bbox": [0, 0, 100, 100], "iscrowd": 1},  # crowd
             {"bbox": [300, 300, 50, 50], "iscrowd": 0},  # non-crowd, far away
         ]
         dt = [
@@ -173,8 +173,8 @@ class TestGreedyMatch:
         Both IoUs are above threshold, so the non-crowd GT is matched first.
         """
         gt = [
-            {"bbox": [0, 0, 100, 100], "iscrowd": 1},     # crowd — IoU=0.81 with DT
-            {"bbox": [20, 20, 80, 80], "iscrowd": 0},      # non-crowd — IoU≈0.51 with DT
+            {"bbox": [0, 0, 100, 100], "iscrowd": 1},  # crowd — IoU=0.81 with DT
+            {"bbox": [20, 20, 80, 80], "iscrowd": 0},  # non-crowd — IoU≈0.51 with DT
         ]
         dt = [
             {"bbox": [0, 0, 90, 90], "score": 0.9},  # overlaps both (crowd more)
@@ -187,8 +187,8 @@ class TestGreedyMatch:
     def test_crowd_dt_matched_then_ignored(self):
         """DT that could match crowd but already matched non-crowd → TP stands."""
         gt = [
-            {"bbox": [0, 0, 100, 100], "iscrowd": 1},     # crowd — IoU≈0.51 with DT
-            {"bbox": [50, 50, 100, 100], "iscrowd": 0},    # non-crowd — IoU≈0.64 with DT
+            {"bbox": [0, 0, 100, 100], "iscrowd": 1},  # crowd — IoU≈0.51 with DT
+            {"bbox": [50, 50, 100, 100], "iscrowd": 0},  # non-crowd — IoU≈0.64 with DT
         ]
         dt = [
             {"bbox": [50, 50, 80, 80], "score": 0.9},  # overlaps both
@@ -313,9 +313,7 @@ class TestComputePRF1:
 
     def test_micro_list_dt(self, gt_path, dt_list_path):
         """Micro averaging with list-format DT should work."""
-        result = compute_pr_f1(
-            gt_path, dt_list_path, iou_threshold=0.5, method="micro"
-        )
+        result = compute_pr_f1(gt_path, dt_list_path, iou_threshold=0.5, method="micro")
         assert result.success is True
         assert result.method == "micro"
         assert result.overall.precision == pytest.approx(0.8, abs=1e-3)
@@ -325,7 +323,10 @@ class TestComputePRF1:
     def test_segm_basic(self, gt_segm_path, dt_segm_path):
         """Segmentation PRF1 should work with polygon test data."""
         result = compute_pr_f1(
-            gt_segm_path, dt_segm_path, iou_threshold=0.5, iou_type="segm",
+            gt_segm_path,
+            dt_segm_path,
+            iou_threshold=0.5,
+            iou_type="segm",
         )
         assert result.success is True
         assert result.overall is not None
@@ -337,7 +338,10 @@ class TestComputePRF1:
     def test_segm_per_class(self, gt_segm_path, dt_segm_path):
         """Segm PRF1 should populate per-class structure."""
         result = compute_pr_f1(
-            gt_segm_path, dt_segm_path, iou_threshold=0.5, iou_type="segm",
+            gt_segm_path,
+            dt_segm_path,
+            iou_threshold=0.5,
+            iou_type="segm",
         )
         assert result.success is True
         assert len(result.per_class) == 2
@@ -352,8 +356,11 @@ class TestComputePRF1:
     def test_segm_micro(self, gt_segm_path, dt_segm_path):
         """Segm PRF1 with micro averaging should work."""
         result = compute_pr_f1(
-            gt_segm_path, dt_segm_path, iou_threshold=0.5,
-            iou_type="segm", method="micro",
+            gt_segm_path,
+            dt_segm_path,
+            iou_threshold=0.5,
+            iou_type="segm",
+            method="micro",
         )
         assert result.success is True
         assert result.method == "micro"
@@ -363,7 +370,10 @@ class TestComputePRF1:
     def test_segm_class_names(self, gt_segm_path, dt_segm_path):
         """Segm PRF1 should include class names."""
         result = compute_pr_f1(
-            gt_segm_path, dt_segm_path, iou_threshold=0.5, iou_type="segm",
+            gt_segm_path,
+            dt_segm_path,
+            iou_threshold=0.5,
+            iou_type="segm",
         )
         assert result.success is True
         assert result.class_names == {1: "cat", 2: "dog"}

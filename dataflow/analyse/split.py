@@ -101,15 +101,11 @@ class SplitAnalyser(BaseAnalyser):
         # 1. Validate inputs
         # ------------------------------------------------------------------
         if label_dir is None and image_dir is None:
-            result.add_error(
-                "At least one of label_dir or image_dir must be provided"
-            )
+            result.add_error("At least one of label_dir or image_dir must be provided")
             return result
 
         if not 0.0 < ratio < 1.0:
-            result.add_error(
-                f"Ratio must be between 0 and 1 (exclusive), got: {ratio}"
-            )
+            result.add_error(f"Ratio must be between 0 and 1 (exclusive), got: {ratio}")
             return result
 
         # ------------------------------------------------------------------
@@ -238,10 +234,7 @@ class SplitAnalyser(BaseAnalyser):
             label_stems = {stem for _, stem in train_items + val_items}
             for stem, img_path in image_stems.items():
                 if stem not in label_stems:
-                    self._log_warning(
-                        f"Image '{img_path.name}' has no matching "
-                        f"label — skipped"
-                    )
+                    self._log_warning(f"Image '{img_path.name}' has no matching label — skipped")
 
         # ------------------------------------------------------------------
         # 7. Copy class_file to both output dirs if provided
@@ -302,9 +295,7 @@ class SplitAnalyser(BaseAnalyser):
             )
         )
         if result.log_path:
-            self._log_info(
-                format_analyse_result("✓ Success", result.log_path)
-            )
+            self._log_info(format_analyse_result("✓ Success", result.log_path))
 
         return result
 
@@ -343,26 +334,16 @@ def _split_files(
         for label_path, stem in train_items:
             _copy_or_move_file(label_path, train_label_dir, move, logger)
             if stem in image_stems:
-                _copy_or_move_file(
-                    image_stems[stem], train_image_dir, move, logger
-                )
+                _copy_or_move_file(image_stems[stem], train_image_dir, move, logger)
             else:
-                logger.warning(
-                    f"No matching image found for label '{stem}' in "
-                    f"image directory"
-                )
+                logger.warning(f"No matching image found for label '{stem}' in image directory")
 
         for label_path, stem in val_items:
             _copy_or_move_file(label_path, val_label_dir, move, logger)
             if stem in image_stems:
-                _copy_or_move_file(
-                    image_stems[stem], val_image_dir, move, logger
-                )
+                _copy_or_move_file(image_stems[stem], val_image_dir, move, logger)
             else:
-                logger.warning(
-                    f"No matching image found for label '{stem}' in "
-                    f"image directory"
-                )
+                logger.warning(f"No matching image found for label '{stem}' in image directory")
     else:
         train_dir = output_dir / "train"
         val_dir = output_dir / "val"

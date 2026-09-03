@@ -2,9 +2,12 @@
 
 import click
 from pathlib import Path
-from typing import Optional
 
-from dataflow.cli.commands.utils import validate_convert_params, add_common_options, FormattedCommand
+from dataflow.cli.commands.utils import (
+    validate_convert_params,
+    add_common_options,
+    FormattedCommand,
+)
 from dataflow.cli.exceptions import RuntimeCLIError
 from dataflow.util.logging import LogConfig
 
@@ -30,8 +33,8 @@ def convert_group():
     "--prediction",
     is_flag=True,
     help="Treat input as prediction format (YOLO: 6 tokens for detection, "
-         "even tokens for segmentation). Output COCO as plain JSON list of "
-         "annotation dicts (prediction format, Variant B).",
+    "even tokens for segmentation). Output COCO as plain JSON list of "
+    "annotation dicts (prediction format, Variant B).",
 )
 def yolo2coco(
     ctx,
@@ -47,7 +50,7 @@ def yolo2coco(
 
     strict = ctx.obj["strict"]
     log_config = LogConfig(
-        name=f"convert.yolo_to_coco",
+        name="convert.yolo_to_coco",
         verbose=ctx.obj["verbose"],
         log_dir=ctx.obj["log_dir"],
     )
@@ -99,7 +102,7 @@ def yolo2labelme(
 
     strict = ctx.obj["strict"]
     log_config = LogConfig(
-        name=f"convert.yolo_to_labelme",
+        name="convert.yolo_to_labelme",
         verbose=ctx.obj["verbose"],
         log_dir=ctx.obj["log_dir"],
     )
@@ -108,7 +111,9 @@ def yolo2labelme(
     validate_convert_params("yolo", "labelme", label_dir, output_dir, image_dir, class_file)
 
     # Call existing API
-    converter = LabelMeAndYoloConverter(source_to_target=False, log_config=log_config, strict_mode=strict)
+    converter = LabelMeAndYoloConverter(
+        source_to_target=False, log_config=log_config, strict_mode=strict
+    )
     result = converter.convert(
         source_path=str(label_dir),
         target_path=str(output_dir),
@@ -145,7 +150,7 @@ def labelme2yolo(
 
     strict = ctx.obj["strict"]
     log_config = LogConfig(
-        name=f"convert.labelme_to_yolo",
+        name="convert.labelme_to_yolo",
         verbose=ctx.obj["verbose"],
         log_dir=ctx.obj["log_dir"],
     )
@@ -154,7 +159,9 @@ def labelme2yolo(
     validate_convert_params("labelme", "yolo", labelme_dir, output_dir, None, class_file)
 
     # Call existing API
-    converter = LabelMeAndYoloConverter(source_to_target=True, log_config=log_config, strict_mode=strict)
+    converter = LabelMeAndYoloConverter(
+        source_to_target=True, log_config=log_config, strict_mode=strict
+    )
     result = converter.convert(
         source_path=str(labelme_dir),
         target_path=str(output_dir),
@@ -197,7 +204,7 @@ def labelme2coco(
 
     strict = ctx.obj["strict"]
     log_config = LogConfig(
-        name=f"convert.labelme_to_coco",
+        name="convert.labelme_to_coco",
         verbose=ctx.obj["verbose"],
         log_dir=ctx.obj["log_dir"],
     )
@@ -206,7 +213,9 @@ def labelme2coco(
     validate_convert_params("labelme", "coco", labelme_dir, output_file, None, class_file)
 
     # Call existing API
-    converter = CocoAndLabelMeConverter(source_to_target=False, log_config=log_config, strict_mode=strict)
+    converter = CocoAndLabelMeConverter(
+        source_to_target=False, log_config=log_config, strict_mode=strict
+    )
     result = converter.convert(
         source_path=str(labelme_dir),
         target_path=str(output_file),
@@ -242,7 +251,7 @@ def coco2yolo(
 
     strict = ctx.obj["strict"]
     log_config = LogConfig(
-        name=f"convert.coco_to_yolo",
+        name="convert.coco_to_yolo",
         verbose=ctx.obj["verbose"],
         log_dir=ctx.obj["log_dir"],
     )
@@ -251,7 +260,9 @@ def coco2yolo(
     validate_convert_params("coco", "yolo", input_path, output_path, None, None)
 
     # Call existing API
-    converter = YoloAndCocoConverter(source_to_target=False, log_config=log_config, strict_mode=strict)
+    converter = YoloAndCocoConverter(
+        source_to_target=False, log_config=log_config, strict_mode=strict
+    )
     result = converter.convert(
         source_path=str(input_path),
         target_path=str(output_path),
@@ -286,7 +297,7 @@ def coco2labelme(
 
     strict = ctx.obj["strict"]
     log_config = LogConfig(
-        name=f"convert.coco_to_labelme",
+        name="convert.coco_to_labelme",
         verbose=ctx.obj["verbose"],
         log_dir=ctx.obj["log_dir"],
     )
@@ -295,7 +306,9 @@ def coco2labelme(
     validate_convert_params("coco", "labelme", input_path, output_path, None, None)
 
     # Call existing API
-    converter = CocoAndLabelMeConverter(source_to_target=True, log_config=log_config, strict_mode=strict)
+    converter = CocoAndLabelMeConverter(
+        source_to_target=True, log_config=log_config, strict_mode=strict
+    )
     result = converter.convert(
         source_path=str(input_path),
         target_path=str(output_path),

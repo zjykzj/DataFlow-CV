@@ -50,9 +50,7 @@ class LabelMeVisualizer(BaseVisualizer):
             **kwargs,
         )
 
-    def _convert_to_render_data(
-        self, image_ann: ImageAnnotation
-    ) -> RenderData:
+    def _convert_to_render_data(self, image_ann: ImageAnnotation) -> RenderData:
         """Convert a single LabelMe ImageAnnotation to RenderData.
 
         LabelMe coordinates are in absolute pixels.
@@ -77,10 +75,7 @@ class LabelMeVisualizer(BaseVisualizer):
 
             if obj.segmentation:
                 # Points are already in absolute pixels
-                render_ann.polygon = [
-                    (int(x), int(y))
-                    for x, y in obj.segmentation.points
-                ]
+                render_ann.polygon = [(int(x), int(y)) for x, y in obj.segmentation.points]
 
             # Bbox from polygon fallback: compute axis-aligned bounds
             if render_ann.bbox is None and render_ann.polygon:

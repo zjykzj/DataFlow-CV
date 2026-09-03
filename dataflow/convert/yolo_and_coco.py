@@ -6,14 +6,13 @@ Supports both object detection and instance segmentation annotations.
 """
 
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from ..label.base import BaseAnnotationHandler
 from ..label.coco_handler import CocoAnnotationHandler
-from ..label.models import (AnnotationFormat, DatasetAnnotations,
-                            ImageAnnotation, ObjectAnnotation)
+from ..label.models import AnnotationFormat, DatasetAnnotations, ImageAnnotation, ObjectAnnotation
 from ..label.yolo_handler import YoloAnnotationHandler
-from .base import BaseConverter, ConversionResult
+from .base import BaseConverter
 
 
 class YoloAndCocoConverter(BaseConverter):
@@ -69,9 +68,7 @@ class YoloAndCocoConverter(BaseConverter):
             # Check required parameters for YOLO→COCO
             class_file = kwargs.get("class_file")
             if not class_file:
-                self.logger.error(
-                    "class_file parameter is required for YOLO→COCO conversion"
-                )
+                self.logger.error("class_file parameter is required for YOLO→COCO conversion")
                 return False
 
             class_file_path = Path(class_file)
@@ -81,9 +78,7 @@ class YoloAndCocoConverter(BaseConverter):
 
             image_dir = kwargs.get("image_dir")
             if not image_dir:
-                self.logger.error(
-                    "image_dir parameter is required for YOLO→COCO conversion"
-                )
+                self.logger.error("image_dir parameter is required for YOLO→COCO conversion")
                 return False
 
             image_dir_path = Path(image_dir)
@@ -96,6 +91,7 @@ class YoloAndCocoConverter(BaseConverter):
             if do_rle:
                 try:
                     from pycocotools import mask as coco_mask  # noqa: F401
+
                     _has_coco = True
                 except ImportError:
                     _has_coco = False
@@ -199,9 +195,7 @@ class YoloAndCocoConverter(BaseConverter):
 
             # If class_file doesn't exist and we have source annotations, generate it
             class_file_path = Path(class_file)
-            if not class_file_path.exists() and hasattr(
-                self, "_source_annotations_for_target"
-            ):
+            if not class_file_path.exists() and hasattr(self, "_source_annotations_for_target"):
                 if (
                     self._source_annotations_for_target
                     and self._source_annotations_for_target.categories
@@ -216,9 +210,7 @@ class YoloAndCocoConverter(BaseConverter):
                             f"Generated class file from COCO categories: {class_file_path}"
                         )
                     else:
-                        self.logger.warning(
-                            f"Failed to generate class file: {class_file_path}"
-                        )
+                        self.logger.warning(f"Failed to generate class file: {class_file_path}")
                 else:
                     self.logger.warning(
                         f"No categories available to generate class file: {class_file_path}"
@@ -252,11 +244,10 @@ class YoloAndCocoConverter(BaseConverter):
         ``convert.utils.ensure_coco_categories_for_streaming()``.
         """
         from .utils import ensure_coco_categories_for_streaming
+
         ensure_coco_categories_for_streaming(self, source_handler, source_path)
 
-    def _convert_single_image(
-        self, image_ann: ImageAnnotation, **kwargs
-    ) -> ImageAnnotation:
+    def _convert_single_image(self, image_ann: ImageAnnotation, **kwargs) -> ImageAnnotation:
         """Convert a single ImageAnnotation from source to target format.
 
         Dispatches to ``_yolo_to_coco_one`` or ``_coco_to_yolo_one`` based
@@ -267,9 +258,7 @@ class YoloAndCocoConverter(BaseConverter):
         else:
             return self._coco_to_yolo_one(image_ann)
 
-    def _yolo_to_coco_one(
-        self, img: ImageAnnotation
-    ) -> ImageAnnotation:
+    def _yolo_to_coco_one(self, img: ImageAnnotation) -> ImageAnnotation:
         """Convert single image: YOLO normalized center → COCO absolute px."""
         from .utils import yolo_to_absolute_pixel
 
@@ -278,14 +267,16 @@ class YoloAndCocoConverter(BaseConverter):
             new_bbox, new_seg = yolo_to_absolute_pixel(
                 obj.bbox, obj.segmentation, img.width, img.height
             )
-            new_objects.append(ObjectAnnotation(
-                class_id=obj.class_id,
-                class_name=obj.class_name,
-                bbox=new_bbox,
-                segmentation=new_seg,
-                confidence=obj.confidence,
-                is_crowd=obj.is_crowd,
-            ))
+            new_objects.append(
+                ObjectAnnotation(
+                    class_id=obj.class_id,
+                    class_name=obj.class_name,
+                    bbox=new_bbox,
+                    segmentation=new_seg,
+                    confidence=obj.confidence,
+                    is_crowd=obj.is_crowd,
+                )
+            )
 
         return ImageAnnotation(
             image_id=img.image_id,
@@ -295,9 +286,7 @@ class YoloAndCocoConverter(BaseConverter):
             objects=new_objects,
         )
 
-    def _coco_to_yolo_one(
-        self, img: ImageAnnotation
-    ) -> ImageAnnotation:
+    def _coco_to_yolo_one(self, img: ImageAnnotation) -> ImageAnnotation:
         """Convert single image: COCO absolute px → YOLO normalized center."""
         from .utils import absolute_pixel_to_yolo
 
@@ -306,14 +295,16 @@ class YoloAndCocoConverter(BaseConverter):
             new_bbox, new_seg = absolute_pixel_to_yolo(
                 obj.bbox, obj.segmentation, img.width, img.height
             )
-            new_objects.append(ObjectAnnotation(
-                class_id=obj.class_id,
-                class_name=obj.class_name,
-                bbox=new_bbox,
-                segmentation=new_seg,
-                confidence=obj.confidence,
-                is_crowd=obj.is_crowd,
-            ))
+            new_objects.append(
+                ObjectAnnotation(
+                    class_id=obj.class_id,
+                    class_name=obj.class_name,
+                    bbox=new_bbox,
+                    segmentation=new_seg,
+                    confidence=obj.confidence,
+                    is_crowd=obj.is_crowd,
+                )
+            )
 
         return ImageAnnotation(
             image_id=img.image_id,
@@ -331,9 +322,7 @@ class YoloAndCocoConverter(BaseConverter):
         Delegates to ``_convert_single_image()`` per image.
         """
         target_format = (
-            AnnotationFormat.COCO
-            if self.source_format == "yolo"
-            else AnnotationFormat.YOLO
+            AnnotationFormat.COCO if self.source_format == "yolo" else AnnotationFormat.YOLO
         )
         target = DatasetAnnotations(format=target_format)
         target.categories = source_annotations.categories.copy()

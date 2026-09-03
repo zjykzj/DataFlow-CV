@@ -10,9 +10,8 @@ Coordinates are stored in native COCO representation:
 """
 
 import json
-import logging
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 try:
     from pycocotools import mask as coco_mask
@@ -26,14 +25,22 @@ import numpy as np
 
 
 from .base import AnnotationResult, BaseAnnotationHandler
-from .models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
-                     ImageAnnotation, ObjectAnnotation, Segmentation)
+from .models import (
+    AnnotationFormat,
+    BoundingBox,
+    DatasetAnnotations,
+    ImageAnnotation,
+    ObjectAnnotation,
+    Segmentation,
+)
 
 
 class CocoAnnotationHandler(BaseAnnotationHandler):
     """Handler for COCO annotation format."""
 
-    def __init__(self, annotation_file: str, do_rle: bool = False, prediction: bool = False, **kwargs):
+    def __init__(
+        self, annotation_file: str, do_rle: bool = False, prediction: bool = False, **kwargs
+    ):
         """
         Initialize COCO handler.
 
@@ -83,9 +90,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             required_fields = ["images", "annotations", "categories"]
             for field in required_fields:
                 if field not in coco_data:
-                    result.add_error(
-                        f"Missing required field '{field}' in {self.annotation_file}"
-                    )
+                    result.add_error(f"Missing required field '{field}' in {self.annotation_file}")
                     return result
 
             # Load dataset info (optional metadata like info, licenses)
@@ -144,45 +149,32 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         from .models import ImageAnnotation as IA
 
         if not self.annotation_file.exists():
-            raise ValueError(
-                f"Annotation file does not exist: {self.annotation_file}"
-            )
+            raise ValueError(f"Annotation file does not exist: {self.annotation_file}")
 
         try:
             with open(self.annotation_file, "r", encoding="utf-8") as f:
                 coco_data = json.load(f)
         except json.JSONDecodeError as e:
-            raise ValueError(
-                f"Invalid JSON in {self.annotation_file}: {e}"
-            )
+            raise ValueError(f"Invalid JSON in {self.annotation_file}: {e}")
 
         # Validate required fields
         required_fields = ["images", "annotations", "categories"]
         for field in required_fields:
             if field not in coco_data:
-                raise ValueError(
-                    f"Missing required field '{field}' in "
-                    f"{self.annotation_file}"
-                )
+                raise ValueError(f"Missing required field '{field}' in {self.annotation_file}")
 
         # Load metadata
         self.categories = self._load_categories(coco_data["categories"])
         if not self.categories:
-            raise ValueError(
-                f"No categories found in {self.annotation_file}"
-            )
+            raise ValueError(f"No categories found in {self.annotation_file}")
 
         images_meta = self._load_images(coco_data["images"])
         if not images_meta:
-            raise ValueError(
-                f"No images found in {self.annotation_file}"
-            )
+            raise ValueError(f"No images found in {self.annotation_file}")
 
         annotations_list = coco_data["annotations"]
         self.dataset_info = {
-            k: v
-            for k, v in coco_data.items()
-            if k not in ["images", "annotations", "categories"]
+            k: v for k, v in coco_data.items() if k not in ["images", "annotations", "categories"]
         }
         self.is_rle = self._detect_rle_format(annotations_list)
 
@@ -196,9 +188,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         # Yield per image
         for img_id, img_info in images_meta.items():
             img_anns = anns_by_image.get(img_id, [])
-            objects = self._create_objects(
-                img_anns, img_info["width"], img_info["height"]
-            )
+            objects = self._create_objects(img_anns, img_info["width"], img_info["height"])
             image_ann = IA(
                 image_id=self._sanitize_image_id(img_id),
                 image_path=img_info["file_name"],
@@ -267,18 +257,11 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             if not cleaned:
                 raise ValueError("image_id must not be empty")
             if "\x00" in cleaned:
-                raise ValueError(
-                    f"image_id contains null byte: {cleaned!r}"
-                )
+                raise ValueError(f"image_id contains null byte: {cleaned!r}")
             if any(ch in cleaned for ch in ("/", "\\", "..")):
-                raise ValueError(
-                    f"image_id contains path traversal characters: "
-                    f"{cleaned!r}"
-                )
+                raise ValueError(f"image_id contains path traversal characters: {cleaned!r}")
             return cleaned
-        raise ValueError(
-            f"Unsupported image_id type: {type(img_id).__name__}"
-        )
+        raise ValueError(f"Unsupported image_id type: {type(img_id).__name__}")
 
     def _create_dataset(self) -> DatasetAnnotations:
         """Create DatasetAnnotations from loaded COCO data."""
@@ -288,13 +271,9 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
         for img_id, img_info in self.images.items():
             # Find annotations for this image
-            img_anns = [
-                ann for ann in self.annotations if ann.get("image_id") == img_id
-            ]
+            img_anns = [ann for ann in self.annotations if ann.get("image_id") == img_id]
 
-            objects = self._create_objects(
-                img_anns, img_info["width"], img_info["height"]
-            )
+            objects = self._create_objects(img_anns, img_info["width"], img_info["height"])
 
             image_ann = ImageAnnotation(
                 image_id=self._sanitize_image_id(img_id),
@@ -337,14 +316,10 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                     if len(bbox_data) == 4:
                         x, y, w, h = bbox_data
                         # Clamp to image boundaries (tolerates FP imprecision at edges)
-                        x, y, w, h = self._clamp_abs_bbox(
-                            x, y, w, h, img_width, img_height
-                        )
+                        x, y, w, h = self._clamp_abs_bbox(x, y, w, h, img_width, img_height)
                         bbox = BoundingBox(x=x, y=y, width=w, height=h)
                         if not self._validate_bbox(bbox, format=AnnotationFormat.COCO):
-                            self._log_warning(
-                                f"Skipping annotation {ann.get('id')}: invalid bbox"
-                            )
+                            self._log_warning(f"Skipping annotation {ann.get('id')}: invalid bbox")
                             continue
 
                 # Parse segmentation
@@ -394,9 +369,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                         points = self._parse_polygon_segmentation(seg_data)
                         if points:
                             # Clamp to image boundaries (tolerates FP imprecision at edges)
-                            points = self._clamp_abs_points(
-                                points, img_width, img_height
-                            )
+                            points = self._clamp_abs_points(points, img_width, img_height)
                             segmentation = Segmentation(points=points, rle=None)
                         else:
                             self._log_warning(
@@ -454,9 +427,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             binary_mask = coco_mask.decode(rle_dict)
 
             # Extract contours from mask
-            contours, _ = cv2.findContours(
-                binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-            )
+            contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
             if not contours:
                 self._log_warning("RLE decode produced no contours, returning empty polygon")
@@ -524,17 +495,13 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             self._log_error(f"Error encoding polygon to RLE: {e}")
             raise
 
-    def _parse_polygon_segmentation(
-        self, seg_data: List
-    ) -> List[Tuple[float, float]]:
+    def _parse_polygon_segmentation(self, seg_data: List) -> List[Tuple[float, float]]:
         """Parse polygon segmentation data to absolute pixel point list."""
         points = []
 
         for polygon in seg_data:
             if len(polygon) % 2 != 0:
-                self._log_warning(
-                    f"Odd number of coordinates in polygon: {len(polygon)}"
-                )
+                self._log_warning(f"Odd number of coordinates in polygon: {len(polygon)}")
                 continue
             if len(polygon) < 6:
                 self._log_warning(
@@ -600,9 +567,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
         return result
 
-    def write_one(
-        self, image_ann: ImageAnnotation, output_dir: Path
-    ) -> AnnotationResult:
+    def write_one(self, image_ann: ImageAnnotation, output_dir: Path) -> AnnotationResult:
         """COCO does not support per-image write.
 
         COCO is always written as a single JSON file via ``write()``.
@@ -636,9 +601,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             self._log_debug(f"Using dataset_info categories: {len(categories)} categories")
         else:
             for cat_id, cat_name in annotations.categories.items():
-                categories.append(
-                    {"id": cat_id, "name": cat_name, "supercategory": "none"}
-                )
+                categories.append({"id": cat_id, "name": cat_name, "supercategory": "none"})
 
         # Prepare images and annotations
         images = []
@@ -726,9 +689,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                     self._log_debug("Using preserved RLE data")
                 elif use_rle and HAS_COCO_MASK:
                     try:
-                        rle = self._encode_polygon_to_rle(
-                            seg.points, img.width, img.height
-                        )
+                        rle = self._encode_polygon_to_rle(seg.points, img.width, img.height)
                         segmentation = rle
                         self._log_debug("Successfully encoded polygon to RLE")
                     except ImportError:
@@ -747,9 +708,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                     points = seg.points
                     if not points and has_rle and HAS_COCO_MASK:
                         try:
-                            points = self._decode_rle_to_polygon(
-                                seg.rle, img.width, img.height
-                            )
+                            points = self._decode_rle_to_polygon(seg.rle, img.width, img.height)
                         except Exception as e:
                             self._log_warning(
                                 f"Failed to decode RLE to polygon: {e}, skipping segmentation"
@@ -773,9 +732,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 segmentation = []
                 iscrowd = 0
             else:
-                self._log_warning(
-                    f"Object {obj.class_name} has neither bbox nor segmentation"
-                )
+                self._log_warning(f"Object {obj.class_name} has neither bbox nor segmentation")
                 return None
 
             # Convert bbox to COCO format: [x, y, width, height] in absolute pixels
@@ -783,8 +740,12 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             area = 0.0
             if obj.bbox:
                 # Bbox is already in native COCO format (absolute pixels, top-left)
-                bbox = [float(obj.bbox.x), float(obj.bbox.y),
-                        float(obj.bbox.width), float(obj.bbox.height)]
+                bbox = [
+                    float(obj.bbox.x),
+                    float(obj.bbox.y),
+                    float(obj.bbox.width),
+                    float(obj.bbox.height),
+                ]
                 area = float(obj.bbox.width * obj.bbox.height)
             elif (
                 obj.segmentation
@@ -893,7 +854,12 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                                 f"RLE 'size' must be [height, width], got {size} in annotation {ann.get('id')}"
                             )
                             return False
-                        if not isinstance(size[0], int) or not isinstance(size[1], int) or size[0] <= 0 or size[1] <= 0:
+                        if (
+                            not isinstance(size[0], int)
+                            or not isinstance(size[1], int)
+                            or size[0] <= 0
+                            or size[1] <= 0
+                        ):
                             self.logger.error(
                                 f"RLE 'size' values must be positive integers in annotation {ann.get('id')}"
                             )

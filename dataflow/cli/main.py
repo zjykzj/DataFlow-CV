@@ -1,7 +1,10 @@
 """CLI entry point for DataFlow-CV."""
 
-import click
 from pathlib import Path
+
+import click
+
+from .commands import analyse, convert, visualize, evaluate
 
 
 class NaturalOrderGroup(click.Group):
@@ -16,15 +19,19 @@ def print_version(ctx, param, value):
     if not value or ctx.resilient_parsing:
         return
     from dataflow import __version__
+
     click.echo(f"dataflow-cv version {__version__}")
     ctx.exit()
 
 
-@click.group(cls=NaturalOrderGroup, context_settings={
-    "help_option_names": ["-h", "--help"],
-    "max_content_width": 100,
-    "show_default": True,
-})
+@click.group(
+    cls=NaturalOrderGroup,
+    context_settings={
+        "help_option_names": ["-h", "--help"],
+        "max_content_width": 100,
+        "show_default": True,
+    },
+)
 @click.option(
     "--version",
     "-v",
@@ -46,8 +53,6 @@ def cli(ctx):
 
 
 # Register subcommand groups
-from .commands import analyse, convert, visualize, evaluate
-
 cli.add_command(analyse.analyse_group)
 cli.add_command(convert.convert_group)
 cli.add_command(visualize.visualize_group)

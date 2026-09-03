@@ -18,5 +18,3 @@ def test_cli_version():
     result = runner.invoke(cli, ["--version"])
     assert result.exit_code == 0
     assert "version" in result.output.lower()
-
-

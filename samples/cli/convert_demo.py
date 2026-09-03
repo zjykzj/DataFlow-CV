@@ -24,9 +24,11 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+
 def run_cli_command(cmd_args):
     """Run CLI command and return result"""
     import sys
+
     cmd = [sys.executable, "-m", "dataflow.cli.main"] + cmd_args
     print(f"Executing command: {' '.join(cmd)}")
     try:
@@ -53,11 +55,12 @@ def run_cli_command(cmd_args):
         print(f"Error: Exception occurred while executing command: {e}")
         return False
 
+
 def demo_yolo_to_coco():
     """Demonstrate YOLO to COCO format conversion"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Demonstrating YOLO to COCO format conversion")
-    print("="*60)
+    print("=" * 60)
 
     yolo_dir = project_root / "assets" / "test_data" / "seg" / "yolo"
     label_dir = yolo_dir / "labels"
@@ -70,12 +73,13 @@ def demo_yolo_to_coco():
         output_file.unlink()
 
     cmd = [
-        "convert", "yolo2coco",
-        str(image_dir),     # IMAGE_DIR (positional)
-        str(label_dir),     # LABEL_DIR (positional)
-        str(class_file),    # CLASS_FILE (positional)
-        str(output_file),   # OUTPUT_FILE (positional)
-        "--verbose"
+        "convert",
+        "yolo2coco",
+        str(image_dir),  # IMAGE_DIR (positional)
+        str(label_dir),  # LABEL_DIR (positional)
+        str(class_file),  # CLASS_FILE (positional)
+        str(output_file),  # OUTPUT_FILE (positional)
+        "--verbose",
     ]
 
     success = run_cli_command(cmd)
@@ -88,17 +92,20 @@ def demo_yolo_to_coco():
                 image_count = len(data.get("images", []))
                 annotation_count = len(data.get("annotations", []))
                 category_count = len(data.get("categories", []))
-                print(f"  Contains {image_count} images, {annotation_count} annotations, {category_count} categories")
+                print(
+                    f"  Contains {image_count} images, {annotation_count} annotations, {category_count} categories"
+                )
         return True
     else:
         print("✗ YOLO→COCO conversion failed")
         return False
 
+
 def demo_yolo_to_labelme():
     """Demonstrate YOLO to LabelMe format conversion"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Demonstrating YOLO to LabelMe format conversion")
-    print("="*60)
+    print("=" * 60)
 
     yolo_dir = project_root / "assets" / "test_data" / "seg" / "yolo"
     label_dir = yolo_dir / "labels"
@@ -109,15 +116,17 @@ def demo_yolo_to_labelme():
     # Clean up old output directory
     if output_dir.exists():
         import shutil
+
         shutil.rmtree(output_dir)
 
     cmd = [
-        "convert", "yolo2labelme",
-        str(image_dir),     # IMAGE_DIR (positional)
-        str(label_dir),     # LABEL_DIR (positional)
-        str(class_file),    # CLASS_FILE (positional)
-        str(output_dir),    # OUTPUT_DIR (positional)
-        "--verbose"
+        "convert",
+        "yolo2labelme",
+        str(image_dir),  # IMAGE_DIR (positional)
+        str(label_dir),  # LABEL_DIR (positional)
+        str(class_file),  # CLASS_FILE (positional)
+        str(output_dir),  # OUTPUT_DIR (positional)
+        "--verbose",
     ]
 
     success = run_cli_command(cmd)
@@ -131,26 +140,28 @@ def demo_yolo_to_labelme():
         print("✗ YOLO→LabelMe conversion failed")
         return False
 
+
 def demo_coco_to_yolo():
     """Demonstrate COCO to YOLO format conversion"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Demonstrating COCO to YOLO format conversion")
-    print("="*60)
+    print("=" * 60)
 
     coco_file = project_root / "assets" / "test_data" / "seg" / "coco" / "annotations.json"
-    image_dir = project_root / "assets" / "test_data" / "seg" / "coco" / "images"
     output_dir = project_root / "temp_output" / "convert" / "coco_to_yolo"
 
     # Clean up old output directory
     if output_dir.exists():
         import shutil
+
         shutil.rmtree(output_dir)
 
     cmd = [
-        "convert", "coco2yolo",
-        str(coco_file),    # COCO_FILE (positional)
-        str(output_dir),   # OUTPUT_DIR (positional)
-        "--verbose"
+        "convert",
+        "coco2yolo",
+        str(coco_file),  # COCO_FILE (positional)
+        str(output_dir),  # OUTPUT_DIR (positional)
+        "--verbose",
     ]
 
     success = run_cli_command(cmd)
@@ -164,26 +175,28 @@ def demo_coco_to_yolo():
         print("✗ COCO→YOLO conversion failed")
         return False
 
+
 def demo_coco_to_labelme():
     """Demonstrate COCO to LabelMe format conversion"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Demonstrating COCO to LabelMe format conversion")
-    print("="*60)
+    print("=" * 60)
 
     coco_file = project_root / "assets" / "test_data" / "seg" / "coco" / "annotations.json"
-    image_dir = project_root / "assets" / "test_data" / "seg" / "coco" / "images"
     output_dir = project_root / "temp_output" / "convert" / "coco_to_labelme"
 
     # Clean up old output directory
     if output_dir.exists():
         import shutil
+
         shutil.rmtree(output_dir)
 
     cmd = [
-        "convert", "coco2labelme",
-        str(coco_file),    # COCO_FILE (positional)
-        str(output_dir),   # OUTPUT_DIR (positional)
-        "--verbose"
+        "convert",
+        "coco2labelme",
+        str(coco_file),  # COCO_FILE (positional)
+        str(output_dir),  # OUTPUT_DIR (positional)
+        "--verbose",
     ]
 
     success = run_cli_command(cmd)
@@ -197,11 +210,12 @@ def demo_coco_to_labelme():
         print("✗ COCO→LabelMe conversion failed")
         return False
 
+
 def demo_labelme_to_yolo():
     """Demonstrate LabelMe to YOLO format conversion"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Demonstrating LabelMe to YOLO format conversion")
-    print("="*60)
+    print("=" * 60)
 
     labelme_dir = project_root / "assets" / "test_data" / "seg" / "labelme"
     class_file = labelme_dir / "classes.txt"
@@ -210,14 +224,16 @@ def demo_labelme_to_yolo():
     # Clean up old output directory
     if output_dir.exists():
         import shutil
+
         shutil.rmtree(output_dir)
 
     cmd = [
-        "convert", "labelme2yolo",
+        "convert",
+        "labelme2yolo",
         str(labelme_dir),  # LABELME_DIR (positional)
-        str(class_file),   # CLASS_FILE (positional)
-        str(output_dir),   # OUTPUT_DIR (positional)
-        "--verbose"
+        str(class_file),  # CLASS_FILE (positional)
+        str(output_dir),  # OUTPUT_DIR (positional)
+        "--verbose",
     ]
 
     success = run_cli_command(cmd)
@@ -231,11 +247,12 @@ def demo_labelme_to_yolo():
         print("✗ LabelMe→YOLO conversion failed")
         return False
 
+
 def demo_labelme_to_coco():
     """Demonstrate LabelMe to COCO format conversion"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Demonstrating LabelMe to COCO format conversion")
-    print("="*60)
+    print("=" * 60)
 
     labelme_dir = project_root / "assets" / "test_data" / "seg" / "labelme"
     class_file = labelme_dir / "classes.txt"
@@ -246,11 +263,12 @@ def demo_labelme_to_coco():
         output_file.unlink()
 
     cmd = [
-        "convert", "labelme2coco",
+        "convert",
+        "labelme2coco",
         str(labelme_dir),  # LABELME_DIR (positional)
-        str(class_file),   # CLASS_FILE (positional)
+        str(class_file),  # CLASS_FILE (positional)
         str(output_file),  # OUTPUT_FILE (positional)
-        "--verbose"
+        "--verbose",
     ]
 
     success = run_cli_command(cmd)
@@ -263,16 +281,19 @@ def demo_labelme_to_coco():
                 image_count = len(data.get("images", []))
                 annotation_count = len(data.get("annotations", []))
                 category_count = len(data.get("categories", []))
-                print(f"  Contains {image_count} images, {annotation_count} annotations, {category_count} categories")
+                print(
+                    f"  Contains {image_count} images, {annotation_count} annotations, {category_count} categories"
+                )
         return True
     else:
         print("✗ LabelMe→COCO conversion failed")
         return False
 
+
 def main():
     """Main function"""
     print("DataFlow-CV CLI format conversion function demonstration")
-    print("="*60)
+    print("=" * 60)
 
     # Check if test data exists
     test_data_root = project_root / "assets" / "test_data" / "seg"
@@ -296,9 +317,9 @@ def main():
     successes.append(demo_labelme_to_coco())
 
     # Summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Demonstration summary")
-    print("="*60)
+    print("=" * 60)
     total = len(successes)
     passed = sum(successes)
     print(f"Total demonstrated {total} format conversions")
@@ -308,16 +329,27 @@ def main():
         print("✓ All demonstrations completed successfully!")
         print(f"Conversion results saved at: {project_root / 'temp_output' / 'convert'}")
         print("\nYou can manually test with the following commands:")
-        print("  dataflow-cv convert yolo2coco assets/test_data/seg/yolo/images assets/test_data/seg/yolo/labels assets/test_data/seg/yolo/classes.txt ./output.json")
-        print("  dataflow-cv convert yolo2labelme assets/test_data/seg/yolo/images assets/test_data/seg/yolo/labels assets/test_data/seg/yolo/classes.txt ./output")
+        print(
+            "  dataflow-cv convert yolo2coco assets/test_data/seg/yolo/images assets/test_data/seg/yolo/labels assets/test_data/seg/yolo/classes.txt ./output.json"
+        )
+        print(
+            "  dataflow-cv convert yolo2labelme assets/test_data/seg/yolo/images assets/test_data/seg/yolo/labels assets/test_data/seg/yolo/classes.txt ./output"
+        )
         print("  dataflow-cv convert coco2yolo assets/test_data/seg/coco/annotations.json ./output")
-        print("  dataflow-cv convert coco2labelme assets/test_data/seg/coco/annotations.json ./output")
-        print("  dataflow-cv convert labelme2yolo assets/test_data/seg/labelme assets/test_data/seg/labelme/classes.txt ./output")
-        print("  dataflow-cv convert labelme2coco assets/test_data/seg/labelme assets/test_data/seg/labelme/classes.txt ./output.json")
+        print(
+            "  dataflow-cv convert coco2labelme assets/test_data/seg/coco/annotations.json ./output"
+        )
+        print(
+            "  dataflow-cv convert labelme2yolo assets/test_data/seg/labelme assets/test_data/seg/labelme/classes.txt ./output"
+        )
+        print(
+            "  dataflow-cv convert labelme2coco assets/test_data/seg/labelme assets/test_data/seg/labelme/classes.txt ./output.json"
+        )
         return 0
     else:
         print("✗ Some demonstrations failed, please check error messages")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

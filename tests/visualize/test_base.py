@@ -7,9 +7,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from dataflow.visualize.base import (BaseVisualizer, ColorManager,
-                                     RenderAnnotation, RenderData,
-                                     VisualizationResult)
+from dataflow.visualize.base import BaseVisualizer, ColorManager, RenderData, VisualizationResult
 
 
 class MockVisualizer(BaseVisualizer):
@@ -56,9 +54,7 @@ class TestColorManager:
         manager = ColorManager()
         num_colors = len(manager.predefined_colors)
         first_batch = [manager.get_color(i) for i in range(num_colors)]
-        second_batch = [
-            manager.get_color(i + num_colors) for i in range(min(10, num_colors))
-        ]
+        second_batch = [manager.get_color(i + num_colors) for i in range(min(10, num_colors))]
         for i in range(min(10, num_colors)):
             if first_batch[i] == second_batch[i]:
                 print(f"Note: Color match at index {i}: {first_batch[i]}")
@@ -184,7 +180,6 @@ class TestBaseVisualizer:
             image_dir="/tmp/images",
             is_show=True,
             is_save=False,
-
         )
 
         # Create render data
@@ -297,9 +292,7 @@ class TestBaseVisualizer:
     @patch("cv2.imwrite")
     @patch("cv2.imread")
     @patch("pathlib.Path.exists")
-    def test_visualize_single_image_is_save_mode(
-        self, mock_exists, mock_imread, mock_imwrite
-    ):
+    def test_visualize_single_image_is_save_mode(self, mock_exists, mock_imread, mock_imwrite):
         """Test visualization in is_save mode with image saving."""
         mock_image = Mock()
         mock_imread.return_value = mock_image
@@ -314,7 +307,6 @@ class TestBaseVisualizer:
             output_dir=output_dir,
             is_show=False,
             is_save=True,
-
         )
 
         render_data = RenderData(annotations=[])
@@ -338,8 +330,7 @@ class TestBidirectionalNavigation:
 
     def _make_mock_image_ann(self, idx: int):
         """Create a mock ImageAnnotation for testing."""
-        from dataflow.label.models import (BoundingBox, ImageAnnotation,
-                                           ObjectAnnotation)
+        from dataflow.label.models import BoundingBox, ImageAnnotation, ObjectAnnotation
 
         return ImageAnnotation(
             image_id=f"img_{idx:03d}",
@@ -380,9 +371,9 @@ class TestBidirectionalNavigation:
 
         # 3 images, user presses next twice then quits
         mock_wait_ex.side_effect = [
-            65363,       # → (next) after img_000
-            65363,       # → (next) after img_001
-            ord("q"),    # quit after img_002
+            65363,  # → (next) after img_000
+            65363,  # → (next) after img_001
+            ord("q"),  # quit after img_002
         ]
 
         mock_images = [
@@ -429,9 +420,9 @@ class TestBidirectionalNavigation:
 
         # ← at first image → stays at first, then → next, then quit
         mock_wait_ex.side_effect = [
-            65361,       # ← at img_000 (no-op — already at first)
-            65363,       # → (next) to img_001
-            ord("q"),    # quit
+            65361,  # ← at img_000 (no-op — already at first)
+            65363,  # → (next) to img_001
+            ord("q"),  # quit
         ]
 
         mock_images = [
@@ -477,9 +468,9 @@ class TestBidirectionalNavigation:
 
         # Single image dataset, → twice then quit
         mock_wait_ex.side_effect = [
-            65363,       # → at img_000 (no-op — iterator exhausted)
-            65363,       # → again (still no-op)
-            ord("q"),    # quit
+            65363,  # → at img_000 (no-op — iterator exhausted)
+            65363,  # → again (still no-op)
+            ord("q"),  # quit
         ]
 
         mock_images = [self._make_mock_image_ann(0)]
@@ -522,13 +513,13 @@ class TestBidirectionalNavigation:
         #   img_000 → img_001 → img_002 → img_001 → img_000 → img_001 → img_002
         # Unique displayed: 3 (img_000, img_001, img_002)
         mock_wait_ex.side_effect = [
-            65363,       # → img_001
-            65363,       # → img_002
-            65361,       # ← img_001
-            65361,       # ← img_000
-            65363,       # → img_001
-            65363,       # → img_002
-            ord("q"),    # quit
+            65363,  # → img_001
+            65363,  # → img_002
+            65361,  # ← img_001
+            65361,  # ← img_000
+            65363,  # → img_001
+            65363,  # → img_002
+            ord("q"),  # quit
         ]
 
         mock_images = [

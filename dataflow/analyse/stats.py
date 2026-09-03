@@ -132,11 +132,19 @@ class StatsAnalyser(BaseAnalyser):
                 name_to_id[cname] = cid
 
         if sort_by == "id":
-            key_fn = lambda item: (name_to_id.get(item[0], 999999), item[0])
+
+            def key_fn(item):
+                return (name_to_id.get(item[0], 999999), item[0])
+
         elif descending:
-            key_fn = lambda item: (-item[1], item[0])
+
+            def key_fn(item):
+                return (-item[1], item[0])
+
         else:
-            key_fn = lambda item: (item[1], item[0])
+
+            def key_fn(item):
+                return (item[1], item[0])
 
         return dict(
             sorted(
@@ -198,9 +206,7 @@ class StatsAnalyser(BaseAnalyser):
                 result.add_error(f"Class file not found: {class_file}")
                 return result
             try:
-                class_names_from_file = list(
-                    load_class_names(class_file).values()
-                )
+                class_names_from_file = list(load_class_names(class_file).values())
             except (FileNotFoundError, ValueError) as e:
                 result.add_error(f"Failed to load class file: {e}")
                 return result
@@ -242,9 +248,7 @@ class StatsAnalyser(BaseAnalyser):
             if class_names_from_file is not None and fmt == "yolo":
                 raw_ids = _scan_yolo_class_ids(path, recursive=recursive)
                 valid_max = len(class_names_from_file) - 1
-                invalid_ids = {
-                    i for i in raw_ids if i > valid_max or i < 0
-                }
+                invalid_ids = {i for i in raw_ids if i > valid_max or i < 0}
                 if invalid_ids:
                     result.add_error(
                         f"Class IDs in data not found in class file "
@@ -293,12 +297,14 @@ class StatsAnalyser(BaseAnalyser):
             all_per_class.append(p_per_class)
             all_categories.update(dict(dataset.categories))
 
-            path_stats.append({
-                "path": path,
-                "files": p_files,
-                "annotations": p_anns,
-                "recursive": recursive and fmt in ("yolo", "labelme"),
-            })
+            path_stats.append(
+                {
+                    "path": path,
+                    "files": p_files,
+                    "annotations": p_anns,
+                    "recursive": recursive and fmt in ("yolo", "labelme"),
+                }
+            )
 
         # ---- 7. Merge per-class -----------------------------------------
         per_class = self._merge_per_class(all_per_class)
@@ -347,13 +353,9 @@ class StatsAnalyser(BaseAnalyser):
         if len(paths) > 1:
             self._log_info(format_stats_path_breakdown(path_stats))
         self._log_info(
-            format_stats_result(
-                total_files, total_annotations, per_class, all_categories
-            )
+            format_stats_result(total_files, total_annotations, per_class, all_categories)
         )
         if result.log_path:
-            self._log_info(
-                format_analyse_result("✓ Success", result.log_path)
-            )
+            self._log_info(format_analyse_result("✓ Success", result.log_path))
 
         return result

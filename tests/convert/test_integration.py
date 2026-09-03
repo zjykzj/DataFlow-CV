@@ -12,8 +12,7 @@ from pathlib import Path
 import pytest
 
 from dataflow.util.logging import LogConfig
-from dataflow.convert import (LabelMeAndYoloConverter, YoloAndCocoConverter,
-                              CocoAndLabelMeConverter)
+from dataflow.convert import LabelMeAndYoloConverter, YoloAndCocoConverter, CocoAndLabelMeConverter
 
 
 class TestIntegrationConversions:
@@ -60,8 +59,6 @@ class TestIntegrationConversions:
 
         # Verify output files exist
         labels_dir = temp_output_dir / "labels"
-        images_dir = temp_output_dir / "images"
-        classes_file = temp_output_dir / "classes.txt"
 
         # Note: According to actual testing, YoloAnnotationHandler may write label files in root directory
         # Check .txt files in root directory
@@ -159,9 +156,7 @@ class TestIntegrationConversions:
         converter = YoloAndCocoConverter(source_to_target=False)
 
         # Perform conversion
-        result = converter.convert(
-            source_path=str(source_file), target_path=str(temp_output_dir)
-        )
+        result = converter.convert(source_path=str(source_file), target_path=str(temp_output_dir))
 
         # Verify results
         assert result.success, f"conversion failed: {result.errors}"
@@ -194,9 +189,7 @@ class TestIntegrationConversions:
         converter = CocoAndLabelMeConverter(source_to_target=True)
 
         # Perform conversion
-        result = converter.convert(
-            source_path=str(source_file), target_path=str(temp_output_dir)
-        )
+        result = converter.convert(source_path=str(source_file), target_path=str(temp_output_dir))
 
         # Verify results
         assert result.success, f"conversion failed: {result.errors}"
@@ -284,9 +277,7 @@ class TestIntegrationConversions:
             # Step 3: COCO → LabelMe
             labelme_dir = temp_output_dir / "labelme_final"
             converter3 = CocoAndLabelMeConverter(source_to_target=True)
-            result3 = converter3.convert(
-                source_path=str(coco_file), target_path=str(labelme_dir)
-            )
+            result3 = converter3.convert(source_path=str(coco_file), target_path=str(labelme_dir))
             assert result3.success, f"COCO→LabelMe conversion failed: {result3.errors}"
 
             # Verify final output
@@ -294,7 +285,6 @@ class TestIntegrationConversions:
             assert len(json_files) > 0, "Final LabelMe files are empty"
 
             # Simple verification: file counts match
-            original_json_count = len(list(source_dir.glob("*.json")))
             final_json_count = len(json_files)
 
             # Note: Due to differences between formats, file counts may not exactly match
@@ -391,12 +381,12 @@ class TestIntegrationConversions:
         source_file = test_data_dir / "det" / "coco" / "annotations.json"
 
         # Create converter（verbose=True）
-        converter = CocoAndLabelMeConverter(source_to_target=True, log_config=LogConfig(name="test", verbose=True))
+        converter = CocoAndLabelMeConverter(
+            source_to_target=True, log_config=LogConfig(name="test", verbose=True)
+        )
 
         # Perform conversion
-        result = converter.convert(
-            source_path=str(source_file), target_path=str(temp_output_dir)
-        )
+        result = converter.convert(source_path=str(source_file), target_path=str(temp_output_dir))
 
         # Verify results
         assert result.success, f"conversion failed: {result.errors}"
@@ -414,8 +404,6 @@ class TestIntegrationConversions:
 
     def test_verbose_log_file_creation(self, test_data_dir, temp_output_dir):
         """Test log file creation in verbose mode"""
-        import logging
-
         # Prepare test data paths
         source_dir = test_data_dir / "det" / "labelme"
         class_file = source_dir / "classes.txt"
@@ -425,7 +413,9 @@ class TestIntegrationConversions:
         log_dir.mkdir(parents=True, exist_ok=True)
 
         # Create converter（verbose=True）
-        converter = LabelMeAndYoloConverter(source_to_target=True, log_config=LogConfig(name="test", verbose=True))
+        converter = LabelMeAndYoloConverter(
+            source_to_target=True, log_config=LogConfig(name="test", verbose=True)
+        )
 
         # Perform conversion
         result = converter.convert(
@@ -438,18 +428,6 @@ class TestIntegrationConversions:
         assert result.success, f"conversion failed: {result.errors}"
 
         # Note: Actual log files may be created by logger, but we need to verify verbose mode works correctly
-        # We can check if converter's logger has file handler
-        if hasattr(converter, "logger"):
-            file_handlers = [
-                h
-                for h in converter.logger.handlers
-                if isinstance(h, logging.FileHandler)
-                or type(h).__name__ == "RotatingFileHandler"
-            ]
-            # When verbose=True, file handler may be created, but implementation may vary
-            # We at least verify verbose mode is set correctly
-            pass
-
         assert converter._log_manager.log_path is not None
 
     def test_verbose_mode_consistency(self, test_data_dir, temp_output_dir):
@@ -473,7 +451,9 @@ class TestIntegrationConversions:
         )
 
         # 2. With verbose mode conversion
-        converter_verbose = LabelMeAndYoloConverter(source_to_target=True, log_config=LogConfig(name="test", verbose=True))
+        converter_verbose = LabelMeAndYoloConverter(
+            source_to_target=True, log_config=LogConfig(name="test", verbose=True)
+        )
         result_verbose = converter_verbose.convert(
             source_path=str(source_dir),
             target_path=str(output_dir_verbose),
@@ -485,10 +465,7 @@ class TestIntegrationConversions:
         assert result_verbose.success
 
         # Verify same number of converted images
-        assert (
-            result_no_verbose.num_images_converted
-            == result_verbose.num_images_converted
-        )
+        assert result_no_verbose.num_images_converted == result_verbose.num_images_converted
 
         # Verify both generate same number of label files
         label_files_no_verbose = list(output_dir_no_verbose.glob("**/*.txt"))

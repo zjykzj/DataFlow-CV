@@ -23,12 +23,16 @@ def main():
 
     converter = YoloAndCocoConverter(source_to_target=False, log_config=log_config)
     result = converter.convert(
-        source_path=str(data_dir / 'annotations.json'),
+        source_path=str(data_dir / "annotations.json"),
         target_path=str(output_dir),
         class_file=str(data_dir / "classes.txt"),
     )
 
-    logger.info(f"✓ {result.num_images_converted} images → {output_dir}" if result.success else f"✗ {result.errors[0] if result.errors else 'Failed'}")
+    logger.info(
+        f"✓ {result.num_images_converted} images → {output_dir}"
+        if result.success
+        else f"✗ {result.errors[0] if result.errors else 'Failed'}"
+    )
 
 
 if __name__ == "__main__":

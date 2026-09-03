@@ -67,9 +67,7 @@ def detect_format(label_path: Path) -> str:
     # 1. Single file → inspect contents to distinguish COCO vs LabelMe
     if label_path.is_file():
         if label_path.suffix != ".json":
-            raise ValueError(
-                f"Single-file label path must be a .json file, got: {label_path}"
-            )
+            raise ValueError(f"Single-file label path must be a .json file, got: {label_path}")
         # Read file to distinguish COCO vs LabelMe
         with open(label_path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -89,20 +87,13 @@ def detect_format(label_path: Path) -> str:
         )
 
     # 2. Directory → inspect contents
-    files = sorted(
-        [f for f in label_path.iterdir() if f.is_file() and not f.name.startswith(".")]
-    )
+    files = sorted([f for f in label_path.iterdir() if f.is_file() and not f.name.startswith(".")])
 
     if not files:
-        raise ValueError(
-            f"No annotation files found in directory: {label_path}"
-        )
+        raise ValueError(f"No annotation files found in directory: {label_path}")
 
     # Check extensions (exclude auxiliary files like classes.txt)
-    annotation_files = [
-        f for f in files
-        if f.name not in ("classes.txt",)
-    ]
+    annotation_files = [f for f in files if f.name not in ("classes.txt",)]
     extensions = {f.suffix for f in annotation_files}
     has_txt = ".txt" in extensions
     has_json = ".json" in extensions
@@ -256,9 +247,9 @@ def create_handler(
         if image_dir is None:
             # Auto-detect: try common image directory layouts
             candidates = [
-                label_path / "images",               # labels/images/
-                label_path.parent / "images",        # dataset/images/ (labels/ sibling)
-                label_path.parent.parent / "images", # dataset/images/ (labels/val/ → up 2)
+                label_path / "images",  # labels/images/
+                label_path.parent / "images",  # dataset/images/ (labels/ sibling)
+                label_path.parent.parent / "images",  # dataset/images/ (labels/val/ → up 2)
             ]
             for candidate in candidates:
                 if candidate.is_dir():
@@ -349,16 +340,12 @@ def _detect_format_recursive(root: Path) -> str:
     if not root.exists() or not root.is_dir():
         raise ValueError(f"Path does not exist or is not a directory: {root}")
 
-    all_files = sorted(
-        [f for f in root.rglob("*") if f.is_file() and not f.name.startswith(".")]
-    )
+    all_files = sorted([f for f in root.rglob("*") if f.is_file() and not f.name.startswith(".")])
 
     if not all_files:
         raise ValueError(f"No files found recursively in: {root}")
 
-    annotation_files = [
-        f for f in all_files if f.name not in ("classes.txt",)
-    ]
+    annotation_files = [f for f in all_files if f.name not in ("classes.txt",)]
     extensions = {f.suffix for f in annotation_files}
     has_txt = ".txt" in extensions
     has_json = ".json" in extensions
@@ -383,13 +370,9 @@ def _detect_format_recursive(root: Path) -> str:
                 f"{root} appears to contain a COCO JSON file, "
                 f"but COCO is a single file.  Point to the file directly."
             )
-        raise ValueError(
-            f"Cannot determine format from JSON files in: {root}."
-        )
+        raise ValueError(f"Cannot determine format from JSON files in: {root}.")
 
-    raise ValueError(
-        f"Cannot determine annotation format from: {root}."
-    )
+    raise ValueError(f"Cannot determine annotation format from: {root}.")
 
 
 # ---------------------------------------------------------------------------
@@ -462,9 +445,7 @@ def _copy_or_move_file(
             shutil.copy2(str(source), str(target))
         return True
     except Exception as e:
-        logger.warning(
-            f"Failed to {'move' if move else 'copy'} {source}: {e}"
-        )
+        logger.warning(f"Failed to {'move' if move else 'copy'} {source}: {e}")
         return False
 
 

@@ -20,6 +20,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+
 def run_cli_command(cmd_args):
     """Run CLI command and return result"""
     cmd = [sys.executable, "-m", "dataflow.cli.main"] + cmd_args
@@ -48,11 +49,12 @@ def run_cli_command(cmd_args):
         print(f"Error: Exception occurred while executing command: {e}")
         return False
 
+
 def demo_yolo_visualization():
     """Demonstrate YOLO format visualization"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Demonstrating YOLO format visualization")
-    print("="*60)
+    print("=" * 60)
 
     yolo_dir = project_root / "assets" / "test_data" / "seg" / "yolo"
     image_dir = yolo_dir / "images"
@@ -63,14 +65,19 @@ def demo_yolo_visualization():
     # Clean up old output directory
     if output_dir.exists():
         import shutil
+
         shutil.rmtree(output_dir)
 
     cmd = [
-        "visualize", "yolo",
+        "visualize",
+        "yolo",
         "--no-display",
-        str(image_dir), str(label_dir), str(class_file),
-        "--save", str(output_dir),
-        "--verbose"
+        str(image_dir),
+        str(label_dir),
+        str(class_file),
+        "--save",
+        str(output_dir),
+        "--verbose",
     ]
 
     success = run_cli_command(cmd)
@@ -83,11 +90,12 @@ def demo_yolo_visualization():
         print("✗ YOLO visualization failed")
     return success
 
+
 def demo_coco_visualization():
     """Demonstrate COCO format visualization"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Demonstrating COCO format visualization")
-    print("="*60)
+    print("=" * 60)
 
     coco_file = project_root / "assets" / "test_data" / "seg" / "coco" / "annotations.json"
     image_dir = project_root / "assets" / "test_data" / "seg" / "coco" / "images"
@@ -96,14 +104,18 @@ def demo_coco_visualization():
     # Clean up old output directory
     if output_dir.exists():
         import shutil
+
         shutil.rmtree(output_dir)
 
     cmd = [
-        "visualize", "coco",
+        "visualize",
+        "coco",
         "--no-display",
-        str(image_dir), str(coco_file),
-        "--save", str(output_dir),
-        "--verbose"
+        str(image_dir),
+        str(coco_file),
+        "--save",
+        str(output_dir),
+        "--verbose",
     ]
 
     success = run_cli_command(cmd)
@@ -115,11 +127,12 @@ def demo_coco_visualization():
         print("✗ COCO visualization failed")
     return success
 
+
 def demo_labelme_visualization():
     """Demonstrate LabelMe format visualization"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Demonstrating LabelMe format visualization")
-    print("="*60)
+    print("=" * 60)
 
     labelme_dir = project_root / "assets" / "test_data" / "seg" / "labelme"
     output_dir = project_root / "temp_output" / "visualize" / "labelme"
@@ -127,15 +140,19 @@ def demo_labelme_visualization():
     # Clean up old output directory
     if output_dir.exists():
         import shutil
+
         shutil.rmtree(output_dir)
 
     # LabelMe format: images and JSON files in the same directory
     cmd = [
-        "visualize", "labelme",
+        "visualize",
+        "labelme",
         "--no-display",
-        str(labelme_dir), str(labelme_dir),
-        "--save", str(output_dir),
-        "--verbose"
+        str(labelme_dir),
+        str(labelme_dir),
+        "--save",
+        str(output_dir),
+        "--verbose",
     ]
 
     success = run_cli_command(cmd)
@@ -147,10 +164,11 @@ def demo_labelme_visualization():
         print("✗ LabelMe visualization failed")
     return success
 
+
 def main():
     """Main function"""
     print("DataFlow-CV CLI visualization function demonstration")
-    print("="*60)
+    print("=" * 60)
 
     # Check if test data exists
     test_data_root = project_root / "assets" / "test_data" / "seg"
@@ -171,9 +189,9 @@ def main():
     successes.append(demo_coco_visualization())
 
     # Summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Demonstration summary")
-    print("="*60)
+    print("=" * 60)
     total = len(successes)
     passed = sum(successes)
     print(f"Total demonstrated {total} format visualizations")
@@ -183,13 +201,20 @@ def main():
         print("✓ All demonstrations completed successfully!")
         print(f"Visualization results saved at: {project_root / 'temp_output' / 'visualize'}")
         print("\nYou can manually test with the following commands:")
-        print("  dataflow-cv visualize yolo assets/test_data/seg/yolo/images assets/test_data/seg/yolo/labels assets/test_data/seg/yolo/classes.txt --save ./output")
-        print("  dataflow-cv visualize coco assets/test_data/seg/coco/images assets/test_data/seg/coco/annotations.json --save ./output")
-        print("  dataflow-cv visualize labelme assets/test_data/seg/labelme assets/test_data/seg/labelme --save ./output")
+        print(
+            "  dataflow-cv visualize yolo assets/test_data/seg/yolo/images assets/test_data/seg/yolo/labels assets/test_data/seg/yolo/classes.txt --save ./output"
+        )
+        print(
+            "  dataflow-cv visualize coco assets/test_data/seg/coco/images assets/test_data/seg/coco/annotations.json --save ./output"
+        )
+        print(
+            "  dataflow-cv visualize labelme assets/test_data/seg/labelme assets/test_data/seg/labelme --save ./output"
+        )
         return 0
     else:
         print("✗ Some demonstrations failed, please check error messages")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

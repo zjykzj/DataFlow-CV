@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from dataflow.evaluate.base import BaseEvaluator
-from dataflow.evaluate.result import EvaluationResult, EvaluationMetrics
+from dataflow.evaluate.result import EvaluationMetrics
 from dataflow.util.logging import LogConfig
 
 TEST_DATA = Path(__file__).parent.parent.parent / "assets" / "test_data" / "evaluate"
@@ -19,6 +19,7 @@ class ConcreteEvaluator(BaseEvaluator):
 
     def _create_cocoeval(self, coco_gt, coco_dt):
         from pycocotools.cocoeval import COCOeval
+
         return COCOeval(coco_gt, coco_dt, iouType="bbox")
 
 
@@ -116,6 +117,7 @@ class TestValidateInputs:
 
     def test_valid_inputs(self, gt_path, dt_path):
         from dataflow.evaluate.utils import _load_coco
+
         coco_gt = _load_coco(gt_path)
         coco_dt = _load_coco(dt_path)
         ev = ConcreteEvaluator()
@@ -124,6 +126,7 @@ class TestValidateInputs:
 
     def test_empty_gt(self):
         from dataflow.evaluate.utils import _load_coco
+
         empty_gt = {
             "images": [],
             "annotations": [],
@@ -131,7 +134,16 @@ class TestValidateInputs:
         }
         dt_data = {
             "images": [{"id": 1, "file_name": "a.jpg", "width": 100, "height": 100}],
-            "annotations": [{"id": 1, "image_id": 1, "category_id": 1, "bbox": [0, 0, 10, 10], "score": 0.9, "area": 100}],
+            "annotations": [
+                {
+                    "id": 1,
+                    "image_id": 1,
+                    "category_id": 1,
+                    "bbox": [0, 0, 10, 10],
+                    "score": 0.9,
+                    "area": 100,
+                }
+            ],
             "categories": [{"id": 1, "name": "cat"}],
         }
         coco_gt = _load_coco(empty_gt)

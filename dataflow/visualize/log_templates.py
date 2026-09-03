@@ -8,7 +8,7 @@ log level and passes the result to the logger.
 
 from typing import Any, Dict, List, Optional
 
-from dataflow.util.logging import format_divider, format_section, format_kv
+from dataflow.util.logging import format_divider, format_kv
 
 
 def format_viz_header(

@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-import pytest
 
 from dataflow.analyse import StatsAnalyser
 
@@ -35,9 +34,7 @@ class TestStatsAnalyser:
     def test_stats_coco(self):
         """Stats on COCO test data returns correct counts."""
         analyser = StatsAnalyser()
-        result = analyser.analyse(
-            TEST_DATA / "det" / "coco" / "annotations.json"
-        )
+        result = analyser.analyse(TEST_DATA / "det" / "coco" / "annotations.json")
         assert result.success
         assert result.data is not None
 
@@ -110,17 +107,19 @@ class TestStatsAnalyser:
         assert stats.total_files == 4
         assert stats.total_annotations == 12
         assert stats.per_class["person"] == 4  # 2×2
-        assert stats.per_class["zebra"] == 6   # 3×2
+        assert stats.per_class["zebra"] == 6  # 3×2
         assert stats.per_class["elephant"] == 2  # 1×2
         assert len(stats.source_paths) == 2
 
     def test_multi_path_mixed_format_errors(self):
         """YOLO + COCO in multi-path produces an error."""
         analyser = StatsAnalyser()
-        result = analyser.analyse([
-            TEST_DATA / "det" / "yolo" / "labels",
-            TEST_DATA / "det" / "coco" / "annotations.json",
-        ])
+        result = analyser.analyse(
+            [
+                TEST_DATA / "det" / "yolo" / "labels",
+                TEST_DATA / "det" / "coco" / "annotations.json",
+            ]
+        )
         assert not result.success
         assert "same format" in result.errors[0].lower()
 
@@ -183,6 +182,7 @@ class TestStatsAnalyser:
 
         # Copy test YOLO files into both subdirs
         import shutil
+
         src = TEST_DATA / "det" / "yolo" / "labels"
         for f in src.glob("*.txt"):
             shutil.copy2(str(f), str(sub_a / f.name))
@@ -209,6 +209,7 @@ class TestStatsAnalyser:
         sub_a.mkdir(parents=True)
 
         import shutil
+
         src = TEST_DATA / "det" / "yolo" / "labels"
         for f in src.glob("*.txt"):
             shutil.copy2(str(f), str(sub_a / f.name))
@@ -252,7 +253,7 @@ class TestStatsAnalyser:
 
     def test_recursive_labelme(self, tmp_path):
         """Recursive stats on nested LabelMe dirs."""
-        import shutil, json
+        import shutil
 
         root = tmp_path / "labelme_nested"
         sub = root / "sub"

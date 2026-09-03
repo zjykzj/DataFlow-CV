@@ -8,13 +8,12 @@ from functools import wraps
 
 # Click 8.2+ requires ctx in make_metavar(); older versions don't accept it.
 # We detect at import time so the code works with both.
-_MAKE_METAVAR_NEEDS_CTX = (
-    "ctx" in inspect.signature(click.Argument.make_metavar).parameters
-)
+_MAKE_METAVAR_NEEDS_CTX = "ctx" in inspect.signature(click.Argument.make_metavar).parameters
 
 
 def add_common_options(func):
     """Decorator: add common options to subcommands"""
+
     @click.option(
         "--verbose",
         is_flag=True,
@@ -42,6 +41,7 @@ def add_common_options(func):
         ctx.obj["log_dir"] = Path(log_dir)
         # No logger creation — logging is module-owned
         return func(ctx, *args, **kwargs)
+
     return wrapper
 
 
@@ -49,6 +49,7 @@ def validate_path_exists(path: Path, name: str = "path") -> Path:
     """Validate if path exists"""
     if not path.exists():
         from dataflow.cli.exceptions import InputError
+
         raise InputError(f"{name} does not exist: {path}")
     return path
 
@@ -179,8 +180,11 @@ class FormattedCommand(click.Command):
 
     def _format_arguments(self, ctx, formatter):
         """格式化Arguments部分，模仿Options的格式"""
-        args = [param for param in self.params
-                if isinstance(param, click.Argument) and param.expose_value]
+        args = [
+            param
+            for param in self.params
+            if isinstance(param, click.Argument) and param.expose_value
+        ]
         if not args:
             return
 
@@ -190,11 +194,9 @@ class FormattedCommand(click.Command):
             rows = []
             for param in args:
                 param_name = (
-                    param.make_metavar(ctx)
-                    if _MAKE_METAVAR_NEEDS_CTX
-                    else param.make_metavar()
+                    param.make_metavar(ctx) if _MAKE_METAVAR_NEEDS_CTX else param.make_metavar()
                 )
-                help_text = self._get_argument_help(param.name) if hasattr(param, 'name') else ""
+                help_text = self._get_argument_help(param.name) if hasattr(param, "name") else ""
                 rows.append((param_name, help_text))
 
             # 使用write_dl获得与Options一致的对齐效果

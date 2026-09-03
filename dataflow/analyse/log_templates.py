@@ -55,8 +55,9 @@ def format_analyse_header(
         lines.append(format_kv("Source", label))
     else:
         lines.append(
-            format_kv("Sources", f"{', '.join(str(p) for p in path_list)}"
-                      f"    ({len(path_list)} paths)")
+            format_kv(
+                "Sources", f"{', '.join(str(p) for p in path_list)}    ({len(path_list)} paths)"
+            )
         )
 
     if class_file is not None:
@@ -81,11 +82,7 @@ def format_stats_path_breakdown(path_stats) -> str:
         label = f"{ps['path']}"
         if ps.get("recursive"):
             label += " (recursive)"
-        lines.append(
-            f"  {label:<40} "
-            f"{ps['files']:>5} files, "
-            f"{ps['annotations']:>5} annotations"
-        )
+        lines.append(f"  {label:<40} {ps['files']:>5} files, {ps['annotations']:>5} annotations")
     lines.append("")
     return "\n".join(lines)
 
@@ -131,19 +128,23 @@ def format_stats_result(
                 for name, count in per_class.items()
             ]
             rows.append(["─" * 15, "─" * 4, "─" * 7])
-            rows.append([
-                f"Total ({len(per_class)})",
-                "",
-                str(sum(per_class.values())),
-            ])
+            rows.append(
+                [
+                    f"Total ({len(per_class)})",
+                    "",
+                    str(sum(per_class.values())),
+                ]
+            )
         else:
             headers = ["Class", "Count"]
             rows = [[name, str(count)] for name, count in per_class.items()]
             rows.append(["─" * 15, "─" * 7])
-            rows.append([
-                f"Total ({len(per_class)})",
-                str(sum(per_class.values())),
-            ])
+            rows.append(
+                [
+                    f"Total ({len(per_class)})",
+                    str(sum(per_class.values())),
+                ]
+            )
         lines.append(format_section("Per-Class"))
         lines.append(format_table(headers, rows))
     else:
@@ -253,7 +254,7 @@ def format_filter_result(
         for name in missing_categories:
             lines.append(f'    "{name}"')
     else:
-        lines.append(f"  Not found in source: 0 categories")
+        lines.append("  Not found in source: 0 categories")
     lines.append("")
 
     # ── Filter Summary ──
@@ -262,10 +263,12 @@ def format_filter_result(
     lines.append(format_kv("Files with annotations", str(total_files_with_annotations)))
     lines.append(format_kv("Annotations before", str(annotations_before)))
     lines.append(format_kv("Annotations after", str(annotations_after)))
-    lines.append(format_kv(
-        "Output",
-        f"{total_files_with_annotations} files → {output_dir}",
-    ))
+    lines.append(
+        format_kv(
+            "Output",
+            f"{total_files_with_annotations} files → {output_dir}",
+        )
+    )
 
     return "\n".join(lines)
 
@@ -295,14 +298,12 @@ def format_partition_result(
     Returns:
         Formatted partition summary.
     """
-    mode_label = {"images": "Images only", "labels": "Labels only",
-                  "both": "Labels + Images"}[mode]
+    mode_label = {"images": "Images only", "labels": "Labels only", "both": "Labels + Images"}[mode]
 
     lines = [
         format_kv("Mode", mode_label),
         format_kv("Partitions", str(num_partitions)),
-        format_kv("Shuffle", f"{'Yes' if shuffle else 'No'}"
-                  f"{f' (seed={seed})' if shuffle else ''}"),
+        format_kv("Shuffle", f"{'Yes' if shuffle else 'No'}{f' (seed={seed})' if shuffle else ''}"),
         format_kv("Move", "Yes" if move else "No"),
         format_kv("Total files", str(total_files)),
         "",
@@ -310,10 +311,7 @@ def format_partition_result(
     ]
 
     for i in range(num_partitions):
-        lines.append(
-            f"  Part {i + 1}:  {partition_sizes[i]:>6} files → "
-            f"{partition_dirs[i]}"
-        )
+        lines.append(f"  Part {i + 1}:  {partition_sizes[i]:>6} files → {partition_dirs[i]}")
 
     return "\n".join(lines)
 

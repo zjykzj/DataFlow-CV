@@ -4,7 +4,7 @@ Concrete evaluator implementations for DataFlow-CV.
 Provides DetectionEvaluator (bbox IoU) and SegmentationEvaluator (mask IoU).
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from .base import BaseEvaluator
 

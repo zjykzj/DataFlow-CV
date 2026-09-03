@@ -21,6 +21,7 @@ from dataflow.util.logging import LogConfig
 # Decorator — evaluate-specific options
 # ---------------------------------------------------------------------------
 
+
 def add_evaluate_options(func):
     """Decorator: add evaluate-specific options to subcommands."""
 
@@ -81,6 +82,7 @@ def add_evaluate_options(func):
 # Evaluate command group
 # ---------------------------------------------------------------------------
 
+
 @click.group(
     name="evaluate",
     context_settings={
@@ -102,6 +104,7 @@ def evaluate_group():
 # Detection subcommand
 # ---------------------------------------------------------------------------
 
+
 @evaluate_group.command(cls=FormattedCommand)
 @add_evaluate_options
 @click.argument(
@@ -112,7 +115,9 @@ def evaluate_group():
     "dt_json",
     type=click.Path(exists=True, path_type=Path),
 )
-def detection(ctx, gt_json, dt_json, verbose, log_dir, prf1, prf1_iou, prf1_conf, prf1_method, output):
+def detection(
+    ctx, gt_json, dt_json, verbose, log_dir, prf1, prf1_iou, prf1_conf, prf1_method, output
+):
     """Evaluate object detection results (bbox IoU).
 
     GT_JSON: COCO format Ground Truth JSON file.
@@ -137,7 +142,8 @@ def detection(ctx, gt_json, dt_json, verbose, log_dir, prf1, prf1_iou, prf1_conf
         from dataflow.evaluate.utils import format_prf1_output
 
         prf1_result = compute_pr_f1(
-            str(gt_json), str(dt_json),
+            str(gt_json),
+            str(dt_json),
             iou_threshold=prf1_iou,
             confidence_threshold=prf1_conf,
             iou_type="bbox",
@@ -178,6 +184,7 @@ def detection(ctx, gt_json, dt_json, verbose, log_dir, prf1, prf1_iou, prf1_conf
 # Segmentation subcommand
 # ---------------------------------------------------------------------------
 
+
 @evaluate_group.command(cls=FormattedCommand)
 @add_evaluate_options
 @click.argument(
@@ -188,7 +195,9 @@ def detection(ctx, gt_json, dt_json, verbose, log_dir, prf1, prf1_iou, prf1_conf
     "dt_json",
     type=click.Path(exists=True, path_type=Path),
 )
-def segmentation(ctx, gt_json, dt_json, verbose, log_dir, prf1, prf1_iou, prf1_conf, prf1_method, output):
+def segmentation(
+    ctx, gt_json, dt_json, verbose, log_dir, prf1, prf1_iou, prf1_conf, prf1_method, output
+):
     """Evaluate instance segmentation results (mask IoU).
 
     GT_JSON: COCO format Ground Truth JSON file (annotations must include 'segmentation').
@@ -213,7 +222,8 @@ def segmentation(ctx, gt_json, dt_json, verbose, log_dir, prf1, prf1_iou, prf1_c
         from dataflow.evaluate.utils import format_prf1_output
 
         prf1_result = compute_pr_f1(
-            str(gt_json), str(dt_json),
+            str(gt_json),
+            str(dt_json),
             iou_threshold=prf1_iou,
             confidence_threshold=prf1_conf,
             iou_type="segm",
@@ -254,6 +264,7 @@ def segmentation(ctx, gt_json, dt_json, verbose, log_dir, prf1, prf1_iou, prf1_c
 # Output helpers
 # ---------------------------------------------------------------------------
 
+
 def _print_eval_result(result, verbose):
     """Print evaluation results (mAP path) for detection or segmentation."""
     from dataflow.evaluate.utils import format_metric_table, format_per_class_table
@@ -283,6 +294,7 @@ def _save_result_json(result: Any, output_path: Path) -> None:
 
     def _convert(obj: Any) -> Any:
         import numpy as np
+
         if isinstance(obj, (np.floating,)):
             return float(obj)
         if isinstance(obj, (np.integer,)):

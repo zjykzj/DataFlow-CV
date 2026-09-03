@@ -101,9 +101,9 @@ class TestLogManagerVerbose:
             config = LogConfig(name="test_file_handler", verbose=True, log_dir=Path(tmpdir))
             mgr = LogManager(config)
             file_handlers = [
-                h for h in mgr.logger.handlers
-                if isinstance(h, logging.FileHandler)
-                or type(h).__name__ == "RotatingFileHandler"
+                h
+                for h in mgr.logger.handlers
+                if isinstance(h, logging.FileHandler) or type(h).__name__ == "RotatingFileHandler"
             ]
             assert len(file_handlers) == 1
 
@@ -117,9 +117,9 @@ class TestLogManagerVerbose:
         config = LogConfig(name="test_no_file")
         mgr = LogManager(config)
         file_handlers = [
-            h for h in mgr.logger.handlers
-            if isinstance(h, logging.FileHandler)
-            or type(h).__name__ == "RotatingFileHandler"
+            h
+            for h in mgr.logger.handlers
+            if isinstance(h, logging.FileHandler) or type(h).__name__ == "RotatingFileHandler"
         ]
         assert len(file_handlers) == 0
 

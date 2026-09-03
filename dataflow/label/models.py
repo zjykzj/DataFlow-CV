@@ -73,9 +73,7 @@ class ObjectAnnotation:
     class_id: int  # Class ID
     class_name: str  # Class name
     bbox: Optional[BoundingBox] = None  # Bounding box (object detection)
-    segmentation: Optional[Segmentation] = (
-        None  # Segmentation polygon (instance segmentation)
-    )
+    segmentation: Optional[Segmentation] = None  # Segmentation polygon (instance segmentation)
     confidence: float = 1.0  # Confidence score
     is_crowd: bool = False  # Whether this is a crowd annotation (COCO specific)
 
@@ -93,9 +91,7 @@ class ImageAnnotation:
     image_path: str  # Path to image file
     width: int  # Image width in pixels
     height: int  # Image height in pixels
-    objects: List[ObjectAnnotation] = field(
-        default_factory=list
-    )  # List of object annotations
+    objects: List[ObjectAnnotation] = field(default_factory=list)  # List of object annotations
 
     def __post_init__(self):
         # Validate image dimensions
@@ -108,9 +104,7 @@ class ImageAnnotation:
         if "\x00" in self.image_id:
             raise ValueError(f"image_id contains null byte: {self.image_id!r}")
         if _UNSAFE_PATH_CHARS_RE.search(self.image_id):
-            raise ValueError(
-                f"image_id contains path traversal characters: {self.image_id!r}"
-            )
+            raise ValueError(f"image_id contains path traversal characters: {self.image_id!r}")
 
 
 @dataclass
@@ -125,12 +119,8 @@ class DatasetAnnotations:
     - LABELME: top-left origin, absolute pixels
     """
 
-    images: List[ImageAnnotation] = field(
-        default_factory=list
-    )  # List of image annotations
-    categories: Dict[int, str] = field(
-        default_factory=dict
-    )  # Category mapping (ID -> name)
+    images: List[ImageAnnotation] = field(default_factory=list)  # List of image annotations
+    categories: Dict[int, str] = field(default_factory=dict)  # Category mapping (ID -> name)
     format: AnnotationFormat = AnnotationFormat.UNKNOWN  # Format governing coords
     dataset_info: Dict[str, Any] = field(default_factory=dict)  # Dataset metadata
 
@@ -138,13 +128,9 @@ class DatasetAnnotations:
         # Validate categories
         for cat_id, cat_name in self.categories.items():
             if not isinstance(cat_id, int):
-                raise ValueError(
-                    f"Category ID must be integer, got {type(cat_id)}: {cat_id}"
-                )
+                raise ValueError(f"Category ID must be integer, got {type(cat_id)}: {cat_id}")
             if not isinstance(cat_name, str):
-                raise ValueError(
-                    f"Category name must be string, got {type(cat_name)}: {cat_name}"
-                )
+                raise ValueError(f"Category name must be string, got {type(cat_name)}: {cat_name}")
 
     def add_image(self, image_annotation: ImageAnnotation):
         """Add an image annotation to the dataset."""

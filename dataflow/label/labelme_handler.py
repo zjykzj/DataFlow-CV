@@ -8,21 +8,27 @@ Coordinates are stored in native LabelMe representation:
 """
 
 import json
-import logging
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional
 
 
 from .base import AnnotationResult, BaseAnnotationHandler, ImageError
-from .models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
-                     ImageAnnotation, ObjectAnnotation, Segmentation)
+from .models import (
+    AnnotationFormat,
+    BoundingBox,
+    DatasetAnnotations,
+    ImageAnnotation,
+    ObjectAnnotation,
+    Segmentation,
+)
 
 
 class LabelMeAnnotationHandler(BaseAnnotationHandler):
     """Handler for LabelMe JSON annotation format."""
 
-    def __init__(self, label_dir: str, class_file: Optional[str] = None,
-                 recursive: bool = False, **kwargs):
+    def __init__(
+        self, label_dir: str, class_file: Optional[str] = None, recursive: bool = False, **kwargs
+    ):
         """
         Initialize LabelMe handler.
 
@@ -54,15 +60,11 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 for i, line in enumerate(lines):
                     if line.strip():  # Skip empty lines
                         categories[i] = line.strip()
-                self._log_info(
-                    f"Loaded {len(categories)} categories from {self.class_file}"
-                )
+                self._log_info(f"Loaded {len(categories)} categories from {self.class_file}")
             except Exception as e:
                 self._log_error(f"Failed to load class file {self.class_file}: {e}")
         else:
-            self._log_info(
-                "No class file provided, will extract categories from annotations"
-            )
+            self._log_info("No class file provided, will extract categories from annotations")
 
         return categories
 
@@ -92,14 +94,10 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
 
                 if not image_result.success:
                     if self.strict_mode:
-                        result.add_error(
-                            f"Failed to read {json_file}: {image_result.message}"
-                        )
+                        result.add_error(f"Failed to read {json_file}: {image_result.message}")
                         return result
                     else:
-                        self._log_warning(
-                            f"Skipping {json_file}: {image_result.message}"
-                        )
+                        self._log_warning(f"Skipping {json_file}: {image_result.message}")
                         continue
 
                 image_ann = image_result.data
@@ -123,9 +121,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             # Update categories: use provided class file if available, otherwise use extracted
             if not self.categories:
                 self.categories = categories_from_annotations
-                self._log_info(
-                    f"Extracted {len(self.categories)} categories from annotations"
-                )
+                self._log_info(f"Extracted {len(self.categories)} categories from annotations")
 
             dataset.categories = self.categories
 
@@ -161,15 +157,11 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
         from .models import ImageAnnotation as IA
 
         if not self.label_dir.exists():
-            raise ValueError(
-                f"Label directory does not exist: {self.label_dir}"
-            )
+            raise ValueError(f"Label directory does not exist: {self.label_dir}")
 
         json_files = self._list_json_files()
         if not json_files:
-            raise ValueError(
-                f"No JSON files found in {self.label_dir}"
-            )
+            raise ValueError(f"No JSON files found in {self.label_dir}")
 
         categories_from_annotations: Dict[int, str] = {}
 
@@ -177,34 +169,21 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             try:
                 image_result = self._read_single_file(json_file)
             except ImageError as e:
-                self._log_warning(
-                    f"Skipping {json_file} (image error): {e}"
-                )
+                self._log_warning(f"Skipping {json_file} (image error): {e}")
                 continue
 
             if not image_result.success:
                 if self.strict_mode:
-                    raise ValueError(
-                        f"Failed to read {json_file}: "
-                        f"{image_result.message}"
-                    )
+                    raise ValueError(f"Failed to read {json_file}: {image_result.message}")
                 else:
-                    self._log_warning(
-                        f"Skipping {json_file}: {image_result.message}"
-                    )
+                    self._log_warning(f"Skipping {json_file}: {image_result.message}")
                     continue
 
             image_ann = image_result.data
             if image_ann is None:
-                raise ValueError(
-                    f"Internal error: image annotation data is None for "
-                    f"{json_file}"
-                )
+                raise ValueError(f"Internal error: image annotation data is None for {json_file}")
             if not isinstance(image_ann, IA):
-                raise ValueError(
-                    f"Internal error: invalid image annotation type for "
-                    f"{json_file}"
-                )
+                raise ValueError(f"Internal error: invalid image annotation type for {json_file}")
 
             # Extract categories from this image
             for obj in image_ann.objects:
@@ -216,9 +195,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
         # Update categories from annotations if no class_file was provided
         if not self.categories:
             self.categories = categories_from_annotations
-            self._log_info(
-                f"Extracted {len(self.categories)} categories from annotations"
-            )
+            self._log_info(f"Extracted {len(self.categories)} categories from annotations")
 
     def _read_single_file(self, json_file: Path) -> AnnotationResult:
         """Read a single LabelMe JSON file."""
@@ -245,21 +222,22 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
 
             if not image_path.exists():
                 if image_height is None or image_width is None:
-                    raise ImageError(f"Image file not found and no dimensions in JSON: {image_path}")
+                    raise ImageError(
+                        f"Image file not found and no dimensions in JSON: {image_path}"
+                    )
 
             if image_height is None or image_width is None:
                 dims_read = False
                 if image_path.exists():
                     try:
                         import cv2
+
                         img = cv2.imread(str(image_path))
                         if img is not None:
                             image_height, image_width = img.shape[:2]
                             dims_read = True
                     except Exception as e:
-                        self._log_debug(
-                            f"Could not read image dimensions from file: {e}"
-                        )
+                        self._log_debug(f"Could not read image dimensions from file: {e}")
                 if not dims_read:
                     raise ImageError(
                         f"Image dimensions not in JSON {json_file} and could not read from file"
@@ -281,9 +259,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                         return result
                     objects.append(obj_data)
                 elif self.strict_mode:
-                    result.add_error(
-                        f"Failed to parse shape in {json_file}: {obj_result.message}"
-                    )
+                    result.add_error(f"Failed to parse shape in {json_file}: {obj_result.message}")
                     return result
                 else:
                     self._log_warning(
@@ -296,7 +272,9 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 image_path_str = str(relative_image_path)
             except ValueError:
                 image_path_str = str(image_path)
-                self._log_warning(f"Image path {image_path} is not relative to label directory {self.label_dir}")
+                self._log_warning(
+                    f"Image path {image_path} is not relative to label directory {self.label_dir}"
+                )
 
             image_ann = ImageAnnotation(
                 image_id=json_file.stem,
@@ -318,9 +296,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
 
         return result
 
-    def _parse_shape(
-        self, shape: Dict, img_width: int, img_height: int
-    ) -> AnnotationResult:
+    def _parse_shape(self, shape: Dict, img_width: int, img_height: int) -> AnnotationResult:
         """Parse a single LabelMe shape into ObjectAnnotation."""
         result = AnnotationResult(success=False)
 
@@ -336,13 +312,9 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             # Determine category ID
             cat_id: int
             if label in self.categories.values():
-                found_id = next(
-                    (k for k, v in self.categories.items() if v == label), None
-                )
+                found_id = next((k for k, v in self.categories.items() if v == label), None)
                 if found_id is None:
-                    result.add_error(
-                        f"Internal error: label '{label}' not found in categories"
-                    )
+                    result.add_error(f"Internal error: label '{label}' not found in categories")
                     return result
                 cat_id = found_id
             else:
@@ -363,9 +335,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 h = abs(y2 - y1)
 
                 # Clamp to image boundaries (tolerates FP imprecision at edges)
-                x_min, y_min, w, h = self._clamp_abs_bbox(
-                    x_min, y_min, w, h, img_width, img_height
-                )
+                x_min, y_min, w, h = self._clamp_abs_bbox(x_min, y_min, w, h, img_width, img_height)
 
                 bbox = BoundingBox(x=x_min, y=y_min, width=w, height=h)
                 if not self._validate_bbox(bbox, format=AnnotationFormat.LABELME):
@@ -376,18 +346,16 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 # Store polygon points in absolute pixels (native LabelMe format)
                 abs_points = [(x, y) for x, y in points]
                 # Clamp to image boundaries (tolerates FP imprecision at edges)
-                abs_points = self._clamp_abs_points(
-                    abs_points, img_width, img_height
-                )
-                if not self._validate_segmentation_points(abs_points, format=AnnotationFormat.LABELME):
+                abs_points = self._clamp_abs_points(abs_points, img_width, img_height)
+                if not self._validate_segmentation_points(
+                    abs_points, format=AnnotationFormat.LABELME
+                ):
                     result.add_error(f"Invalid polygon points: {points}")
                     return result
                 segmentation = Segmentation(points=abs_points)
 
             else:
-                result.add_error(
-                    f"Unsupported shape type '{shape_type}' with {len(points)} points"
-                )
+                result.add_error(f"Unsupported shape type '{shape_type}' with {len(points)} points")
                 return result
 
             obj = ObjectAnnotation(
@@ -406,9 +374,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
 
         return result
 
-    def write(
-        self, annotations: DatasetAnnotations, output_dir: str
-    ) -> AnnotationResult:
+    def write(self, annotations: DatasetAnnotations, output_dir: str) -> AnnotationResult:
         """Write annotations to LabelMe JSON format."""
         result = AnnotationResult(success=False)
         output_path = Path(output_dir)
@@ -422,19 +388,13 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 if file_result.success:
                     written_count += 1
                 elif self.strict_mode:
-                    result.add_error(
-                        f"Failed to write {image_ann.image_id}: {file_result.message}"
-                    )
+                    result.add_error(f"Failed to write {image_ann.image_id}: {file_result.message}")
                     return result
                 else:
-                    self._log_warning(
-                        f"Skipping {image_ann.image_id}: {file_result.message}"
-                    )
+                    self._log_warning(f"Skipping {image_ann.image_id}: {file_result.message}")
 
             result.success = True
-            result.message = (
-                f"Successfully wrote {written_count}/{len(annotations.images)} images"
-            )
+            result.message = f"Successfully wrote {written_count}/{len(annotations.images)} images"
             result.data = {
                 "output_dir": str(output_path),
                 "written_count": written_count,
@@ -445,9 +405,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
 
         return result
 
-    def write_one(
-        self, image_ann: ImageAnnotation, output_dir: Path
-    ) -> AnnotationResult:
+    def write_one(self, image_ann: ImageAnnotation, output_dir: Path) -> AnnotationResult:
         """Write annotations for a single image to LabelMe JSON."""
         result = AnnotationResult(success=False)
 
@@ -459,9 +417,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 if shape:
                     shapes.append(shape)
                 elif self.strict_mode:
-                    result.add_error(
-                        f"Failed to convert object {obj.class_name} to LabelMe shape"
-                    )
+                    result.add_error(f"Failed to convert object {obj.class_name} to LabelMe shape")
                     return result
                 else:
                     self._log_warning(f"Skipping object {obj.class_name}")
@@ -538,9 +494,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             required_fields = ["version", "flags", "shapes", "imagePath"]
             for field in required_fields:
                 if field not in data:
-                    self.logger.error(
-                        f"Missing required field '{field}' in {annotation_file}"
-                    )
+                    self.logger.error(f"Missing required field '{field}' in {annotation_file}")
                     return False
 
             for shape in data["shapes"]:
@@ -558,9 +512,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 points = shape["points"]
 
                 if shape_type not in ("rectangle", "polygon", "circle", "line", "point"):
-                    self.logger.error(
-                        f"Unsupported shape_type '{shape_type}' in {annotation_file}"
-                    )
+                    self.logger.error(f"Unsupported shape_type '{shape_type}' in {annotation_file}")
                     return False
 
                 if shape_type == "rectangle":

@@ -7,7 +7,7 @@ and formatting helpers used by the Evaluate module.
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
 # ---------------------------------------------------------------------------
 # pycocotools guard
@@ -25,14 +25,14 @@ def _validate_coco_available() -> None:
     """Raise ImportError with a clear message if pycocotools is not installed."""
     if not HAS_COCO:
         raise ImportError(
-            "pycocotools is required for evaluation. "
-            "Install with: pip install pycocotools"
+            "pycocotools is required for evaluation. Install with: pip install pycocotools"
         )
 
 
 # ---------------------------------------------------------------------------
 # Input normalization
 # ---------------------------------------------------------------------------
+
 
 def _load_coco(source: Union[str, Path, Dict, Any]) -> "COCO":
     """Normalize any input type to a pycocotools.COCO instance.
@@ -130,9 +130,7 @@ def _load_dt(
         if isinstance(dt_data, dict):
             _validate_coco_dict(dt_data)
             return _create_coco_from_dict(dt_data)
-        raise ValueError(
-            f"DT file must contain a JSON dict or list, got: {type(dt_data).__name__}"
-        )
+        raise ValueError(f"DT file must contain a JSON dict or list, got: {type(dt_data).__name__}")
 
     # --- Dict ---
     if isinstance(dt_source, dict):
@@ -157,9 +155,7 @@ def _validate_coco_dict(data: Dict[str, Any]) -> None:
     required = ["images", "annotations", "categories"]
     missing = [k for k in required if k not in data]
     if missing:
-        raise ValueError(
-            f"COCO dict missing required keys: {missing}"
-        )
+        raise ValueError(f"COCO dict missing required keys: {missing}")
 
 
 def _create_coco_from_dict(data: Dict[str, Any]) -> "COCO":
@@ -202,9 +198,7 @@ def _dataset_to_coco_dict(dataset: Any) -> Dict[str, Any]:
     from dataflow.label.models import AnnotationFormat
 
     if getattr(dataset, "format", None) != AnnotationFormat.COCO:
-        raise ValueError(
-            f"Dataset format must be COCO, got: {dataset.format}"
-        )
+        raise ValueError(f"Dataset format must be COCO, got: {dataset.format}")
 
     # Preserve top-level keys from dataset_info
     info = dataset.dataset_info.copy()
@@ -222,19 +216,14 @@ def _dataset_to_coco_dict(dataset: Any) -> Dict[str, Any]:
 
     # Reconstruct categories
     categories = [
-        {"id": int(cat_id), "name": cat_name}
-        for cat_id, cat_name in dataset.categories.items()
+        {"id": int(cat_id), "name": cat_name} for cat_id, cat_name in dataset.categories.items()
     ]
 
     # Reconstruct annotations
     annotations = []
     ann_id = 1
     for img in dataset.images:
-        image_id = (
-            int(img.image_id)
-            if str(img.image_id).isdigit()
-            else img.image_id
-        )
+        image_id = int(img.image_id) if str(img.image_id).isdigit() else img.image_id
         for obj in img.objects:
             ann_entry: Dict[str, Any] = {
                 "id": ann_id,
@@ -281,9 +270,8 @@ def _dataset_to_coco_dict(dataset: Any) -> Dict[str, Any]:
 # Statistics and validation
 # ---------------------------------------------------------------------------
 
-def _extract_stats(
-    coco_gt: "COCO", coco_dt: "COCO"
-) -> Tuple[Dict[str, int], Dict[str, int]]:
+
+def _extract_stats(coco_gt: "COCO", coco_dt: "COCO") -> Tuple[Dict[str, int], Dict[str, int]]:
     """Extract summary statistics from GT and DT COCO objects.
 
     Returns:
@@ -335,9 +323,7 @@ def _validate_dt_scores(
         )
 
 
-def _validate_common_categories(
-    coco_gt: "COCO", coco_dt: "COCO"
-) -> List[str]:
+def _validate_common_categories(coco_gt: "COCO", coco_dt: "COCO") -> List[str]:
     """Check for DT categories unknown to GT and warn.
 
     Returns a list of warning messages.
@@ -356,13 +342,8 @@ def _validate_common_categories(
     # Check for GT categories with no DT
     no_dt = gt_cat_ids - dt_cat_ids
     if no_dt:
-        names = [
-            cat["name"]
-            for cat in coco_gt.loadCats(sorted(no_dt))
-        ]
-        warnings.append(
-            f"{len(no_dt)} GT categories have no detections: {names}"
-        )
+        names = [cat["name"] for cat in coco_gt.loadCats(sorted(no_dt))]
+        warnings.append(f"{len(no_dt)} GT categories have no detections: {names}")
 
     return warnings
 

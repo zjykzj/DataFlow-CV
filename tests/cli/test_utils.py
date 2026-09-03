@@ -3,7 +3,6 @@
 import tempfile
 from pathlib import Path
 import pytest
-import click
 
 from dataflow.cli.commands.utils import (
     validate_path_exists,
@@ -86,8 +85,8 @@ def test_validate_convert_params():
         class_file.touch()
 
         # Test with all paths
-        validated_input, validated_output, validated_image, validated_class = validate_convert_params(
-            "yolo", "coco", input_path, output_file, image_dir, class_file
+        validated_input, validated_output, validated_image, validated_class = (
+            validate_convert_params("yolo", "coco", input_path, output_file, image_dir, class_file)
         )
 
         assert validated_input == input_path
@@ -99,8 +98,8 @@ def test_validate_convert_params():
         # Test with directory output path
         output_dir = Path(tmpdir) / "output_dir"
 
-        validated_input, validated_output, validated_image, validated_class = validate_convert_params(
-            "coco", "yolo", input_path, output_dir, None, None
+        validated_input, validated_output, validated_image, validated_class = (
+            validate_convert_params("coco", "yolo", input_path, output_dir, None, None)
         )
 
         assert validated_input == input_path
@@ -117,9 +116,13 @@ def test_validate_convert_params():
         # Test with non-existent image_dir when provided
         non_existent_image = Path(tmpdir) / "nonexistent_images"
         with pytest.raises(InputError):
-            validate_convert_params("yolo", "coco", input_path, output_dir, non_existent_image, None)
+            validate_convert_params(
+                "yolo", "coco", input_path, output_dir, non_existent_image, None
+            )
 
         # Test with non-existent class_file when provided
         non_existent_class = Path(tmpdir) / "nonexistent_classes.txt"
         with pytest.raises(InputError):
-            validate_convert_params("yolo", "coco", input_path, output_dir, None, non_existent_class)
+            validate_convert_params(
+                "yolo", "coco", input_path, output_dir, None, non_existent_class
+            )

@@ -68,6 +68,7 @@ def _add_analyse_options(func):
         ctx.obj["verbose"] = verbose
         ctx.obj["log_dir"] = Path(log_dir)
         return func(ctx, class_file=class_file, image_dir=image_dir, *args, **kwargs)
+
     return wrapper
 
 
@@ -83,8 +84,7 @@ def _add_analyse_options(func):
     type=click.Choice(["id", "count"], case_sensitive=False),
     default="id",
     show_default=True,
-    help="Sort by class ID (0-indexed) or annotation count "
-         "(overridden by --class-file)",
+    help="Sort by class ID (0-indexed) or annotation count (overridden by --class-file)",
 )
 @click.option(
     "--descending/--ascending",
@@ -93,11 +93,11 @@ def _add_analyse_options(func):
     help="Sort direction",
 )
 @click.option(
-    "--recursive", "-R",
+    "--recursive",
+    "-R",
     is_flag=True,
     default=False,
-    help="Recursively traverse subdirectories for label files "
-         "(YOLO/LabelMe only)",
+    help="Recursively traverse subdirectories for label files (YOLO/LabelMe only)",
 )
 @click.argument(
     "label_paths",
@@ -190,16 +190,14 @@ def stats(
     "--label-dir",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
     default=None,
-    help="Label directory (YOLO or LabelMe). "
-         "At least one of --label-dir / --image-dir required.",
+    help="Label directory (YOLO or LabelMe). At least one of --label-dir / --image-dir required.",
 )
 @click.option(
     "-i",
     "--image-dir",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
     default=None,
-    help="Image directory. "
-         "At least one of --label-dir / --image-dir required.",
+    help="Image directory. At least one of --label-dir / --image-dir required.",
 )
 @click.option(
     "-c",
@@ -228,8 +226,7 @@ def stats(
     "--move",
     is_flag=True,
     default=False,
-    help="Move source files instead of copying "
-         "(destructive — requires confirmation)",
+    help="Move source files instead of copying (destructive — requires confirmation)",
 )
 @click.argument(
     "output_dir",
@@ -264,9 +261,7 @@ def split(
 
     # Validate at least one input source
     if label_dir is None and image_dir is None:
-        raise click.UsageError(
-            "At least one of --label-dir / --image-dir is required."
-        )
+        raise click.UsageError("At least one of --label-dir / --image-dir is required.")
 
     # Move confirmation
     if move:
@@ -397,8 +392,7 @@ def filter(
 @analyse_group.command(
     cls=FormattedCommand,
     argument_help={
-        "output_dir": "Output directory receiving part_1/ through "
-                      "part_N/ subdirectories",
+        "output_dir": "Output directory receiving part_1/ through part_N/ subdirectories",
     },
 )
 @click.option(
@@ -437,16 +431,14 @@ def filter(
     "--label-dir",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
     default=None,
-    help="Label directory (YOLO or LabelMe). "
-         "At least one of --label-dir / --image-dir required.",
+    help="Label directory (YOLO or LabelMe). At least one of --label-dir / --image-dir required.",
 )
 @click.option(
     "-i",
     "--image-dir",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
     default=None,
-    help="Image directory. "
-         "At least one of --label-dir / --image-dir required.",
+    help="Image directory. At least one of --label-dir / --image-dir required.",
 )
 @click.option(
     "--shuffle",
@@ -466,8 +458,7 @@ def filter(
     "--move",
     is_flag=True,
     default=False,
-    help="Move source files instead of copying "
-         "(destructive — requires confirmation)",
+    help="Move source files instead of copying (destructive — requires confirmation)",
 )
 @click.pass_context
 def partition(
@@ -499,9 +490,7 @@ def partition(
 
     # Validate at least one input source
     if label_dir is None and image_dir is None:
-        raise click.UsageError(
-            "At least one of --label-dir / --image-dir is required."
-        )
+        raise click.UsageError("At least one of --label-dir / --image-dir is required.")
 
     # Validate num
     if num < 2:
@@ -580,16 +569,14 @@ def partition(
     "--label-dir",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
     default=None,
-    help="Label directory (YOLO or LabelMe). "
-         "At least one of --label-dir / --image-dir required.",
+    help="Label directory (YOLO or LabelMe). At least one of --label-dir / --image-dir required.",
 )
 @click.option(
     "-i",
     "--image-dir",
     type=click.Path(exists=True, file_okay=False, path_type=Path),
     default=None,
-    help="Image directory. "
-         "At least one of --label-dir / --image-dir required.",
+    help="Image directory. At least one of --label-dir / --image-dir required.",
 )
 @click.option(
     "--shuffle/--no-shuffle",
@@ -616,8 +603,7 @@ def partition(
     "--move",
     is_flag=True,
     default=False,
-    help="Move source files instead of copying "
-         "(destructive — requires confirmation)",
+    help="Move source files instead of copying (destructive — requires confirmation)",
 )
 @click.option(
     "--verbose",
@@ -662,9 +648,7 @@ def sample(
 
     # Validate at least one input source
     if label_dir is None and image_dir is None:
-        raise click.UsageError(
-            "At least one of --label-dir / --image-dir is required."
-        )
+        raise click.UsageError("At least one of --label-dir / --image-dir is required.")
 
     # Validate count
     if count < 1:

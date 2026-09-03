@@ -24,8 +24,7 @@ from .log_templates import (
     format_filter_result,
 )
 from .utils import create_handler, detect_format, load_class_names
-from dataflow.label.models import (DatasetAnnotations, ImageAnnotation,
-                                    ObjectAnnotation)
+from dataflow.label.models import DatasetAnnotations, ImageAnnotation, ObjectAnnotation
 
 
 class FilterAnalyser(BaseAnalyser):
@@ -99,17 +98,14 @@ class FilterAnalyser(BaseAnalyser):
         for new_id, name in new_classes.items():
             if name in name_to_old_id:
                 old_id = name_to_old_id[name]
-                mapping = CategoryMapping(
-                    new_id=new_id, old_id=old_id, name=name
-                )
+                mapping = CategoryMapping(new_id=new_id, old_id=old_id, name=name)
                 old_to_new[old_id] = mapping
                 kept.append(mapping)
             else:
                 missing.append(name)
                 if logger:
                     logger.warning(
-                        f'Category "{name}" in new class file not '
-                        f"found in source — skipping"
+                        f'Category "{name}" in new class file not found in source — skipping'
                     )
 
         # Build removed list
@@ -134,10 +130,7 @@ class FilterAnalyser(BaseAnalyser):
         total_after = 0
 
         for image_ann in dataset.images:
-            filtered = [
-                obj for obj in image_ann.objects
-                if obj.class_id in old_to_new
-            ]
+            filtered = [obj for obj in image_ann.objects if obj.class_id in old_to_new]
             for obj in filtered:
                 mapping = old_to_new[obj.class_id]
                 obj.class_id = mapping.new_id
@@ -202,9 +195,7 @@ class FilterAnalyser(BaseAnalyser):
             return result
 
         if not new_classes:
-            result.add_error(
-                f"No valid class names in new class file: {new_class_file}"
-            )
+            result.add_error(f"No valid class names in new class file: {new_class_file}")
             return result
 
         # ---- 3. Detect format + create handler ------------------------
@@ -259,9 +250,7 @@ class FilterAnalyser(BaseAnalyser):
         )
 
         if not old_to_new:
-            result.add_error(
-                "No matching categories between source and new class file"
-            )
+            result.add_error("No matching categories between source and new class file")
             return result
 
         # ---- 5. Ensure output directory --------------------------------
@@ -304,14 +293,16 @@ class FilterAnalyser(BaseAnalyser):
                             # rather than mutating the original (avoid
                             # aliasing — the original may be reused by the
                             # iterator or shared across images).
-                            filtered_objects.append(ObjectAnnotation(
-                                class_id=mapping.new_id,
-                                class_name=mapping.name,
-                                bbox=obj.bbox,
-                                segmentation=obj.segmentation,
-                                confidence=obj.confidence,
-                                is_crowd=obj.is_crowd,
-                            ))
+                            filtered_objects.append(
+                                ObjectAnnotation(
+                                    class_id=mapping.new_id,
+                                    class_name=mapping.name,
+                                    bbox=obj.bbox,
+                                    segmentation=obj.segmentation,
+                                    confidence=obj.confidence,
+                                    is_crowd=obj.is_crowd,
+                                )
+                            )
                     total_after += len(filtered_objects)
 
                     if filtered_objects:
@@ -328,9 +319,7 @@ class FilterAnalyser(BaseAnalyser):
                     wr = write_handler.write_one(filtered_img, output_dir)
                     if not wr.success:
                         for err in wr.errors:
-                            result.add_error(
-                                f"Write {image_ann.image_id}: {err}"
-                            )
+                            result.add_error(f"Write {image_ann.image_id}: {err}")
                         return result
             except Exception as e:
                 result.add_error(f"Failed during streaming filter: {e}")
@@ -342,23 +331,19 @@ class FilterAnalyser(BaseAnalyser):
             total_files = dataset.num_images
             total_before = dataset.num_objects
 
-            total_files_with_annotations, total_after = (
-                self._filter_dataset_images(dataset, old_to_new)
+            total_files_with_annotations, total_after = self._filter_dataset_images(
+                dataset, old_to_new
             )
 
             # Update categories
-            dataset.categories = {
-                km.new_id: km.name for km in kept_categories
-            }
+            dataset.categories = {km.new_id: km.name for km in kept_categories}
 
             try:
                 for image_ann in dataset.images:
                     wr = handler.write_one(image_ann, output_dir)
                     if not wr.success:
                         for err in wr.errors:
-                            result.add_error(
-                                f"Write {image_ann.image_id}: {err}"
-                            )
+                            result.add_error(f"Write {image_ann.image_id}: {err}")
                         return result
             except Exception as e:
                 result.add_error(f"Failed to write filtered output: {e}")
@@ -369,14 +354,12 @@ class FilterAnalyser(BaseAnalyser):
             total_files = dataset.num_images
             total_before = dataset.num_objects
 
-            total_files_with_annotations, total_after = (
-                self._filter_dataset_images(dataset, old_to_new)
+            total_files_with_annotations, total_after = self._filter_dataset_images(
+                dataset, old_to_new
             )
 
             # Update categories to match new class file
-            dataset.categories = {
-                km.new_id: km.name for km in kept_categories
-            }
+            dataset.categories = {km.new_id: km.name for km in kept_categories}
 
             output_path = output_dir / label_path.name
             try:
@@ -413,29 +396,20 @@ class FilterAnalyser(BaseAnalyser):
         if missing_categories:
             s = "y" if len(missing_categories) == 1 else "ies"
             result.add_warning(
-                f"{len(missing_categories)} categor{s} in new class "
-                f"file not found in source"
+                f"{len(missing_categories)} categor{s} in new class file not found in source"
             )
 
         if total_after == 0 and total_before > 0:
-            result.add_warning(
-                "All annotations were filtered out — output files are empty"
-            )
+            result.add_warning("All annotations were filtered out — output files are empty")
 
         # ---- 9. Log output ---------------------------------------------
         self._log_info(
-            format_analyse_header(
-                "Category Filter", label_path, f"{fmt} (auto-detected)"
-            )
+            format_analyse_header("Category Filter", label_path, f"{fmt} (auto-detected)")
         )
         self._log_info(
-            f"  Original class: {original_class_file.name} "
-            f"({len(original_classes)} categories)"
+            f"  Original class: {original_class_file.name} ({len(original_classes)} categories)"
         )
-        self._log_info(
-            f"  New class:      {new_class_file.name} "
-            f"({len(new_classes)} categories)\n"
-        )
+        self._log_info(f"  New class:      {new_class_file.name} ({len(new_classes)} categories)\n")
         self._log_info(
             format_filter_result(
                 total_files=total_files,
@@ -449,8 +423,6 @@ class FilterAnalyser(BaseAnalyser):
             )
         )
         if result.log_path:
-            self._log_info(
-                format_analyse_result("✓ Success", result.log_path)
-            )
+            self._log_info(format_analyse_result("✓ Success", result.log_path))
 
         return result

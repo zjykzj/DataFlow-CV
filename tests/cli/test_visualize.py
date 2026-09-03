@@ -65,7 +65,7 @@ def test_visualize_yolo_success():
         mock_visualizer = Mock()
         mock_visualizer.visualize.return_value = mock_result
 
-        with patch('dataflow.visualize.YOLOVisualizer', return_value=mock_visualizer):
+        with patch("dataflow.visualize.YOLOVisualizer", return_value=mock_visualizer):
             result = runner.invoke(
                 cli,
                 [
@@ -76,7 +76,7 @@ def test_visualize_yolo_success():
                     str(class_file),
                     "--save",
                     str(output_dir),
-                ]
+                ],
             )
 
             # Check command executed successfully
@@ -108,12 +108,16 @@ def test_visualize_yolo_missing_class_file():
                 str(image_dir),
                 str(label_dir),
                 # Missing class_file argument
-            ]
+            ],
         )
 
         # Should fail with error about missing class file
         assert result.exit_code != 0
-        assert "Missing argument" in result.output or "required" in result.output or "class-file" in result.output
+        assert (
+            "Missing argument" in result.output
+            or "required" in result.output
+            or "class-file" in result.output
+        )
 
 
 def test_visualize_coco_success():
@@ -140,7 +144,7 @@ def test_visualize_coco_success():
         mock_visualizer = Mock()
         mock_visualizer.visualize.return_value = mock_result
 
-        with patch('dataflow.visualize.COCOVisualizer', return_value=mock_visualizer):
+        with patch("dataflow.visualize.COCOVisualizer", return_value=mock_visualizer):
             result = runner.invoke(
                 cli,
                 [
@@ -150,7 +154,7 @@ def test_visualize_coco_success():
                     str(coco_file),
                     "--save",
                     str(output_dir),
-                ]
+                ],
             )
 
             # Check command executed successfully
@@ -183,7 +187,7 @@ def test_visualize_labelme_success():
         mock_visualizer = Mock()
         mock_visualizer.visualize.return_value = mock_result
 
-        with patch('dataflow.visualize.LabelMeVisualizer', return_value=mock_visualizer):
+        with patch("dataflow.visualize.LabelMeVisualizer", return_value=mock_visualizer):
             result = runner.invoke(
                 cli,
                 [
@@ -193,7 +197,7 @@ def test_visualize_labelme_success():
                     str(label_dir),
                     "--save",
                     str(output_dir),
-                ]
+                ],
             )
 
             # Check command executed successfully
@@ -227,7 +231,7 @@ def test_visualize_failure():
         mock_visualizer = Mock()
         mock_visualizer.visualize.return_value = mock_result
 
-        with patch('dataflow.visualize.YOLOVisualizer', return_value=mock_visualizer):
+        with patch("dataflow.visualize.YOLOVisualizer", return_value=mock_visualizer):
             result = runner.invoke(
                 cli,
                 [
@@ -238,7 +242,7 @@ def test_visualize_failure():
                     str(class_file),
                     "--save",
                     str(output_dir),
-                ]
+                ],
             )
 
             # Should fail with error

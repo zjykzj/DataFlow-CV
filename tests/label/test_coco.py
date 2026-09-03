@@ -4,17 +4,20 @@ Unit tests for coco_handler.py
 
 import json
 import shutil
-import sys
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from dataflow.label.coco_handler import CocoAnnotationHandler
-from dataflow.label.models import (BoundingBox, DatasetAnnotations,
-                                   ImageAnnotation, ObjectAnnotation,
-                                   Segmentation)
+from dataflow.label.models import (
+    BoundingBox,
+    DatasetAnnotations,
+    ImageAnnotation,
+    ObjectAnnotation,
+    Segmentation,
+)
 
 
 class TestCocoAnnotationHandler:
@@ -72,9 +75,7 @@ class TestCocoAnnotationHandler:
                     "id": 1,
                     "image_id": 1,
                     "category_id": 1,
-                    "segmentation": [
-                        [100, 100, 200, 100, 200, 200, 100, 200]
-                    ],  # Polygon
+                    "segmentation": [[100, 100, 200, 100, 200, 200, 100, 200]],  # Polygon
                     "area": 10000.0,
                     "bbox": [100, 100, 100, 100],
                     "iscrowd": 0,
@@ -83,9 +84,7 @@ class TestCocoAnnotationHandler:
                     "id": 2,
                     "image_id": 1,
                     "category_id": 2,
-                    "segmentation": [
-                        [300, 300, 350, 300, 350, 350, 300, 350]
-                    ],  # Polygon
+                    "segmentation": [[300, 300, 350, 300, 350, 350, 300, 350]],  # Polygon
                     "area": 2500.0,
                     "bbox": [300, 300, 50, 50],
                     "iscrowd": 0,
@@ -164,9 +163,7 @@ class TestCocoAnnotationHandler:
 
     def test_read_success_polygon(self, sample_coco_data):
         """Test successful reading of COCO polygon format."""
-        handler = CocoAnnotationHandler(
-            annotation_file=sample_coco_data, strict_mode=True
-        )
+        handler = CocoAnnotationHandler(annotation_file=sample_coco_data, strict_mode=True)
 
         result = handler.read()
 
@@ -205,9 +202,9 @@ class TestCocoAnnotationHandler:
     def test_read_success_rle(self, sample_coco_rle_data):
         """Test reading COCO RLE format (requires pycocotools)."""
         # Skip if pycocotools not available
-        try:
-            from pycocotools import mask as coco_mask
-        except ImportError:
+        import importlib.util
+
+        if importlib.util.find_spec("pycocotools.mask") is None:
             pytest.skip("pycocotools not installed, skipping RLE tests")
 
         handler = CocoAnnotationHandler(
@@ -215,7 +212,7 @@ class TestCocoAnnotationHandler:
             strict_mode=False,  # Use non-strict mode for dummy RLE data
         )
 
-        result = handler.read()
+        handler.read()
 
         # Reading may fail due to invalid dummy RLE data
         # We just test that the handler detects RLE format
@@ -269,9 +266,7 @@ class TestCocoAnnotationHandler:
         annotation_file.write_text(json.dumps(coco_data), encoding="utf-8")
 
         # Read with handler
-        handler = CocoAnnotationHandler(
-            annotation_file=str(annotation_file), strict_mode=False
-        )
+        handler = CocoAnnotationHandler(annotation_file=str(annotation_file), strict_mode=False)
         result = handler.read()
         assert result.success is True
         assert handler.is_rle is True
@@ -337,9 +332,7 @@ class TestCocoAnnotationHandler:
 
     def test_read_file_not_found(self):
         """Test reading non-existent file."""
-        handler = CocoAnnotationHandler(
-            annotation_file="/non/existent/file.json", strict_mode=True
-        )
+        handler = CocoAnnotationHandler(annotation_file="/non/existent/file.json", strict_mode=True)
 
         result = handler.read()
 
@@ -353,16 +346,12 @@ class TestCocoAnnotationHandler:
         invalid_file = temp_dir / "invalid.json"
         invalid_file.write_text("{invalid json}")
 
-        handler = CocoAnnotationHandler(
-            annotation_file=str(invalid_file), strict_mode=True
-        )
+        handler = CocoAnnotationHandler(annotation_file=str(invalid_file), strict_mode=True)
 
         result = handler.read()
 
         assert result.success is False
-        assert "Invalid JSON" in result.message or any(
-            "Invalid JSON" in e for e in result.errors
-        )
+        assert "Invalid JSON" in result.message or any("Invalid JSON" in e for e in result.errors)
 
     def test_read_missing_required_fields(self, temp_dir):
         """Test reading COCO file missing required fields."""
@@ -373,9 +362,7 @@ class TestCocoAnnotationHandler:
         }
         incomplete_file.write_text(json.dumps(incomplete_data))
 
-        handler = CocoAnnotationHandler(
-            annotation_file=str(incomplete_file), strict_mode=True
-        )
+        handler = CocoAnnotationHandler(annotation_file=str(incomplete_file), strict_mode=True)
 
         result = handler.read()
 
@@ -387,9 +374,7 @@ class TestCocoAnnotationHandler:
     def test_write_success_polygon(self, sample_coco_data, temp_dir):
         """Test successful writing of COCO polygon format."""
         # First read the sample data
-        handler = CocoAnnotationHandler(
-            annotation_file=sample_coco_data, strict_mode=True
-        )
+        handler = CocoAnnotationHandler(annotation_file=sample_coco_data, strict_mode=True)
         read_result = handler.read()
         assert read_result.success is True
 
@@ -401,9 +386,7 @@ class TestCocoAnnotationHandler:
         assert output_file.exists()
 
         # Verify the written file can be read back
-        verify_handler = CocoAnnotationHandler(
-            annotation_file=str(output_file), strict_mode=False
-        )
+        verify_handler = CocoAnnotationHandler(annotation_file=str(output_file), strict_mode=False)
         verify_result = verify_handler.read()
 
         assert verify_result.success is True
@@ -414,23 +397,19 @@ class TestCocoAnnotationHandler:
     def test_write_success_rle(self, sample_coco_data, temp_dir):
         """Test writing COCO RLE format (requires pycocotools)."""
         # Skip if pycocotools not available
-        try:
-            from pycocotools import mask as coco_mask
-        except ImportError:
+        import importlib.util
+
+        if importlib.util.find_spec("pycocotools.mask") is None:
             pytest.skip("pycocotools not installed, skipping RLE write tests")
 
         # First read the sample data
-        handler = CocoAnnotationHandler(
-            annotation_file=sample_coco_data, strict_mode=True
-        )
+        handler = CocoAnnotationHandler(annotation_file=sample_coco_data, strict_mode=True)
         read_result = handler.read()
         assert read_result.success is True
 
         # Write with RLE output
         output_file = temp_dir / "output_rle.json"
-        write_result = handler.write(
-            read_result.data, str(output_file), output_rle=True
-        )
+        write_result = handler.write(read_result.data, str(output_file), output_rle=True)
 
         assert write_result.success is True
         assert output_file.exists()
@@ -441,8 +420,7 @@ class TestCocoAnnotationHandler:
 
         # Check if any annotation has RLE segmentation
         has_rle = any(
-            isinstance(ann.get("segmentation"), dict)
-            and "counts" in ann.get("segmentation", {})
+            isinstance(ann.get("segmentation"), dict) and "counts" in ann.get("segmentation", {})
             for ann in written_data["annotations"]
         )
         assert has_rle, "RLE format not found in output"
@@ -454,9 +432,7 @@ class TestCocoAnnotationHandler:
         dataset.add_category(1, "person")
 
         bbox = BoundingBox(x=0.5, y=0.5, width=0.2, height=0.2)
-        segmentation = Segmentation(
-            points=[(0.4, 0.4), (0.6, 0.4), (0.6, 0.6), (0.4, 0.6)]
-        )
+        segmentation = Segmentation(points=[(0.4, 0.4), (0.6, 0.4), (0.6, 0.6), (0.4, 0.6)])
         obj = ObjectAnnotation(
             class_id=1,
             class_name="person",
@@ -487,9 +463,7 @@ class TestCocoAnnotationHandler:
 
     def test_validate_success(self, sample_coco_data):
         """Test successful validation of COCO file."""
-        handler = CocoAnnotationHandler(
-            annotation_file=sample_coco_data, strict_mode=True
-        )
+        handler = CocoAnnotationHandler(annotation_file=sample_coco_data, strict_mode=True)
 
         assert handler.validate() is True
 
@@ -499,9 +473,7 @@ class TestCocoAnnotationHandler:
         invalid_data = {"images": [], "annotations": [], "categories": []}
         invalid_file.write_text(json.dumps(invalid_data))
 
-        handler = CocoAnnotationHandler(
-            annotation_file=str(invalid_file), strict_mode=True
-        )
+        handler = CocoAnnotationHandler(annotation_file=str(invalid_file), strict_mode=True)
 
         # Should pass basic structure validation
         assert handler.validate() is True
@@ -511,9 +483,7 @@ class TestCocoAnnotationHandler:
         invalid_file2 = temp_dir / "invalid2.json"
         invalid_file2.write_text(json.dumps(invalid_data2))
 
-        handler2 = CocoAnnotationHandler(
-            annotation_file=str(invalid_file2), strict_mode=True
-        )
+        handler2 = CocoAnnotationHandler(annotation_file=str(invalid_file2), strict_mode=True)
 
         assert handler2.validate() is False
 
@@ -522,9 +492,7 @@ class TestCocoAnnotationHandler:
         # Mock HAS_COCO_MASK to False
         with patch("dataflow.label.coco_handler.HAS_COCO_MASK", False):
             # Test reading RLE data (should skip RLE annotations)
-            handler = CocoAnnotationHandler(
-                annotation_file=sample_coco_data, strict_mode=False
-            )
+            handler = CocoAnnotationHandler(annotation_file=sample_coco_data, strict_mode=False)
             result = handler.read()
             assert result.success is True
 
@@ -536,18 +504,14 @@ class TestCocoAnnotationHandler:
 
     def test_object_to_coco_annotation_no_annotation(self, temp_dir):
         """Test conversion of object with neither bbox nor segmentation."""
-        handler = CocoAnnotationHandler(
-            annotation_file=str(temp_dir / "dummy.json"), strict_mode=False
-        )
+        CocoAnnotationHandler(annotation_file=str(temp_dir / "dummy.json"), strict_mode=False)
 
         # Create object without bbox or segmentation (should be invalid)
         # This should raise ValueError in ObjectAnnotation.__post_init__
         with pytest.raises(
             ValueError, match="At least one of bbox or segmentation must be provided"
         ):
-            obj = ObjectAnnotation(
-                class_id=1, class_name="person", bbox=None, segmentation=None
-            )
+            ObjectAnnotation(class_id=1, class_name="person", bbox=None, segmentation=None)
 
     def test_detect_rle_format(self):
         """Test RLE format detection."""
@@ -599,9 +563,7 @@ class TestCocoAnnotationHandler:
 
     def test_output_rle_flag(self, sample_coco_data, temp_dir):
         """Test output_rle flag behavior."""
-        handler = CocoAnnotationHandler(
-            annotation_file=sample_coco_data, strict_mode=True
-        )
+        handler = CocoAnnotationHandler(annotation_file=sample_coco_data, strict_mode=True)
 
         # Read data (sets output_rle to is_rle which is False)
         result = handler.read()
@@ -621,16 +583,13 @@ class TestCocoAnnotationHandler:
             handler.output_rle is True
         )  # Actually write method saves and restores, so remains True
 
-
     # ------------------------------------------------------------------
     # Prediction mode write tests
     # ------------------------------------------------------------------
 
     def test_write_prediction_list_format(self, sample_coco_data, temp_dir):
         """prediction=True should output a plain JSON list (not a dict)."""
-        handler = CocoAnnotationHandler(
-            annotation_file=sample_coco_data, strict_mode=True
-        )
+        handler = CocoAnnotationHandler(annotation_file=sample_coco_data, strict_mode=True)
         read_result = handler.read()
         assert read_result.success is True
 
@@ -647,9 +606,7 @@ class TestCocoAnnotationHandler:
 
     def test_write_prediction_has_score(self, sample_coco_data, temp_dir):
         """Every annotation in prediction output must have a 'score' field."""
-        handler = CocoAnnotationHandler(
-            annotation_file=sample_coco_data, strict_mode=True
-        )
+        handler = CocoAnnotationHandler(annotation_file=sample_coco_data, strict_mode=True)
         read_result = handler.read()
         assert read_result.success is True
 
@@ -666,9 +623,7 @@ class TestCocoAnnotationHandler:
 
     def test_write_prediction_no_top_level_keys(self, sample_coco_data, temp_dir):
         """Prediction list must not have 'images' or 'categories' top-level keys."""
-        handler = CocoAnnotationHandler(
-            annotation_file=sample_coco_data, strict_mode=True
-        )
+        handler = CocoAnnotationHandler(annotation_file=sample_coco_data, strict_mode=True)
         read_result = handler.read()
         assert read_result.success is True
 
@@ -687,9 +642,7 @@ class TestCocoAnnotationHandler:
 
     def test_write_annotation_still_dict(self, sample_coco_data, temp_dir):
         """prediction=False (default) should still output a full COCO dict."""
-        handler = CocoAnnotationHandler(
-            annotation_file=sample_coco_data, strict_mode=True
-        )
+        handler = CocoAnnotationHandler(annotation_file=sample_coco_data, strict_mode=True)
         read_result = handler.read()
         assert read_result.success is True
 

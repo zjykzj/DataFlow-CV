@@ -9,7 +9,7 @@ import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Iterator, List, Optional, Tuple
 
 from .models import AnnotationFormat, DatasetAnnotations, ImageAnnotation
 
@@ -57,9 +57,7 @@ class AnnotationResult:
 class BaseAnnotationHandler(ABC):
     """Abstract base class for annotation format handlers."""
 
-    def __init__(
-        self, strict_mode: bool = True, logger: Optional[logging.Logger] = None
-    ):
+    def __init__(self, strict_mode: bool = True, logger: Optional[logging.Logger] = None):
         self.strict_mode = strict_mode
         self.logger = logger or logging.getLogger(__name__)
         self.is_det = False  # Whether annotations are for object detection
@@ -102,16 +100,12 @@ class BaseAnnotationHandler(ABC):
         pass
 
     @abstractmethod
-    def write(
-        self, annotations: DatasetAnnotations, *args, **kwargs
-    ) -> AnnotationResult:
+    def write(self, annotations: DatasetAnnotations, *args, **kwargs) -> AnnotationResult:
         """Write DatasetAnnotations to annotation files."""
         pass
 
     @abstractmethod
-    def write_one(
-        self, image_ann: ImageAnnotation, output_dir: Path
-    ) -> AnnotationResult:
+    def write_one(self, image_ann: ImageAnnotation, output_dir: Path) -> AnnotationResult:
         """Write annotations for a single image (streaming write).
 
         Called by the Convert module's streaming pipeline
@@ -172,10 +166,7 @@ class BaseAnnotationHandler(ABC):
         if "\x00" in image_id:
             raise ValueError(f"image_id contains null byte: {image_id!r}")
         if any(ch in image_id for ch in ("/", "\\", "..")):
-            raise ValueError(
-                f"image_id contains path traversal characters: "
-                f"{image_id!r}"
-            )
+            raise ValueError(f"image_id contains path traversal characters: {image_id!r}")
 
     def _set_annotation_flags(self, annotations: DatasetAnnotations):
         """Set handler flags based on annotation data."""
@@ -183,9 +174,7 @@ class BaseAnnotationHandler(ABC):
             obj.bbox is not None for img in annotations.images for obj in img.objects
         )
         has_segmentation = any(
-            obj.segmentation is not None
-            for img in annotations.images
-            for obj in img.objects
+            obj.segmentation is not None for img in annotations.images for obj in img.objects
         )
 
         self.is_det = has_detection
@@ -256,9 +245,7 @@ class BaseAnnotationHandler(ABC):
         # Reject NaN/Inf early — Python min/max silently coerce them
         for name, val in (("x", x), ("y", y), ("w", w), ("h", h)):
             if not math.isfinite(val):
-                raise ValueError(
-                    f"bbox.{name} must be finite, got: {val!r}"
-                )
+                raise ValueError(f"bbox.{name} must be finite, got: {val!r}")
 
         x_orig, y_orig, w_orig, h_orig = x, y, w, h
         right_orig = x_orig + w_orig
@@ -318,15 +305,12 @@ class BaseAnnotationHandler(ABC):
 
         if changed:
             self._log_warning(
-                f"Clamped polygon points to image boundaries "
-                f"[0, {img_width}] × [0, {img_height}]"
+                f"Clamped polygon points to image boundaries [0, {img_width}] × [0, {img_height}]"
             )
 
         return clamped_points
 
-    def _clamp_normalized_bbox(
-        self, cx: float, cy: float, w: float, h: float
-    ) -> tuple:
+    def _clamp_normalized_bbox(self, cx: float, cy: float, w: float, h: float) -> tuple:
         """Clamp YOLO normalized bbox edges to [0, 1].
 
         Tolerates minor floating-point imprecision at [0,1] boundaries (e.g.,
@@ -338,13 +322,13 @@ class BaseAnnotationHandler(ABC):
         """
         # Reject NaN/Inf early — Python min/max silently coerce them
         for name, val in (
-            ("cx", cx), ("cy", cy), ("w", w), ("h", h),
+            ("cx", cx),
+            ("cy", cy),
+            ("w", w),
+            ("h", h),
         ):
             if not math.isfinite(val):
-                raise ValueError(
-                    f"normalized bbox.{name} must be finite, got: "
-                    f"{val!r}"
-                )
+                raise ValueError(f"normalized bbox.{name} must be finite, got: {val!r}")
 
         cx_orig, cy_orig, w_orig, h_orig = cx, cy, w, h
 
@@ -385,9 +369,7 @@ class BaseAnnotationHandler(ABC):
 
         return cx, cy, w, h
 
-    def _clamp_normalized_points(
-        self, points: list
-    ) -> list:
+    def _clamp_normalized_points(self, points: list) -> list:
         """Clamp YOLO normalized polygon points to [0, 1].
 
         Each point (x, y) is clamped to [0, 1]. Emits a single WARNING if any
@@ -407,15 +389,11 @@ class BaseAnnotationHandler(ABC):
                 changed = True
 
         if changed:
-            self._log_warning(
-                f"Clamped normalized polygon points to [0, 1]"
-            )
+            self._log_warning("Clamped normalized polygon points to [0, 1]")
 
         return clamped_points
 
-    def _validate_bbox(
-        self, bbox, format: AnnotationFormat = AnnotationFormat.YOLO
-    ) -> bool:
+    def _validate_bbox(self, bbox, format: AnnotationFormat = AnnotationFormat.YOLO) -> bool:
         """Validate bounding box based on format-specific coordinate semantics."""
         if bbox is None:
             return True
@@ -451,17 +429,13 @@ class BaseAnnotationHandler(ABC):
             self._log_error(f"bbox overflows left boundary: x={bbox.x}, w={bbox.width}")
             return False
         if bbox.x + half_w > 1:
-            self._log_error(
-                f"bbox overflows right boundary: x={bbox.x}, w={bbox.width}"
-            )
+            self._log_error(f"bbox overflows right boundary: x={bbox.x}, w={bbox.width}")
             return False
         if bbox.y - half_h < 0:
             self._log_error(f"bbox overflows top boundary: y={bbox.y}, h={bbox.height}")
             return False
         if bbox.y + half_h > 1:
-            self._log_error(
-                f"bbox overflows bottom boundary: y={bbox.y}, h={bbox.height}"
-            )
+            self._log_error(f"bbox overflows bottom boundary: y={bbox.y}, h={bbox.height}")
             return False
 
         return True
@@ -508,9 +482,7 @@ class BaseAnnotationHandler(ABC):
 
         # Check polygon has at least 3 points
         if len(points) < 3:
-            self._log_error(
-                f"Segmentation polygon needs at least 3 points, got {len(points)}"
-            )
+            self._log_error(f"Segmentation polygon needs at least 3 points, got {len(points)}")
             return False
 
         return True

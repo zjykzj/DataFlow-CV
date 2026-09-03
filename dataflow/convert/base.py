@@ -5,15 +5,13 @@ Defines the interface and common functionality for all format converters.
 """
 
 import datetime
-import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from ..label.base import AnnotationResult, BaseAnnotationHandler
-from ..label.models import (AnnotationFormat, DatasetAnnotations,
-                              ImageAnnotation)
+from ..label.models import AnnotationFormat, DatasetAnnotations, ImageAnnotation
 
 
 @dataclass
@@ -74,9 +72,9 @@ class ConversionResult:
 {summary}
 
 Detailed processing log:
-{'-'*50}
+{"-" * 50}
 {log_entries}
-{'-'*50}
+{"-" * 50}
 Warnings: {len(self.warnings)}
 Errors: {len(self.errors)}
 """
@@ -111,9 +109,7 @@ class BaseConverter(ABC):
         from ..util.logging import LogConfig, LogManager
 
         if log_config is None:
-            log_config = LogConfig(
-                name=f"convert.{source_format}_to_{target_format}"
-            )
+            log_config = LogConfig(name=f"convert.{source_format}_to_{target_format}")
         self._log_manager = LogManager(log_config)
         self.logger = self._log_manager.logger
 
@@ -152,9 +148,7 @@ class BaseConverter(ABC):
             )
 
     @abstractmethod
-    def _convert_single_image(
-        self, image_ann: ImageAnnotation, **kwargs
-    ) -> ImageAnnotation:
+    def _convert_single_image(self, image_ann: ImageAnnotation, **kwargs) -> ImageAnnotation:
         """Convert a single ImageAnnotation from source to target format.
 
         Operates on one image at a time for the streaming pipeline.
@@ -170,9 +164,7 @@ class BaseConverter(ABC):
         """
         pass
 
-    def stream_convert(
-        self, source_path: str, target_path: str, **kwargs
-    ) -> ConversionResult:
+    def stream_convert(self, source_path: str, target_path: str, **kwargs) -> ConversionResult:
         """Convert annotations using streaming (per-image) pipeline.
 
         Sources images one at a time via ``handler.iter_images()``, converts
@@ -191,6 +183,7 @@ class BaseConverter(ABC):
             ConversionResult with conversion statistics.
         """
         import time as _time
+
         start_time = _time.time()
         result = ConversionResult(
             success=False,
@@ -202,13 +195,16 @@ class BaseConverter(ABC):
 
         # 0. Log conversion header
         from .log_templates import format_convert_header
-        self._log_info(format_convert_header(
-            source_format=self.source_format,
-            target_format=self.target_format,
-            source_path=source_path,
-            target_path=target_path,
-            strict=self.strict_mode,
-        ))
+
+        self._log_info(
+            format_convert_header(
+                source_format=self.source_format,
+                target_format=self.target_format,
+                source_path=source_path,
+                target_path=target_path,
+                strict=self.strict_mode,
+            )
+        )
 
         # Store source_path for subclasses that need it in
         # create_target_handler() (e.g., image copying in LabelMe→YOLO)
@@ -230,33 +226,21 @@ class BaseConverter(ABC):
             source_handler = self.create_source_handler(source_path, kwargs)
 
             # 3. Extract categories from source (needed for target handler)
-            self._ensure_categories_for_streaming(
-                source_handler, source_path, kwargs
-            )
+            self._ensure_categories_for_streaming(source_handler, source_path, kwargs)
 
             # 4. Create target handler
             target_handler = self.create_target_handler(target_path, kwargs)
 
             # 5. Stream: iterate, convert, write per image
-            write_dir = getattr(
-                target_handler, "label_dir",
-                Path(target_path)
-            )
+            write_dir = getattr(target_handler, "label_dir", Path(target_path))
 
             self._log_info("Converting images...")
 
             for image_ann in source_handler.iter_images():
-                target_ann = self._convert_single_image(
-                    image_ann, **kwargs
-                )
-                write_result = target_handler.write_one(
-                    target_ann, write_dir
-                )
+                target_ann = self._convert_single_image(image_ann, **kwargs)
+                write_result = target_handler.write_one(target_ann, write_dir)
                 if not write_result.success:
-                    err = (
-                        f"Failed to write {target_ann.image_id}: "
-                        f"{write_result.message}"
-                    )
+                    err = f"Failed to write {target_ann.image_id}: {write_result.message}"
                     if self.strict_mode:
                         result.add_error(err)
                         return result
@@ -265,16 +249,15 @@ class BaseConverter(ABC):
                         continue
 
                 # Per-image post-processing (e.g., image file copying)
-                self._post_stream_image(
-                    image_ann, target_ann, target_path, kwargs
-                )
+                self._post_stream_image(image_ann, target_ann, target_path, kwargs)
 
                 num_images += 1
                 num_objects += len(target_ann.objects)
 
                 if num_images % 50 == 0:
                     self._log_progress(
-                        num_images, num_objects,
+                        num_images,
+                        num_objects,
                         message=target_ann.image_path,
                     )
 
@@ -285,8 +268,7 @@ class BaseConverter(ABC):
             duration = _time.time() - start_time
             result.add_metadata("duration_seconds", f"{duration:.2f}")
             self._log_info(
-                f"Converted {num_images} images, {num_objects} objects "
-                f"in {duration:.1f}s"
+                f"Converted {num_images} images, {num_objects} objects in {duration:.1f}s"
             )
 
         except ValueError as e:
@@ -303,6 +285,7 @@ class BaseConverter(ABC):
 
         # Log conversion result (always, regardless of success/failure)
         from .log_templates import format_convert_result
+
         self._log_info(format_convert_result(result))
 
         return result
@@ -333,9 +316,7 @@ class BaseConverter(ABC):
         else:
             return self.stream_convert(source_path, target_path, **kwargs)
 
-    def _batch_convert(
-        self, source_path: str, target_path: str, **kwargs
-    ) -> ConversionResult:
+    def _batch_convert(self, source_path: str, target_path: str, **kwargs) -> ConversionResult:
         """Batch pipeline: read ALL → convert ALL → write ALL.
 
         Used when the target format is a single file (COCO JSON).
@@ -343,18 +324,22 @@ class BaseConverter(ABC):
         hooks and the optional ``_post_batch_convert()`` hook instead.
         """
         import time as _time
+
         start_time = _time.time()
         self._source_annotations_for_target = None
 
         # 0. Log conversion header
         from .log_templates import format_convert_header
-        self._log_info(format_convert_header(
-            source_format=self.source_format,
-            target_format=self.target_format,
-            source_path=source_path,
-            target_path=target_path,
-            strict=self.strict_mode,
-        ))
+
+        self._log_info(
+            format_convert_header(
+                source_format=self.source_format,
+                target_format=self.target_format,
+                source_path=source_path,
+                target_path=target_path,
+                strict=self.strict_mode,
+            )
+        )
 
         # 1. Validate inputs
         if not self.validate_inputs(source_path, target_path, kwargs):
@@ -392,17 +377,14 @@ class BaseConverter(ABC):
 
         if self._log_manager.log_path is not None:
             self.logger.debug(
-                f"Conversion completed, object count: "
-                f"{converted_annotations.num_objects}"
+                f"Conversion completed, object count: {converted_annotations.num_objects}"
             )
 
         # 4. Write data (with state cleanup guarantee)
         self._source_annotations_for_target = converted_annotations
         try:
             target_handler = self.create_target_handler(target_path, kwargs)
-            write_result = target_handler.write(
-                converted_annotations, target_path
-            )
+            write_result = target_handler.write(converted_annotations, target_path)
         finally:
             self._source_annotations_for_target = None
 
@@ -425,12 +407,8 @@ class BaseConverter(ABC):
         )
 
         if self._log_manager.log_path is not None:
-            result.add_verbose_log(
-                f"Images processed: {annotations.num_images}"
-            )
-            result.add_verbose_log(
-                f"Objects converted: {converted_annotations.num_objects}"
-            )
+            result.add_verbose_log(f"Images processed: {annotations.num_images}")
+            result.add_verbose_log(f"Objects converted: {converted_annotations.num_objects}")
             if write_result.errors:
                 for error in write_result.errors:
                     result.add_verbose_log(f"Error: {error}")
@@ -440,6 +418,7 @@ class BaseConverter(ABC):
 
         # 7. Log conversion result
         from .log_templates import format_convert_result
+
         self._log_info(format_convert_result(result))
 
         return result
@@ -461,6 +440,7 @@ class BaseConverter(ABC):
         do_rle = kwargs.get("do_rle", False)
         if do_rle and getattr(source_handler, "is_seg", False):
             from .rle_converter import RLEConverter
+
             rle_converter = RLEConverter(logger=self.logger)
             warning_msg = rle_converter.get_rle_accuracy_warning()
             result.add_warning(warning_msg)
@@ -505,9 +485,7 @@ class BaseConverter(ABC):
         try:
             target_path_obj.parent.mkdir(parents=True, exist_ok=True)
         except Exception as e:
-            self.logger.error(
-                f"Cannot create target directory {target_path_obj.parent}: {e}"
-            )
+            self.logger.error(f"Cannot create target directory {target_path_obj.parent}: {e}")
             return False
 
         # Additional format-specific validation should be implemented in subclasses
@@ -573,8 +551,7 @@ class BaseConverter(ABC):
             NotImplementedError: Always — subclasses must implement.
         """
         raise NotImplementedError(
-            "Subclass must implement convert_annotations() "
-            "for this conversion direction"
+            "Subclass must implement convert_annotations() for this conversion direction"
         )
 
     def _create_conversion_result(
@@ -632,9 +609,7 @@ class BaseConverter(ABC):
     def _log_progress(self, current: int, total_objects: int, message: str = ""):
         """Log progress during streaming conversion."""
         tail = f" - {message}" if message else ""
-        self.logger.info(
-            f"Converted {current} images, {total_objects} objects{tail}"
-        )
+        self.logger.info(f"Converted {current} images, {total_objects} objects{tail}")
 
     def _log_warning(self, message: str):
         """Log warning message."""

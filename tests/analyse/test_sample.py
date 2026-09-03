@@ -42,8 +42,7 @@ class TestSampleAnalyser:
             assert sr.seed == 42
 
             # Check output
-            txt_files = [f for f in output_dir.glob("*.txt")
-                         if f.name != "classes.txt"]
+            txt_files = [f for f in output_dir.glob("*.txt") if f.name != "classes.txt"]
             assert len(txt_files) == 1
 
             # Class file should be copied
@@ -167,6 +166,7 @@ class TestSampleAnalyser:
 
     def test_shuffle_deterministic(self):
         """Same seed should produce the same sample."""
+
         def sample_once():
             analyser = SampleAnalyser()
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -174,7 +174,8 @@ class TestSampleAnalyser:
                 result = analyser.analyse(
                     output_dir=output_dir,
                     count=1,
-                    seed=42, shuffle=True,
+                    seed=42,
+                    shuffle=True,
                     label_dir=TEST_DATA / "det" / "yolo" / "labels",
                 )
                 assert result.success
@@ -191,11 +192,17 @@ class TestSampleAnalyser:
             out_a = Path(tmpdir) / "a"
             out_b = Path(tmpdir) / "b"
             r1 = analyser.analyse(
-                output_dir=out_a, count=1, seed=42, shuffle=True,
+                output_dir=out_a,
+                count=1,
+                seed=42,
+                shuffle=True,
                 label_dir=TEST_DATA / "det" / "yolo" / "labels",
             )
             r2 = analyser.analyse(
-                output_dir=out_b, count=1, seed=99, shuffle=True,
+                output_dir=out_b,
+                count=1,
+                seed=99,
+                shuffle=True,
                 label_dir=TEST_DATA / "det" / "yolo" / "labels",
             )
             assert r1.success
@@ -213,6 +220,7 @@ class TestSampleAnalyser:
         with tempfile.TemporaryDirectory() as tmpdir:
             # Copy test data to a temp location so we can safely move it
             import shutil
+
             src_labels = Path(tmpdir) / "src_labels"
             shutil.copytree(
                 str(TEST_DATA / "det" / "yolo" / "labels"),
@@ -336,11 +344,15 @@ class TestSampleAnalyser:
             out1 = Path(tmpdir) / "a"
             out2 = Path(tmpdir) / "b"
             r1 = analyser.analyse(
-                output_dir=out1, count=1, shuffle=False,
+                output_dir=out1,
+                count=1,
+                shuffle=False,
                 label_dir=TEST_DATA / "det" / "yolo" / "labels",
             )
             r2 = analyser.analyse(
-                output_dir=out2, count=1, shuffle=False,
+                output_dir=out2,
+                count=1,
+                shuffle=False,
                 label_dir=TEST_DATA / "det" / "yolo" / "labels",
             )
             assert r1.success

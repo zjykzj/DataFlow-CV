@@ -5,7 +5,6 @@ Defines the template-method pipeline for COCO evaluation and shared
 logging / validation logic used by all concrete evaluators.
 """
 
-import logging
 import os
 from abc import ABC, abstractmethod
 from contextlib import redirect_stdout
@@ -27,6 +26,7 @@ from .utils import (
     _validate_coco_available,
     _validate_dt_scores,
 )
+from dataflow.util.logging import LogConfig
 
 
 class BaseEvaluator(ABC):
@@ -125,15 +125,11 @@ class BaseEvaluator(ABC):
             # 7. Per-class (verbose only)
             if self._log_config.verbose:
                 self._log_info("Computing per-class metrics...")
-                result.per_class = self._compute_per_class(
-                    coco_eval, coco_gt, coco_dt
-                )
+                result.per_class = self._compute_per_class(coco_eval, coco_gt, coco_dt)
 
             result.success = True
             result.log_path = self._log_manager.log_path
-            self._log_info(
-                f"Evaluation complete: {result.get_summary()}"
-            )
+            self._log_info(f"Evaluation complete: {result.get_summary()}")
 
         except ValueError as e:
             # Validation errors are newline-separated — add each
@@ -168,9 +164,7 @@ class BaseEvaluator(ABC):
     # Validation
     # ------------------------------------------------------------------
 
-    def validate_inputs(
-        self, coco_gt: Any, coco_dt: Any
-    ) -> Tuple[bool, List[str]]:
+    def validate_inputs(self, coco_gt: Any, coco_dt: Any) -> Tuple[bool, List[str]]:
         """Validate GT and DT before evaluation.
 
         Returns:
@@ -417,9 +411,7 @@ class BaseEvaluator(ABC):
                         m.precision = float(p_at_r) if p_at_r > -1 else 0.0
 
                     if m.precision + m.recall > 0:
-                        m.f1_score = (
-                            2.0 * m.precision * m.recall / (m.precision + m.recall)
-                        )
+                        m.f1_score = 2.0 * m.precision * m.recall / (m.precision + m.recall)
 
                 # Estimate TP/FP/FN from recall and precision at IoU=0.50
                 if m.recall > 0 and m.gt_count > 0:
@@ -433,9 +425,7 @@ class BaseEvaluator(ABC):
                     m.fn = m.gt_count
 
             except (IndexError, KeyError) as e:
-                self._log_warning(
-                    f"Could not compute per-class metrics for '{m.class_name}': {e}"
-                )
+                self._log_warning(f"Could not compute per-class metrics for '{m.class_name}': {e}")
 
             per_class[cat_id] = m
 

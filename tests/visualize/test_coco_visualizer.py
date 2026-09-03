@@ -2,7 +2,6 @@
 Unit tests for COCOVisualizer.
 """
 
-import json
 import shutil
 import tempfile
 from pathlib import Path
@@ -46,7 +45,6 @@ class TestCOCOVisualizer:
             image_dir=TEST_DATA_DET / "images",
             is_show=False,
             is_save=False,
-
         )
         assert visualizer.annotation_file == annotation_file
         assert visualizer.image_dir == TEST_DATA_DET / "images"
@@ -116,14 +114,11 @@ class TestCOCOVisualizer:
             image_dir=TEST_DATA_DET / "images",
             is_show=False,
             is_save=False,
-
         )
 
         result = visualizer.visualize()
         assert result.success is True
-        image_count = sum(
-            1 for _ in visualizer._create_handler().iter_images()
-        )
+        image_count = sum(1 for _ in visualizer._create_handler().iter_images())
         assert result.data["processed_count"] == image_count
         assert "Visualization completed:" in result.message
 
@@ -138,15 +133,12 @@ class TestCOCOVisualizer:
             is_show=False,
             is_save=True,
             output_dir=temp_dir,
-
         )
 
         result = visualizer.visualize()
         assert result.success is True
 
-        image_count = sum(
-            1 for _ in visualizer._create_handler().iter_images()
-        )
+        image_count = sum(1 for _ in visualizer._create_handler().iter_images())
         output_files = list(temp_dir.glob("*_visualized.jpg"))
         assert len(output_files) == image_count
 
@@ -157,7 +149,6 @@ class TestCOCOVisualizer:
                 image_dir="/invalid/images",
                 is_show=False,
                 is_save=False,
-    
             )
             handler = visualizer._create_handler()
             list(handler.iter_images())
@@ -171,7 +162,6 @@ class TestCOCOVisualizer:
             image_dir=temp_dir,
             is_show=False,
             is_save=False,
-
         )
 
         with pytest.raises(ValueError):
@@ -220,8 +210,6 @@ class TestCOCOVisualizer:
         result = visualizer.visualize()
         assert result.success is True
 
-        image_count = sum(
-            1 for _ in visualizer._create_handler().iter_images()
-        )
+        image_count = sum(1 for _ in visualizer._create_handler().iter_images())
         output_files = list(temp_dir.glob("*_visualized.jpg"))
         assert len(output_files) == image_count

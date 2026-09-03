@@ -11,7 +11,7 @@ and ``format_prf1_output`` functions (previously in ``evaluate/utils.py``).
 
 from typing import Any, Dict, List, Optional
 
-from dataflow.util.logging import format_divider, format_section, format_kv, format_result_block
+from dataflow.util.logging import format_divider, format_section, format_result_block
 
 
 # ---------------------------------------------------------------------------
@@ -36,7 +36,9 @@ def format_eval_header(
     """
     lines: List[str] = []
     lines.append(format_divider())
-    lines.append(f"Evaluate: {'Detection (bbox IoU)' if iou_type == 'bbox' else 'Segmentation (mask IoU)'}")
+    lines.append(
+        f"Evaluate: {'Detection (bbox IoU)' if iou_type == 'bbox' else 'Segmentation (mask IoU)'}"
+    )
     lines.append(
         f"  GT:  {gt_stats.get('images', 0)} images, "
         f"{gt_stats.get('annotations', 0)} annotations, "
@@ -104,18 +106,42 @@ def format_metric_table(metrics: Any) -> str:
         Formatted string suitable for console output.
     """
     lines = [
-        " Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = {:.3f}".format(metrics.ap),
-        " Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = {:.3f}".format(metrics.ap50),
-        " Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = {:.3f}".format(metrics.ap75),
-        " Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = {:.3f}".format(metrics.ap_small),
-        " Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = {:.3f}".format(metrics.ap_medium),
-        " Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = {:.3f}".format(metrics.ap_large),
-        " Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = {:.3f}".format(metrics.ar_max_1),
-        " Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = {:.3f}".format(metrics.ar_max_10),
-        " Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = {:.3f}".format(metrics.ar_max_100),
-        " Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = {:.3f}".format(metrics.ar_small),
-        " Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = {:.3f}".format(metrics.ar_medium),
-        " Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = {:.3f}".format(metrics.ar_large),
+        " Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = {:.3f}".format(
+            metrics.ap
+        ),
+        " Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = {:.3f}".format(
+            metrics.ap50
+        ),
+        " Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = {:.3f}".format(
+            metrics.ap75
+        ),
+        " Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = {:.3f}".format(
+            metrics.ap_small
+        ),
+        " Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = {:.3f}".format(
+            metrics.ap_medium
+        ),
+        " Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = {:.3f}".format(
+            metrics.ap_large
+        ),
+        " Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = {:.3f}".format(
+            metrics.ar_max_1
+        ),
+        " Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = {:.3f}".format(
+            metrics.ar_max_10
+        ),
+        " Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = {:.3f}".format(
+            metrics.ar_max_100
+        ),
+        " Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = {:.3f}".format(
+            metrics.ar_small
+        ),
+        " Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = {:.3f}".format(
+            metrics.ar_medium
+        ),
+        " Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = {:.3f}".format(
+            metrics.ar_large
+        ),
     ]
     return "\n".join(lines)
 

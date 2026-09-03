@@ -2,8 +2,6 @@
 Unit tests for label utility functions.
 """
 
-import pytest
-
 from dataflow.label.utils import parse_yolo_class_id
 
 

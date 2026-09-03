@@ -12,6 +12,7 @@ from dataflow.util.logging import LogConfig
 
 def add_visualize_options(func):
     """Decorator: add visualize-specific options"""
+
     @click.option(
         "--verbose",
         is_flag=True,
@@ -38,6 +39,7 @@ def add_visualize_options(func):
         ctx.obj["log_dir"] = Path(log_dir)
         # No logger creation — logging is module-owned
         return func(ctx, *args, **kwargs)
+
     return wrapper
 
 
@@ -73,7 +75,7 @@ def yolo(
 
     # Build log config
     log_config = LogConfig(
-        name=f"visualize.yolo",
+        name="visualize.yolo",
         verbose=ctx.obj["verbose"],
         log_dir=ctx.obj["log_dir"],
     )
@@ -95,7 +97,9 @@ def yolo(
         click.echo(f"Log saved to: {result.log_path}")
 
     if result.success:
-        click.echo(f"Visualization completed: processed {result.data.get('processed_count', 0)} images")
+        click.echo(
+            f"Visualization completed: processed {result.data.get('processed_count', 0)} images"
+        )
     else:
         # Use result.message if available, otherwise fall back to errors list
         error_msg = result.message
@@ -129,7 +133,7 @@ def labelme(
 
     # Build log config
     log_config = LogConfig(
-        name=f"visualize.labelme",
+        name="visualize.labelme",
         verbose=ctx.obj["verbose"],
         log_dir=ctx.obj["log_dir"],
     )
@@ -150,7 +154,9 @@ def labelme(
         click.echo(f"Log saved to: {result.log_path}")
 
     if result.success:
-        click.echo(f"Visualization completed: processed {result.data.get('processed_count', 0)} images")
+        click.echo(
+            f"Visualization completed: processed {result.data.get('processed_count', 0)} images"
+        )
     else:
         error_msg = result.message
         if not error_msg and result.errors:
@@ -183,7 +189,7 @@ def coco(
 
     # Build log config
     log_config = LogConfig(
-        name=f"visualize.coco",
+        name="visualize.coco",
         verbose=ctx.obj["verbose"],
         log_dir=ctx.obj["log_dir"],
     )
@@ -204,7 +210,9 @@ def coco(
         click.echo(f"Log saved to: {result.log_path}")
 
     if result.success:
-        click.echo(f"Visualization completed: processed {result.data.get('processed_count', 0)} images")
+        click.echo(
+            f"Visualization completed: processed {result.data.get('processed_count', 0)} images"
+        )
     else:
         error_msg = result.message
         if not error_msg and result.errors:

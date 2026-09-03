@@ -18,6 +18,7 @@ from ..label.models import BoundingBox, DatasetAnnotations, Segmentation
 # Shared coordinate transforms
 # ---------------------------------------------------------------------------
 
+
 def yolo_to_absolute_pixel(
     bbox: Optional[BoundingBox],
     seg: Optional[Segmentation],
@@ -43,17 +44,13 @@ def yolo_to_absolute_pixel(
 
     if bbox:
         if img_width <= 0 or img_height <= 0:
-            raise ValueError(
-                f"Image dimensions must be positive, got {img_width}x{img_height}"
-            )
+            raise ValueError(f"Image dimensions must be positive, got {img_width}x{img_height}")
         # Reject NaN/Inf before arithmetic (Python min/max silently
         # coerce them in downstream clamping).
         for field_name in ("x", "y", "width", "height"):
             val = getattr(bbox, field_name)
             if not math.isfinite(val):
-                raise ValueError(
-                    f"bbox.{field_name} must be finite, got: {val!r}"
-                )
+                raise ValueError(f"bbox.{field_name} must be finite, got: {val!r}")
         cx_abs = bbox.x * img_width
         cy_abs = bbox.y * img_height
         w_abs = bbox.width * img_width
@@ -64,19 +61,12 @@ def yolo_to_absolute_pixel(
 
     if seg:
         if img_width <= 0 or img_height <= 0:
-            raise ValueError(
-                f"Image dimensions must be positive, got {img_width}x{img_height}"
-            )
-        new_points = [
-            (x * img_width, y * img_height) for x, y in seg.points
-        ]
+            raise ValueError(f"Image dimensions must be positive, got {img_width}x{img_height}")
+        new_points = [(x * img_width, y * img_height) for x, y in seg.points]
         # Validate points are finite before using them
         for i, (x, y) in enumerate(new_points):
             if not math.isfinite(x) or not math.isfinite(y):
-                raise ValueError(
-                    f"segmentation point[{i}] must be finite, "
-                    f"got: ({x!r}, {y!r})"
-                )
+                raise ValueError(f"segmentation point[{i}] must be finite, got: ({x!r}, {y!r})")
         new_seg = Segmentation(points=new_points, rle=seg.rle)
 
     return new_bbox, new_seg
@@ -107,17 +97,13 @@ def absolute_pixel_to_yolo(
 
     if bbox:
         if img_width <= 0 or img_height <= 0:
-            raise ValueError(
-                f"Image dimensions must be positive, got {img_width}x{img_height}"
-            )
+            raise ValueError(f"Image dimensions must be positive, got {img_width}x{img_height}")
         # Reject NaN/Inf before arithmetic (Python min/max silently
         # coerce them in downstream clamping).
         for field_name in ("x", "y", "width", "height"):
             val = getattr(bbox, field_name)
             if not math.isfinite(val):
-                raise ValueError(
-                    f"bbox.{field_name} must be finite, got: {val!r}"
-                )
+                raise ValueError(f"bbox.{field_name} must be finite, got: {val!r}")
         cx_abs = bbox.x + bbox.width / 2
         cy_abs = bbox.y + bbox.height / 2
         cx_norm = cx_abs / img_width
@@ -128,19 +114,12 @@ def absolute_pixel_to_yolo(
 
     if seg:
         if img_width <= 0 or img_height <= 0:
-            raise ValueError(
-                f"Image dimensions must be positive, got {img_width}x{img_height}"
-            )
-        new_points = [
-            (x / img_width, y / img_height) for x, y in seg.points
-        ]
+            raise ValueError(f"Image dimensions must be positive, got {img_width}x{img_height}")
+        new_points = [(x / img_width, y / img_height) for x, y in seg.points]
         # Validate points are finite before using them
         for i, (x, y) in enumerate(new_points):
             if not math.isfinite(x) or not math.isfinite(y):
-                raise ValueError(
-                    f"segmentation point[{i}] must be finite, "
-                    f"got: ({x!r}, {y!r})"
-                )
+                raise ValueError(f"segmentation point[{i}] must be finite, got: ({x!r}, {y!r})")
         new_seg = Segmentation(points=new_points, rle=seg.rle)
 
     return new_bbox, new_seg
@@ -149,6 +128,7 @@ def absolute_pixel_to_yolo(
 # ---------------------------------------------------------------------------
 # COCO helpers
 # ---------------------------------------------------------------------------
+
 
 def ensure_coco_categories_for_streaming(
     converter: Any,
@@ -180,12 +160,9 @@ def ensure_coco_categories_for_streaming(
         )
 
     # If still no categories and source is COCO, read from JSON
-    if (
-        converter.source_format == "coco"
-        and (
-            not converter._source_annotations_for_target
-            or not converter._source_annotations_for_target.categories
-        )
+    if converter.source_format == "coco" and (
+        not converter._source_annotations_for_target
+        or not converter._source_annotations_for_target.categories
     ):
         categories_dict = read_coco_categories(source_path)
         if categories_dict:
@@ -305,10 +282,7 @@ def ensure_categories_in_annotations(
     if annotations.categories:
         # Check for conflicts
         for cat_id, cat_name in categories.items():
-            if (
-                cat_id in annotations.categories
-                and annotations.categories[cat_id] != cat_name
-            ):
+            if cat_id in annotations.categories and annotations.categories[cat_id] != cat_name:
                 logging.getLogger(__name__).warning(
                     f"Category ID {cat_id} conflict: "
                     f"existing='{annotations.categories[cat_id]}', new='{cat_name}'"

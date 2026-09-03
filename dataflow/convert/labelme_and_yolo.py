@@ -7,11 +7,10 @@ Supports both object detection and instance segmentation annotations.
 
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from ..label.labelme_handler import LabelMeAnnotationHandler
-from ..label.models import (AnnotationFormat, DatasetAnnotations,
-                            ImageAnnotation, ObjectAnnotation)
+from ..label.models import AnnotationFormat, DatasetAnnotations, ImageAnnotation, ObjectAnnotation
 from ..label.yolo_handler import YoloAnnotationHandler
 from .base import BaseConverter
 
@@ -75,9 +74,7 @@ class LabelMeAndYoloConverter(BaseConverter):
         else:  # YOLO → LabelMe
             image_dir = kwargs.get("image_dir")
             if not image_dir:
-                self.logger.error(
-                    "image_dir parameter is required for YOLO→LabelMe conversion"
-                )
+                self.logger.error("image_dir parameter is required for YOLO→LabelMe conversion")
                 return False
 
             image_dir_path = Path(image_dir)
@@ -246,16 +243,11 @@ class LabelMeAndYoloConverter(BaseConverter):
             if not target_image_path.exists():
                 shutil.copy2(source_image_path, target_image_path)
         except FileNotFoundError:
-            self.logger.warning(
-                f"Source image does not exist, skipping copy: {source_image_path}"
-            )
+            self.logger.warning(f"Source image does not exist, skipping copy: {source_image_path}")
         except OSError as e:
-            self.logger.warning(
-                f"Failed to copy image {source_image_path}: {e}"
-            )
-    def _convert_single_image(
-        self, image_ann: ImageAnnotation, **kwargs
-    ) -> ImageAnnotation:
+            self.logger.warning(f"Failed to copy image {source_image_path}: {e}")
+
+    def _convert_single_image(self, image_ann: ImageAnnotation, **kwargs) -> ImageAnnotation:
         """Convert a single ImageAnnotation from source to target format.
 
         Dispatches based on source format.
@@ -265,9 +257,7 @@ class LabelMeAndYoloConverter(BaseConverter):
         else:
             return self._normalized_to_absolute_one(image_ann)
 
-    def _absolute_to_normalized_one(
-        self, img: ImageAnnotation
-    ) -> ImageAnnotation:
+    def _absolute_to_normalized_one(self, img: ImageAnnotation) -> ImageAnnotation:
         """Convert single image: LabelMe absolute px → YOLO normalized center."""
         from .utils import absolute_pixel_to_yolo
 
@@ -276,14 +266,16 @@ class LabelMeAndYoloConverter(BaseConverter):
             new_bbox, new_seg = absolute_pixel_to_yolo(
                 obj.bbox, obj.segmentation, img.width, img.height
             )
-            new_objects.append(ObjectAnnotation(
-                class_id=obj.class_id,
-                class_name=obj.class_name,
-                bbox=new_bbox,
-                segmentation=new_seg,
-                confidence=obj.confidence,
-                is_crowd=obj.is_crowd,
-            ))
+            new_objects.append(
+                ObjectAnnotation(
+                    class_id=obj.class_id,
+                    class_name=obj.class_name,
+                    bbox=new_bbox,
+                    segmentation=new_seg,
+                    confidence=obj.confidence,
+                    is_crowd=obj.is_crowd,
+                )
+            )
 
         return ImageAnnotation(
             image_id=img.image_id,
@@ -293,9 +285,7 @@ class LabelMeAndYoloConverter(BaseConverter):
             objects=new_objects,
         )
 
-    def _normalized_to_absolute_one(
-        self, img: ImageAnnotation
-    ) -> ImageAnnotation:
+    def _normalized_to_absolute_one(self, img: ImageAnnotation) -> ImageAnnotation:
         """Convert single image: YOLO normalized center → LabelMe absolute px."""
         from .utils import yolo_to_absolute_pixel
 
@@ -304,14 +294,16 @@ class LabelMeAndYoloConverter(BaseConverter):
             new_bbox, new_seg = yolo_to_absolute_pixel(
                 obj.bbox, obj.segmentation, img.width, img.height
             )
-            new_objects.append(ObjectAnnotation(
-                class_id=obj.class_id,
-                class_name=obj.class_name,
-                bbox=new_bbox,
-                segmentation=new_seg,
-                confidence=obj.confidence,
-                is_crowd=obj.is_crowd,
-            ))
+            new_objects.append(
+                ObjectAnnotation(
+                    class_id=obj.class_id,
+                    class_name=obj.class_name,
+                    bbox=new_bbox,
+                    segmentation=new_seg,
+                    confidence=obj.confidence,
+                    is_crowd=obj.is_crowd,
+                )
+            )
 
         return ImageAnnotation(
             image_id=img.image_id,
@@ -329,9 +321,7 @@ class LabelMeAndYoloConverter(BaseConverter):
         Delegates to ``_convert_single_image()`` per image.
         """
         target_format = (
-            AnnotationFormat.YOLO
-            if self.target_format == "yolo"
-            else AnnotationFormat.LABELME
+            AnnotationFormat.YOLO if self.target_format == "yolo" else AnnotationFormat.LABELME
         )
         target = DatasetAnnotations(format=target_format)
         target.categories = source_annotations.categories.copy()

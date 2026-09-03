@@ -75,9 +75,7 @@ class LogManager:
     _CONSOLE_DATE_FORMAT = "%H:%M:%S"
 
     # File format (verbose — includes module name and line number)
-    _FILE_FORMAT = (
-        "%(asctime)s  %(levelname)-7s  %(name)s:%(lineno)d  %(message)s"
-    )
+    _FILE_FORMAT = "%(asctime)s  %(levelname)-7s  %(name)s:%(lineno)d  %(message)s"
     _FILE_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
     # Rotating file limits
@@ -104,9 +102,7 @@ class LogManager:
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.INFO)
         console_handler.setFormatter(
-            logging.Formatter(
-                self._CONSOLE_FORMAT, datefmt=self._CONSOLE_DATE_FORMAT
-            )
+            logging.Formatter(self._CONSOLE_FORMAT, datefmt=self._CONSOLE_DATE_FORMAT)
         )
         logger.addHandler(console_handler)
 
@@ -126,9 +122,7 @@ class LogManager:
             )
             file_handler.setLevel(logging.DEBUG)
             file_handler.setFormatter(
-                logging.Formatter(
-                    self._FILE_FORMAT, datefmt=self._FILE_DATE_FORMAT
-                )
+                logging.Formatter(self._FILE_FORMAT, datefmt=self._FILE_DATE_FORMAT)
             )
             logger.addHandler(file_handler)
 
@@ -178,7 +172,7 @@ def format_section(title: str) -> str:
 
     Example: ``"── Load ──"``
     """
-    return f"{_DEFAULT_CHAR*2} {title} {_DEFAULT_CHAR*2}"
+    return f"{_DEFAULT_CHAR * 2} {title} {_DEFAULT_CHAR * 2}"
 
 
 def format_kv(key: str, value: Any, indent: int = 2) -> str:
@@ -255,23 +249,11 @@ def format_table(
         return "│" + "│".join(parts) + "│"
 
     # Top border
-    border = (
-        "┌"
-        + "┬".join("─" * (w + 2) for w in col_widths)
-        + "┐"
-    )
+    border = "┌" + "┬".join("─" * (w + 2) for w in col_widths) + "┐"
     # Separator
-    sep = (
-        "├"
-        + "┼".join("─" * (w + 2) for w in col_widths)
-        + "┤"
-    )
+    sep = "├" + "┼".join("─" * (w + 2) for w in col_widths) + "┤"
     # Bottom border
-    bottom = (
-        "└"
-        + "┴".join("─" * (w + 2) for w in col_widths)
-        + "┘"
-    )
+    bottom = "└" + "┴".join("─" * (w + 2) for w in col_widths) + "┘"
 
     output = [border, _format_row(headers), sep]
     for row in rows:
@@ -314,6 +296,4 @@ def detect_image_error(message: str) -> bool:
         ``True`` if the message appears to be image-related.
     """
     msg_lower = message.lower()
-    return "image" in msg_lower and any(
-        kw in msg_lower for kw in _IMAGE_ERROR_KEYWORDS
-    )
+    return "image" in msg_lower and any(kw in msg_lower for kw in _IMAGE_ERROR_KEYWORDS)

@@ -10,9 +10,14 @@ from pathlib import Path
 import pytest
 
 from dataflow.label.labelme_handler import LabelMeAnnotationHandler
-from dataflow.label.models import (AnnotationFormat, BoundingBox,
-                                   DatasetAnnotations, ImageAnnotation,
-                                   ObjectAnnotation, Segmentation)
+from dataflow.label.models import (
+    AnnotationFormat,
+    BoundingBox,
+    DatasetAnnotations,
+    ImageAnnotation,
+    ObjectAnnotation,
+    Segmentation,
+)
 
 
 class TestLabelMeAnnotationHandler:
@@ -87,9 +92,7 @@ class TestLabelMeAnnotationHandler:
 
     def test_read_success(self, labelme_dir_with_data):
         """Test successful reading of LabelMe annotations."""
-        handler = LabelMeAnnotationHandler(
-            label_dir=str(labelme_dir_with_data), strict_mode=True
-        )
+        handler = LabelMeAnnotationHandler(label_dir=str(labelme_dir_with_data), strict_mode=True)
 
         result = handler.read()
         assert result.success is True
@@ -296,9 +299,7 @@ class TestLabelMeAnnotationHandler:
                 ObjectAnnotation(
                     class_id=1,
                     class_name="dog",
-                    segmentation=Segmentation(
-                        points=[(10, 10), (20, 10), (20, 20)]
-                    ),
+                    segmentation=Segmentation(points=[(10, 10), (20, 10), (20, 20)]),
                 ),
             ],
         )

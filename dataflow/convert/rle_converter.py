@@ -127,7 +127,7 @@ class RLEConverter:
             ValueError: If RLE dict is invalid or image dimensions are invalid
         """
         if not rle or "size" not in rle or "counts" not in rle:
-            raise ValueError(f"Invalid RLE dict: missing 'size' or 'counts' fields")
+            raise ValueError("Invalid RLE dict: missing 'size' or 'counts' fields")
 
         if img_width <= 0 or img_height <= 0:
             raise ValueError(f"Invalid image dimensions: {img_width}x{img_height}")
@@ -152,9 +152,7 @@ class RLEConverter:
             # Extract contours from mask
             import cv2
 
-            contours, _ = cv2.findContours(
-                binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-            )
+            contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
             if not contours:
                 self.logger.warning("No contours found in RLE mask")
@@ -221,12 +219,7 @@ class RLEConverter:
             return False
 
         height, width = size
-        if (
-            not isinstance(height, int)
-            or not isinstance(width, int)
-            or height <= 0
-            or width <= 0
-        ):
+        if not isinstance(height, int) or not isinstance(width, int) or height <= 0 or width <= 0:
             return False
 
         return True

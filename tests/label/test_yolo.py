@@ -10,9 +10,7 @@ import cv2
 import numpy as np
 import pytest
 
-from dataflow.label.models import (BoundingBox, DatasetAnnotations,
-                                   ImageAnnotation, ObjectAnnotation,
-                                   Segmentation)
+from dataflow.label.models import BoundingBox, DatasetAnnotations, ObjectAnnotation, Segmentation
 from dataflow.label.yolo_handler import YoloAnnotationHandler
 
 
@@ -581,11 +579,14 @@ class TestYoloAnnotationHandler:
         # Verify that a warning was logged about the missing image
         warning_logged = False
         for record in caplog.records:
-            if ("Skipping" in record.message and "test.txt" in record.message) or \
-               ("No corresponding image found" in record.message):
+            if ("Skipping" in record.message and "test.txt" in record.message) or (
+                "No corresponding image found" in record.message
+            ):
                 warning_logged = True
                 break
-        assert warning_logged, f"Expected warning about missing image, but got logs: {caplog.records}"
+        assert warning_logged, (
+            f"Expected warning about missing image, but got logs: {caplog.records}"
+        )
 
     def test_write_detection_success(self, sample_detection_data):
         """Test successful writing of detection annotations."""
@@ -979,9 +980,7 @@ class TestYoloAnnotationHandler:
 
         # No warning for sub-threshold clamping
         warnings = [r.message for r in caplog.records if r.levelname == "WARNING"]
-        assert not any(
-            "Clamped normalized bbox to [0, 1]" in w for w in warnings
-        )
+        assert not any("Clamped normalized bbox to [0, 1]" in w for w in warnings)
 
         # Verify clamped values
         dataset = result.data
@@ -1050,9 +1049,7 @@ class TestYoloAnnotationHandler:
 
         # No warning for sub-threshold clamping
         warnings = [r.message for r in caplog.records if r.levelname == "WARNING"]
-        assert not any(
-            "Clamped normalized polygon points" in w for w in warnings
-        )
+        assert not any("Clamped normalized polygon points" in w for w in warnings)
 
         # Verify clamped point values
         dataset = result.data

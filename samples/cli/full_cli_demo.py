@@ -24,6 +24,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+
 def run_cli_command(cmd_args, check=True):
     """Run CLI command and return result"""
     cmd = [sys.executable, "-m", "dataflow.cli.main"] + cmd_args
@@ -56,17 +57,19 @@ def run_cli_command(cmd_args, check=True):
         print(f"Error: Exception occurred while executing command: {e}")
         return False
 
+
 def cleanup_directory(dir_path):
     """Clean up directory"""
     if dir_path.exists():
         shutil.rmtree(dir_path)
     dir_path.mkdir(parents=True, exist_ok=True)
 
+
 def step1_visualize_yolo():
     """Step 1: Visualize original YOLO labels"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Step 1: Visualize original YOLO labels")
-    print("="*60)
+    print("=" * 60)
 
     yolo_dir = project_root / "assets" / "test_data" / "seg" / "yolo"
     class_file = yolo_dir / "classes.txt"
@@ -76,14 +79,15 @@ def step1_visualize_yolo():
     cleanup_directory(output_dir)
 
     cmd = [
-        "visualize", "yolo",
+        "visualize",
+        "yolo",
         "--no-display",
         str(image_dir),  # image_dir (positional)
         str(yolo_dir / "labels"),  # label_dir (positional)
         str(class_file),  # class_file (positional)
         "--save",
         str(output_dir),  # output directory for --save
-        "--verbose"
+        "--verbose",
     ]
 
     success = run_cli_command(cmd)
@@ -95,11 +99,12 @@ def step1_visualize_yolo():
         print("✗ Step 1 failed")
         return False, None
 
+
 def step2_yolo_to_coco():
     """Step 2: YOLO to COCO format conversion"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Step 2: YOLO to COCO format conversion")
-    print("="*60)
+    print("=" * 60)
 
     yolo_dir = project_root / "assets" / "test_data" / "seg" / "yolo"
     class_file = yolo_dir / "classes.txt"
@@ -110,12 +115,13 @@ def step2_yolo_to_coco():
         output_file.unlink()
 
     cmd = [
-        "convert", "yolo2coco",
-        str(image_dir),     # IMAGE_DIR (positional)
+        "convert",
+        "yolo2coco",
+        str(image_dir),  # IMAGE_DIR (positional)
         str(yolo_dir / "labels"),  # LABEL_DIR (positional)
-        str(class_file),    # CLASS_FILE (positional)
-        str(output_file),   # OUTPUT_FILE (positional)
-        "--verbose"
+        str(class_file),  # CLASS_FILE (positional)
+        str(output_file),  # OUTPUT_FILE (positional)
+        "--verbose",
     ]
 
     success = run_cli_command(cmd)
@@ -127,17 +133,20 @@ def step2_yolo_to_coco():
                 image_count = len(data.get("images", []))
                 annotation_count = len(data.get("annotations", []))
                 category_count = len(data.get("categories", []))
-                print(f"✓ Step 2 completed: Conversion successful, contains {image_count} images, {annotation_count} annotations, {category_count} categories")
+                print(
+                    f"✓ Step 2 completed: Conversion successful, contains {image_count} images, {annotation_count} annotations, {category_count} categories"
+                )
         return True, output_file
     else:
         print("✗ Step 2 failed")
         return False, None
 
+
 def step3_visualize_coco(coco_file):
     """Step 3: Visualize COCO labels"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Step 3: Visualize COCO labels")
-    print("="*60)
+    print("=" * 60)
 
     image_dir = project_root / "assets" / "test_data" / "seg" / "coco" / "images"
     output_dir = project_root / "temp_output" / "full_demo" / "step3_coco_visualization"
@@ -145,13 +154,14 @@ def step3_visualize_coco(coco_file):
     cleanup_directory(output_dir)
 
     cmd = [
-        "visualize", "coco",
+        "visualize",
+        "coco",
         "--no-display",
         str(image_dir),  # image_dir (positional)
         str(coco_file),  # coco_file (positional)
         "--save",
         str(output_dir),  # output directory for --save
-        "--verbose"
+        "--verbose",
     ]
 
     success = run_cli_command(cmd)
@@ -163,22 +173,23 @@ def step3_visualize_coco(coco_file):
         print("✗ Step 3 failed")
         return False, None
 
+
 def step4_coco_to_yolo(coco_file):
     """Step 4: COCO to YOLO format conversion"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Step 4: COCO to YOLO format conversion")
-    print("="*60)
+    print("=" * 60)
 
-    image_dir = project_root / "assets" / "test_data" / "seg" / "coco" / "images"
     output_dir = project_root / "temp_output" / "full_demo" / "step4_yolo_converted"
 
     cleanup_directory(output_dir)
 
     cmd = [
-        "convert", "coco2yolo",
-        str(coco_file),    # COCO_FILE (positional)
-        str(output_dir),   # OUTPUT_DIR (positional)
-        "--verbose"
+        "convert",
+        "coco2yolo",
+        str(coco_file),  # COCO_FILE (positional)
+        str(output_dir),  # OUTPUT_DIR (positional)
+        "--verbose",
     ]
 
     success = run_cli_command(cmd)
@@ -197,15 +208,18 @@ def step4_coco_to_yolo(coco_file):
         print("✗ Step 4 failed")
         return False, None
 
+
 def step5_compare_yolo_dirs(original_dir, converted_dir):
     """Step 5: Compare original YOLO and converted YOLO directories"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Step 5: Verify conversion accuracy")
-    print("="*60)
+    print("=" * 60)
 
     # YOLO label files may be in the labels subdirectory
     original_labels_dir = original_dir
-    converted_labels_dir = converted_dir / "labels" if (converted_dir / "labels").exists() else converted_dir
+    converted_labels_dir = (
+        converted_dir / "labels" if (converted_dir / "labels").exists() else converted_dir
+    )
 
     # Find all .txt files (recursive)
     original_files = list(original_labels_dir.rglob("*.txt"))
@@ -226,17 +240,18 @@ def step5_compare_yolo_dirs(original_dir, converted_dir):
         print("✗ File count does not match, conversion may have issues")
         return False
 
+
 def main():
     """Main function"""
     print("DataFlow-CV CLI complete workflow demonstration")
-    print("="*60)
+    print("=" * 60)
     print("This demonstration will show a complete label processing workflow:")
     print("1. Visualize original YOLO labels")
     print("2. Convert YOLO labels to COCO format")
     print("3. Visualize converted COCO labels")
     print("4. Convert COCO labels back to YOLO format")
     print("5. Verify conversion accuracy")
-    print("="*60)
+    print("=" * 60)
 
     # Check if test data exists
     test_data_root = project_root / "assets" / "test_data" / "seg"
@@ -288,9 +303,9 @@ def main():
         results["step5"] = False
 
     # Summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Workflow demonstration summary")
-    print("="*60)
+    print("=" * 60)
     print("Step completion status:")
     for i, (step, success) in enumerate(results.items(), 1):
         status = "✓" if success else "✗"
@@ -315,6 +330,7 @@ def main():
         print("\n✗ Workflow demonstration partially failed")
         print("Please check error messages, or try running each step individually")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

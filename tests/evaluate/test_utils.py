@@ -1,7 +1,6 @@
 """Tests for evaluate utilities."""
 
 import json
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -224,10 +223,18 @@ class TestFormatMetricTable:
 
     def test_format(self):
         metrics = EvaluationMetrics(
-            ap=0.352, ap50=0.568, ap75=0.371,
-            ap_small=0.152, ap_medium=0.389, ap_large=0.524,
-            ar_max_1=0.289, ar_max_10=0.452, ar_max_100=0.467,
-            ar_small=0.213, ar_medium=0.501, ar_large=0.689,
+            ap=0.352,
+            ap50=0.568,
+            ap75=0.371,
+            ap_small=0.152,
+            ap_medium=0.389,
+            ap_large=0.524,
+            ar_max_1=0.289,
+            ar_max_10=0.452,
+            ar_max_100=0.467,
+            ar_small=0.213,
+            ar_medium=0.501,
+            ar_large=0.689,
         )
         output = format_metric_table(metrics)
         assert "0.352" in output
@@ -248,10 +255,19 @@ class TestFormatPerClassTable:
     def test_with_data(self):
         per_class = {
             1: PerClassMetrics(
-                class_id=1, class_name="cat",
-                gt_count=10, dt_count=12, tp=8, fp=4, fn=2,
-                ap=0.45, ap50=0.68, ap75=0.42,
-                precision=0.667, recall=0.8, f1_score=0.727,
+                class_id=1,
+                class_name="cat",
+                gt_count=10,
+                dt_count=12,
+                tp=8,
+                fp=4,
+                fn=2,
+                ap=0.45,
+                ap50=0.68,
+                ap75=0.42,
+                precision=0.667,
+                recall=0.8,
+                f1_score=0.727,
             ),
         }
         output = format_per_class_table(per_class)
@@ -265,7 +281,9 @@ class TestFormatPRF1Output:
 
     def test_success(self):
         overall = PRF1Values(precision=0.8, recall=0.9, f1_score=0.847, tp=8, fp=2, fn=1)
-        result = PRF1Result(success=True, iou_threshold=0.5, confidence_threshold=0.0, overall=overall)
+        result = PRF1Result(
+            success=True, iou_threshold=0.5, confidence_threshold=0.0, overall=overall
+        )
         output = format_prf1_output(result)
         assert "P=0.800" in output
         assert "R=0.900" in output

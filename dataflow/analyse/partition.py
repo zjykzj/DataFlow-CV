@@ -26,7 +26,6 @@ from .utils import (
     _IMAGE_EXTENSIONS,
     create_handler,
     detect_format,
-    load_class_names,
 )
 
 
@@ -93,15 +92,11 @@ class PartitionAnalyser(BaseAnalyser):
         # 1. Validate inputs
         # ------------------------------------------------------------------
         if num < 2:
-            result.add_error(
-                f"Number of partitions must be at least 2, got: {num}"
-            )
+            result.add_error(f"Number of partitions must be at least 2, got: {num}")
             return result
 
         if label_dir is None and image_dir is None:
-            result.add_error(
-                "At least one of label_dir or image_dir must be provided"
-            )
+            result.add_error("At least one of label_dir or image_dir must be provided")
             return result
 
         # ------------------------------------------------------------------
@@ -246,15 +241,9 @@ class PartitionAnalyser(BaseAnalyser):
                         wr = handler.write_one(img_ann, part_dir)
                         if not wr.success:
                             for err in wr.errors:
-                                result.add_error(
-                                    f"Write {part_dir.name}/"
-                                    f"{img_ann.image_id}: {err}"
-                                )
+                                result.add_error(f"Write {part_dir.name}/{img_ann.image_id}: {err}")
                     except Exception as e:
-                        result.add_error(
-                            f"Write {part_dir.name}/"
-                            f"{img_ann.image_id}: {e}"
-                        )
+                        result.add_error(f"Write {part_dir.name}/{img_ann.image_id}: {e}")
 
                 # Move label files if in move mode
                 if move:
@@ -265,9 +254,7 @@ class PartitionAnalyser(BaseAnalyser):
                         else:  # labelme
                             src_label = label_dir / f"{img_ann.image_id}.json"
                         if src_label.exists():
-                            _copy_or_move_file(
-                                src_label, part_dir, move=True, logger=self.logger
-                            )
+                            _copy_or_move_file(src_label, part_dir, move=True, logger=self.logger)
 
             elif mode == "both":
                 labels_subdir = part_dir / "labels"
@@ -282,25 +269,18 @@ class PartitionAnalyser(BaseAnalyser):
                         if not wr.success:
                             for err in wr.errors:
                                 result.add_error(
-                                    f"Write {part_dir.name}/labels/"
-                                    f"{img_ann.image_id}: {err}"
+                                    f"Write {part_dir.name}/labels/{img_ann.image_id}: {err}"
                                 )
                     except Exception as e:
-                        result.add_error(
-                            f"Write {part_dir.name}/labels/"
-                            f"{img_ann.image_id}: {e}"
-                        )
+                        result.add_error(f"Write {part_dir.name}/labels/{img_ann.image_id}: {e}")
 
                     # Match and copy/move image
                     stem = img_ann.image_id
                     if stem in image_stems:
-                        _copy_or_move_file(
-                            image_stems[stem], images_subdir, move, self.logger
-                        )
+                        _copy_or_move_file(image_stems[stem], images_subdir, move, self.logger)
                     else:
                         self._log_warning(
-                            f"No matching image found for label "
-                            f"'{img_ann.image_id}' in {image_dir}"
+                            f"No matching image found for label '{img_ann.image_id}' in {image_dir}"
                         )
 
                 # Move label files if in move mode
@@ -312,21 +292,16 @@ class PartitionAnalyser(BaseAnalyser):
                             src_label = label_dir / f"{img_ann.image_id}.json"
                         if src_label.exists():
                             _copy_or_move_file(
-                                src_label, labels_subdir,
-                                move=True, logger=self.logger
+                                src_label, labels_subdir, move=True, logger=self.logger
                             )
 
                 # Report unmatched images (in image_dir but not in labels)
                 if not move:  # Only warn for copy mode; move mode self-resolves
-                    label_stems = {
-                        img_ann.image_id
-                        for img_ann in items[start:end]
-                    }
+                    label_stems = {img_ann.image_id for img_ann in items[start:end]}
                     for stem, img_path in image_stems.items():
                         if stem not in label_stems:
                             self._log_warning(
-                                f"Image '{img_path.name}' has no matching "
-                                f"label — skipped"
+                                f"Image '{img_path.name}' has no matching label — skipped"
                             )
 
             # Copy class_file to partition directory
@@ -336,10 +311,7 @@ class PartitionAnalyser(BaseAnalyser):
                     if not target_cf.exists():
                         shutil.copy2(str(class_file), str(target_cf))
                 except OSError as e:
-                    result.add_warning(
-                        f"Could not copy class file to "
-                        f"{part_dir.name}: {e}"
-                    )
+                    result.add_warning(f"Could not copy class file to {part_dir.name}: {e}")
 
         # ------------------------------------------------------------------
         # 6. Build result
@@ -361,8 +333,9 @@ class PartitionAnalyser(BaseAnalyser):
         # ------------------------------------------------------------------
         # 7. Log output
         # ------------------------------------------------------------------
-        mode_label = {"images": "Images Only", "labels": "Labels Only",
-                      "both": "Labels + Images"}[mode]
+        mode_label = {"images": "Images Only", "labels": "Labels Only", "both": "Labels + Images"}[
+            mode
+        ]
         label_paths = label_dir if label_dir else image_dir
         self._log_info(
             format_analyse_header(
@@ -385,8 +358,6 @@ class PartitionAnalyser(BaseAnalyser):
             )
         )
         if result.log_path:
-            self._log_info(
-                format_analyse_result("✓ Success", result.log_path)
-            )
+            self._log_info(format_analyse_result("✓ Success", result.log_path))
 
         return result

@@ -5,26 +5,35 @@ Handles reading and writing of YOLO format annotation files.
 Supports both object detection and instance segmentation formats.
 """
 
-import logging
 import math
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Dict, Iterator, List, Optional, Tuple
 
 import cv2
-import numpy as np
 
 from .base import AnnotationResult, BaseAnnotationHandler, ImageError
-from .models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
-                     ImageAnnotation, ObjectAnnotation, Segmentation)
+from .models import (
+    AnnotationFormat,
+    BoundingBox,
+    DatasetAnnotations,
+    ImageAnnotation,
+    ObjectAnnotation,
+    Segmentation,
+)
 
 
 class YoloAnnotationHandler(BaseAnnotationHandler):
     """Handler for YOLO annotation format."""
 
     def __init__(
-        self, label_dir: str, class_file: str, image_dir: str,
-        prediction: bool = False, skip_image_loading: bool = False,
-        recursive: bool = False, **kwargs
+        self,
+        label_dir: str,
+        class_file: str,
+        image_dir: str,
+        prediction: bool = False,
+        skip_image_loading: bool = False,
+        recursive: bool = False,
+        **kwargs,
     ):
         """
         Initialize YOLO handler.
@@ -64,9 +73,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
             for i, line in enumerate(lines):
                 if line.strip():  # Skip empty lines
                     categories[i] = line.strip()
-            self._log_info(
-                f"Loaded {len(categories)} categories from {self.class_file}"
-            )
+            self._log_info(f"Loaded {len(categories)} categories from {self.class_file}")
         except Exception as e:
             self._log_error(f"Failed to load class file {self.class_file}: {e}")
 
@@ -143,16 +150,12 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
         if value.is_integer():
             return int(value)
 
-        raise ValueError(
-            f"Invalid class_id '{token}': must be an integer"
-        )
+        raise ValueError(f"Invalid class_id '{token}': must be an integer")
 
     def _list_txt_files(self) -> List[Path]:
         """List .txt label files, optionally recursively."""
         pattern = self.label_dir.rglob if self.recursive else self.label_dir.glob
-        return sorted(
-            f for f in pattern("*.txt") if f.name != "classes.txt"
-        )
+        return sorted(f for f in pattern("*.txt") if f.name != "classes.txt")
 
     def _get_image_size(self, image_path: Path) -> Tuple[int, int]:
         """Get image dimensions from image file."""
@@ -216,14 +219,10 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
                 if not image_result.success:
                     if self.strict_mode:
-                        result.add_error(
-                            f"Failed to read {txt_file}: {image_result.message}"
-                        )
+                        result.add_error(f"Failed to read {txt_file}: {image_result.message}")
                         return result
                     else:
-                        self._log_warning(
-                            f"Skipping {txt_file}: {image_result.message}"
-                        )
+                        self._log_warning(f"Skipping {txt_file}: {image_result.message}")
                         continue
 
                 image_ann = image_result.data
@@ -270,62 +269,42 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
         # --- Upfront validation (raises immediately) ---
         if not self.label_dir.exists():
-            raise ValueError(
-                f"Label directory does not exist: {self.label_dir}"
-            )
+            raise ValueError(f"Label directory does not exist: {self.label_dir}")
         if not self.image_dir.exists():
             if self.strict_mode:
-                raise ValueError(
-                    f"Image directory does not exist: {self.image_dir}"
-                )
+                raise ValueError(f"Image directory does not exist: {self.image_dir}")
             else:
                 self._log_warning(
                     f"Image directory does not exist: {self.image_dir}. "
                     f"Labels will be read without image dimension validation."
                 )
         if not self.categories:
-            raise ValueError(
-                f"No categories loaded from {self.class_file}"
-            )
+            raise ValueError(f"No categories loaded from {self.class_file}")
 
         txt_files = self._list_txt_files()
         if not txt_files:
-            raise ValueError(
-                f"No TXT files found in {self.label_dir}"
-            )
+            raise ValueError(f"No TXT files found in {self.label_dir}")
 
         # --- Streaming iteration ---
         for txt_file in txt_files:
             try:
                 image_result = self._read_single_file(txt_file)
             except ImageError as e:
-                self._log_warning(
-                    f"Skipping {txt_file} (image error): {e}"
-                )
+                self._log_warning(f"Skipping {txt_file} (image error): {e}")
                 continue
 
             if not image_result.success:
                 if self.strict_mode:
-                    raise ValueError(
-                        f"Failed to read {txt_file}: {image_result.message}"
-                    )
+                    raise ValueError(f"Failed to read {txt_file}: {image_result.message}")
                 else:
-                    self._log_warning(
-                        f"Skipping {txt_file}: {image_result.message}"
-                    )
+                    self._log_warning(f"Skipping {txt_file}: {image_result.message}")
                     continue
 
             image_ann = image_result.data
             if image_ann is None:
-                raise ValueError(
-                    f"Internal error: image annotation data is None for "
-                    f"{txt_file}"
-                )
+                raise ValueError(f"Internal error: image annotation data is None for {txt_file}")
             if not isinstance(image_ann, IA):
-                raise ValueError(
-                    f"Internal error: invalid image annotation type for "
-                    f"{txt_file}"
-                )
+                raise ValueError(f"Internal error: invalid image annotation type for {txt_file}")
 
             yield image_ann
 
@@ -357,10 +336,17 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     # Try with any image extension (only if image_dir exists)
                     if self.image_dir.exists():
                         image_files = [
-                            f for f in self.image_dir.glob(f"{image_stem}.*")
-                            if f.suffix.lower() in {
-                                ".jpg", ".jpeg", ".png", ".bmp",
-                                ".tiff", ".tif", ".webp",
+                            f
+                            for f in self.image_dir.glob(f"{image_stem}.*")
+                            if f.suffix.lower()
+                            in {
+                                ".jpg",
+                                ".jpeg",
+                                ".png",
+                                ".bmp",
+                                ".tiff",
+                                ".tif",
+                                ".webp",
                             }
                         ]
                         if image_files:
@@ -406,8 +392,9 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     # Convert numeric tokens to float
                     items = [items[0]] + [float(x) for x in items[1:]]
 
-                    is_detection, is_segmentation, has_confidence = \
-                        self._detect_annotation_type(items)
+                    is_detection, is_segmentation, has_confidence = self._detect_annotation_type(
+                        items
+                    )
                     class_id = self._parse_class_id(items[0])
 
                     # Parse confidence if present (prediction mode)
@@ -415,7 +402,11 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     if has_confidence:
                         try:
                             confidence = float(items[-1])
-                            if not math.isfinite(confidence) or confidence < 0.0 or confidence > 1.0:
+                            if (
+                                not math.isfinite(confidence)
+                                or confidence < 0.0
+                                or confidence > 1.0
+                            ):
                                 error_msg = (
                                     f"Confidence out of range [0,1] in {txt_file}, "
                                     f"line {line_num}: {confidence}"
@@ -424,9 +415,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                                     result.add_error(error_msg)
                                     return result
                                 else:
-                                    self._log_warning(
-                                        f"Clipping line {line_num}: {error_msg}"
-                                    )
+                                    self._log_warning(f"Clipping line {line_num}: {error_msg}")
                                     confidence = max(0.0, min(1.0, confidence))
                         except (ValueError, IndexError):
                             result.add_error(
@@ -435,9 +424,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                             if self.strict_mode:
                                 return result
                             else:
-                                self._log_warning(
-                                    f"Skipping line {line_num}: invalid confidence"
-                                )
+                                self._log_warning(f"Skipping line {line_num}: invalid confidence")
                                 continue
 
                     # Validate class ID
@@ -466,10 +453,8 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                         height = float(items[4])
 
                         # Clamp bbox edges to [0, 1] (tolerates FP imprecision)
-                        x_center, y_center, width, height = (
-                            self._clamp_normalized_bbox(
-                                x_center, y_center, width, height
-                            )
+                        x_center, y_center, width, height = self._clamp_normalized_bbox(
+                            x_center, y_center, width, height
                         )
 
                         # Validate normalized coordinates
@@ -496,19 +481,13 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                         if skip_line:
                             continue
 
-                        bbox = BoundingBox(
-                            x=x_center, y=y_center, width=width, height=height
-                        )
+                        bbox = BoundingBox(x=x_center, y=y_center, width=width, height=height)
                         if not self._validate_bbox(bbox):
-                            result.add_error(
-                                f"Invalid bbox in {txt_file}, line {line_num}"
-                            )
+                            result.add_error(f"Invalid bbox in {txt_file}, line {line_num}")
                             if self.strict_mode:
                                 return result
                             else:
-                                self._log_warning(
-                                    f"Skipping line {line_num}: invalid bbox"
-                                )
+                                self._log_warning(f"Skipping line {line_num}: invalid bbox")
                                 continue
 
                     elif is_segmentation:
@@ -531,9 +510,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                                 continue
 
                         # Create list of (x, y) points
-                        points = [
-                            (coords[i], coords[i + 1]) for i in range(0, len(coords), 2)
-                        ]
+                        points = [(coords[i], coords[i + 1]) for i in range(0, len(coords), 2)]
 
                         # Clamp points to [0, 1] (tolerates FP imprecision)
                         points = self._clamp_normalized_points(points)
@@ -541,9 +518,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                         # Validate points
                         skip_line = False
                         for i, (x, y) in enumerate(points):
-                            if not self._validate_normalized_coordinate(
-                                x, f"point[{i}].x"
-                            ):
+                            if not self._validate_normalized_coordinate(x, f"point[{i}].x"):
                                 result.add_error(
                                     f"Invalid x coordinate in {txt_file}, line {line_num}"
                                 )
@@ -555,9 +530,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                                     )
                                     skip_line = True
                                     break
-                            if not self._validate_normalized_coordinate(
-                                y, f"point[{i}].y"
-                            ):
+                            if not self._validate_normalized_coordinate(y, f"point[{i}].y"):
                                 result.add_error(
                                     f"Invalid y coordinate in {txt_file}, line {line_num}"
                                 )
@@ -593,9 +566,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                             if self.strict_mode:
                                 return result
                             else:
-                                self._log_warning(
-                                    f"Skipping line {line_num}: invalid segmentation"
-                                )
+                                self._log_warning(f"Skipping line {line_num}: invalid segmentation")
                                 continue
 
                     # Create object annotation
@@ -651,9 +622,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
         return result
 
-    def write(
-        self, annotations: DatasetAnnotations, output_dir: str
-    ) -> AnnotationResult:
+    def write(self, annotations: DatasetAnnotations, output_dir: str) -> AnnotationResult:
         """Write annotations to YOLO TXT format."""
         result = AnnotationResult(success=False)
         output_path = Path(output_dir)
@@ -667,19 +636,13 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                 if file_result.success:
                     written_count += 1
                 elif self.strict_mode:
-                    result.add_error(
-                        f"Failed to write {image_ann.image_id}: {file_result.message}"
-                    )
+                    result.add_error(f"Failed to write {image_ann.image_id}: {file_result.message}")
                     return result
                 else:
-                    self._log_warning(
-                        f"Skipping {image_ann.image_id}: {file_result.message}"
-                    )
+                    self._log_warning(f"Skipping {image_ann.image_id}: {file_result.message}")
 
             result.success = True
-            result.message = (
-                f"Successfully wrote {written_count}/{len(annotations.images)} images"
-            )
+            result.message = f"Successfully wrote {written_count}/{len(annotations.images)} images"
             result.data = {
                 "output_dir": str(output_path),
                 "written_count": written_count,
@@ -690,9 +653,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
         return result
 
-    def write_one(
-        self, image_ann: ImageAnnotation, output_dir: Path
-    ) -> AnnotationResult:
+    def write_one(self, image_ann: ImageAnnotation, output_dir: Path) -> AnnotationResult:
         """Write annotations for a single image to YOLO TXT file."""
         result = AnnotationResult(success=False)
 
@@ -707,9 +668,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                 if line is not None:
                     lines.append(line)
                 elif self.strict_mode:
-                    result.add_error(
-                        f"Failed to convert object {obj.class_name} to YOLO format"
-                    )
+                    result.add_error(f"Failed to convert object {obj.class_name} to YOLO format")
                     return result
                 else:
                     self._log_warning(f"Skipping object {obj.class_name}")
@@ -730,10 +689,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
         try:
             # Get class ID (try to find by name if not matching)
             class_id = obj.class_id
-            if (
-                class_id not in self.categories
-                or self.categories[class_id] != obj.class_name
-            ):
+            if class_id not in self.categories or self.categories[class_id] != obj.class_name:
                 # Try to find by name
                 found_id = None
                 for cat_id, cat_name in self.categories.items():
@@ -742,9 +698,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                         break
 
                 if found_id is None:
-                    self._log_warning(
-                        f"Class name '{obj.class_name}' not found in categories"
-                    )
+                    self._log_warning(f"Class name '{obj.class_name}' not found in categories")
                     return None
                 class_id = found_id
 
@@ -762,10 +716,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                         f"{width:.6f} {height:.6f} {obj.confidence:.6f}"
                     )
                 else:
-                    return (
-                        f"{class_id} {x_center:.6f} {y_center:.6f} "
-                        f"{width:.6f} {height:.6f}"
-                    )
+                    return f"{class_id} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}"
 
             elif obj.segmentation:
                 # Instance segmentation format: class_id x1 y1 x2 y2 ... xn yn
@@ -781,15 +732,11 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     return f"{class_id} " + " ".join(coords)
 
             else:
-                self._log_warning(
-                    f"Object {obj.class_name} has neither bbox nor segmentation"
-                )
+                self._log_warning(f"Object {obj.class_name} has neither bbox nor segmentation")
                 return None
 
         except (ValueError, KeyError, TypeError) as e:
-            self._log_error(
-                f"Error converting object {obj.class_name} to YOLO format: {e}"
-            )
+            self._log_error(f"Error converting object {obj.class_name} to YOLO format: {e}")
             return None
 
     def validate(self, annotation_file: str) -> bool:
@@ -825,9 +772,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                             height = float(items[4])
 
                             if class_id not in self.categories:
-                                self.logger.error(
-                                    f"Invalid class ID {class_id} in line {line_num}"
-                                )
+                                self.logger.error(f"Invalid class ID {class_id} in line {line_num}")
                                 return False
 
                             for value, name in [
@@ -851,16 +796,12 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                         try:
                             class_id = self._parse_class_id(items[0])
                             if class_id not in self.categories:
-                                self.logger.error(
-                                    f"Invalid class ID {class_id} in line {line_num}"
-                                )
+                                self.logger.error(f"Invalid class ID {class_id} in line {line_num}")
                                 return False
 
                             coords = [float(x) for x in items[1:]]
                             if len(coords) % 2 != 0:
-                                self.logger.error(
-                                    f"Odd number of coordinates in line {line_num}"
-                                )
+                                self.logger.error(f"Odd number of coordinates in line {line_num}")
                                 return False
 
                             for i in range(0, len(coords), 2):
@@ -905,9 +846,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                             confidence = float(items[5])
 
                             if class_id not in self.categories:
-                                self.logger.error(
-                                    f"Invalid class ID {class_id} in line {line_num}"
-                                )
+                                self.logger.error(f"Invalid class ID {class_id} in line {line_num}")
                                 return False
 
                             for value, name in [
@@ -932,18 +871,14 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                         try:
                             class_id = self._parse_class_id(items[0])
                             if class_id not in self.categories:
-                                self.logger.error(
-                                    f"Invalid class ID {class_id} in line {line_num}"
-                                )
+                                self.logger.error(f"Invalid class ID {class_id} in line {line_num}")
                                 return False
 
                             confidence = float(items[-1])
                             coords = [float(x) for x in items[1:-1]]
 
                             if len(coords) % 2 != 0:
-                                self.logger.error(
-                                    f"Odd number of coordinates in line {line_num}"
-                                )
+                                self.logger.error(f"Odd number of coordinates in line {line_num}")
                                 return False
 
                             for i in range(0, len(coords), 2):

@@ -6,7 +6,6 @@ data structures.
 """
 
 import datetime
-import logging
 import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -143,8 +142,8 @@ class ColorManager:
         else:
             # Fallback for class_id ≥ 1000: deterministic high-saturation colors
             hue = (class_id * 127) % 180
-            saturation = 180 + (class_id * 43) % 76   # [180, 255]
-            value = 160 + (class_id * 67) % 96        # [160, 255]
+            saturation = 180 + (class_id * 43) % 76  # [180, 255]
+            value = 160 + (class_id * 67) % 96  # [160, 255]
 
             hsv_color = np.uint8([[[hue, saturation, value]]])
             bgr_color = cv2.cvtColor(hsv_color, cv2.COLOR_HSV2BGR)
@@ -188,9 +187,7 @@ class BaseVisualizer(ABC):
         from dataflow.util.logging import LogConfig, LogManager
 
         if log_config is None:
-            log_config = LogConfig(
-                name=f"visualize.{self.__class__.__name__.lower()}"
-            )
+            log_config = LogConfig(name=f"visualize.{self.__class__.__name__.lower()}")
         self._log_manager = LogManager(log_config)
         self.logger = self._log_manager.logger
 
@@ -251,9 +248,7 @@ class BaseVisualizer(ABC):
         start_time = datetime.datetime.now()
         self.summary_data["start_time"] = start_time
 
-        result = VisualizationResult(
-            success=False, log_path=self._log_manager.log_path
-        )
+        result = VisualizationResult(success=False, log_path=self._log_manager.log_path)
 
         total_objects = 0
         # Navigation state (declared here so ValueError handler can read them
@@ -330,9 +325,7 @@ class BaseVisualizer(ABC):
                     image_path_str, render_data = buffer[current_idx]
                     displayed_idx = current_idx
 
-                    action = self._visualize_single_image(
-                        image_path_str, render_data
-                    )
+                    action = self._visualize_single_image(image_path_str, render_data)
 
                     if action is None:
                         # Image load failure — advance forward
@@ -345,9 +338,7 @@ class BaseVisualizer(ABC):
                             except StopIteration:
                                 iterator_exhausted = True
                             if not iterator_exhausted:
-                                render_data = self._convert_to_render_data(
-                                    image_ann
-                                )
+                                render_data = self._convert_to_render_data(image_ann)
                                 buffer.append((image_ann.image_path, render_data))
                                 total_objects += len(render_data.annotations)
                                 current_idx = len(buffer) - 1
@@ -363,8 +354,7 @@ class BaseVisualizer(ABC):
                                     del buffer[:excess]
                                     current_idx = max(0, current_idx - excess)
                                     displayed_indices = {
-                                        i - excess for i in displayed_indices
-                                        if i >= excess
+                                        i - excess for i in displayed_indices if i >= excess
                                     }
                             else:
                                 break
@@ -389,12 +379,8 @@ class BaseVisualizer(ABC):
                                 except StopIteration:
                                     iterator_exhausted = True
                                 if not iterator_exhausted:
-                                    render_data = self._convert_to_render_data(
-                                        image_ann
-                                    )
-                                    buffer.append(
-                                        (image_ann.image_path, render_data)
-                                    )
+                                    render_data = self._convert_to_render_data(image_ann)
+                                    buffer.append((image_ann.image_path, render_data))
                                     total_objects += len(render_data.annotations)
                                     if self._log_manager.log_path is not None:
                                         self.logger.debug(
@@ -408,8 +394,7 @@ class BaseVisualizer(ABC):
                                         del buffer[:excess]
                                         current_idx = max(0, current_idx - excess)
                                         displayed_indices = {
-                                            i - excess for i in displayed_indices
-                                            if i >= excess
+                                            i - excess for i in displayed_indices if i >= excess
                                         }
                                 else:
                                     current_idx = len(buffer) - 1
@@ -426,9 +411,7 @@ class BaseVisualizer(ABC):
                         )
                         hints_shown = True
 
-                    self._update_window_title(
-                        current_idx, len(buffer), buffer[current_idx][0]
-                    )
+                    self._update_window_title(current_idx, len(buffer), buffer[current_idx][0])
                     self.summary_data["processed_images"] = len(displayed_indices)
 
                 self.summary_data["total_images"] = len(buffer)
@@ -478,9 +461,7 @@ class BaseVisualizer(ABC):
                             f" ({len(render_data.annotations)} objects)"
                         )
 
-                    action = self._visualize_single_image(
-                        image_ann.image_path, render_data
-                    )
+                    action = self._visualize_single_image(image_ann.image_path, render_data)
                     if action == "quit":
                         break
                     elif action is not None:
@@ -602,12 +583,8 @@ class BaseVisualizer(ABC):
                     if key == ord("s"):  # s — save snapshot
                         snap_dir = Path("./visualized_snapshots/")
                         snap_dir.mkdir(parents=True, exist_ok=True)
-                        snap_file = (
-                            snap_dir / f"{Path(image_path_str).stem}_snapshot.jpg"
-                        )
-                        cv2.imwrite(
-                            str(snap_file), image, [cv2.IMWRITE_JPEG_QUALITY, 95]
-                        )
+                        snap_file = snap_dir / f"{Path(image_path_str).stem}_snapshot.jpg"
+                        cv2.imwrite(str(snap_file), image, [cv2.IMWRITE_JPEG_QUALITY, 95])
                         self.logger.info(f"Snapshot saved: {snap_file}")
                         return "snapshot"
                     if key in _ARROW_LEFT or key in _ARROW_UP:  # ← or ↑ — prev
@@ -620,13 +597,8 @@ class BaseVisualizer(ABC):
             if self.is_save:
                 stem = Path(image_path_str).stem
                 if stem not in self._saved_stems:
-                    output_file = (
-                        self.output_dir
-                        / f"{stem}_visualized.jpg"
-                    )
-                    cv2.imwrite(
-                        str(output_file), image, [cv2.IMWRITE_JPEG_QUALITY, 95]
-                    )
+                    output_file = self.output_dir / f"{stem}_visualized.jpg"
+                    cv2.imwrite(str(output_file), image, [cv2.IMWRITE_JPEG_QUALITY, 95])
                     self._log_info(f"Saved visualization to: {output_file}")
                     self._saved_stems.add(stem)
 
@@ -636,9 +608,7 @@ class BaseVisualizer(ABC):
             self._log_error(f"Error visualizing image {image_path_str}: {e}")
             return None
 
-    def _draw_render_annotation(
-        self, image: np.ndarray, render_ann: RenderAnnotation
-    ) -> None:
+    def _draw_render_annotation(self, image: np.ndarray, render_ann: RenderAnnotation) -> None:
         """Draw a single RenderAnnotation onto the image."""
         color = self.color_manager.get_color(render_ann.class_id)
 
@@ -668,9 +638,7 @@ class BaseVisualizer(ABC):
             self._draw_rle_mask(image, render_ann.rle, color)
 
         if label_pos is not None:
-            self._draw_text(
-                image, render_ann.class_name, label_pos, color, bbox=label_bbox
-            )
+            self._draw_text(image, render_ann.class_name, label_pos, color, bbox=label_bbox)
 
     def _draw_bbox(
         self,
@@ -886,9 +854,7 @@ class BaseVisualizer(ABC):
                 )
             )
         else:
-            self.logger.info(
-                f"[====] Processed {current} images, {failed} failed"
-            )
+            self.logger.info(f"[====] Processed {current} images, {failed} failed")
 
     def _create_progress_bar(self, current: int, total: int, width: int = 40) -> str:
         """Create text progress bar (retained for compatibility).
@@ -907,9 +873,7 @@ class BaseVisualizer(ABC):
         return bar
 
     @staticmethod
-    def _update_window_title(
-        cursor: int, buffer_len: int, image_path_str: str
-    ) -> None:
+    def _update_window_title(cursor: int, buffer_len: int, image_path_str: str) -> None:
         """Update the OpenCV window title with navigation position.
 
         Shows ``[N/T] filename`` in the title bar for user orientation.
@@ -917,10 +881,7 @@ class BaseVisualizer(ABC):
         """
         try:
             fname = Path(image_path_str).name
-            title = (
-                f"DataFlow-CV Visualization"
-                f" [{cursor + 1}/{buffer_len}] {fname}"
-            )
+            title = f"DataFlow-CV Visualization [{cursor + 1}/{buffer_len}] {fname}"
             cv2.setWindowTitle("DataFlow-CV Visualization", title)
         except Exception:
             pass  # Window title update is cosmetic; ignore failures

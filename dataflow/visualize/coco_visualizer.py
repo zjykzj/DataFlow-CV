@@ -6,7 +6,7 @@ Supports both polygon and RLE segmentation formats.
 """
 
 from pathlib import Path
-from typing import Dict, List, Union
+from typing import List, Union
 
 from dataflow.label.coco_handler import CocoAnnotationHandler
 from dataflow.label.models import ImageAnnotation
@@ -37,8 +37,7 @@ class COCOVisualizer(BaseVisualizer):
         self.annotation_file = Path(annotation_file)
 
         self.logger.debug(
-            f"COCO visualizer initialization complete, "
-            f"annotation file: {annotation_file}"
+            f"COCO visualizer initialization complete, annotation file: {annotation_file}"
         )
 
     def _create_handler(self) -> CocoAnnotationHandler:
@@ -49,9 +48,7 @@ class COCOVisualizer(BaseVisualizer):
             logger=self.logger,
         )
 
-    def _convert_to_render_data(
-        self, image_ann: ImageAnnotation
-    ) -> RenderData:
+    def _convert_to_render_data(self, image_ann: ImageAnnotation) -> RenderData:
         """Convert a single COCO ImageAnnotation to RenderData.
 
         COCO coordinates are in absolute pixels (top-left bbox).
@@ -79,10 +76,7 @@ class COCOVisualizer(BaseVisualizer):
                     render_ann.rle = obj.segmentation.rle
                 else:
                     # Polygon points are already in absolute pixels
-                    render_ann.polygon = [
-                        (int(x), int(y))
-                        for x, y in obj.segmentation.points
-                    ]
+                    render_ann.polygon = [(int(x), int(y)) for x, y in obj.segmentation.points]
 
             # Bbox from polygon fallback: compute axis-aligned bounds
             if render_ann.bbox is None and render_ann.polygon:

@@ -103,15 +103,11 @@ class SampleAnalyser(BaseAnalyser):
         # 1. Validate inputs
         # ------------------------------------------------------------------
         if label_dir is None and image_dir is None:
-            result.add_error(
-                "At least one of label_dir or image_dir must be provided"
-            )
+            result.add_error("At least one of label_dir or image_dir must be provided")
             return result
 
         if count < 1:
-            result.add_error(
-                f"Count must be at least 1, got: {count}"
-            )
+            result.add_error(f"Count must be at least 1, got: {count}")
             return result
 
         # ------------------------------------------------------------------
@@ -190,8 +186,7 @@ class SampleAnalyser(BaseAnalyser):
         actual_count = min(count, total)
         if count > total:
             result.add_warning(
-                f"Requested {count} files but only {total} available — "
-                f"collecting all"
+                f"Requested {count} files but only {total} available — collecting all"
             )
 
         sampled = items[:actual_count]
@@ -221,13 +216,10 @@ class SampleAnalyser(BaseAnalyser):
                 _copy_or_move_file(src_path, label_subdir, move, self.logger)
                 # Match and copy image
                 if stem in image_stems:
-                    _copy_or_move_file(
-                        image_stems[stem], image_subdir, move, self.logger
-                    )
+                    _copy_or_move_file(image_stems[stem], image_subdir, move, self.logger)
                 else:
                     self._log_warning(
-                        f"No matching image found for label '{stem}' "
-                        f"in image directory"
+                        f"No matching image found for label '{stem}' in image directory"
                     )
                     unmatched_image_warnings += 1
             else:
@@ -238,10 +230,7 @@ class SampleAnalyser(BaseAnalyser):
             sampled_stems = {stem for _, stem in sampled}
             for stem, img_path in image_stems.items():
                 if stem not in sampled_stems:
-                    self._log_warning(
-                        f"Image '{img_path.name}' has no matching "
-                        f"label — skipped"
-                    )
+                    self._log_warning(f"Image '{img_path.name}' has no matching label — skipped")
 
         # ------------------------------------------------------------------
         # 7. Copy class_file to output_dir if provided
@@ -255,9 +244,7 @@ class SampleAnalyser(BaseAnalyser):
                     else:
                         shutil.copy2(str(class_file), str(target_cf))
             except OSError as e:
-                result.add_warning(
-                    f"Could not copy class file: {e}"
-                )
+                result.add_warning(f"Could not copy class file: {e}")
 
         # ------------------------------------------------------------------
         # 8. Build result
@@ -306,8 +293,6 @@ class SampleAnalyser(BaseAnalyser):
             )
         )
         if result.log_path:
-            self._log_info(
-                format_analyse_result("✓ Success", result.log_path)
-            )
+            self._log_info(format_analyse_result("✓ Success", result.log_path))
 
         return result

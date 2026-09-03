@@ -25,8 +25,14 @@ from .base import AnnotationResult, BaseAnnotationHandler, ImageError
 from .yolo_handler import YoloAnnotationHandler
 from .labelme_handler import LabelMeAnnotationHandler
 from .coco_handler import CocoAnnotationHandler
-from .models import (AnnotationFormat, BoundingBox, DatasetAnnotations,
-                     ImageAnnotation, ObjectAnnotation, Segmentation)
+from .models import (
+    AnnotationFormat,
+    BoundingBox,
+    DatasetAnnotations,
+    ImageAnnotation,
+    ObjectAnnotation,
+    Segmentation,
+)
 
 __all__ = [
     "BaseAnnotationHandler",

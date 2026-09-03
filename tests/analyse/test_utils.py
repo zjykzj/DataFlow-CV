@@ -74,9 +74,7 @@ class TestLoadClassNames:
 
     def test_standard_file(self):
         """Standard classes.txt with one name per line."""
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("cat\ndog\nperson\n")
             f.flush()
             result = load_class_names(Path(f.name))
@@ -84,9 +82,7 @@ class TestLoadClassNames:
 
     def test_with_blank_lines(self):
         """Blank lines are skipped."""
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("cat\n\n\ndog\n\nperson\n")
             f.flush()
             result = load_class_names(Path(f.name))
@@ -94,9 +90,7 @@ class TestLoadClassNames:
 
     def test_with_comments(self):
         """Lines starting with # are skipped."""
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("# header comment\ncat\ndog\n# inline\nperson\n")
             f.flush()
             result = load_class_names(Path(f.name))
@@ -109,9 +103,7 @@ class TestLoadClassNames:
 
     def test_empty_file(self):
         """Empty file (no valid class names) raises ValueError."""
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("\n\n")  # only blank lines
             f.flush()
             with pytest.raises(ValueError, match="No class names found"):
@@ -130,9 +122,7 @@ class TestCreateHandler:
         """Handler created for YOLO format."""
         yolo_labels = TEST_DATA / "det" / "yolo" / "labels"
         class_file = TEST_DATA / "det" / "yolo" / "classes.txt"
-        handler = create_handler(
-            yolo_labels, "yolo", class_file=class_file
-        )
+        handler = create_handler(yolo_labels, "yolo", class_file=class_file)
         from dataflow.label.yolo_handler import YoloAnnotationHandler
 
         assert isinstance(handler, YoloAnnotationHandler)
@@ -161,6 +151,7 @@ class TestCreateHandler:
         yolo_labels = TEST_DATA / "det" / "yolo" / "labels"
         handler = create_handler(yolo_labels, "yolo")
         from dataflow.label.yolo_handler import YoloAnnotationHandler
+
         assert isinstance(handler, YoloAnnotationHandler)
         assert handler.strict_mode is False
         # Verify the handler can read the dataset

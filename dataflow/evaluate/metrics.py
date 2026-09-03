@@ -6,7 +6,6 @@ a fixed IoU threshold — independent of the full COCOeval pipeline for
 speed and simplicity.
 """
 
-import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -19,6 +18,7 @@ from .utils import _load_coco, _load_dt, _validate_coco_available
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def compute_pr_f1(
     gt_source: Union[str, Path, Dict, Any],
@@ -70,10 +70,7 @@ def compute_pr_f1(
 
     # Validate method parameter before any computation
     if method not in ("macro", "micro"):
-        raise ValueError(
-            f"Invalid `method` parameter: '{method}'. "
-            "Expected 'macro' or 'micro'."
-        )
+        raise ValueError(f"Invalid `method` parameter: '{method}'. Expected 'macro' or 'micro'.")
 
     result = PRF1Result(
         success=False,
@@ -114,24 +111,22 @@ def compute_pr_f1(
             for cat_id in cat_ids:
                 # GT for this (image, category)
                 gt_anns = coco_gt.loadAnns(
-                    coco_gt.getAnnIds(
-                        imgIds=[img_id], catIds=[cat_id], iscrowd=None
-                    )
+                    coco_gt.getAnnIds(imgIds=[img_id], catIds=[cat_id], iscrowd=None)
                 )
 
                 # DT for this (image, category), filtered by confidence,
                 # sorted by score descending
-                dt_anns = coco_dt.loadAnns(
-                    coco_dt.getAnnIds(imgIds=[img_id], catIds=[cat_id])
-                )
-                dt_anns = [
-                    d for d in dt_anns if d.get("score", 0.0) >= confidence_threshold
-                ]
+                dt_anns = coco_dt.loadAnns(coco_dt.getAnnIds(imgIds=[img_id], catIds=[cat_id]))
+                dt_anns = [d for d in dt_anns if d.get("score", 0.0) >= confidence_threshold]
                 dt_anns.sort(key=lambda x: x.get("score", 0.0), reverse=True)
 
                 tp, fp, fn = _greedy_match(
-                    gt_anns, dt_anns, iou_threshold, iou_type,
-                    img_h, img_w,
+                    gt_anns,
+                    dt_anns,
+                    iou_threshold,
+                    iou_type,
+                    img_h,
+                    img_w,
                 )
 
                 per_class_tp[cat_id] += tp
@@ -176,16 +171,8 @@ def compute_pr_f1(
             total_fp = sum(v.fp for v in result.per_class.values())
             total_fn = sum(v.fn for v in result.per_class.values())
 
-            p_overall = (
-                total_tp / (total_tp + total_fp)
-                if (total_tp + total_fp) > 0
-                else 0.0
-            )
-            r_overall = (
-                total_tp / (total_tp + total_fn)
-                if (total_tp + total_fn) > 0
-                else 0.0
-            )
+            p_overall = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0.0
+            r_overall = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0.0
 
         f1_overall = (
             2.0 * p_overall * r_overall / (p_overall + r_overall)
@@ -213,6 +200,7 @@ def compute_pr_f1(
 # ---------------------------------------------------------------------------
 # Mask IoU helpers
 # ---------------------------------------------------------------------------
+
 
 def _polygon_to_rle(segmentation, h: int, w: int):
     """Convert COCO segmentation (polygon or RLE) to RLE dict for mask IoU.
@@ -281,6 +269,7 @@ def _compute_mask_iou(
 # Matching logic
 # ---------------------------------------------------------------------------
 
+
 def _greedy_match(
     gt_anns: List[Dict],
     dt_anns: List[Dict],
@@ -328,7 +317,10 @@ def _greedy_match(
         iou_matrix = _compute_mask_iou(dt_anns, non_crowd_gts, img_h, img_w)
         if crowd_gts:
             crowd_iou_matrix = _compute_mask_iou(
-                dt_anns, crowd_gts, img_h, img_w,
+                dt_anns,
+                crowd_gts,
+                img_h,
+                img_w,
             )
 
     matched_gt: set = set()
@@ -345,7 +337,8 @@ def _greedy_match(
 
             if iou_type == "bbox":
                 iou = _compute_bbox_iou(
-                    gt.get("bbox", []), dt.get("bbox", []),
+                    gt.get("bbox", []),
+                    dt.get("bbox", []),
                 )
             else:
                 iou = iou_matrix[dt_idx][gt_idx]
@@ -360,8 +353,12 @@ def _greedy_match(
         elif crowd_gts:
             # Check if DT matches any crowd GT → ignore (not counted as FP)
             crowd_match = _check_crowd_match(
-                dt_idx, dt.get("bbox", []), crowd_gts,
-                iou_threshold, iou_type, crowd_iou_matrix,
+                dt_idx,
+                dt.get("bbox", []),
+                crowd_gts,
+                iou_threshold,
+                iou_type,
+                crowd_iou_matrix,
             )
             if not crowd_match:
                 fp += 1
@@ -396,8 +393,7 @@ def _check_crowd_match(
     """
     if iou_type == "segm" and crowd_iou_matrix is not None:
         return any(
-            crowd_iou_matrix[dt_idx][c_idx] >= iou_threshold
-            for c_idx in range(len(crowd_gts))
+            crowd_iou_matrix[dt_idx][c_idx] >= iou_threshold for c_idx in range(len(crowd_gts))
         )
     return any(
         _compute_bbox_iou(crowd_gt.get("bbox", []), dt_bbox) >= iou_threshold

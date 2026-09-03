@@ -3,7 +3,6 @@
 import tempfile
 from pathlib import Path
 
-import pytest
 
 from dataflow.analyse import SplitAnalyser
 
@@ -122,7 +121,6 @@ class TestSplitAnalyser:
     def test_split_move(self):
         """Move mode relocates source files instead of copying."""
         analyser = SplitAnalyser()
-        import shutil
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create temp label files to move (don't touch test assets)
@@ -198,8 +196,7 @@ class TestSplitAnalyser:
             output_dir = Path(tmpdir) / "output"
             result = analyser.analyse(output_dir=output_dir)
             assert not result.success
-            assert any("label_dir" in e or "image_dir" in e
-                      for e in result.errors)
+            assert any("label_dir" in e or "image_dir" in e for e in result.errors)
 
     def test_nonexistent_label_path(self):
         """Non-existent label path produces an error."""

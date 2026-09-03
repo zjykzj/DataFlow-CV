@@ -42,7 +42,6 @@ class TestLabelMeVisualizer:
             class_file=TEST_DATA_DET / "classes.txt",
             is_show=False,
             is_save=False,
-
         )
         assert visualizer.label_dir == TEST_DATA_DET
         assert visualizer.image_dir == TEST_DATA_DET
@@ -105,14 +104,11 @@ class TestLabelMeVisualizer:
             class_file=TEST_DATA_DET / "classes.txt",
             is_show=False,
             is_save=False,
-
         )
 
         result = visualizer.visualize()
         assert result.success is True
-        image_count = sum(
-            1 for _ in visualizer._create_handler().iter_images()
-        )
+        image_count = sum(1 for _ in visualizer._create_handler().iter_images())
         assert result.data["processed_count"] == image_count
         assert "Visualization completed:" in result.message
 
@@ -124,15 +120,12 @@ class TestLabelMeVisualizer:
             is_show=False,
             is_save=True,
             output_dir=temp_dir,
-
         )
 
         result = visualizer.visualize()
         assert result.success is True
 
-        image_count = sum(
-            1 for _ in visualizer._create_handler().iter_images()
-        )
+        image_count = sum(1 for _ in visualizer._create_handler().iter_images())
         output_files = list(temp_dir.glob("*_visualized.jpg"))
         assert len(output_files) == image_count
 
@@ -143,7 +136,6 @@ class TestLabelMeVisualizer:
                 image_dir="/invalid/path",
                 is_show=False,
                 is_save=False,
-    
             )
             handler = visualizer._create_handler()
             list(handler.iter_images())
@@ -155,7 +147,6 @@ class TestLabelMeVisualizer:
             class_file=None,
             is_show=False,
             is_save=False,
-
         )
 
         render_data_map = _load_all(visualizer)
@@ -199,8 +190,6 @@ class TestLabelMeVisualizer:
         result = visualizer.visualize()
         assert result.success is True
 
-        image_count = sum(
-            1 for _ in visualizer._create_handler().iter_images()
-        )
+        image_count = sum(1 for _ in visualizer._create_handler().iter_images())
         output_files = list(temp_dir.glob("*_visualized.jpg"))
         assert len(output_files) == image_count

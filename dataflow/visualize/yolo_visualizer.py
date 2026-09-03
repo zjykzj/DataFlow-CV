@@ -6,7 +6,7 @@ Supports both object detection and instance segmentation formats.
 """
 
 from pathlib import Path
-from typing import Dict, List, Tuple, Union
+from typing import List, Union
 
 from dataflow.label.models import ImageAnnotation
 from dataflow.label.yolo_handler import YoloAnnotationHandler
@@ -38,10 +38,7 @@ class YOLOVisualizer(BaseVisualizer):
         super().__init__(label_dir, image_dir, log_config=log_config, **kwargs)
         self.class_file = Path(class_file)
 
-        self.logger.debug(
-            f"YOLO visualizer initialization complete, "
-            f"class file: {class_file}"
-        )
+        self.logger.debug(f"YOLO visualizer initialization complete, class file: {class_file}")
 
     def _create_handler(self) -> YoloAnnotationHandler:
         """Create a YOLO handler for streaming iteration."""
@@ -53,9 +50,7 @@ class YOLOVisualizer(BaseVisualizer):
             logger=self.logger,
         )
 
-    def _convert_to_render_data(
-        self, image_ann: ImageAnnotation
-    ) -> RenderData:
+    def _convert_to_render_data(self, image_ann: ImageAnnotation) -> RenderData:
         """Convert a single YOLO ImageAnnotation to RenderData.
 
         YOLO coordinates are normalized [0,1] center-based.
@@ -85,10 +80,7 @@ class YOLOVisualizer(BaseVisualizer):
 
             if obj.segmentation:
                 # YOLO normalized points → absolute pixel points
-                render_ann.polygon = [
-                    (int(x * w), int(y * h))
-                    for x, y in obj.segmentation.points
-                ]
+                render_ann.polygon = [(int(x * w), int(y * h)) for x, y in obj.segmentation.points]
 
             # Bbox from polygon fallback: compute axis-aligned bounds
             if render_ann.bbox is None and render_ann.polygon:

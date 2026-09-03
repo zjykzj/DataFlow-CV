@@ -2,7 +2,6 @@
 Unit tests for base.py
 """
 
-import logging
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock
@@ -11,16 +10,13 @@ import pytest
 
 from dataflow.convert.base import BaseConverter, ConversionResult
 from dataflow.label.base import AnnotationResult
-from dataflow.label.models import (BoundingBox, DatasetAnnotations,
-                                   ImageAnnotation, ObjectAnnotation)
+from dataflow.label.models import BoundingBox, DatasetAnnotations, ImageAnnotation, ObjectAnnotation
 
 
 class ConcreteConverter(BaseConverter):
     """Concrete implementation for testing abstract base class."""
 
-    def __init__(
-        self, source_format="test_source", target_format="test_target", **kwargs
-    ):
+    def __init__(self, source_format="test_source", target_format="test_target", **kwargs):
         super().__init__(source_format, target_format, **kwargs)
 
     def convert(self, source_path: str, target_path: str, **kwargs) -> ConversionResult:

@@ -2,20 +2,21 @@
 Unit tests for coco_and_labelme.py
 """
 
-import logging
-import shutil
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
-from dataflow.convert.base import ConversionResult
 from dataflow.convert.coco_and_labelme import CocoAndLabelMeConverter
 from dataflow.label.base import AnnotationResult
-from dataflow.label.models import (AnnotationFormat, BoundingBox,
-                                   DatasetAnnotations, ImageAnnotation,
-                                   ObjectAnnotation)
+from dataflow.label.models import (
+    AnnotationFormat,
+    BoundingBox,
+    DatasetAnnotations,
+    ImageAnnotation,
+    ObjectAnnotation,
+)
 
 
 class TestCocoAndLabelMeConverter:
@@ -55,9 +56,7 @@ class TestCocoAndLabelMeConverter:
             target_path = Path(tmpdir) / "target"
 
             kwargs = {"class_file": "/nonexistent/classes.txt"}
-            assert not converter.validate_inputs(
-                str(source_path), str(target_path), kwargs
-            )
+            assert not converter.validate_inputs(str(source_path), str(target_path), kwargs)
 
     def test_validate_inputs_coco_to_labelme_valid(self):
         """Test validation for valid COCO→LabelMe inputs."""
@@ -322,9 +321,7 @@ class TestCocoAndLabelMeConverter:
         from dataflow.util.logging import LogConfig
 
         # Test verbose=False (default)
-        converter_no_verbose = CocoAndLabelMeConverter(
-            source_to_target=True
-        )
+        converter_no_verbose = CocoAndLabelMeConverter(source_to_target=True)
         assert converter_no_verbose._log_manager.log_path is None
 
         # Test verbose=True
@@ -334,9 +331,7 @@ class TestCocoAndLabelMeConverter:
 
         # Test verbose parameter in LabelMe→COCO direction
         log_config2 = LogConfig(name="test_v2", verbose=True)
-        converter_reverse = CocoAndLabelMeConverter(
-            source_to_target=False, log_config=log_config2
-        )
+        converter_reverse = CocoAndLabelMeConverter(source_to_target=False, log_config=log_config2)
         assert converter_reverse._log_manager.log_path is not None
 
 

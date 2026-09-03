@@ -2,11 +2,6 @@
 Unit tests for rle_converter.py
 """
 
-import logging
-import shutil
-import sys
-import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -146,9 +141,7 @@ class TestRLEConverter:
         img_height = 300
 
         # Should return None without raising exception
-        result = converter.polygon_to_rle(
-            points, img_width, img_height, require_coco_mask=False
-        )
+        result = converter.polygon_to_rle(points, img_width, img_height, require_coco_mask=False)
         assert result is None
 
     @patch("dataflow.convert.rle_converter.HAS_COCO_MASK", False)
@@ -162,9 +155,7 @@ class TestRLEConverter:
 
         # Should raise ImportError
         with pytest.raises(ImportError, match="pycocotools required"):
-            converter.polygon_to_rle(
-                points, img_width, img_height, require_coco_mask=True
-            )
+            converter.polygon_to_rle(points, img_width, img_height, require_coco_mask=True)
 
     def test_polygon_to_rle_empty_points(self):
         """Test polygon_to_rle with empty points list."""
@@ -241,9 +232,7 @@ class TestRLEConverter:
         img_height = 100
 
         # Should return None without raising exception
-        result = converter.rle_to_polygon(
-            rle_dict, img_width, img_height, require_coco_mask=False
-        )
+        result = converter.rle_to_polygon(rle_dict, img_width, img_height, require_coco_mask=False)
         assert result is None
 
     @patch("dataflow.convert.rle_converter.HAS_COCO_MASK", False)
@@ -257,9 +246,7 @@ class TestRLEConverter:
 
         # Should raise ImportError
         with pytest.raises(ImportError, match="pycocotools required"):
-            converter.rle_to_polygon(
-                rle_dict, img_width, img_height, require_coco_mask=True
-            )
+            converter.rle_to_polygon(rle_dict, img_width, img_height, require_coco_mask=True)
 
     def test_rle_to_polygon_invalid_rle_dict(self):
         """Test rle_to_polygon with invalid RLE dict."""

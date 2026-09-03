@@ -10,8 +10,7 @@ from unittest.mock import Mock
 import pytest
 
 from dataflow.label.base import AnnotationResult, BaseAnnotationHandler
-from dataflow.label.models import (BoundingBox, DatasetAnnotations,
-                                   ImageAnnotation, ObjectAnnotation)
+from dataflow.label.models import BoundingBox, DatasetAnnotations, ImageAnnotation, ObjectAnnotation
 
 
 class ConcreteHandler(BaseAnnotationHandler):
@@ -24,14 +23,10 @@ class ConcreteHandler(BaseAnnotationHandler):
         """Test implementation — yields nothing."""
         return iter([])
 
-    def write(
-        self, annotations: DatasetAnnotations, *args, **kwargs
-    ) -> AnnotationResult:
+    def write(self, annotations: DatasetAnnotations, *args, **kwargs) -> AnnotationResult:
         return AnnotationResult(success=True)
 
-    def write_one(
-        self, image_ann: ImageAnnotation, output_dir: Path
-    ) -> AnnotationResult:
+    def write_one(self, image_ann: ImageAnnotation, output_dir: Path) -> AnnotationResult:
         return AnnotationResult(success=True)
 
     def validate(self, *args, **kwargs) -> bool:
@@ -175,9 +170,7 @@ class TestBaseAnnotationHandler:
                 ObjectAnnotation(
                     class_id=0,
                     class_name="cat",
-                    segmentation=Segmentation(
-                        points=[(0.1, 0.1), (0.2, 0.1), (0.2, 0.2)]
-                    ),
+                    segmentation=Segmentation(points=[(0.1, 0.1), (0.2, 0.1), (0.2, 0.2)]),
                 )
             ],
         )
@@ -202,9 +195,7 @@ class TestBaseAnnotationHandler:
                     class_id=0,
                     class_name="cat",
                     bbox=BoundingBox(x=0.5, y=0.5, width=0.2, height=0.2),
-                    segmentation=Segmentation(
-                        points=[(0.1, 0.1), (0.2, 0.1), (0.2, 0.2)]
-                    ),
+                    segmentation=Segmentation(points=[(0.1, 0.1), (0.2, 0.1), (0.2, 0.2)]),
                 )
             ],
         )
@@ -297,9 +288,7 @@ class TestBaseAnnotationHandler:
     def test_clamp_normalized_bbox_right_overflow(self, handler):
         """Right edge overflow is clamped to 1.0."""
         # cx=0.979211, w=0.0415783 → right edge = 1.00000015
-        cx, cy, w, h = handler._clamp_normalized_bbox(
-            0.979211, 0.5, 0.0415783, 0.2
-        )
+        cx, cy, w, h = handler._clamp_normalized_bbox(0.979211, 0.5, 0.0415783, 0.2)
         # Right edge clamped from 1.00000015 to 1.0
         assert cx == pytest.approx(0.979210925)
         assert w == pytest.approx(0.04157815)
@@ -342,28 +331,20 @@ class TestBaseAnnotationHandler:
         handler.logger = mock_logger
         handler._clamp_normalized_bbox(1.5, 0.5, 0.2, 0.2)
         mock_logger.warning.assert_called_once()
-        assert "Clamped normalized bbox to [0, 1]" in (
-            mock_logger.warning.call_args[0][0]
-        )
+        assert "Clamped normalized bbox to [0, 1]" in (mock_logger.warning.call_args[0][0])
 
-    def test_clamp_normalized_bbox_no_warning_when_unchanged(
-        self, handler, mock_logger
-    ):
+    def test_clamp_normalized_bbox_no_warning_when_unchanged(self, handler, mock_logger):
         """No warning logged when values are unchanged."""
         handler.logger = mock_logger
         handler._clamp_normalized_bbox(0.5, 0.5, 0.2, 0.2)
         mock_logger.warning.assert_not_called()
 
-    def test_clamp_normalized_bbox_sub_threshold_silent(
-        self, handler, mock_logger
-    ):
+    def test_clamp_normalized_bbox_sub_threshold_silent(self, handler, mock_logger):
         """Sub-threshold (<1e-6) edge overflow is silently clamped."""
         handler.logger = mock_logger
         # cx=0.5, w=1.0000001 → right edge = 1.00000005
         # → clamped to 1.0, change is ~5e-8 < 1e-6 → silent
-        cx, cy, w, h = handler._clamp_normalized_bbox(
-            0.5, 0.5, 1.0000001, 0.2
-        )
+        cx, cy, w, h = handler._clamp_normalized_bbox(0.5, 0.5, 1.0000001, 0.2)
         assert w == pytest.approx(1.0)
         mock_logger.warning.assert_not_called()
 
@@ -396,22 +377,16 @@ class TestBaseAnnotationHandler:
         # 1.00001 → change of 1e-5 > 1e-6
         handler._clamp_normalized_points([(1.00001, -0.00001)])
         mock_logger.warning.assert_called_once()
-        assert "Clamped normalized polygon points" in (
-            mock_logger.warning.call_args[0][0]
-        )
+        assert "Clamped normalized polygon points" in (mock_logger.warning.call_args[0][0])
 
-    def test_clamp_normalized_points_sub_threshold_silent(
-        self, handler, mock_logger
-    ):
+    def test_clamp_normalized_points_sub_threshold_silent(self, handler, mock_logger):
         """Sub-threshold (<5e-7) point overflow is silently clamped."""
         handler.logger = mock_logger
         # Change of 1e-7 < 5e-7 → silent
         handler._clamp_normalized_points([(1.0000001, -0.0000001)])
         mock_logger.warning.assert_not_called()
 
-    def test_clamp_normalized_points_no_warning_when_unchanged(
-        self, handler, mock_logger
-    ):
+    def test_clamp_normalized_points_no_warning_when_unchanged(self, handler, mock_logger):
         """No warning when points unchanged."""
         handler.logger = mock_logger
         handler._clamp_normalized_points([(0.1, 0.1), (0.5, 0.5)])
@@ -425,4 +400,4 @@ class TestBaseAnnotationHandler:
     def test_abstract_methods(self):
         """Test that abstract methods cannot be called on abstract base class."""
         with pytest.raises(TypeError, match="Can't instantiate abstract class"):
-            handler = BaseAnnotationHandler()
+            BaseAnnotationHandler()

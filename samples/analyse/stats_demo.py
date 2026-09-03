@@ -28,8 +28,10 @@ def demo_yolo_stats(log_config):
     )
     if result.success:
         s = result.data
-        print(f"  YOLO: {s.total_files} images, {s.total_annotations} objects, "
-              f"{len(s.per_class)} classes")
+        print(
+            f"  YOLO: {s.total_files} images, {s.total_annotations} objects, "
+            f"{len(s.per_class)} classes"
+        )
         # Top-5 classes
         for name, count in list(s.per_class.items())[:5]:
             print(f"    {name}: {count}")
@@ -49,8 +51,10 @@ def demo_coco_stats(log_config):
     result = analyser.analyse(label_paths=[coco_file])
     if result.success:
         s = result.data
-        print(f"  COCO: {s.total_files} images, {s.total_annotations} objects, "
-              f"{len(s.per_class)} classes")
+        print(
+            f"  COCO: {s.total_files} images, {s.total_annotations} objects, "
+            f"{len(s.per_class)} classes"
+        )
     else:
         print(f"  ✗ {result.errors[0]}")
 
@@ -66,8 +70,10 @@ def demo_labelme_stats(log_config):
     result = analyser.analyse(label_paths=[data_dir])
     if result.success:
         s = result.data
-        print(f"  LabelMe: {s.total_files} images, {s.total_annotations} objects, "
-              f"{len(s.per_class)} classes")
+        print(
+            f"  LabelMe: {s.total_files} images, {s.total_annotations} objects, "
+            f"{len(s.per_class)} classes"
+        )
     else:
         print(f"  ✗ {result.errors[0]}")
 

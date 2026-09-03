@@ -18,20 +18,20 @@ class EvaluationMetrics:
     """
 
     # Average Precision
-    ap: float = -1.0          # IoU=0.50:0.95, area=all,      maxDets=100
-    ap50: float = -1.0        # IoU=0.50,      area=all,      maxDets=100
-    ap75: float = -1.0        # IoU=0.75,      area=all,      maxDets=100
-    ap_small: float = -1.0    # IoU=0.50:0.95, area=small,   maxDets=100
-    ap_medium: float = -1.0   # IoU=0.50:0.95, area=medium,  maxDets=100
-    ap_large: float = -1.0    # IoU=0.50:0.95, area=large,   maxDets=100
+    ap: float = -1.0  # IoU=0.50:0.95, area=all,      maxDets=100
+    ap50: float = -1.0  # IoU=0.50,      area=all,      maxDets=100
+    ap75: float = -1.0  # IoU=0.75,      area=all,      maxDets=100
+    ap_small: float = -1.0  # IoU=0.50:0.95, area=small,   maxDets=100
+    ap_medium: float = -1.0  # IoU=0.50:0.95, area=medium,  maxDets=100
+    ap_large: float = -1.0  # IoU=0.50:0.95, area=large,   maxDets=100
 
     # Average Recall
-    ar_max_1: float = -1.0    # IoU=0.50:0.95, area=all,     maxDets=1
-    ar_max_10: float = -1.0   # IoU=0.50:0.95, area=all,     maxDets=10
+    ar_max_1: float = -1.0  # IoU=0.50:0.95, area=all,     maxDets=1
+    ar_max_10: float = -1.0  # IoU=0.50:0.95, area=all,     maxDets=10
     ar_max_100: float = -1.0  # IoU=0.50:0.95, area=all,     maxDets=100
-    ar_small: float = -1.0    # IoU=0.50:0.95, area=small,   maxDets=100
-    ar_medium: float = -1.0   # IoU=0.50:0.95, area=medium,  maxDets=100
-    ar_large: float = -1.0    # IoU=0.50:0.95, area=large,   maxDets=100
+    ar_small: float = -1.0  # IoU=0.50:0.95, area=small,   maxDets=100
+    ar_medium: float = -1.0  # IoU=0.50:0.95, area=medium,  maxDets=100
+    ar_large: float = -1.0  # IoU=0.50:0.95, area=large,   maxDets=100
 
 
 @dataclass
@@ -40,17 +40,17 @@ class PerClassMetrics:
 
     class_id: int
     class_name: str
-    gt_count: int = 0          # Number of GT annotations for this class
-    dt_count: int = 0          # Number of DT annotations for this class
-    tp: int = 0                # True Positives
-    fp: int = 0                # False Positives
-    fn: int = 0                # False Negatives
-    ap: float = -1.0           # AP (IoU=0.50:0.95)
-    ap50: float = -1.0         # AP at IoU=0.50
-    ap75: float = -1.0         # AP at IoU=0.75
-    precision: float = -1.0    # P at optimal confidence
-    recall: float = -1.0       # R at optimal confidence
-    f1_score: float = -1.0     # F1 at optimal confidence
+    gt_count: int = 0  # Number of GT annotations for this class
+    dt_count: int = 0  # Number of DT annotations for this class
+    tp: int = 0  # True Positives
+    fp: int = 0  # False Positives
+    fn: int = 0  # False Negatives
+    ap: float = -1.0  # AP (IoU=0.50:0.95)
+    ap50: float = -1.0  # AP at IoU=0.50
+    ap75: float = -1.0  # AP at IoU=0.75
+    precision: float = -1.0  # P at optimal confidence
+    recall: float = -1.0  # R at optimal confidence
+    f1_score: float = -1.0  # F1 at optimal confidence
 
 
 @dataclass
@@ -89,10 +89,7 @@ class EvaluationResult:
         if m is None:
             return "Evaluation completed (no metrics)"
 
-        return (
-            f"Evaluation ({self.iou_type}): "
-            f"AP={m.ap:.3f}, AP50={m.ap50:.3f}, AP75={m.ap75:.3f}"
-        )
+        return f"Evaluation ({self.iou_type}): AP={m.ap:.3f}, AP50={m.ap50:.3f}, AP75={m.ap75:.3f}"
 
 
 @dataclass

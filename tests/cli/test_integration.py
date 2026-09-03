@@ -27,11 +27,11 @@ def test_yolo2coco_integration():
             [
                 "convert",
                 "yolo2coco",
-                str(yolo_images_dir),    # IMAGE_DIR (positional)
-                str(yolo_labels_dir),    # LABEL_DIR (positional)
+                str(yolo_images_dir),  # IMAGE_DIR (positional)
+                str(yolo_labels_dir),  # LABEL_DIR (positional)
                 str(yolo_classes_file),  # CLASS_FILE (positional)
-                str(output_file),        # OUTPUT_FILE (positional)
-            ]
+                str(output_file),  # OUTPUT_FILE (positional)
+            ],
         )
 
         # Check command executed successfully
@@ -78,10 +78,10 @@ def test_coco_visualize_integration():
                 "coco",
                 str(coco_images_dir),  # IMAGE_DIR (positional)
                 str(coco_annotations),  # COCO_FILE (positional)
-                "--no-display",          # headless mode — no OpenCV window
+                "--no-display",  # headless mode — no OpenCV window
                 "--save",
                 str(output_dir),  # output directory for --save
-            ]
+            ],
         )
 
         # Check command executed successfully
@@ -121,10 +121,10 @@ def test_labelme2yolo_integration():
             [
                 "convert",
                 "labelme2yolo",
-                str(labelme_dir),   # LABELME_DIR (positional)
-                str(class_file),    # CLASS_FILE (positional)
-                str(output_dir),    # OUTPUT_DIR (positional)
-            ]
+                str(labelme_dir),  # LABELME_DIR (positional)
+                str(class_file),  # CLASS_FILE (positional)
+                str(output_dir),  # OUTPUT_DIR (positional)
+            ],
         )
 
         # Check command executed successfully
@@ -155,16 +155,20 @@ def test_cli_error_handling():
         [
             "convert",
             "yolo2coco",
-            "/nonexistent/image_dir",   # IMAGE_DIR (invalid)
-            "/nonexistent/label_dir",   # LABEL_DIR (invalid)
-            "/nonexistent/class.txt",   # CLASS_FILE (invalid)
-            "/tmp/output.json",         # OUTPUT_FILE
-        ]
+            "/nonexistent/image_dir",  # IMAGE_DIR (invalid)
+            "/nonexistent/label_dir",  # LABEL_DIR (invalid)
+            "/nonexistent/class.txt",  # CLASS_FILE (invalid)
+            "/tmp/output.json",  # OUTPUT_FILE
+        ],
     )
 
     # Should fail with error
     assert result.exit_code != 0, "Should fail with non-existent path"
-    assert "does not exist" in result.output or "Error" in result.output or "not exist" in result.output
+    assert (
+        "does not exist" in result.output
+        or "Error" in result.output
+        or "not exist" in result.output
+    )
 
     # Test with missing required argument
     result = runner.invoke(
@@ -173,7 +177,7 @@ def test_cli_error_handling():
             "convert",
             "yolo2coco",
             # Missing output_path argument
-        ]
+        ],
     )
 
     # Should fail with error
@@ -192,7 +196,7 @@ def test_cli_error_handling():
                 "yolo",
                 str(test_dir),
                 # Missing label_dir and class_file arguments (visualize yolo requires 3 positional arguments)
-            ]
+            ],
         )
 
         # Should fail with error about missing arguments (label_dir and class_file are now required positional arguments)
@@ -221,7 +225,7 @@ def test_yolo2coco_prediction_integration():
                 str(pred_data_dir / "labels"),
                 str(pred_data_dir / "classes.txt"),
                 str(output_file),
-            ]
+            ],
         )
 
         assert result.exit_code == 0, f"Command failed: {result.output}"

@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-import pytest
 
 from dataflow.analyse import FilterAnalyser, FilterResult
 
@@ -120,7 +119,7 @@ class TestFilterAnalyser:
         assert fr.format == "coco"
 
         # Verify class remapping: COCO 1-indexed → new 0-indexed
-        assert fr.kept_categories[0].old_id == 1   # person in COCO
+        assert fr.kept_categories[0].old_id == 1  # person in COCO
         assert fr.kept_categories[1].old_id == 21  # elephant in COCO
         assert fr.kept_categories[2].old_id == 23  # zebra in COCO
         assert fr.kept_categories[0].new_id == 0
@@ -130,6 +129,7 @@ class TestFilterAnalyser:
         # Verify output file
         out_dir = tmp_path / "output"
         import json
+
         with open(out_dir / "annotations.json") as f:
             data = json.load(f)
         assert len(data["categories"]) == 3

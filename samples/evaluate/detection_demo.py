@@ -27,8 +27,10 @@ def main():
 
     if args.prf1:
         result = compute_pr_f1(
-            str(GT_FILE), str(DT_FILE),
-            iou_type="bbox", method=args.prf1_method,
+            str(GT_FILE),
+            str(DT_FILE),
+            iou_type="bbox",
+            method=args.prf1_method,
             log_config=log_config,
         )
         if result.success:

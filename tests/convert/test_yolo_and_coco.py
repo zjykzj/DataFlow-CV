@@ -2,7 +2,6 @@
 Unit tests for yolo_and_coco.py
 """
 
-import logging
 import shutil
 import tempfile
 from pathlib import Path
@@ -10,12 +9,15 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from dataflow.convert.base import ConversionResult
 from dataflow.convert.yolo_and_coco import YoloAndCocoConverter
 from dataflow.label.base import AnnotationResult
-from dataflow.label.models import (AnnotationFormat, BoundingBox,
-                                   DatasetAnnotations, ImageAnnotation,
-                                   ObjectAnnotation)
+from dataflow.label.models import (
+    AnnotationFormat,
+    BoundingBox,
+    DatasetAnnotations,
+    ImageAnnotation,
+    ObjectAnnotation,
+)
 
 
 class TestYoloAndCocoConverter:
@@ -45,9 +47,7 @@ class TestYoloAndCocoConverter:
 
             # Missing class_file parameter
             kwargs = {"image_dir": str(Path(tmpdir) / "images")}
-            assert not converter.validate_inputs(
-                str(source_path), str(target_path), kwargs
-            )
+            assert not converter.validate_inputs(str(source_path), str(target_path), kwargs)
 
     def test_validate_inputs_yolo_to_coco_invalid_class_file(self):
         """Test validation for YOLO→COCO with non-existent class file."""
@@ -61,9 +61,7 @@ class TestYoloAndCocoConverter:
                 "class_file": "/nonexistent/classes.txt",
                 "image_dir": str(Path(tmpdir) / "images"),
             }
-            assert not converter.validate_inputs(
-                str(source_path), str(target_path), kwargs
-            )
+            assert not converter.validate_inputs(str(source_path), str(target_path), kwargs)
 
     def test_validate_inputs_yolo_to_coco_missing_image_dir(self):
         """Test validation for YOLO→COCO with missing image_dir."""
@@ -79,9 +77,7 @@ class TestYoloAndCocoConverter:
 
             kwargs = {"class_file": str(class_file)}
             # Missing image_dir parameter
-            assert not converter.validate_inputs(
-                str(source_path), str(target_path), kwargs
-            )
+            assert not converter.validate_inputs(str(source_path), str(target_path), kwargs)
 
     def test_validate_inputs_yolo_to_coco_invalid_image_dir(self):
         """Test validation for YOLO→COCO with non-existent image_dir."""
@@ -96,9 +92,7 @@ class TestYoloAndCocoConverter:
             class_file.write_text("cat\ndog\n")
 
             kwargs = {"class_file": str(class_file), "image_dir": "/nonexistent/images"}
-            assert not converter.validate_inputs(
-                str(source_path), str(target_path), kwargs
-            )
+            assert not converter.validate_inputs(str(source_path), str(target_path), kwargs)
 
     def test_validate_inputs_yolo_to_coco_valid(self):
         """Test validation for valid YOLO→COCO inputs."""
@@ -288,9 +282,7 @@ class TestYoloAndCocoConverter:
 
     @patch("dataflow.convert.yolo_and_coco.YoloAnnotationHandler")
     @patch("dataflow.convert.yolo_and_coco.CocoAnnotationHandler")
-    def test_convert_yolo_to_coco_mocked(
-        self, mock_coco_handler_class, mock_yolo_handler_class
-    ):
+    def test_convert_yolo_to_coco_mocked(self, mock_coco_handler_class, mock_yolo_handler_class):
         """Test YOLO→COCO conversion with mocked handlers."""
         converter = YoloAndCocoConverter(source_to_target=True)
 
@@ -352,9 +344,7 @@ class TestYoloAndCocoConverter:
 
     @patch("dataflow.convert.yolo_and_coco.CocoAnnotationHandler")
     @patch("dataflow.convert.yolo_and_coco.YoloAnnotationHandler")
-    def test_convert_coco_to_yolo_mocked(
-        self, mock_yolo_handler_class, mock_coco_handler_class
-    ):
+    def test_convert_coco_to_yolo_mocked(self, mock_yolo_handler_class, mock_coco_handler_class):
         """Test COCO→YOLO conversion with mocked handlers (streaming)."""
         converter = YoloAndCocoConverter(source_to_target=False)
 
@@ -382,9 +372,7 @@ class TestYoloAndCocoConverter:
         # Run conversion
         with tempfile.TemporaryDirectory() as tmpdir:
             source_path = Path(tmpdir) / "coco.json"
-            source_path.write_text(
-                '{"images":[],"annotations":[],"categories":[]}'
-            )
+            source_path.write_text('{"images":[],"annotations":[],"categories":[]}')
             target_path = Path(tmpdir) / "target"
 
             kwargs = {}
@@ -401,9 +389,7 @@ class TestYoloAndCocoConverter:
         from dataflow.util.logging import LogConfig
 
         # Test verbose=False (default)
-        converter_no_verbose = YoloAndCocoConverter(
-            source_to_target=True
-        )
+        converter_no_verbose = YoloAndCocoConverter(source_to_target=True)
         assert converter_no_verbose._log_manager.log_path is None
 
         # Test verbose=True
@@ -417,7 +403,6 @@ class TestYoloAndCocoConverter:
         converter_reverse = YoloAndCocoConverter(source_to_target=False, log_config=log_config2)
         assert converter_reverse._log_manager.log_path is not None
 
-
     @pytest.fixture
     def temp_dir(self):
         """Create a temporary directory for test output."""
@@ -428,25 +413,24 @@ class TestYoloAndCocoConverter:
     def test_yolo_to_coco_prediction_output_is_list(self, temp_dir):
         """prediction=True should produce a plain JSON list."""
         pred_data_dir = (
-            Path(__file__).parent.parent.parent
-            / "assets" / "test_data" / "det" / "yolo_pred"
+            Path(__file__).parent.parent.parent / "assets" / "test_data" / "det" / "yolo_pred"
         )
         label_dir = str(pred_data_dir / "labels")
         class_file = str(pred_data_dir / "classes.txt")
         image_dir = str(
-            Path(__file__).parent.parent.parent
-            / "assets" / "test_data" / "det" / "yolo" / "images"
+            Path(__file__).parent.parent.parent / "assets" / "test_data" / "det" / "yolo" / "images"
         )
         output_file = str(temp_dir / "pred.json")
 
-        converter = YoloAndCocoConverter(
-            source_to_target=True, prediction=True, strict_mode=False
+        converter = YoloAndCocoConverter(source_to_target=True, prediction=True, strict_mode=False)
+        result = converter.convert(
+            label_dir, output_file, image_dir=image_dir, class_file=class_file
         )
-        result = converter.convert(label_dir, output_file, image_dir=image_dir, class_file=class_file)
 
         assert result.success is True, f"Conversion failed: {result.errors}"
 
         import json
+
         with open(output_file, "r") as f:
             data = json.load(f)
         assert isinstance(data, list), f"Expected list, got {type(data)}"
@@ -459,27 +443,12 @@ class TestYoloAndCocoConverter:
 
     def test_yolo_to_coco_annotation_still_dict(self, temp_dir):
         """prediction=False should still produce a full COCO dict."""
-        pred_data_dir = (
-            Path(__file__).parent.parent.parent
-            / "assets" / "test_data" / "det" / "yolo_pred"
-        )
-        label_dir = str(pred_data_dir / "labels")
-        class_file = str(pred_data_dir / "classes.txt")
-        image_dir = str(
-            Path(__file__).parent.parent.parent
-            / "assets" / "test_data" / "det" / "yolo" / "images"
-        )
         output_file = str(temp_dir / "anno.json")
 
         # Re-read labels WITHOUT prediction mode (will fail with 6-token lines)
         # So use standard 5-token test data for annotation mode
-        std_data_dir = (
-            Path(__file__).parent.parent.parent
-            / "assets" / "test_data" / "det" / "yolo"
-        )
-        converter = YoloAndCocoConverter(
-            source_to_target=True, prediction=False, strict_mode=False
-        )
+        std_data_dir = Path(__file__).parent.parent.parent / "assets" / "test_data" / "det" / "yolo"
+        converter = YoloAndCocoConverter(source_to_target=True, prediction=False, strict_mode=False)
         result = converter.convert(
             str(std_data_dir / "labels"),
             output_file,
@@ -490,6 +459,7 @@ class TestYoloAndCocoConverter:
         assert result.success is True, f"Conversion failed: {result.errors}"
 
         import json
+
         with open(output_file, "r") as f:
             data = json.load(f)
         assert isinstance(data, dict), f"Expected dict, got {type(data)}"

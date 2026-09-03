@@ -1,10 +1,8 @@
 """Tests for PartitionAnalyser."""
 
-import os
 import tempfile
 from pathlib import Path
 
-import pytest
 
 from dataflow.analyse import PartitionAnalyser, PartitionResult
 
@@ -201,6 +199,7 @@ class TestPartitionAnalyser:
             src_labels = Path(tmpdir) / "src_labels"
             src_labels.mkdir()
             import shutil
+
             for f in (TEST_DATA / "det" / "yolo" / "labels").glob("*.txt"):
                 shutil.copy2(str(f), str(src_labels / f.name))
 
@@ -221,8 +220,7 @@ class TestPartitionAnalyser:
             # Source files should have been moved (no longer in src)
             remaining = list(src_labels.glob("*.txt"))
             assert len(remaining) == 0, (
-                f"Expected source labels to be moved, "
-                f"but {len(remaining)} remain"
+                f"Expected source labels to be moved, but {len(remaining)} remain"
             )
 
             # Target directories should have the files
@@ -238,7 +236,7 @@ class TestPartitionAnalyser:
         analyser = PartitionAnalyser()
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir) / "output"
-            result = analyser.analyse(
+            analyser.analyse(
                 output_dir=output_dir,
                 num=2,
                 label_dir=TEST_DATA / "det" / "coco" / "..",  # parent dir
@@ -259,7 +257,7 @@ class TestPartitionAnalyser:
                 '{"images": [], "annotations": [], "categories": []}'
             )
             output_dir2 = Path(tmpdir2) / "output"
-            result2 = analyser.analyse(
+            analyser.analyse(
                 output_dir=output_dir2,
                 num=2,
                 label_dir=coco_dir,

@@ -39,9 +39,7 @@ class TestEvaluateDetection:
         assert "AP" in result.output
 
     def test_verbose(self, runner):
-        result = runner.invoke(
-            cli, ["evaluate", "detection", "--verbose", GT_JSON, DT_JSON]
-        )
+        result = runner.invoke(cli, ["evaluate", "detection", "--verbose", GT_JSON, DT_JSON])
         assert result.exit_code == 0
 
     def test_prf1(self, runner):
@@ -56,9 +54,13 @@ class TestEvaluateDetection:
         result = runner.invoke(
             cli,
             [
-                "evaluate", "detection",
-                "--prf1", "--prf1-method", "micro",
-                GT_JSON, DT_JSON,
+                "evaluate",
+                "detection",
+                "--prf1",
+                "--prf1-method",
+                "micro",
+                GT_JSON,
+                DT_JSON,
             ],
         )
         assert result.exit_code == 0
@@ -68,9 +70,15 @@ class TestEvaluateDetection:
         result = runner.invoke(
             cli,
             [
-                "evaluate", "detection",
-                "--prf1", "--prf1-iou", "0.75", "--prf1-conf", "0.5",
-                GT_JSON, DT_JSON,
+                "evaluate",
+                "detection",
+                "--prf1",
+                "--prf1-iou",
+                "0.75",
+                "--prf1-conf",
+                "0.5",
+                GT_JSON,
+                DT_JSON,
             ],
         )
         assert result.exit_code == 0
@@ -81,24 +89,23 @@ class TestEvaluateDetection:
         result = runner.invoke(
             cli,
             [
-                "evaluate", "detection",
-                "--output", str(output_file),
-                GT_JSON, DT_JSON,
+                "evaluate",
+                "detection",
+                "--output",
+                str(output_file),
+                GT_JSON,
+                DT_JSON,
             ],
         )
         assert result.exit_code == 0
         assert output_file.exists()
 
     def test_missing_gt(self, runner):
-        result = runner.invoke(
-            cli, ["evaluate", "detection", "/nonexistent/gt.json", DT_JSON]
-        )
+        result = runner.invoke(cli, ["evaluate", "detection", "/nonexistent/gt.json", DT_JSON])
         assert result.exit_code != 0
 
     def test_missing_dt(self, runner):
-        result = runner.invoke(
-            cli, ["evaluate", "detection", GT_JSON, "/nonexistent/dt.json"]
-        )
+        result = runner.invoke(cli, ["evaluate", "detection", GT_JSON, "/nonexistent/dt.json"])
         assert result.exit_code != 0
 
     def test_missing_both_args(self, runner):
@@ -119,9 +126,7 @@ class TestEvaluateSegmentation:
         assert result.exit_code == 0
 
     def test_basic(self, runner):
-        result = runner.invoke(
-            cli, ["evaluate", "segmentation", GT_SEGM_JSON, DT_SEGM_JSON]
-        )
+        result = runner.invoke(cli, ["evaluate", "segmentation", GT_SEGM_JSON, DT_SEGM_JSON])
         assert result.exit_code == 0
 
     def test_verbose(self, runner):

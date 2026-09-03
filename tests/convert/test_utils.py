@@ -2,7 +2,6 @@
 Unit tests for utils.py
 """
 
-import logging
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock
@@ -10,8 +9,7 @@ from unittest.mock import Mock
 import pytest
 
 from dataflow.convert import utils
-from dataflow.label.models import (BoundingBox, DatasetAnnotations,
-                                   ImageAnnotation, ObjectAnnotation)
+from dataflow.label.models import DatasetAnnotations, ImageAnnotation
 
 
 class TestCategoryFunctions:
@@ -127,16 +125,10 @@ class TestPathFunctions:
         """Test validating conversion chains."""
         allowed_chains = [("labelme", "yolo"), ("yolo", "coco"), ("coco", "labelme")]
 
-        assert (
-            utils.validate_conversion_chain("labelme", "yolo", allowed_chains) is True
-        )
+        assert utils.validate_conversion_chain("labelme", "yolo", allowed_chains) is True
         assert utils.validate_conversion_chain("yolo", "coco", allowed_chains) is True
-        assert (
-            utils.validate_conversion_chain("labelme", "coco", allowed_chains) is False
-        )
-        assert (
-            utils.validate_conversion_chain("unknown", "yolo", allowed_chains) is False
-        )
+        assert utils.validate_conversion_chain("labelme", "coco", allowed_chains) is False
+        assert utils.validate_conversion_chain("unknown", "yolo", allowed_chains) is False
 
     def test_create_conversion_chain(self):
         """Test creating conversion steps from format chain."""

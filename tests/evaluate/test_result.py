@@ -51,10 +51,19 @@ class TestPerClassMetrics:
 
     def test_populated(self):
         m = PerClassMetrics(
-            class_id=1, class_name="cat",
-            gt_count=10, dt_count=12, tp=8, fp=4, fn=2,
-            ap=0.45, ap50=0.68, ap75=0.42,
-            precision=0.667, recall=0.8, f1_score=0.727,
+            class_id=1,
+            class_name="cat",
+            gt_count=10,
+            dt_count=12,
+            tp=8,
+            fp=4,
+            fn=2,
+            ap=0.45,
+            ap50=0.68,
+            ap75=0.42,
+            precision=0.667,
+            recall=0.8,
+            f1_score=0.727,
         )
         assert m.gt_count == 10
         assert m.tp == 8
