@@ -1,0 +1,46 @@
+# CI: lint + format + type check + full test suite + packaging smoke.
+#
+# The test suite is offline by design (fixtures live in assets/test_data/),
+# so no services or external data are needed. pycocotools is required by
+# the evaluate/RLE tests — install the [coco] extra explicitly.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev,coco]"
+
+      - name: Lint
+        run: ruff check dataflow tests samples
+
+      - name: Format check
+        run: ruff format --check dataflow tests samples
+
+      # mypy: not wired in — 97 pre-existing type errors (17 files).
+      # Add "mypy dataflow" as a blocking step here once a dedicated
+      # type-cleanup pass lands (see pyproject [tool.mypy] for config).
+
+      - name: Tests
+        run: pytest
+
+      - name: Packaging smoke (non-editable install + import + CLI)
+        run: |
+          pip install --force-reinstall --no-deps .
+          cd /tmp
+          python -c "import dataflow; print(f'import ok, dataflow {dataflow.__version__}')"
+          dataflow-cv --version
