@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **COCO image ids always unique ints on write and evaluate normalization**: COCO writers and `_dataset_to_coco_dict()` now resolve image ids via the shared `resolve_coco_image_ids()` — digit ids keep their `int` value, non-digit ids get dedicated counter ids (never string ids in COCO JSON), and colliding ids (e.g. `"01"` vs `"1"`) get fresh counter ids. Previously non-digit ids could leak string ids into COCO JSON and collisions produced duplicate `images[].id`.
+- **Subdirectory flatten warning now unconditional**: coco2yolo / coco2labelme now warn whenever the COCO `file_name` contains directory components (structure dropped — per-file outputs are flat per the YOLO/LabelMe format specs), even when the output stem happens to equal the numeric id (previously silent).
+
 - **COCO→YOLO/LabelMe outputs now use the image file stem** (breaking): Per-file output names were derived from the numeric COCO image `id` (`str(int(id))`), so `{"id": 1, "file_name": "000001.jpg"}` produced `labels/1.txt` instead of `labels/000001.txt`, violating the YOLO/LabelMe format specs' same-stem requirement and breaking label↔image pairing. COCO-source converters now rewrite `image_id` to the basename stem of `file_name` (leading zeros preserved, backslashes normalized, subdirectories flattened with a warning, empty `file_name` falls back to the numeric id); `stream_convert()` warns on renames and duplicate output stems.
 
 ## [2.0.1] - 2026-09-03

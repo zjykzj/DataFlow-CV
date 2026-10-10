@@ -1,6 +1,6 @@
 # Label Module Specification
 
-> **Version:** v4.5 | **Last Updated:** 2026-10-10
+> **Version:** v4.6 | **Last Updated:** 2026-10-10
 > **Status:** Draft — logger receives from caller's LogManager via `logger=` parameter
 > **Layer:** Modules
 > **Dependencies:** None (foundation module; logging via stdlib `logging.Logger` only)
@@ -433,6 +433,17 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
 **`write(annotations, output_file, output_rle=None)`**: Writes COCO JSON.
 - Crowd annotations (`iscrowd=1`) always use RLE format
 - Non-crowd annotations follow `output_rle` flag
+
+**Image id assignment** (`write()`): Each `images[].id` is resolved from the
+`ImageAnnotation.image_id` string (canonical implementation:
+`resolve_coco_image_ids()` in `dataflow/label/utils.py`):
+
+- Digit-string `image_id` → its `int` value
+- Non-digit `image_id` → a dedicated counter id (not the annotation counter);
+  counters skip values reserved by digit-string ids
+- **Uniqueness guaranteed**: if a resolved id collides (e.g. `"01"` vs `"1"`),
+  the later image gets a fresh counter id
+- Every annotation's `image_id` references the same resolved id as its image entry
 
 **RLE handling:**
 - Write: `counts_bytes.decode("latin1")` — mandatory; UTF-8 cannot represent all 256 byte values

@@ -1,6 +1,6 @@
 # Annotation Format Conversion Specification
 
-> **Version:** v3.0 | **Last Updated:** 2026-10-10
+> **Version:** v3.1 | **Last Updated:** 2026-10-10
 > **Status:** Draft — updated to reflect native-coordinate architecture
 
 ## 1. Conversion Architecture
@@ -238,7 +238,7 @@ coordinates correctly.
 ### 5.1 YOLO ↔ COCO
 
 - **YOLO → COCO**: Many `.txt` files → Single `.json` file
-- **COCO → YOLO**: Single `.json` file → Many `.txt` files in `labels/` directory + `classes.txt`. Each `.txt` is named by the basename stem of the COCO `file_name` (leading zeros preserved, e.g. `000001.jpg` → `000001.txt`) — the YOLO format spec requires label files to share the stem with their image file. `file_name` subdirectories are flattened (with a warning); backslashes are normalized; an empty `file_name` falls back to the numeric image `id`. Duplicate output stems trigger a warning (the later file overwrites).
+- **COCO → YOLO**: Single `.json` file → Many `.txt` files in `labels/` directory + `classes.txt`. Each `.txt` is named by the basename stem of the COCO `file_name` (leading zeros preserved, e.g. `000001.jpg` → `000001.txt`) — the YOLO format spec requires label files to share the stem with their image file. `file_name` subdirectory components are dropped with a warning whenever present (YOLO labels are flat per-image files, so directory structure is not representable); backslashes are normalized; an empty `file_name` falls back to the numeric image `id`. Duplicate output stems trigger a warning (the later file overwrites).
 
 ### 5.2 YOLO ↔ LabelMe
 

@@ -607,12 +607,18 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         images = []
         coco_annotations = []
         ann_id = 1
-        img_id_counter = 1
+
+        # Resolve format-native image_id strings to unique positive-int COCO
+        # ids (digit strings keep their value; non-digit and colliding ids
+        # get dedicated counter ids — see resolve_coco_image_ids()).
+        from .utils import resolve_coco_image_ids
+
+        id_map = resolve_coco_image_ids(img.image_id for img in annotations.images)
 
         for img in annotations.images:
             images.append(
                 {
-                    "id": int(img.image_id) if img.image_id.isdigit() else img_id_counter,
+                    "id": id_map[img.image_id],
                     "width": img.width,
                     "height": img.height,
                     "file_name": img.image_path,
@@ -625,7 +631,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
             # Add object annotations
             for obj in img.objects:
-                coco_ann = self._object_to_coco_annotation(obj, img, ann_id, img_id_counter)
+                coco_ann = self._object_to_coco_annotation(obj, img, ann_id, id_map[img.image_id])
                 if coco_ann:
                     coco_annotations.append(coco_ann)
                     ann_id += 1
@@ -638,8 +644,6 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                     self._log_warning(
                         f"Skipping object {obj.class_name}: conversion to COCO format failed"
                     )
-
-            img_id_counter += 1
 
         # Prediction mode: output plain list of annotation dicts
         if self.prediction:
@@ -661,9 +665,14 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         return result
 
     def _object_to_coco_annotation(
-        self, obj: ObjectAnnotation, img: ImageAnnotation, ann_id: int, img_id: int
+        self, obj: ObjectAnnotation, img: ImageAnnotation, ann_id: int, resolved_img_id: int
     ) -> Optional[Dict]:
-        """Convert ObjectAnnotation to COCO annotation dict."""
+        """Convert ObjectAnnotation to COCO annotation dict.
+
+        Args:
+            resolved_img_id: COCO image id resolved from ``img.image_id`` by
+                ``resolve_coco_image_ids()`` (see ``_prepare_coco_data``).
+        """
         try:
             # Determine segmentation format
             segmentation = None
@@ -767,10 +776,8 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                     bbox = [float(min_x), float(min_y), float(w), float(h)]
                     area = float(w * h)
 
-            image_id_val = int(img.image_id) if img.image_id.isdigit() else img_id
-
             ann_dict = {
-                "image_id": image_id_val,
+                "image_id": resolved_img_id,
                 "category_id": obj.class_id,
                 "segmentation": segmentation,
                 "area": area,

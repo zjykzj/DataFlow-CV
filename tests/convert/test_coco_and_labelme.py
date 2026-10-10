@@ -428,7 +428,7 @@ class TestCocoToLabelMeOutputNaming:
         assert result.success is True, f"Conversion failed: {result.errors}"
         json_files = sorted(p.name for p in out.glob("*.json"))
         assert json_files == ["000001.json"]
-        assert any("Output renamed 1 → 000001" in w for w in result.warnings)
+        assert any("Output '000001': renamed 1 → 000001" in w for w in result.warnings)
 
 
 if __name__ == "__main__":

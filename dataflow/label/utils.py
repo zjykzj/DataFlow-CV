@@ -4,7 +4,52 @@ Utility functions for the label module.
 
 import hashlib
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Iterable, Optional, Set
+
+
+def resolve_coco_image_ids(image_ids: Iterable[str]) -> Dict[str, int]:
+    """Resolve format-native ``image_id`` strings to unique positive-int COCO ids.
+
+    COCO ``images[].id`` must be an int and unique per image
+    (`spec_coco_format.md`).  ``ImageAnnotation.image_id`` is a string and may
+    be a file stem, so COCO writers resolve it:
+
+    - Digit-string ``image_id`` → its ``int`` value (preserves roundtrip ids)
+    - Non-digit ``image_id`` → a dedicated counter id (not the annotation
+      counter); counters skip values reserved by digit-string ids
+    - Uniqueness guaranteed: if a resolved id collides (e.g. ``"01"`` vs
+      ``"1"``), the later image gets a fresh counter id
+
+    Canonical implementation — used by both
+    ``CocoAnnotationHandler._prepare_coco_data()`` and
+    ``evaluate/utils._dataset_to_coco_dict()``.
+
+    Args:
+        image_ids: Iterable of image_id strings in output order.
+
+    Returns:
+        Mapping ``{image_id_string: resolved_int_id}``.
+    """
+    ids = [str(s) for s in image_ids]
+    # Values reserved by digit-string ids — counters must never take them,
+    # otherwise a later digit id would collide with an earlier counter.
+    digit_values: Set[int] = {int(s) for s in ids if s.isdigit()}
+    used: Set[int] = set()
+    mapping: Dict[str, int] = {}
+    counter = 1
+
+    for s in ids:
+        if s.isdigit() and int(s) not in used:
+            value = int(s)
+        else:
+            while counter in used or counter in digit_values:
+                counter += 1
+            value = counter
+            counter += 1
+        used.add(value)
+        mapping[s] = value
+
+    return mapping
 
 
 def parse_yolo_class_id(token: str) -> Optional[int]:

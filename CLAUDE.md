@@ -518,7 +518,7 @@ Test data lives in `assets/test_data/`, organized by format (det/seg) and annota
 ### [*] Converter Implementation
 
 10. **Converter state**: `_source_annotations_for_target` must be cleared in a `finally` block to prevent stale state on exceptions.
-11. **COCO image_id fallback**: When `img.image_id` is not a digit string, use a dedicated image counter (not the annotation counter).
+11. **COCO image id resolution**: Digit-string `image_id` → its `int` value; non-digit → dedicated counter ids that skip digit-reserved values; colliding ids (e.g. `"01"` vs `"1"`) get fresh counter ids so `images[].id` stays unique. Canonical implementation: `resolve_coco_image_ids()` in `dataflow/label/utils.py` — used by both `CocoAnnotationHandler._prepare_coco_data()` and `evaluate/utils.py::_dataset_to_coco_dict()`. Never emit string image ids into COCO JSON.
 12. **`BaseConverter._post_batch_convert()` handles RLE warnings**: The base class implementation includes RLE accuracy warning logic (previously duplicated in two subclasses). Subclasses should call `super()._post_batch_convert(result, source_handler, kwargs)` if extending.
 13. **COCO categories pre-loading is shared**: `ensure_coco_categories_for_streaming()` in `convert/utils.py` is the canonical implementation. Both `YoloAndCocoConverter` and `CocoAndLabelMeConverter` delegate to it.
 14. **`_source_path` declared in `BaseConverter.__init__`**: Set to `None` at init time; assigned the actual path during streaming. Declaration makes it visible to static analysis.

@@ -240,13 +240,21 @@ class BaseConverter(ABC):
             for image_ann in source_handler.iter_images():
                 target_ann = self._convert_single_image(image_ann, **kwargs)
 
-                # Output-rename notice: COCO-source converters rewrite
-                # image_id to the file_name stem (e.g. "1" → "000001").
-                if target_ann.image_id != image_ann.image_id:
-                    notice = (
-                        f"Output renamed {image_ann.image_id} → {target_ann.image_id} "
-                        f"(derived from image file name {image_ann.image_path})"
-                    )
+                # Output-name notices: COCO-source converters rewrite
+                # image_id to the file_name stem (e.g. "1" → "000001"), and
+                # file_name directory components are dropped (per-file
+                # outputs are flat per the YOLO/LabelMe format specs).
+                renamed = target_ann.image_id != image_ann.image_id
+                flattened = self.source_format == "coco" and (
+                    Path(str(image_ann.image_path).replace("\\", "/")).parent != Path(".")
+                )
+                if renamed or flattened:
+                    parts = []
+                    if renamed:
+                        parts.append(f"renamed {image_ann.image_id} → {target_ann.image_id}")
+                    if flattened:
+                        parts.append(f"subdirectory flattened from '{image_ann.image_path}'")
+                    notice = f"Output '{target_ann.image_id}': " + ", ".join(parts)
                     result.add_warning(notice)
                     self._log_warning(notice)
 

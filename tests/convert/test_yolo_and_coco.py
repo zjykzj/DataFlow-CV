@@ -551,7 +551,21 @@ class TestCocoToYoloOutputNaming:
         label_files = sorted(p.name for p in (out / "labels").glob("*.txt"))
         assert label_files == ["000001.txt"]
         # Rename notice lands in result.warnings
-        assert any("Output renamed 1 → 000001" in w for w in result.warnings)
+        assert any("Output '000001': renamed 1 → 000001" in w for w in result.warnings)
+
+    def test_subdir_flatten_warns_even_when_stem_unchanged(self, tmp_path):
+        """file_name with subdirectory warns even if the stem equals the id."""
+        src = self._write_coco_json(tmp_path, ["train2017/1.jpg"])
+        out = tmp_path / "out"
+
+        converter = YoloAndCocoConverter(source_to_target=False)
+        result = converter.convert(str(src), str(out))
+
+        assert result.success is True, f"Conversion failed: {result.errors}"
+        label_files = sorted(p.name for p in (out / "labels").glob("*.txt"))
+        assert label_files == ["1.txt"]  # stem == id, no rename
+        # Structure information dropped — warning must still fire
+        assert any("subdirectory flattened" in w for w in result.warnings)
 
     def test_duplicate_stem_warning(self, tmp_path):
         """Two images sharing a basename → one file + duplicate warning."""

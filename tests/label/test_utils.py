@@ -2,7 +2,7 @@
 Unit tests for label utility functions.
 """
 
-from dataflow.label.utils import parse_yolo_class_id
+from dataflow.label.utils import parse_yolo_class_id, resolve_coco_image_ids
 
 
 class TestParseYoloClassId:
@@ -59,3 +59,53 @@ class TestParseYoloClassId:
     def test_overflow_returns_none(self):
         """Extremely large values that overflow → None."""
         assert parse_yolo_class_id("1e999") is None
+
+
+class TestResolveCocoImageIds:
+    """Tests for resolve_coco_image_ids — COCO image id resolution."""
+
+    def test_digit_ids_keep_values(self):
+        """Digit-string ids resolve to their int values."""
+        assert resolve_coco_image_ids(["1", "2", "5"]) == {"1": 1, "2": 2, "5": 5}
+
+    def test_zero_padded_digit_ids(self):
+        """Zero-padded ids resolve to int (roundtrip-friendly)."""
+        assert resolve_coco_image_ids(["01", "007"]) == {"01": 1, "007": 7}
+
+    def test_non_digit_ids_get_counters(self):
+        """Non-digit ids get dedicated counter ids."""
+        assert resolve_coco_image_ids(["a", "b"]) == {"a": 1, "b": 2}
+
+    def test_counters_skip_digit_values(self):
+        """Counters never take values reserved by digit ids (even later ones)."""
+        assert resolve_coco_image_ids(["a", "b", "5"]) == {"a": 1, "b": 2, "5": 5}
+        # Four non-digit ids before a digit "5": counters must pass over 5
+        assert resolve_coco_image_ids(["a", "b", "c", "d", "e", "5"]) == {
+            "a": 1,
+            "b": 2,
+            "c": 3,
+            "d": 4,
+            "e": 6,
+            "5": 5,
+        }
+
+    def test_colliding_digit_ids(self):
+        """Colliding digit ids ('01' vs '1') get unique ids."""
+        resolved = resolve_coco_image_ids(["01", "1"])
+        assert resolved["01"] == 1
+        assert resolved["1"] != 1
+        assert len(set(resolved.values())) == 2
+
+    def test_degenerate_ids_get_counters(self):
+        """Empty and negative strings are non-digit → counters."""
+        resolved = resolve_coco_image_ids(["", "-1"])
+        assert resolved[""] == 1
+        assert resolved["-1"] == 2
+
+    def test_uniqueness_with_mixed_inputs(self):
+        """Mixed digit/non-digit/colliding inputs all stay unique ints."""
+        resolved = resolve_coco_image_ids(["01", "1", "frame_a", "2"])
+        values = list(resolved.values())
+        assert len(set(values)) == 4
+        assert all(isinstance(v, int) and v > 0 for v in values)
+        assert resolved["2"] == 2

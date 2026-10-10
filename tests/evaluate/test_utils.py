@@ -8,6 +8,7 @@ import pytest
 from dataflow.evaluate.utils import (
     HAS_COCO,
     _create_coco_from_dict,
+    _dataset_to_coco_dict,
     _extract_stats,
     _load_coco,
     _load_dt,
@@ -293,3 +294,60 @@ class TestFormatPRF1Output:
     def test_failed(self):
         result = PRF1Result(success=False)
         assert "failed" in format_prf1_output(result).lower()
+
+
+class TestDatasetToCocoDictImageIds:
+    """Tests for _dataset_to_coco_dict image id resolution."""
+
+    def _dataset(self, image_ids):
+        from dataflow.label.models import (
+            AnnotationFormat,
+            BoundingBox,
+            DatasetAnnotations,
+            ImageAnnotation,
+            ObjectAnnotation,
+        )
+
+        return DatasetAnnotations(
+            format=AnnotationFormat.COCO,
+            images=[
+                ImageAnnotation(
+                    image_id=image_id,
+                    image_path=f"{image_id}.jpg",
+                    width=10,
+                    height=10,
+                    objects=[
+                        ObjectAnnotation(
+                            class_id=1,
+                            class_name="cat",
+                            bbox=BoundingBox(x=0, y=0, width=5, height=5),
+                        )
+                    ],
+                )
+                for image_id in image_ids
+            ],
+            categories={1: "cat"},
+        )
+
+    def test_non_digit_ids_get_counter(self):
+        """Non-digit image_ids resolve to int counter ids (never strings)."""
+        result = _dataset_to_coco_dict(self._dataset(["frame_a", "frame_b"]))
+        ids = [img["id"] for img in result["images"]]
+        assert ids == [1, 2]
+        assert result["annotations"][0]["image_id"] == 1
+        assert result["annotations"][1]["image_id"] == 2
+
+    def test_colliding_ids_stay_unique(self):
+        """Colliding digit ids ('01' vs '1') resolve to unique int ids."""
+        result = _dataset_to_coco_dict(self._dataset(["01", "1"]))
+        ids = [img["id"] for img in result["images"]]
+        assert ids[0] == 1
+        assert len(set(ids)) == 2
+        assert all(isinstance(i, int) for i in ids)
+
+    def test_non_coco_format_raises(self):
+        """Non-COCO DatasetAnnotations raise ValueError."""
+        from dataflow.label.models import AnnotationFormat, DatasetAnnotations
+
+        with pytest.raises(ValueError, match="format must be COCO"):
+            _dataset_to_coco_dict(DatasetAnnotations(format=AnnotationFormat.YOLO))

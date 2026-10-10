@@ -203,11 +203,17 @@ def _dataset_to_coco_dict(dataset: Any) -> Dict[str, Any]:
     # Preserve top-level keys from dataset_info
     info = dataset.dataset_info.copy()
 
-    # Reconstruct images
+    # Reconstruct images — image ids resolve with the same rule as the COCO
+    # handler write() (digit image_id → int, non-digit/colliding → dedicated
+    # counter, unique ids guaranteed — resolve_coco_image_ids()).
+    from dataflow.label.utils import resolve_coco_image_ids
+
+    id_map = resolve_coco_image_ids(img.image_id for img in dataset.images)
+
     images = []
     for img in dataset.images:
         img_entry = {
-            "id": int(img.image_id) if img.image_id.isdigit() else img.image_id,
+            "id": id_map[img.image_id],
             "file_name": img.image_path,
             "width": img.width,
             "height": img.height,
@@ -223,7 +229,7 @@ def _dataset_to_coco_dict(dataset: Any) -> Dict[str, Any]:
     annotations = []
     ann_id = 1
     for img in dataset.images:
-        image_id = int(img.image_id) if str(img.image_id).isdigit() else img.image_id
+        image_id = id_map[img.image_id]
         for obj in img.objects:
             ann_entry: Dict[str, Any] = {
                 "id": ann_id,

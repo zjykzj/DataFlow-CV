@@ -1,6 +1,6 @@
 # Evaluate Module Specification
 
-> **Version:** v2.1 | **Last Updated:** 2026-07-30
+> **Version:** v2.2 | **Last Updated:** 2026-10-10
 > **Status:** Canonical
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager), pycocotools
@@ -242,7 +242,7 @@ Where `DatasetAnnotations` is `dataflow.label.models.DatasetAnnotations`.
 | `gt_source` type | Processing |
 |-----------------|-----------|
 | `str` / `Path` | Treat as file path → load via `pycocotools.COCO(path)` |
-| `DatasetAnnotations` | Convert to COCO dict (if format ≠ COCO, raise error) |
+| `DatasetAnnotations` | Convert to COCO dict (if format ≠ COCO, raise error). Image ids resolve with the same rule as the COCO handler `write()` (see `spec_label.md` §4.2 Image id assignment): digit `image_id` → `int`, non-digit → dedicated counter, unique ids guaranteed |
 | `Dict` | Use directly as COCO dict |
 
 **DT input normalization** (`utils.py`):
@@ -251,7 +251,7 @@ Where `DatasetAnnotations` is `dataflow.label.models.DatasetAnnotations`.
 |-----------------|-----------|
 | `str` / `Path` → file contains dict | Load via `pycocotools.COCO(path)` (full COCO dict with `images`/`annotations`/`categories`) |
 | `str` / `Path` → file contains list | Load via `coco_gt.loadRes(path)` (plain annotation array — images/categories sourced from GT) |
-| `DatasetAnnotations` | Convert to COCO dict (if format ≠ COCO, raise error) |
+| `DatasetAnnotations` | Convert to COCO dict (if format ≠ COCO, raise error). Image ids resolve with the same rule as the COCO handler `write()` (see `spec_label.md` §4.2 Image id assignment): digit `image_id` → `int`, non-digit → dedicated counter, unique ids guaranteed |
 | `Dict` | Use directly as COCO dict |
 | `List` | Pass directly to `coco_gt.loadRes(list)` |
 

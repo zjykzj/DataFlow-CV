@@ -1,6 +1,6 @@
 # Convert Module Specification
 
-> **Version:** v6.0 | **Last Updated:** 2026-10-10
+> **Version:** v6.1 | **Last Updated:** 2026-10-10
 > **Status:** Draft — unified logging via `LogManager`
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
@@ -455,12 +455,15 @@ After reading and after writing, the converter emits INFO-level statistics:
      - Transforms to YOLO-native coordinates (normalized, center-based)
      - Rewrites `image_id` to the basename stem of the COCO `file_name` so the
        output `.txt` shares the stem with the image file (YOLO format spec
-       requirement). Backslashes in `file_name` are normalized to `/` before
-       stem extraction; subdirectory components are flattened (a warning is
-       emitted when the output name differs from the source `image_id`);
-       an empty `file_name` falls back to the numeric COCO image `id`.
+       requirement — the YOLO format defines labels as flat per-image files,
+       so directory components are not representable). Backslashes in
+       `file_name` are normalized to `/` before stem extraction; an empty
+       `file_name` falls back to the numeric COCO image `id`.
        `image_path` itself is **not** flattened — it keeps the relative path
        from the COCO `file_name`.
+   - Emits a warning per image whenever `file_name` contains directory
+     components (structure information dropped), and additionally whenever
+     the output name differs from the numeric id (rename notice)
    - Writes one `.txt` file per image immediately
    - Detects duplicate output stems (possible when two images share a basename
      in different subdirectories): emits a warning, the later file overwrites
@@ -532,9 +535,10 @@ After reading and after writing, the converter emits INFO-level statistics:
      In this direction only (`source_format == "coco"`), `image_id` is rewritten
      to the basename stem of the COCO `file_name` so the output `.json` shares
      the stem with the image file (LabelMe format spec requirement) — same
-     backslash normalization, subdirectory flattening, and empty-`file_name`
-     fallback rules as COCO → YOLO (§3.1). LabelMe → COCO does **not** rewrite
-     `image_id` (the COCO output id derives from the numeric `image_id`).
+     backslash normalization, subdirectory flattening, empty-`file_name`
+     fallback, and warning rules as COCO → YOLO (§3.1). LabelMe → COCO does
+     **not** rewrite `image_id` (the COCO output id derives from the numeric
+     `image_id`).
    - Writes one `.json` file per image immediately
    - Detects duplicate output stems with a warning (same as COCO → YOLO)
 2. Generates `classes.txt` from COCO categories if not provided

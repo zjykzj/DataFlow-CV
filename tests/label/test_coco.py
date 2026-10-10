@@ -12,6 +12,7 @@ import pytest
 
 from dataflow.label.coco_handler import CocoAnnotationHandler
 from dataflow.label.models import (
+    AnnotationFormat,
     BoundingBox,
     DatasetAnnotations,
     ImageAnnotation,
@@ -370,6 +371,58 @@ class TestCocoAnnotationHandler:
         assert "Missing required field" in result.message or any(
             "Missing required field" in e for e in result.errors
         )
+
+    def test_write_image_id_resolution(self, temp_dir):
+        """Write resolves non-digit and colliding image_ids to unique int ids."""
+        dataset = DatasetAnnotations(
+            format=AnnotationFormat.COCO,
+            images=[
+                ImageAnnotation(
+                    image_id="01",
+                    image_path="a.jpg",
+                    width=10,
+                    height=10,
+                    objects=[
+                        ObjectAnnotation(
+                            class_id=1,
+                            class_name="cat",
+                            bbox=BoundingBox(x=0, y=0, width=5, height=5),
+                        )
+                    ],
+                ),
+                ImageAnnotation(
+                    image_id="1",  # collides with "01" → int 1
+                    image_path="b.jpg",
+                    width=10,
+                    height=10,
+                    objects=[],
+                ),
+                ImageAnnotation(
+                    image_id="frame_a",  # non-digit → counter id
+                    image_path="c.jpg",
+                    width=10,
+                    height=10,
+                    objects=[],
+                ),
+            ],
+            categories={1: "cat"},
+        )
+        output_file = temp_dir / "ids.json"
+        handler = CocoAnnotationHandler(annotation_file=str(output_file), strict_mode=True)
+        result = handler.write(dataset, str(output_file))
+
+        assert result.success is True
+        with open(output_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        ids = [img["id"] for img in data["images"]]
+        assert all(isinstance(i, int) and i > 0 for i in ids)
+        assert len(set(ids)) == 3  # unique ids guaranteed
+        assert ids[0] == 1  # "01" keeps its int value
+        assert ids[1] != 1  # colliding "1" gets a fresh counter id
+
+        # Annotations reference the same resolved id as their image entry
+        assert data["annotations"][0]["image_id"] == data["images"][0]["id"]
 
     def test_write_success_polygon(self, sample_coco_data, temp_dir):
         """Test successful writing of COCO polygon format."""
