@@ -130,7 +130,7 @@ def absolute_pixel_to_yolo(
 # ---------------------------------------------------------------------------
 
 
-def coco_file_name_to_image_id(file_name: str, fallback_id: str) -> str:
+def coco_file_name_to_image_id(file_name: Optional[str], fallback_id: str) -> str:
     """Derive the per-file output ``image_id`` from a COCO ``file_name``.
 
     COCO ``file_name`` is the authoritative source of the image file stem
@@ -149,7 +149,8 @@ def coco_file_name_to_image_id(file_name: str, fallback_id: str) -> str:
       (the numeric COCO id string)
 
     Args:
-        file_name: COCO ``images[].file_name`` value.
+        file_name: COCO ``images[].file_name`` value. ``None`` is tolerated
+            defensively and treated as empty (falls back to *fallback_id*).
         fallback_id: ``ImageAnnotation.image_id`` from the COCO handler
             (numeric id string), used when the stem is degenerate.
 

@@ -65,8 +65,61 @@ def format_convert_phase(phase: str, stats: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_output_layout(target_path: str) -> str:
+    """Return a compact summary of the generated output layout.
+
+    Scans the actual target path and lists its top-level entries:
+    directories show their recursive file count (``labels/  4 files``);
+    empty directories show ``empty`` — an empty ``images/`` additionally
+    notes that images are not copied; single-file targets (COCO JSON)
+    show the file name.
+
+    Args:
+        target_path: Target output path of a conversion.
+
+    Returns:
+        ``"Output layout:"`` block string, or ``""`` when the target
+        path does not exist.
+    """
+    from pathlib import Path
+
+    target = Path(target_path)
+    if not target.exists():
+        return ""
+
+    lines = ["Output layout:"]
+    if target.is_file():
+        lines.append(f"  {target.name}  (single file)")
+        return "\n".join(lines)
+
+    try:
+        entries = sorted(target.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
+    except OSError:
+        return ""
+
+    for entry in entries:
+        if entry.is_dir():
+            count = sum(1 for p in entry.rglob("*") if p.is_file())
+            if count == 0:
+                if entry.name == "images":
+                    lines.append(
+                        f"  {entry.name}/  empty — images are not copied; "
+                        "place your image files here"
+                    )
+                else:
+                    lines.append(f"  {entry.name}/  empty")
+            else:
+                lines.append(f"  {entry.name}/  {count} files")
+        else:
+            lines.append(f"  {entry.name}")
+    return "\n".join(lines)
+
+
 def format_convert_result(result: Any) -> str:
     """Return a final result block for a completed conversion.
+
+    The block is followed by an output layout summary (see
+    ``format_output_layout()``) when the target path exists.
 
     Args:
         result: A ``ConversionResult`` instance.
@@ -90,4 +143,11 @@ def format_convert_result(result: Any) -> str:
     if result.warnings:
         items["Warnings"] = len(result.warnings)
 
-    return format_result_block(status, items, log_path=result.log_path)
+    block = format_result_block(status, items, log_path=result.log_path)
+
+    if getattr(result, "target_path", None):
+        layout = format_output_layout(result.target_path)
+        if layout:
+            block = f"{block}\n\n{layout}"
+
+    return block

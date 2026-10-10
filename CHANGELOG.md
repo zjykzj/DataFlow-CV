@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Convert result log now shows the output layout**: After every conversion (all 6 directions, both verbosity levels), the result block is followed by an `Output layout:` summary scanned from the actual target path — directories with recursive file counts, files listed, and empty directories marked `empty` (an empty `images/` additionally notes that images are not copied).
+
 ### Fixed
 
 - **COCO image ids always unique ints on write and evaluate normalization**: COCO writers and `_dataset_to_coco_dict()` now resolve image ids via the shared `resolve_coco_image_ids()` — digit ids keep their `int` value, non-digit ids get dedicated counter ids (never string ids in COCO JSON), and colliding ids (e.g. `"01"` vs `"1"`) get fresh counter ids. Previously non-digit ids could leak string ids into COCO JSON and collisions produced duplicate `images[].id`.

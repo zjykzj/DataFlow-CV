@@ -413,6 +413,12 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
 | `do_rle` | No | Whether to output RLE format (default False) |
 | `prediction` | No | When True, `write()` outputs plain JSON list of annotation dicts (Variant B, prediction format). Default False (full COCO dict, Variant A). |
 
+> **Note (both `read()` and `iter_images()`)**: For COCO sources, `image_id` is
+> set from the numeric COCO image `id` (e.g. `"1"`), **not** from the file stem
+> — `file_name` (which carries the real file stem, e.g. `000001.jpg`) is stored
+> in `image_path`. Converters are responsible for rewriting `image_id` to the
+> file stem for per-file output formats (see `spec_convert.md` §3.1 / §3.3).
+
 **`read()`**: Returns `DatasetAnnotations(format=COCO)` with:
 - `BoundingBox`: `(x_tl, y_tl, w_abs, h_abs)` in absolute pixels (native COCO format).
   Coordinates are **clamped to image boundaries** `[0, width] × [0, height]` before
@@ -423,12 +429,6 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
 - No coordinate normalization — COCO native coordinates are absolute pixels
 
 **`iter_images()`**: Yields `ImageAnnotation` objects one at a time with format-native coordinates. Groups annotations by `image_id` from the COCO JSON, yields each image with its annotations. In strict mode, raises `ValueError` on first invalid annotation. In non-strict mode, logs warnings and skips invalid annotations. Image errors always skip regardless of strict_mode.
-
-> **Note**: For COCO sources, `image_id` is set from the numeric COCO image `id`
-> (e.g. `"1"`), **not** from the file stem — `file_name` (which carries the real
-> file stem, e.g. `000001.jpg`) is stored in `image_path`. Converters are
-> responsible for rewriting `image_id` to the file stem for per-file output
-> formats (see `spec_convert.md` §3.1 / §3.3).
 
 **`write(annotations, output_file, output_rle=None)`**: Writes COCO JSON.
 - Crowd annotations (`iscrowd=1`) always use RLE format

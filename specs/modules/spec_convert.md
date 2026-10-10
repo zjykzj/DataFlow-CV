@@ -1,6 +1,6 @@
 # Convert Module Specification
 
-> **Version:** v6.1 | **Last Updated:** 2026-10-10
+> **Version:** v6.2 | **Last Updated:** 2026-10-10
 > **Status:** Draft — unified logging via `LogManager`
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
@@ -410,6 +410,18 @@ After reading and after writing, the converter emits INFO-level statistics:
 | Console | Progress every 50 images (streaming) or read/write stats (batch); final result | Same as non-verbose, plus a header line with paths/mode/options |
 | File output | None | Full DEBUG-level log (per-image details, handler internals) |
 | `log_path` in result | `None` | Set to log file path |
+
+**Output layout summary**: At completion (both pipelines, both verbosity levels),
+the final result block is followed by an `Output layout:` summary that scans the
+actual target path and lists its top-level entries:
+
+- Directories show their recursive file count (e.g. `labels/  4 files`), so the
+  layout reflects what was really produced (e.g. LabelMe→YOLO copies images,
+  COCO→YOLO does not)
+- An empty directory shows `empty`; an empty `images/` directory adds the hint
+  `images are not copied; place your image files here`
+- Single-file targets (COCO JSON) show the file name
+- Skipped silently when the target path does not exist (failed conversion)
 
 ## 3. Concrete Converters
 

@@ -286,7 +286,7 @@ These are pure functions — stateless, no handler interaction. They replaced ~8
 
 **State management**: `_source_annotations_for_target` stores categories for target handler creation. Must be cleared via `try/finally` in batch path. Streaming path avoids stale state by extracting categories upfront via `_ensure_categories_for_streaming()`.
 
-**Log output** (`convert/log_templates.py`): Both `_batch_convert()` and `stream_convert()` call `format_convert_header()` at the start of each conversion and `format_convert_result()` at the end. The batch path includes duration in the write log message.
+**Log output** (`convert/log_templates.py`): Both `_batch_convert()` and `stream_convert()` call `format_convert_header()` at the start of each conversion and `format_convert_result()` at the end. The batch path includes duration in the write log message. `format_convert_result()` appends an output layout summary scanned from the actual target path (`format_output_layout()` — recursive file counts per directory, empty-dir hints; an empty `images/` notes that images are not copied).
 
 ### RLE Conversion (`dataflow/convert/rle_converter.py`)
 
