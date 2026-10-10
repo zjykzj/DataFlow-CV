@@ -296,7 +296,7 @@ Handles polygon-to-RLE and RLE-to-polygon conversion using pycocotools. **Critic
 
 - `YOLOVisualizer(label_dir, image_dir, class_file, **kwargs)`: YOLO annotation visualization
 - `LabelMeVisualizer(label_dir, image_dir, class_file=None, **kwargs)`: LabelMe annotation visualization
-- `CocoVisualizer(annotation_file, image_dir, **kwargs)`: COCO annotation visualization
+- `COCOVisualizer(annotation_file, image_dir, **kwargs)`: COCO annotation visualization
 
 All extend `BaseVisualizer` which provides `ColorManager` (HSV-based palette, max 1000 colors), image loading/drawing, and both display (`is_show`) and save (`is_save`) modes.
 

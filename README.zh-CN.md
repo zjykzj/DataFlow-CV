@@ -117,6 +117,8 @@ dataflow-cv convert yolo2coco --verbose images/ labels/ classes.txt output.json
 dataflow-cv convert yolo2coco --no-strict images/ labels/ classes.txt output.json
 ```
 
+> 📂 **COCO→YOLO / COCO→LabelMe 输出命名**:每个 `.txt` / `.json` 以图片文件名主干命名 —— 保留前导零(`000001.jpg` → `000001.txt`)。转换器会生成 `labels/`(或 `.json` 文件)+ `classes.txt`;`images/` 目录会被创建但保持**为空** —— 图片不会被拷贝,请自行放入。
+
 #### 🎨 可视化
 
 ```bash
@@ -192,7 +194,13 @@ dataflow-cv evaluate detection --verbose --log-dir logs/eval/ anno.json pred.jso
 
 ```python
 from dataflow.util.logging import LogConfig
-from dataflow.analyse import StatsAnalyser, SplitAnalyser, FilterAnalyser, PartitionAnalyser, SampleAnalyser
+from dataflow.analyse import (
+    StatsAnalyser,
+    SplitAnalyser,
+    FilterAnalyser,
+    PartitionAnalyser,
+    SampleAnalyser,
+)
 from dataflow.convert import YoloAndCocoConverter
 from dataflow.visualize import YOLOVisualizer
 from dataflow.evaluate import DetectionEvaluator, compute_pr_f1
@@ -208,37 +216,50 @@ print(f"{result.data.total_files} images, {result.data.total_annotations} object
 # 训练/测试集划分(YOLO / LabelMe)
 splitter = SplitAnalyser(log_config=log_cfg)
 result = splitter.analyse(
-    output_dir="output/", ratio=0.8, seed=42,
-    label_dir="yolo_labels/", class_file="classes.txt",
+    output_dir="output/",
+    ratio=0.8,
+    seed=42,
+    label_dir="yolo_labels/",
+    class_file="classes.txt",
 )
 print(f"Train: {result.data.train_count}, Val: {result.data.val_count}")
 
 # 带图像的划分(两者模式 —— 标签主导,图像按文件名主干跟随)
 result = splitter.analyse(
-    output_dir="output/", ratio=0.8, seed=42,
-    label_dir="yolo_labels/", image_dir="images/",
+    output_dir="output/",
+    ratio=0.8,
+    seed=42,
+    label_dir="yolo_labels/",
+    image_dir="images/",
     class_file="classes.txt",
 )
 
 # 类别过滤(按新的 classes.txt 保留 / 重映射类别)
 filterer = FilterAnalyser(log_config=log_cfg)
 result = filterer.analyse(
-    "yolo_labels/", original_class_file="classes.txt",
-    new_class_file="classes_new.txt", output_dir="filtered/",
+    "yolo_labels/",
+    original_class_file="classes.txt",
+    new_class_file="classes_new.txt",
+    output_dir="filtered/",
 )
 
 # N 路分区(YOLO / LabelMe 标签;图像按文件名主干跟随)
 partitioner = PartitionAnalyser(log_config=log_cfg)
 result = partitioner.analyse(
-    output_dir="parts/", num=4,
-    label_dir="yolo_labels/", image_dir="images/",
+    output_dir="parts/",
+    num=4,
+    label_dir="yolo_labels/",
+    image_dir="images/",
 )
 
 # 文件抽样(标签、图像或两者 —— 随机或顺序)
 sampler = SampleAnalyser(log_config=log_cfg)
 result = sampler.analyse(
-    output_dir="sampled/", count=10,
-    label_dir="yolo_labels/", shuffle=True, seed=42,
+    output_dir="sampled/",
+    count=10,
+    label_dir="yolo_labels/",
+    shuffle=True,
+    seed=42,
 )
 
 # ── 转换 ──────────────────────────────────────────
@@ -246,22 +267,30 @@ result = sampler.analyse(
 log_cfg = LogConfig(name="convert", verbose=True)
 converter = YoloAndCocoConverter(source_to_target=True, log_config=log_cfg, strict_mode=True)
 result = converter.convert(
-    source_path="yolo_labels/", target_path="anno.json",
-    class_file="classes.txt", image_dir="images/",
+    source_path="yolo_labels/",
+    target_path="anno.json",
+    class_file="classes.txt",
+    image_dir="images/",
 )
 
 # YOLO 预测 → COCO(预测模式)
 converter = YoloAndCocoConverter(source_to_target=True, prediction=True)
 result = converter.convert(
-    source_path="yolo_preds/", target_path="pred.json",
-    class_file="classes.txt", image_dir="images/",
+    source_path="yolo_preds/",
+    target_path="pred.json",
+    class_file="classes.txt",
+    image_dir="images/",
 )
 
 # ── 可视化 ────────────────────────────────────────
 visualizer = YOLOVisualizer(
-    label_dir="yolo_labels/", image_dir="images/",
-    class_file="classes.txt", is_show=True, is_save=True,
-    output_dir="visualized/", log_config=log_cfg,
+    label_dir="yolo_labels/",
+    image_dir="images/",
+    class_file="classes.txt",
+    is_show=True,
+    is_save=True,
+    output_dir="visualized/",
+    log_config=log_cfg,
 )
 result = visualizer.visualize()
 
@@ -331,7 +360,7 @@ claude plugin install dataflow@claude-skills
 
 ### 🧪 测试
 
-**561 个测试,80% 代码覆盖率(5462 条语句)。**
+**606 个测试,80% 代码覆盖率(5532 条语句)。**
 
 ```bash
 pytest                                    # 全部测试
@@ -345,11 +374,11 @@ pytest tests/evaluate/test_evaluator.py     # 单个模块
 
 | 模块 | 覆盖率 | 亮点 |
 |--------|:--------:|------------|
-| `dataflow/label/` | 71% | models (84%), base (82%), utils (78%), coco_handler (74%), labelme_handler (71%), yolo_handler (61%) |
-| `dataflow/analyse/` | 84% | base (99%), log_templates (92%), sample (87%), utils (85%), split (85%), stats (83%), filter (76%), partition (74%) |
-| `dataflow/convert/` | 85% | labelme_and_yolo (93%), yolo_and_coco (89%), utils (87%), coco_and_labelme (86%), base (80%), rle (80%) |
+| `dataflow/label/` | 71% | models (84%), base (82%), utils (83%), coco_handler (74%), labelme_handler (71%), yolo_handler (61%) |
+| `dataflow/analyse/` | 84% | base (99%), log_templates (92%), sample (87%), utils (84%), split (85%), stats (82%), filter (76%), partition (74%) |
+| `dataflow/convert/` | 86% | labelme_and_yolo (93%), yolo_and_coco (89%), utils (88%), coco_and_labelme (88%), log_templates (85%), base (81%), rle (80%) |
 | `dataflow/visualize/` | 81% | yolo_vis (100%), labelme_vis (100%), coco_vis (93%), base (76%) |
-| `dataflow/evaluate/` | 87% | evaluator (100%), result (99%), metrics (93%), base (90%), utils (67%) |
+| `dataflow/evaluate/` | 90% | evaluator (100%), result (99%), metrics (93%), base (90%), utils (87%) |
 | `dataflow/cli/` | 74% | main (96%), visualize cmd (87%), utils (87%), evaluate cmd (83%), analyse cmd (65%), convert cmd (52%) |
 | `dataflow/util/` | 100% | logging (100%) |
 
@@ -358,11 +387,10 @@ pytest tests/evaluate/test_evaluator.py     # 单个模块
 ### 🎨 代码质量
 
 ```bash
-pip install -e .[dev]        # 安装开发依赖
-black dataflow tests samples  # 代码格式化
-isort dataflow tests samples  # 导入排序
-mypy dataflow                 # 类型检查
-flake8 dataflow tests samples # 代码检查
+pip install -e .[dev]                     # 安装开发依赖
+ruff check dataflow tests samples         # 代码检查
+ruff format --check dataflow tests samples  # 格式检查
+mypy dataflow                            # 类型检查
 ```
 
 ### 🔗 Pre-commit 钩子(可选)
@@ -372,7 +400,7 @@ pip install pre-commit
 pre-commit install            # 安装 git 钩子(只需运行一次)
 
 # 之后每次 `git commit` 会自动运行:
-#   black → isort → flake8 → 空白字符检查
+#   ruff(检查、自动修复)→ ruff format → 空白字符检查
 
 pre-commit run --all-files    # 手动对全部文件运行
 ```
@@ -388,7 +416,7 @@ dataflow/
 ├── evaluate/        # 基于 pycocotools 的指标计算、日志模板
 ├── util/            # 统一日志(LogManager + 格式化辅助)
 └── cli/             # CLI 入口、命令、校验
-tests/               # 单元与集成测试(561 个测试、conftest 夹具)
+tests/               # 单元与集成测试(606 个测试、conftest 夹具)
 samples/             # Python API 使用示例(analyse、convert、visualize、evaluate、cli)
 assets/              # 测试数据(按格式分类的 det/seg)
 specs/               # 权威规范(evaluate/ + formats/ + modules/)
