@@ -1,6 +1,6 @@
 # Convert Module Specification
 
-> **Version:** v5.2 | **Last Updated:** 2026-07-02
+> **Version:** v6.0 | **Last Updated:** 2026-10-10
 > **Status:** Draft — unified logging via `LogManager`
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
@@ -203,8 +203,12 @@ Every implementation MUST:
 
 1. Receive a single `ImageAnnotation` with coordinates in the **source format's native space**
 2. Transform all objects' coordinates to the **target format's native space**
-3. Return a new `ImageAnnotation` with the same metadata (image_path, width, height,
-   image_id) but transformed objects
+3. Return a new `ImageAnnotation` with the same metadata (image_path, width, height)
+   but transformed objects. `image_id` is preserved **except** for COCO-source
+   directions (COCO → YOLO, COCO → LabelMe), where it is rewritten to the basename
+   stem of the COCO `file_name` so per-file output names match the image file stem
+   required by the YOLO/LabelMe format specs (see §3.1 / §3.3 for the exact
+   naming rules and edge cases).
 4. Preserve non-coordinate data (class_name, class_id, confidence, is_crowd)
 5. Be stateless — each call is independent
 6. Match the precision characteristics of `convert_annotations()` for the same direction
@@ -449,7 +453,18 @@ After reading and after writing, the converter emits INFO-level statistics:
    - `_convert_single_image()`:
      - Reads COCO-native coordinates (absolute pixels, top-left)
      - Transforms to YOLO-native coordinates (normalized, center-based)
+     - Rewrites `image_id` to the basename stem of the COCO `file_name` so the
+       output `.txt` shares the stem with the image file (YOLO format spec
+       requirement). Backslashes in `file_name` are normalized to `/` before
+       stem extraction; subdirectory components are flattened (a warning is
+       emitted when the output name differs from the source `image_id`);
+       an empty `file_name` falls back to the numeric COCO image `id`.
+       `image_path` itself is **not** flattened — it keeps the relative path
+       from the COCO `file_name`.
    - Writes one `.txt` file per image immediately
+   - Detects duplicate output stems (possible when two images share a basename
+     in different subdirectories): emits a warning, the later file overwrites
+     the earlier one (both strict and non-strict modes)
 5. Creates `YoloAnnotationHandler` as target upfront (categories known from COCO metadata)
 
 **Streaming applicability:**
@@ -513,8 +528,15 @@ After reading and after writing, the converter emits INFO-level statistics:
 **COCO → LabelMe behavior (streaming — LabelMe output is per-file):**
 1. `stream_convert()`:
    - Iterates `CocoAnnotationHandler.iter_images()` (yields one `ImageAnnotation` per image)
-   - `_convert_single_image()`: COCO absolute → LabelMe absolute (structural reformat only)
+   - `_convert_single_image()`: COCO absolute → LabelMe absolute (structural reformat only).
+     In this direction only (`source_format == "coco"`), `image_id` is rewritten
+     to the basename stem of the COCO `file_name` so the output `.json` shares
+     the stem with the image file (LabelMe format spec requirement) — same
+     backslash normalization, subdirectory flattening, and empty-`file_name`
+     fallback rules as COCO → YOLO (§3.1). LabelMe → COCO does **not** rewrite
+     `image_id` (the COCO output id derives from the numeric `image_id`).
    - Writes one `.json` file per image immediately
+   - Detects duplicate output stems with a warning (same as COCO → YOLO)
 2. Generates `classes.txt` from COCO categories if not provided
 
 **LabelMe → COCO behavior (batch — COCO output is single JSON):**

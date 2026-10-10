@@ -1,6 +1,6 @@
 # Visualize Module Specification
 
-> **Version:** v4.7 | **Last Updated:** 2026-07-30
+> **Version:** v4.7 | **Last Updated:** 2026-10-10
 > **Status:** Draft — bidirectional nav; buffer limit; save dedup; h hints; s snapshot
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
@@ -432,7 +432,8 @@ displays the current position and image filename:
 ### 4.5 Save Mode
 
 When `is_save=True`:
-- Rendered images are saved to `output_dir/{image_id}_visualized.jpg`
+- Rendered images are saved to `output_dir/{stem}_visualized.jpg`, where `stem`
+  is the stem of the image file (derived from `image_path`, not `image_id`)
 - JPEG quality: 95
 - `output_dir` is created if it doesn't exist
 - **Duplicate prevention**: Each image is saved at most once per visualization

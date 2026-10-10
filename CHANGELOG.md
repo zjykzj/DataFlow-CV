@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **COCO→YOLO/LabelMe outputs now use the image file stem** (breaking): Per-file output names were derived from the numeric COCO image `id` (`str(int(id))`), so `{"id": 1, "file_name": "000001.jpg"}` produced `labels/1.txt` instead of `labels/000001.txt`, violating the YOLO/LabelMe format specs' same-stem requirement and breaking label↔image pairing. COCO-source converters now rewrite `image_id` to the basename stem of `file_name` (leading zeros preserved, backslashes normalized, subdirectories flattened with a warning, empty `file_name` falls back to the numeric id); `stream_convert()` warns on renames and duplicate output stems.
+
 ## [2.0.1] - 2026-09-03
 
 ### Docs

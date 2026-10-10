@@ -8,7 +8,7 @@ import datetime
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from ..label.base import AnnotationResult, BaseAnnotationHandler
 from ..label.models import AnnotationFormat, DatasetAnnotations, ImageAnnotation
@@ -215,6 +215,7 @@ class BaseConverter(ABC):
 
         num_images = 0
         num_objects = 0
+        written_ids: Set[str] = set()  # Detect duplicate output stems
 
         try:
             # 1. Validate inputs
@@ -238,6 +239,30 @@ class BaseConverter(ABC):
 
             for image_ann in source_handler.iter_images():
                 target_ann = self._convert_single_image(image_ann, **kwargs)
+
+                # Output-rename notice: COCO-source converters rewrite
+                # image_id to the file_name stem (e.g. "1" → "000001").
+                if target_ann.image_id != image_ann.image_id:
+                    notice = (
+                        f"Output renamed {image_ann.image_id} → {target_ann.image_id} "
+                        f"(derived from image file name {image_ann.image_path})"
+                    )
+                    result.add_warning(notice)
+                    self._log_warning(notice)
+
+                # Duplicate output stem detection: two source images sharing
+                # a basename (e.g. in different subdirectories) would silently
+                # overwrite each other's output file.
+                if target_ann.image_id in written_ids:
+                    dup = (
+                        f"Duplicate output stem '{target_ann.image_id}': "
+                        f"{image_ann.image_path} overwrites a previously written file"
+                    )
+                    result.add_warning(dup)
+                    self._log_warning(dup)
+                else:
+                    written_ids.add(target_ann.image_id)
+
                 write_result = target_handler.write_one(target_ann, write_dir)
                 if not write_result.success:
                     err = f"Failed to write {target_ann.image_id}: {write_result.message}"

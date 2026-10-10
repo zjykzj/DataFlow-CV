@@ -335,5 +335,101 @@ class TestCocoAndLabelMeConverter:
         assert converter_reverse._log_manager.log_path is not None
 
 
+class TestCocoToLabelMeOutputNaming:
+    """Regression tests: COCO→LabelMe output names derive from file_name stem."""
+
+    def _coco_ann(self, image_id="1", image_path="000001.jpg"):
+        """Build a single-image COCO DatasetAnnotations."""
+        return DatasetAnnotations(
+            format=AnnotationFormat.COCO,
+            images=[
+                ImageAnnotation(
+                    image_id=image_id,
+                    image_path=image_path,
+                    width=200,
+                    height=100,
+                    objects=[
+                        ObjectAnnotation(
+                            class_id=0,
+                            class_name="cat",
+                            bbox=BoundingBox(x=40, y=30, width=20, height=20),
+                        )
+                    ],
+                )
+            ],
+            categories={0: "cat"},
+        )
+
+    @pytest.mark.parametrize(
+        "image_id, image_path, expected",
+        [
+            ("1", "000001.jpg", "000001"),  # leading zeros preserved
+            ("2", "sub/000002.jpg", "000002"),  # subdirectory flattened
+            ("3", "", "3"),  # empty file_name falls back to numeric id
+        ],
+    )
+    def test_image_id_rewritten_to_file_stem(self, image_id, image_path, expected):
+        """Test COCO→LabelMe rewrites image_id to the file_name stem."""
+        converter = CocoAndLabelMeConverter(source_to_target=True)
+        result = converter.convert_annotations(self._coco_ann(image_id, image_path), {})
+        assert result.format == AnnotationFormat.LABELME
+        assert result.images[0].image_id == expected
+        # image_path is preserved (not flattened)
+        assert result.images[0].image_path == image_path
+
+    def test_labelme_to_coco_does_not_rewrite(self):
+        """Guard: LabelMe→COCO must NOT rewrite image_id (direction gate)."""
+        converter = CocoAndLabelMeConverter(source_to_target=False)
+        # LabelMe sources carry the file stem in image_id already
+        annotations = DatasetAnnotations(
+            format=AnnotationFormat.LABELME,
+            images=[
+                ImageAnnotation(
+                    image_id="000001",
+                    image_path="sub/000001.jpg",
+                    width=200,
+                    height=100,
+                    objects=[],
+                )
+            ],
+            categories={0: "cat"},
+        )
+        result = converter.convert_annotations(annotations, {})
+        assert result.format == AnnotationFormat.COCO
+        assert result.images[0].image_id == "000001"
+
+    def test_streaming_output_uses_file_name_stem(self, tmp_path):
+        """End-to-end: zero-padded file_name → 000001.json."""
+        import json
+
+        coco = {
+            "images": [
+                {"id": 1, "file_name": "000001.jpg", "width": 200, "height": 100},
+            ],
+            "annotations": [
+                {
+                    "id": 1,
+                    "image_id": 1,
+                    "category_id": 1,
+                    "bbox": [40, 30, 20, 20],
+                    "area": 400,
+                    "iscrowd": 0,
+                },
+            ],
+            "categories": [{"id": 1, "name": "cat"}],
+        }
+        src = tmp_path / "ann.json"
+        src.write_text(json.dumps(coco), encoding="utf-8")
+        out = tmp_path / "out"
+
+        converter = CocoAndLabelMeConverter(source_to_target=True)
+        result = converter.convert(str(src), str(out))
+
+        assert result.success is True, f"Conversion failed: {result.errors}"
+        json_files = sorted(p.name for p in out.glob("*.json"))
+        assert json_files == ["000001.json"]
+        assert any("Output renamed 1 → 000001" in w for w in result.warnings)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

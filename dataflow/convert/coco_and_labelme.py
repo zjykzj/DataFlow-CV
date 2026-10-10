@@ -220,6 +220,16 @@ class CocoAndLabelMeConverter(BaseConverter):
         Only the structural representation differs — coordinate values pass
         through unchanged.
         """
+        # COCO → LabelMe only: rewrite image_id to the COCO file_name stem so
+        # the output .json shares the stem with the image file (LabelMe format
+        # requirement; leading zeros preserved). LabelMe → COCO must NOT
+        # rewrite — the COCO output id derives from the numeric image_id.
+        new_image_id = image_ann.image_id
+        if self.source_format == "coco":
+            from .utils import coco_file_name_to_image_id
+
+            new_image_id = coco_file_name_to_image_id(image_ann.image_path, image_ann.image_id)
+
         new_objects = []
         for obj in image_ann.objects:
             new_bbox = None
@@ -251,7 +261,7 @@ class CocoAndLabelMeConverter(BaseConverter):
             )
 
         return ImageAnnotation(
-            image_id=image_ann.image_id,
+            image_id=new_image_id,
             image_path=image_ann.image_path,
             width=image_ann.width,
             height=image_ann.height,

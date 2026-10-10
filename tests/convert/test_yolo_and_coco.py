@@ -468,5 +468,138 @@ class TestYoloAndCocoConverter:
         assert "categories" in data
 
 
+class TestCocoToYoloOutputNaming:
+    """Regression tests: COCO→YOLO output names derive from file_name stem."""
+
+    def _coco_ann(self, image_id="1", image_path="000001.jpg"):
+        """Build a single-image COCO DatasetAnnotations."""
+        return DatasetAnnotations(
+            format=AnnotationFormat.COCO,
+            images=[
+                ImageAnnotation(
+                    image_id=image_id,
+                    image_path=image_path,
+                    width=200,
+                    height=100,
+                    objects=[
+                        ObjectAnnotation(
+                            class_id=0,
+                            class_name="cat",
+                            bbox=BoundingBox(x=80, y=40, width=40, height=20),
+                        )
+                    ],
+                )
+            ],
+            categories={0: "cat"},
+        )
+
+    @pytest.mark.parametrize(
+        "image_id, image_path, expected",
+        [
+            ("1", "000001.jpg", "000001"),  # leading zeros preserved
+            ("2", "sub/000002.jpg", "000002"),  # subdirectory flattened
+            ("3", "win\\000003.jpg", "000003"),  # backslash normalized
+            ("4", "", "4"),  # empty file_name falls back to numeric id
+        ],
+    )
+    def test_image_id_rewritten_to_file_stem(self, image_id, image_path, expected):
+        """Test _coco_to_yolo_one rewrites image_id to the file_name stem."""
+        converter = YoloAndCocoConverter(source_to_target=False)
+        annotations = self._coco_ann(image_id=image_id, image_path=image_path)
+        result = converter.convert_annotations(annotations, {})
+        assert result.format == AnnotationFormat.YOLO
+        assert len(result.images) == 1
+        assert result.images[0].image_id == expected
+        # image_path is preserved (relative path, not flattened)
+        assert result.images[0].image_path == image_path
+
+    def _write_coco_json(self, tmp_path, images):
+        """Write a minimal COCO JSON with the given image entries."""
+        import json
+
+        coco = {
+            "images": [
+                {"id": i + 1, "file_name": fn, "width": 200, "height": 100}
+                for i, fn in enumerate(images)
+            ],
+            "annotations": [
+                {
+                    "id": i + 1,
+                    "image_id": i + 1,
+                    "category_id": 1,
+                    "bbox": [80, 40, 40, 20],
+                    "area": 800,
+                    "iscrowd": 0,
+                }
+                for i in range(len(images))
+            ],
+            "categories": [{"id": 1, "name": "cat"}],
+        }
+        src = tmp_path / "ann.json"
+        src.write_text(json.dumps(coco), encoding="utf-8")
+        return src
+
+    def test_streaming_output_uses_file_name_stem(self, tmp_path):
+        """End-to-end: zero-padded file_name → labels/000001.txt."""
+        src = self._write_coco_json(tmp_path, ["000001.jpg"])
+        out = tmp_path / "out"
+
+        converter = YoloAndCocoConverter(source_to_target=False)
+        result = converter.convert(str(src), str(out))
+
+        assert result.success is True, f"Conversion failed: {result.errors}"
+        label_files = sorted(p.name for p in (out / "labels").glob("*.txt"))
+        assert label_files == ["000001.txt"]
+        # Rename notice lands in result.warnings
+        assert any("Output renamed 1 → 000001" in w for w in result.warnings)
+
+    def test_duplicate_stem_warning(self, tmp_path):
+        """Two images sharing a basename → one file + duplicate warning."""
+        src = self._write_coco_json(tmp_path, ["a/000001.jpg", "b/000001.jpg"])
+        out = tmp_path / "out"
+
+        converter = YoloAndCocoConverter(source_to_target=False)
+        result = converter.convert(str(src), str(out))
+
+        assert result.success is True, f"Conversion failed: {result.errors}"
+        label_files = sorted(p.name for p in (out / "labels").glob("*.txt"))
+        assert label_files == ["000001.txt"]
+        assert any("Duplicate output stem '000001'" in w for w in result.warnings)
+
+    def test_roundtrip_preserves_stem(self, tmp_path):
+        """YOLO→COCO→YOLO roundtrip keeps the original file stem."""
+        # 1. Build a YOLO source: labels/000001.txt + images/000001.jpg (dummy)
+        import cv2
+        import numpy as np
+
+        yolo_dir = tmp_path / "yolo"
+        (yolo_dir / "labels").mkdir(parents=True)
+        (yolo_dir / "images").mkdir(parents=True)
+        (yolo_dir / "classes.txt").write_text("cat\n", encoding="utf-8")
+        (yolo_dir / "labels" / "000001.txt").write_text("0 0.5 0.5 0.2 0.2\n", encoding="utf-8")
+        cv2.imwrite(
+            str(yolo_dir / "images" / "000001.jpg"),
+            np.zeros((100, 200, 3), dtype=np.uint8),
+        )
+
+        coco_out = tmp_path / "roundtrip.json"
+        to_coco = YoloAndCocoConverter(source_to_target=True, strict_mode=False)
+        r1 = to_coco.convert(
+            str(yolo_dir / "labels"),
+            str(coco_out),
+            image_dir=str(yolo_dir / "images"),
+            class_file=str(yolo_dir / "classes.txt"),
+        )
+        assert r1.success is True, f"YOLO→COCO failed: {r1.errors}"
+
+        # 2. Convert back: COCO file_name must be the original stem
+        out = tmp_path / "out"
+        to_yolo = YoloAndCocoConverter(source_to_target=False)
+        r2 = to_yolo.convert(str(coco_out), str(out))
+        assert r2.success is True, f"COCO→YOLO failed: {r2.errors}"
+        label_files = sorted(p.name for p in (out / "labels").glob("*.txt"))
+        assert label_files == ["000001.txt"]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

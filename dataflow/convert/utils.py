@@ -130,6 +130,41 @@ def absolute_pixel_to_yolo(
 # ---------------------------------------------------------------------------
 
 
+def coco_file_name_to_image_id(file_name: str, fallback_id: str) -> str:
+    """Derive the per-file output ``image_id`` from a COCO ``file_name``.
+
+    COCO ``file_name`` is the authoritative source of the image file stem
+    (``id`` is only a numeric reference key and carries no filename
+    information).  Per-file output formats (YOLO `.txt`, LabelMe `.json`)
+    must share the stem with the image file (see `spec_yolo_format.md` /
+    `spec_labelme_format.md`), so COCO-source converters rewrite ``image_id``
+    to this stem before ``write_one()``.
+
+    Rules:
+    - Backslashes are normalized to ``/`` (Windows-style paths)
+    - Subdirectory components are dropped (output is flat; the
+      `spec_label.md` image_id invariant forbids path separators)
+    - Leading zeros are preserved (``000001.jpg`` → ``000001``)
+    - Degenerate stems (``""``, ``"."``, ``".."``) fall back to *fallback_id*
+      (the numeric COCO id string)
+
+    Args:
+        file_name: COCO ``images[].file_name`` value.
+        fallback_id: ``ImageAnnotation.image_id`` from the COCO handler
+            (numeric id string), used when the stem is degenerate.
+
+    Returns:
+        Basename stem of *file_name*, or *fallback_id*.
+    """
+    if not file_name:
+        return fallback_id
+    normalized = str(file_name).replace("\\", "/")
+    stem = Path(normalized).stem
+    if stem in ("", ".", ".."):
+        return fallback_id
+    return stem
+
+
 def ensure_coco_categories_for_streaming(
     converter: Any,
     source_handler: Any,

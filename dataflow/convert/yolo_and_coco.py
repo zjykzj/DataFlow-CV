@@ -288,7 +288,7 @@ class YoloAndCocoConverter(BaseConverter):
 
     def _coco_to_yolo_one(self, img: ImageAnnotation) -> ImageAnnotation:
         """Convert single image: COCO absolute px → YOLO normalized center."""
-        from .utils import absolute_pixel_to_yolo
+        from .utils import absolute_pixel_to_yolo, coco_file_name_to_image_id
 
         new_objects = []
         for obj in img.objects:
@@ -306,8 +306,11 @@ class YoloAndCocoConverter(BaseConverter):
                 )
             )
 
+        # YOLO format requires label files to share the stem with the image
+        # file — derive the output name from the COCO file_name stem (which
+        # preserves leading zeros), not from the numeric COCO id.
         return ImageAnnotation(
-            image_id=img.image_id,
+            image_id=coco_file_name_to_image_id(img.image_path, img.image_id),
             image_path=img.image_path,
             width=img.width,
             height=img.height,

@@ -1,6 +1,6 @@
 # Label Module Specification
 
-> **Version:** v4.5 | **Last Updated:** 2026-07-30
+> **Version:** v4.5 | **Last Updated:** 2026-10-10
 > **Status:** Draft — logger receives from caller's LogManager via `logger=` parameter
 > **Layer:** Modules
 > **Dependencies:** None (foundation module; logging via stdlib `logging.Logger` only)
@@ -423,6 +423,12 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
 - No coordinate normalization — COCO native coordinates are absolute pixels
 
 **`iter_images()`**: Yields `ImageAnnotation` objects one at a time with format-native coordinates. Groups annotations by `image_id` from the COCO JSON, yields each image with its annotations. In strict mode, raises `ValueError` on first invalid annotation. In non-strict mode, logs warnings and skips invalid annotations. Image errors always skip regardless of strict_mode.
+
+> **Note**: For COCO sources, `image_id` is set from the numeric COCO image `id`
+> (e.g. `"1"`), **not** from the file stem — `file_name` (which carries the real
+> file stem, e.g. `000001.jpg`) is stored in `image_path`. Converters are
+> responsible for rewriting `image_id` to the file stem for per-file output
+> formats (see `spec_convert.md` §3.1 / §3.3).
 
 **`write(annotations, output_file, output_rle=None)`**: Writes COCO JSON.
 - Crowd annotations (`iscrowd=1`) always use RLE format

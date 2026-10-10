@@ -185,6 +185,36 @@ class TestPathFunctions:
             assert updated.images[1].image_path == str(target_dir / "img2.jpg")
 
 
+class TestCocoFileNameToImageId:
+    """Test COCO file_name → per-file output image_id derivation."""
+
+    @pytest.mark.parametrize(
+        "file_name, expected",
+        [
+            ("000001.jpg", "000001"),  # leading zeros preserved
+            ("val2017/000000000139.jpg", "000000000139"),  # subdirectory flattened
+            ("win\\000003.jpg", "000003"),  # backslash normalized
+            ("image.tar.jpg", "image.tar"),  # multi-dot: basename minus final suffix
+            ("1.jpg", "1"),  # already-stem file name
+        ],
+    )
+    def test_stem_derivation(self, file_name, expected):
+        """Test stem derivation from COCO file_name."""
+        assert utils.coco_file_name_to_image_id(file_name, "fallback") == expected
+
+    @pytest.mark.parametrize(
+        "file_name",
+        ["", ".", ".."],
+    )
+    def test_degenerate_stem_falls_back(self, file_name):
+        """Test degenerate file_names fall back to the numeric id."""
+        assert utils.coco_file_name_to_image_id(file_name, "42") == "42"
+
+    def test_non_string_fallback(self):
+        """Test None file_name falls back (defensive)."""
+        assert utils.coco_file_name_to_image_id(None, "42") == "42"
+
+
 class TestImageDimensionFunction:
     """Test image dimension function."""
 
