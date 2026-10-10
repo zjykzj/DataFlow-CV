@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-11
+
 ### Changed
 
 - **Showcase and demo assets refreshed**: README showcase images regenerated from real COCO val2017 scenes (clean multi-category views, 3-5 objects) with a reproducible generator (`samples/visualize/showcase_demo.py`); `assets/coco` / `assets/coco-seg` expanded to 10 detection/segmentation demo pairs (multi-category, small-object, border-truncation scenes); new realistic regression fixtures under `assets/test_data/realistic/` (zero-padded file names, 16 categories).
