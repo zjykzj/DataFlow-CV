@@ -117,6 +117,12 @@ dataflow-cv convert yolo2coco --verbose images/ labels/ classes.txt output.json
 dataflow-cv convert yolo2coco --no-strict images/ labels/ classes.txt output.json
 ```
 
+> 📂 **COCO→YOLO / COCO→LabelMe output naming**: each `.txt` / `.json` is named by the
+> image file stem — leading zeros preserved (`000001.jpg` → `000001.txt`). The
+> converter generates `labels/` (or the `.json` files) + `classes.txt`; the
+> `images/` directory is created but left **empty** — images are never copied,
+> place your image files there yourself.
+
 #### 🎨 Visualization
 
 ```bash
@@ -192,7 +198,13 @@ Two evaluation modes, distinguished by how overlap is measured:
 
 ```python
 from dataflow.util.logging import LogConfig
-from dataflow.analyse import StatsAnalyser, SplitAnalyser, FilterAnalyser, PartitionAnalyser, SampleAnalyser
+from dataflow.analyse import (
+    StatsAnalyser,
+    SplitAnalyser,
+    FilterAnalyser,
+    PartitionAnalyser,
+    SampleAnalyser,
+)
 from dataflow.convert import YoloAndCocoConverter
 from dataflow.visualize import YOLOVisualizer
 from dataflow.evaluate import DetectionEvaluator, compute_pr_f1
@@ -208,37 +220,50 @@ print(f"{result.data.total_files} images, {result.data.total_annotations} object
 # Train/test split (YOLO / LabelMe)
 splitter = SplitAnalyser(log_config=log_cfg)
 result = splitter.analyse(
-    output_dir="output/", ratio=0.8, seed=42,
-    label_dir="yolo_labels/", class_file="classes.txt",
+    output_dir="output/",
+    ratio=0.8,
+    seed=42,
+    label_dir="yolo_labels/",
+    class_file="classes.txt",
 )
 print(f"Train: {result.data.train_count}, Val: {result.data.val_count}")
 
 # Split with images (both mode — labels drive, images follow by stem)
 result = splitter.analyse(
-    output_dir="output/", ratio=0.8, seed=42,
-    label_dir="yolo_labels/", image_dir="images/",
+    output_dir="output/",
+    ratio=0.8,
+    seed=42,
+    label_dir="yolo_labels/",
+    image_dir="images/",
     class_file="classes.txt",
 )
 
 # Category filter (keep / remap categories per new classes.txt)
 filterer = FilterAnalyser(log_config=log_cfg)
 result = filterer.analyse(
-    "yolo_labels/", original_class_file="classes.txt",
-    new_class_file="classes_new.txt", output_dir="filtered/",
+    "yolo_labels/",
+    original_class_file="classes.txt",
+    new_class_file="classes_new.txt",
+    output_dir="filtered/",
 )
 
 # N-way partition (YOLO / LabelMe labels; images follow by stem)
 partitioner = PartitionAnalyser(log_config=log_cfg)
 result = partitioner.analyse(
-    output_dir="parts/", num=4,
-    label_dir="yolo_labels/", image_dir="images/",
+    output_dir="parts/",
+    num=4,
+    label_dir="yolo_labels/",
+    image_dir="images/",
 )
 
 # File sampling (labels, images, or both — random or sequential)
 sampler = SampleAnalyser(log_config=log_cfg)
 result = sampler.analyse(
-    output_dir="sampled/", count=10,
-    label_dir="yolo_labels/", shuffle=True, seed=42,
+    output_dir="sampled/",
+    count=10,
+    label_dir="yolo_labels/",
+    shuffle=True,
+    seed=42,
 )
 
 # ── Convert ──────────────────────────────────────────
@@ -246,22 +271,30 @@ result = sampler.analyse(
 log_cfg = LogConfig(name="convert", verbose=True)
 converter = YoloAndCocoConverter(source_to_target=True, log_config=log_cfg, strict_mode=True)
 result = converter.convert(
-    source_path="yolo_labels/", target_path="anno.json",
-    class_file="classes.txt", image_dir="images/",
+    source_path="yolo_labels/",
+    target_path="anno.json",
+    class_file="classes.txt",
+    image_dir="images/",
 )
 
 # YOLO predictions → COCO (prediction mode)
 converter = YoloAndCocoConverter(source_to_target=True, prediction=True)
 result = converter.convert(
-    source_path="yolo_preds/", target_path="pred.json",
-    class_file="classes.txt", image_dir="images/",
+    source_path="yolo_preds/",
+    target_path="pred.json",
+    class_file="classes.txt",
+    image_dir="images/",
 )
 
 # ── Visualize ────────────────────────────────────────
 visualizer = YOLOVisualizer(
-    label_dir="yolo_labels/", image_dir="images/",
-    class_file="classes.txt", is_show=True, is_save=True,
-    output_dir="visualized/", log_config=log_cfg,
+    label_dir="yolo_labels/",
+    image_dir="images/",
+    class_file="classes.txt",
+    is_show=True,
+    is_save=True,
+    output_dir="visualized/",
+    log_config=log_cfg,
 )
 result = visualizer.visualize()
 
@@ -331,7 +364,7 @@ For detailed developer guidance including advanced test commands, debugging, and
 
 ### 🧪 Testing
 
-**561 tests, 80% code coverage (5462 statements).**
+**602 tests, 80% code coverage (5532 statements).**
 
 ```bash
 pytest                                    # All tests
@@ -345,11 +378,11 @@ pytest tests/evaluate/test_evaluator.py     # Single module
 
 | Module | Coverage | Highlights |
 |--------|:--------:|------------|
-| `dataflow/label/` | 71% | models (84%), base (82%), utils (78%), coco_handler (74%), labelme_handler (71%), yolo_handler (61%) |
-| `dataflow/analyse/` | 84% | base (99%), log_templates (92%), sample (87%), utils (85%), split (85%), stats (83%), filter (76%), partition (74%) |
-| `dataflow/convert/` | 85% | labelme_and_yolo (93%), yolo_and_coco (89%), utils (87%), coco_and_labelme (86%), base (80%), rle (80%) |
+| `dataflow/label/` | 71% | models (84%), base (82%), utils (83%), coco_handler (74%), labelme_handler (71%), yolo_handler (61%) |
+| `dataflow/analyse/` | 84% | base (99%), log_templates (92%), sample (87%), utils (84%), split (85%), stats (82%), filter (76%), partition (74%) |
+| `dataflow/convert/` | 86% | labelme_and_yolo (93%), yolo_and_coco (89%), utils (88%), coco_and_labelme (87%), log_templates (85%), base (81%), rle (80%) |
 | `dataflow/visualize/` | 81% | yolo_vis (100%), labelme_vis (100%), coco_vis (93%), base (76%) |
-| `dataflow/evaluate/` | 87% | evaluator (100%), result (99%), metrics (93%), base (90%), utils (67%) |
+| `dataflow/evaluate/` | 90% | evaluator (100%), result (99%), metrics (93%), base (90%), utils (87%) |
 | `dataflow/cli/` | 74% | main (96%), visualize cmd (87%), utils (87%), evaluate cmd (83%), analyse cmd (65%), convert cmd (52%) |
 | `dataflow/util/` | 100% | logging (100%) |
 
@@ -358,11 +391,10 @@ pytest tests/evaluate/test_evaluator.py     # Single module
 ### 🎨 Code Quality
 
 ```bash
-pip install -e .[dev]        # Install dev dependencies
-black dataflow tests samples  # Format
-isort dataflow tests samples  # Sort imports
-mypy dataflow                 # Type check
-flake8 dataflow tests samples # Lint
+pip install -e .[dev]                       # Install dev dependencies
+ruff check dataflow tests samples           # Lint
+ruff format --check dataflow tests samples  # Format check
+mypy dataflow                               # Type check
 ```
 
 ### 🔗 Pre-commit Hooks (Optional)
@@ -372,7 +404,7 @@ pip install pre-commit
 pre-commit install            # Install git hooks (run once)
 
 # After this, every `git commit` auto-runs:
-#   black → isort → flake8 → whitespace checks
+#   ruff (lint, auto-fix) → ruff format → whitespace checks
 
 pre-commit run --all-files    # Manual run against all files
 ```
@@ -388,7 +420,7 @@ dataflow/
 ├── evaluate/        # pycocotools-based metrics, log templates
 ├── util/            # Unified logging (LogManager + format helpers)
 └── cli/             # CLI entry point, commands, validation
-tests/               # Unit & integration tests (561 tests, conftest fixtures)
+tests/               # Unit & integration tests (602 tests, conftest fixtures)
 samples/             # Python API usage examples (analyse, convert, visualize, evaluate, cli)
 assets/              # Test data (det/seg by format)
 specs/               # Canonical specifications (evaluate/ + formats/ + modules/)
