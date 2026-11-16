@@ -771,7 +771,10 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                 if not self.prediction:
                     # Label mode: odd tokens
                     if n == 5:
-                        # Detection format
+                        # Detection format — mirror read(): clamp edges to
+                        # [0, 1] (tolerating FP imprecision, warning on
+                        # change) then reject zero-area bboxes, so validate
+                        # and read agree on the same files.
                         try:
                             class_id = self._parse_class_id(items[0])
                             x_center = float(items[1])
@@ -783,24 +786,29 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                                 self.logger.error(f"Invalid class ID {class_id} in line {line_num}")
                                 return False
 
-                            for value, name in [
-                                (x_center, "x_center"),
-                                (y_center, "y_center"),
-                                (width, "width"),
-                                (height, "height"),
-                            ]:
-                                if not math.isfinite(value) or value < 0 or value > 1:
-                                    self.logger.error(
-                                        f"{name} out of range [0, 1] in line {line_num}: {value}"
-                                    )
-                                    return False
+                            if not all(
+                                math.isfinite(v) for v in (x_center, y_center, width, height)
+                            ):
+                                self.logger.error(f"Non-finite coordinate in line {line_num}")
+                                return False
+
+                            _, _, w, h = self._clamp_normalized_bbox(
+                                x_center, y_center, width, height
+                            )
+                            if w <= 0 or h <= 0:
+                                self.logger.error(
+                                    f"Zero-area bbox in line {line_num}: width={w}, height={h}"
+                                )
+                                return False
 
                         except (ValueError, IndexError) as e:
                             self.logger.error(f"Error parsing line {line_num}: {e}")
                             return False
 
                     elif n > 5 and n % 2 == 1:
-                        # Segmentation format
+                        # Segmentation format — mirror read(): clamp points
+                        # to [0, 1] (tolerating FP imprecision) then require
+                        # >= 3 points; non-finite coordinates raise.
                         try:
                             class_id = self._parse_class_id(items[0])
                             if class_id not in self.categories:
@@ -812,20 +820,10 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                                 self.logger.error(f"Odd number of coordinates in line {line_num}")
                                 return False
 
-                            for i in range(0, len(coords), 2):
-                                x, y = coords[i], coords[i + 1]
-                                if not math.isfinite(x) or x < 0 or x > 1:
-                                    self.logger.error(
-                                        f"x coordinate out of range [0,1] in line {line_num}: {x}"
-                                    )
-                                    return False
-                                if not math.isfinite(y) or y < 0 or y > 1:
-                                    self.logger.error(
-                                        f"y coordinate out of range [0,1] in line {line_num}: {y}"
-                                    )
-                                    return False
+                            points = [(coords[i], coords[i + 1]) for i in range(0, len(coords), 2)]
+                            points = self._clamp_normalized_points(points)
 
-                            if len(coords) // 2 < 3:
+                            if len(points) < 3:
                                 self.logger.error(
                                     f"Polygon needs at least 3 points in line {line_num}"
                                 )
@@ -857,25 +855,38 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                                 self.logger.error(f"Invalid class ID {class_id} in line {line_num}")
                                 return False
 
-                            for value, name in [
-                                (x_center, "x_center"),
-                                (y_center, "y_center"),
-                                (width, "width"),
-                                (height, "height"),
-                                (confidence, "confidence"),
-                            ]:
-                                if not math.isfinite(value) or value < 0 or value > 1:
-                                    self.logger.error(
-                                        f"{name} out of range [0,1] in line {line_num}: {value}"
-                                    )
-                                    return False
+                            # Mirror read(): clamp bbox edges to [0, 1] then
+                            # reject zero-area; confidence keeps a strict
+                            # range check (read errors on it in strict mode).
+                            if not all(
+                                math.isfinite(v) for v in (x_center, y_center, width, height)
+                            ):
+                                self.logger.error(f"Non-finite coordinate in line {line_num}")
+                                return False
+
+                            _, _, w, h = self._clamp_normalized_bbox(
+                                x_center, y_center, width, height
+                            )
+                            if w <= 0 or h <= 0:
+                                self.logger.error(
+                                    f"Zero-area bbox in line {line_num}: width={w}, height={h}"
+                                )
+                                return False
+
+                            if not math.isfinite(confidence) or confidence < 0 or confidence > 1:
+                                self.logger.error(
+                                    f"confidence out of range [0,1] in line {line_num}: {confidence}"
+                                )
+                                return False
 
                         except (ValueError, IndexError) as e:
                             self.logger.error(f"Error parsing line {line_num}: {e}")
                             return False
 
                     elif n > 6 and n % 2 == 0:
-                        # Segmentation prediction
+                        # Segmentation prediction — mirror read(): clamp
+                        # points to [0, 1], require >= 3; confidence keeps a
+                        # strict range check.
                         try:
                             class_id = self._parse_class_id(items[0])
                             if class_id not in self.categories:
@@ -889,18 +900,8 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                                 self.logger.error(f"Odd number of coordinates in line {line_num}")
                                 return False
 
-                            for i in range(0, len(coords), 2):
-                                x, y = coords[i], coords[i + 1]
-                                if not math.isfinite(x) or x < 0 or x > 1:
-                                    self.logger.error(
-                                        f"x coordinate out of range [0,1] in line {line_num}: {x}"
-                                    )
-                                    return False
-                                if not math.isfinite(y) or y < 0 or y > 1:
-                                    self.logger.error(
-                                        f"y coordinate out of range [0,1] in line {line_num}: {y}"
-                                    )
-                                    return False
+                            points = [(coords[i], coords[i + 1]) for i in range(0, len(coords), 2)]
+                            points = self._clamp_normalized_points(points)
 
                             if not math.isfinite(confidence) or confidence < 0 or confidence > 1:
                                 self.logger.error(
@@ -908,7 +909,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                                 )
                                 return False
 
-                            if len(coords) // 2 < 3:
+                            if len(points) < 3:
                                 self.logger.error(
                                     f"Polygon needs at least 3 points in line {line_num}"
                                 )

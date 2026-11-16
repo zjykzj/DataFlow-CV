@@ -808,6 +808,36 @@ class TestYoloAnnotationHandler:
         is_valid = handler.validate(str(label_file))
         assert is_valid is False
 
+    def test_validate_agrees_with_read_clamp_semantics(self, temp_dir):
+        """validate() mirrors read()'s clamp-then-validate logic.
+
+        Regression test: validate previously accepted zero-area bboxes
+        and rejected slightly-out-of-range values that read() clamps.
+        """
+        class_file = temp_dir / "classes.txt"
+        class_file.write_text("person\n")
+        image_dir = temp_dir / "images"
+        image_dir.mkdir()
+        label_dir = temp_dir / "labels"
+        label_dir.mkdir()
+
+        cases = {
+            "zero_area": ("0 0.5 0.5 0 0.2", False),  # read() rejects
+            "slightly_oob": ("0 0.5 0.5 1.0000001 0.2", True),  # read() clamps + accepts
+            "edge_overflow": ("0 0.9 0.5 0.5 0.2", True),  # read() clamps + accepts
+        }
+        for name, (content, expected) in cases.items():
+            label_file = label_dir / f"{name}.txt"
+            label_file.write_text(content)
+
+            handler = YoloAnnotationHandler(
+                label_dir=str(label_dir),
+                class_file=str(class_file),
+                image_dir=str(image_dir),
+                strict_mode=True,
+            )
+            assert handler.validate(str(label_file)) is expected, name
+
     def test_validate_invalid_class_id(self, temp_dir):
         """Test validation of file with invalid class ID."""
         # Create test data
