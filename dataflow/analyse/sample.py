@@ -214,7 +214,6 @@ class SampleAnalyser(BaseAnalyser):
         # ------------------------------------------------------------------
         # 6. Copy/move files
         # ------------------------------------------------------------------
-        unmatched_image_warnings = 0
         for src_path, stem in sampled:
             if mode == "both":
                 # Copy label
@@ -226,7 +225,6 @@ class SampleAnalyser(BaseAnalyser):
                     self._log_warning(
                         f"No matching image found for label '{stem}' in image directory"
                     )
-                    unmatched_image_warnings += 1
             else:
                 _copy_or_move_file(src_path, output_dir, move, self.logger)
 

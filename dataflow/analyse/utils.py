@@ -179,12 +179,7 @@ def _auto_generate_class_file(label_dir: Path, recursive: bool = False) -> Path:
         )
 
     max_id = max(class_ids)
-    names = []
-    for i in range(max_id + 1):
-        if i in class_ids:
-            names.append(f"class_{i}")
-        else:
-            names.append(f"class_{i}")  # placeholder for gaps
+    names = [f"class_{i}" for i in range(max_id + 1)]
 
     # Write to a named temporary file (must survive beyond the function call)
     tmp = tempfile.NamedTemporaryFile(
