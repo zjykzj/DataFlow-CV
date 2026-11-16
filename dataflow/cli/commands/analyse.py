@@ -313,7 +313,24 @@ def split(
     cls=FormattedCommand,
     argument_help={"output_dir": "Output directory for filtered labels"},
 )
-@_add_analyse_options
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Enable verbose log output",
+)
+@click.option(
+    "--log-dir",
+    type=click.Path(path_type=Path),
+    default="./logs",
+    show_default=True,
+    help="Log file output directory",
+)
+@click.option(
+    "--image-dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=None,
+    help="Image directory for YOLO format (auto-detected if omitted)",
+)
 @click.argument(
     "label_path",
     type=click.Path(exists=True, path_type=Path),
@@ -340,7 +357,8 @@ def filter(
     original_class_file: Path,
     new_class_file: Path,
     output_dir: Path,
-    class_file: Path,
+    verbose: bool,
+    log_dir: Path,
     image_dir: Path,
 ):
     """Filter dataset at LABEL_PATH by category.
@@ -352,9 +370,6 @@ def filter(
     Filtered labels are written to OUTPUT_DIR. The new classes.txt is copied there as well.
     """
     from dataflow.analyse import FilterAnalyser
-
-    verbose = ctx.obj["verbose"]
-    log_dir = ctx.obj["log_dir"]
 
     log_config = LogConfig(
         name="analyse.filter",

@@ -1237,7 +1237,7 @@ dataflow-cv analyse sample [OPTIONS] OUTPUT_DIR --count N [--label-dir L] [--ima
 |--------|-----------|------|---------|-------------|
 | `--verbose` | all five | Flag | False | Enable verbose log output |
 | `--log-dir` | all five | Path | `./logs` | Log file output directory |
-| `--class-file`, `-c` | stats, split, filter, partition, sample | Path | None | Classes.txt for name mapping / copying. For stats: enables **strict validation** — data classes not in this file cause an error. For filter it is accepted by the shared decorator but ignored (noted for removal). |
+| `--class-file`, `-c` | stats, split, partition, sample | Path | None | Classes.txt for name mapping / copying. For stats: enables **strict validation** — data classes not in this file cause an error. (filter takes class files as positional arguments instead.) |
 | `--image-dir` | all five | Path | None | Image directory for YOLO (auto-detected if omitted: tries ``labels/images/``, ``dataset/images/``, ``dataset_parent/images/``) |
 | `--sort-by` | stats | Choice | `"id"` | `"id"` or `"count"` |
 | `--descending/--ascending` | stats | Flag | `--ascending` | Sort direction |

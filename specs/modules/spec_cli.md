@@ -1,6 +1,6 @@
 # CLI Module Specification
 
-> **Version:** 2.6 | **Last Updated:** 2026-11-16
+> **Version:** 2.7 | **Last Updated:** 2026-11-16
 > **Layer:** Modules
 > **Dependencies:** Convert module + Visualize module + Evaluate module (public APIs only) + Logging module (LogConfig only)
 
@@ -232,7 +232,7 @@ Evaluates instance segmentation results using mask IoU (`iouType='segm'`).
 
 ### 5.1 Shared Options
 
-Both ``stats`` and ``filter`` subcommands use the `_add_analyse_options` decorator (defined in ``commands/analyse.py``) which provides `--verbose`, `--log-dir`, `--class-file`, and `--image-dir`.  The ``split`` subcommand defines its own options inline (like `partition` does), sharing only `--verbose` and `--log-dir`.
+The ``stats`` subcommand uses the `_add_analyse_options` decorator (defined in ``commands/analyse.py``), which provides `--verbose`, `--log-dir`, `--class-file`, and `--image-dir`. The ``filter`` subcommand defines its own options inline (`--verbose`, `--log-dir`, `--image-dir` — no `--class-file`, it takes class files as positional arguments), as do ``split``, ``partition``, and ``sample``.
 
 The ``stats`` subcommand additionally accepts `--sort-by` (`id`|`count`) and `--descending/--ascending` to control per-class output ordering when `--class-file` is not provided.
 
