@@ -542,7 +542,7 @@ Test data lives in `assets/test_data/`, organized by format (det/seg) and annota
 
 28. **YOLO prediction format**: 6 tokens for detection, even tokens for segmentation, vs 5/odd for labels. Use `--prediction` with `yolo2coco`. Mixed label/prediction files not supported.
 29. **YOLO confidence validation rejects NaN**: `YoloAnnotationHandler` uses `math.isfinite()` alongside `[0, 1]` range check. `float('nan')` passes a range-only check silently — the `isfinite()` guard catches NaN, Inf, and -Inf.
-30. **YOLO class_id may be float-formatted**: Some tooling writes ``5.000000`` instead of ``5``. `YoloAnnotationHandler._parse_class_id()` handles this, but code parsing YOLO `.txt` directly must also handle it. Use `_parse_class_id_token()` from `dataflow/analyse/utils.py` — `int(token)` on float strings raises `ValueError`.
+30. **YOLO class_id may be float-formatted**: Some tooling writes ``5.000000`` instead of ``5``. `YoloAnnotationHandler._parse_class_id()` handles this, but code parsing YOLO `.txt` directly must also handle it. Use `parse_yolo_class_id()` from `dataflow/label/utils.py` — `int(token)` on float strings raises `ValueError`.
 31. **[!] YOLO write row priority — segmentation wins over bbox**: In `_object_to_yolo_line()`, the segmentation branch must be checked **first**. COCO annotations always carry a `bbox` field, so bbox-first ordering silently drops polygon/RLE segmentation from COCO→YOLO conversions (writes 5-token rows). Empty `Segmentation.points` falls back to the bbox row. Contract: `spec_label.md` §4.1.
 
 ### [*] Logging
