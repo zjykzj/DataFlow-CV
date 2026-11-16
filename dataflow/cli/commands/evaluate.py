@@ -44,14 +44,14 @@ def add_evaluate_options(func):
     )
     @click.option(
         "--prf1-iou",
-        type=float,
+        type=click.FloatRange(0.0, 1.0),
         default=0.5,
         show_default=True,
         help="IoU threshold for P/R/F1 calculation",
     )
     @click.option(
         "--prf1-conf",
-        type=float,
+        type=click.FloatRange(0.0, 1.0),
         default=0.0,
         show_default=True,
         help="Confidence threshold for P/R/F1 calculation",

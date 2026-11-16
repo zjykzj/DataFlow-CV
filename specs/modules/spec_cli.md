@@ -185,8 +185,8 @@ dataflow-cv visualize labelme [OPTIONS] IMAGE_DIR LABEL_DIR
 | `--verbose` | Flag | False | Enable verbose output: per-class metrics table + file logging |
 | `--log-dir` | Path | `./logs` | Log file output directory (only when `--verbose` is set) |
 | `--prf1` | Flag | False | Compute P/R/F1 instead of mAP. Mutually exclusive with the mAP path. |
-| `--prf1-iou` | Float | 0.5 | IoU threshold for P/R/F1 calculation |
-| `--prf1-conf` | Float | 0.0 | Confidence threshold for P/R/F1 calculation |
+| `--prf1-iou` | FloatRange [0, 1] | 0.5 | IoU threshold for P/R/F1 calculation |
+| `--prf1-conf` | FloatRange [0, 1] | 0.0 | Confidence threshold for P/R/F1 calculation |
 | `--prf1-method` | Choice | `"macro"` | Aggregation: `"macro"` or `"micro"` |
 | `--output`, `-o` | Path | None | Save the evaluation result as JSON to this path — mAP path: full `EvaluationResult`; `--prf1` path: `PRF1Result` (thresholds, method, overall + per-class P/R/F1/TP/FP/FN, class_names, warnings, errors) |
 

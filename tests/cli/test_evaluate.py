@@ -197,3 +197,17 @@ class TestEvaluateGroup:
         assert result.exit_code == 0
         assert "detection" in result.output
         assert "segmentation" in result.output
+
+
+class TestEvaluateOptionValidation:
+    """Out-of-range option values are rejected with a clear error."""
+
+    @pytest.mark.parametrize("option", ["--prf1-iou", "--prf1-conf"])
+    def test_prf1_thresholds_range_validated(self, runner, option):
+        bad = "1.5" if option == "--prf1-iou" else "-0.1"
+        result = runner.invoke(
+            cli,
+            ["evaluate", "detection", "--prf1", option, bad, GT_JSON, DT_JSON],
+        )
+        assert result.exit_code == 2
+        assert "range" in result.output
