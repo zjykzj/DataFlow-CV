@@ -1,6 +1,6 @@
 # Convert Module Specification
 
-> **Version:** v6.2 | **Last Updated:** 2026-10-10
+> **Version:** v6.3 | **Last Updated:** 2026-11-16
 > **Status:** Draft — unified logging via `LogManager`
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
@@ -448,11 +448,11 @@ actual target path and lists its top-level entries:
 3. `convert_annotations()`:
    - Reads YOLO-native coordinates (normalized, center-based)
    - Transforms to COCO-native coordinates (absolute pixels, top-left)
-   - Preserves `ObjectAnnotation.confidence` (used as COCO `score` in output)
+   - Preserves `ObjectAnnotation.confidence` (emitted as COCO `score` in prediction mode only)
    - Sets `result.format = AnnotationFormat.COCO`
 4. Creates `CocoAnnotationHandler(prediction=prediction, do_rle=...)` as target
 5. COCO output depends on prediction mode:
-   - **Annotation mode** (`prediction=False`): Full COCO dict with `info`, `images`, `annotations`, `categories`. ``score`` is omitted unless ``confidence < 1.0``.
+   - **Annotation mode** (`prediction=False`): Full COCO dict with `info`, `images`, `annotations`, `categories`. ``score`` is never written in annotation mode (per ``spec_coco_format.md`` §9.3).
    - **Prediction mode** (`prediction=True`): Plain JSON list of annotation dicts (Variant B per `spec_coco_format.md` §9.1). Each dict contains `image_id`, `category_id`, `bbox`, `area`, `score`, and optionally `segmentation`. No `images`/`categories`/`info` wrapper — these are sourced from GT at evaluation time via `loadRes()`.
 6. If `do_rle=True`, adds RLE accuracy warning to result
 
