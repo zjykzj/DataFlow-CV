@@ -406,3 +406,38 @@ class TestLabelMeAnnotationHandler:
 
         shape = handler._object_to_shape(obj)
         assert shape is None
+
+
+class TestIterImagesCategoriesUpfront:
+    """iter_images populates categories before the first yield."""
+
+    def test_categories_complete_before_first_yield(self, tmp_path):
+        """Pre-scan fills self.categories upfront.
+
+        Regression test: categories were only set after the generator
+        was exhausted, so streaming consumers saw an empty dict and
+        early-break consumers left it incomplete.
+        """
+        import json
+
+        for name, labels in [("a", ["cat", "dog"]), ("b", ["dog", "bird"])]:
+            data = {
+                "version": "5.0.0",
+                "flags": {},
+                "shapes": [
+                    {"label": label, "points": [[0, 0], [10, 10]], "shape_type": "rectangle"}
+                    for label in labels
+                ],
+                "imagePath": f"{name}.jpg",
+                "imageWidth": 100,
+                "imageHeight": 100,
+            }
+            (tmp_path / f"{name}.json").write_text(json.dumps(data), encoding="utf-8")
+
+        handler = LabelMeAnnotationHandler(label_dir=str(tmp_path))
+        iterator = handler.iter_images()
+        next(iterator)  # first yield
+        assert handler.categories == {0: "cat", 1: "dog", 2: "bird"}
+
+        iterator.close()  # early break — categories stay complete
+        assert handler.categories == {0: "cat", 1: "dog", 2: "bird"}

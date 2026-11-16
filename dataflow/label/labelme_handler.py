@@ -163,6 +163,26 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
         if not json_files:
             raise ValueError(f"No JSON files found in {self.label_dir}")
 
+        # Pre-scan shapes for labels so self.categories is complete before
+        # the first yield — streaming consumers (e.g. the Convert pipeline's
+        # _ensure_categories_for_streaming) need categories upfront, and an
+        # early-break consumer previously left the dict incomplete
+        # (spec_label.md §4.3). Ids follow first-appearance order across
+        # files, matching _parse_shape's assignment.
+        if not self.categories:
+            for json_file in json_files:
+                try:
+                    with open(json_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                except (OSError, json.JSONDecodeError):
+                    continue  # the per-file read reports the real error
+                for shape in data.get("shapes", []):
+                    label = shape.get("label")
+                    if label and label not in self.categories.values():
+                        self.categories[len(self.categories)] = label
+            if self.categories:
+                self._log_info(f"Extracted {len(self.categories)} categories from annotations")
+
         categories_from_annotations: Dict[int, str] = {}
 
         for json_file in json_files:
