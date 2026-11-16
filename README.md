@@ -52,6 +52,30 @@ cd DataFlow-CV && pip install .
 
 All required parameters (image directories, label directories, class files, output paths) are positional arguments for better usability. Use `--help` on any subcommand for detailed usage.
 
+#### 📂 Data Layout & classes.txt
+
+Input data must follow each format's native layout — dataflow-cv detects the format automatically from what you point it at:
+
+| Format | What you pass | Expected layout |
+|--------|---------------|-----------------|
+| **YOLO** | `labels/` directory (+ `images/` directory) | One `.txt` per image: `labels/000001.txt` next to `images/000001.jpg` — the label file **must share the image's file name**. Detection lines are `class_id cx cy w h`; segmentation lines are `class_id x1 y1 x2 y2 …` (normalized [0,1] coordinates). |
+| **LabelMe** | a directory of `.json` files | One `.json` per image (`shapes` with `label` + `points`). |
+| **COCO** | a single `.json` file | One file containing `images`, `annotations`, `categories` arrays. |
+
+`classes.txt` is the **class name mapping** used by YOLO-related commands. It is just one class name per line — the line number is the class id (0-indexed):
+
+```
+person
+bicycle
+car
+```
+
+- **Required** for: `yolo2coco`, `yolo2labelme`, `labelme2yolo`, `labelme2coco`, `visualize yolo`
+- **Auto-generated** for `coco2yolo` / `coco2labelme` (written next to the output — you can pass your own with `-c` to control the order)
+- Also used by `analyse stats -c` for display names and strict category validation
+
+> 💡 Converting a COCO dataset first? Run `coco2yolo` once — it writes a ready-to-use `classes.txt`.
+
 #### 🔍 Dataset Analysis
 
 ```bash
@@ -64,19 +88,23 @@ dataflow-cv analyse stats coco_annotations.json
 dataflow-cv analyse stats yolo_train/ yolo_val/ --recursive
 
 # Train / test split (YOLO / LabelMe only — labels / images / both modes)
+#   → outputs/train/ + outputs/val/  (each with labels/ + images/ in both mode)
 dataflow-cv analyse split -l yolo_labels/ outputs/ --ratio 0.8 --seed 42 -c classes.txt
 dataflow-cv analyse split -i images/ outputs/ --ratio 0.8
 dataflow-cv analyse split -l yolo_labels/ -i images/ outputs/ --ratio 0.8
 
 # Category filter (keep a subset of categories, remap IDs per new classes.txt)
+#   → filtered/ receives the filtered labels + the new classes.txt
 dataflow-cv analyse filter yolo_labels/ classes.txt classes_new.txt filtered/
 dataflow-cv analyse filter coco_annotations.json classes.txt classes_new.txt filtered/
 
 # N-way partition — YOLO / LabelMe only (labels drive, images follow by stem)
+#   → parts/part_1/ … parts/part_N/  (each with labels/ + images/ in both mode)
 dataflow-cv analyse partition -n 4 --label-dir yolo_labels/ --image-dir images/ parts/
 dataflow-cv analyse partition -n 4 --image-dir images/ --shuffle parts/
 
 # File sampling — collect N files (random or sequential, labels / images / both modes)
+#   → flat files in output/  (or output/labels/ + output/images/ in both mode)
 dataflow-cv analyse sample -l yolo_labels/ output/ -n 10
 dataflow-cv analyse sample -i images/ output/ -n 10 --no-shuffle
 dataflow-cv analyse sample -l yolo_labels/ -i images/ output/ -n 5 --seed 42
@@ -91,25 +119,25 @@ dataflow-cv analyse stats --verbose yolo_labels/ --class-file classes.txt
 #### 🔄 Format Conversion
 
 ```bash
-# YOLO → COCO
+# YOLO → COCO                      → output.json: single COCO file
 dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt output.json
 
 # YOLO → COCO (with RLE encoding)
 dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt output.json --do-rle
 
-# YOLO → LabelMe
+# YOLO → LabelMe                   → labelme_json/: one .json per image
 dataflow-cv convert yolo2labelme images/ yolo_labels/ classes.txt labelme_json/
 
-# LabelMe → YOLO
+# LabelMe → YOLO                   → yolo_labels/: one .txt per image + classes.txt
 dataflow-cv convert labelme2yolo labelme_json/ classes.txt yolo_labels/
 
-# LabelMe → COCO
+# LabelMe → COCO                   → output.json: single COCO file
 dataflow-cv convert labelme2coco labelme_json/ classes.txt output.json
 
-# COCO → YOLO
+# COCO → YOLO                      → yolo_labels/labels/*.txt + classes.txt
 dataflow-cv convert coco2yolo input.json yolo_labels/
 
-# COCO → LabelMe
+# COCO → LabelMe                   → labelme_json/: one .json per image
 dataflow-cv convert coco2labelme input.json labelme_json/
 
 # YOLO predictions → COCO (output: plain JSON list — prediction format)
@@ -199,6 +227,40 @@ Two evaluation modes, distinguished by how overlap is measured:
 - **Instance Segmentation** — mask IoU. GT and DT require `bbox`, `segmentation` (polygon or RLE), and `area`; DT additionally requires `score`.
 
 `yolo2coco` (label mode) and `yolo2coco --prediction` (prediction mode) automatically populate all required fields for both modes — no manual editing needed.
+
+#### 🔄 End-to-End Workflow
+
+The full pipeline from raw YOLO data to evaluation — the output of each step feeds the next:
+
+```bash
+# 0) Your data:  data/images/*.jpg  +  data/labels/*.txt (same file names)
+#                +  classes.txt (one class name per line)
+
+# 1) Inspect the dataset
+dataflow-cv analyse stats data/labels/ --image-dir data/images/ --class-file classes.txt
+
+# 2) Split into train / val          → data/split/train/ + data/split/val/
+dataflow-cv analyse split -l data/labels/ -i data/images/ -c classes.txt \
+    --ratio 0.8 --seed 42 data/split/
+
+# 3) Val labels → COCO ground truth  (GT and DT must cover the SAME images —
+#    evaluate your model on the val set)
+dataflow-cv convert yolo2coco data/split/val/images/ data/split/val/labels/ \
+    classes.txt gt.json
+
+# 4) Model predictions on the val set → COCO detections
+#    (prediction files carry confidence — 6 tokens for detection)
+dataflow-cv convert yolo2coco --prediction data/split/val/images/ preds/ \
+    classes.txt pred.json
+
+# 5) Evaluate (mAP, or quick P/R/F1)
+dataflow-cv evaluate detection gt.json pred.json
+dataflow-cv evaluate detection --prf1 --output prf1.json gt.json pred.json
+
+# 6) Spot-check the val set visually
+dataflow-cv visualize yolo --no-display data/split/val/images/ data/split/val/labels/ \
+    classes.txt --save viz/
+```
 
 ### 🐍 Python API
 

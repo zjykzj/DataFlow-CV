@@ -52,6 +52,30 @@ cd DataFlow-CV && pip install .
 
 所有必需参数(图像目录、标签目录、类别文件、输出路径)均为位置参数,使用更便捷。在任意子命令后使用 `--help` 查看详细用法。
 
+#### 📂 数据布局与 classes.txt
+
+输入数据需符合各格式的原生布局 —— dataflow-cv 会根据你传入的内容自动检测格式:
+
+| 格式 | 传入什么 | 期望布局 |
+|--------|---------------|-----------------|
+| **YOLO** | `labels/` 目录(+ `images/` 目录) | 每张图像一个 `.txt`:`labels/000001.txt` 与 `images/000001.jpg` 对应 —— 标签文件**必须与图像同名**。检测行格式为 `class_id cx cy w h`;分割行格式为 `class_id x1 y1 x2 y2 …`(归一化 [0,1] 坐标)。 |
+| **LabelMe** | 一个 `.json` 文件目录 | 每张图像一个 `.json`(`shapes` 含 `label` + `points`)。 |
+| **COCO** | 单个 `.json` 文件 | 一个包含 `images`、`annotations`、`categories` 数组的文件。 |
+
+`classes.txt` 是 YOLO 相关命令使用的**类别名映射**。每行一个类别名 —— 行号即类别 id(0 开始):
+
+```
+person
+bicycle
+car
+```
+
+- **必需**:`yolo2coco`、`yolo2labelme`、`labelme2yolo`、`labelme2coco`、`visualize yolo`
+- **自动生成**:`coco2yolo` / `coco2labelme`(写在输出旁 —— 也可用 `-c` 传入自定义顺序)
+- `analyse stats -c` 用于显示类别名并启用严格类别校验
+
+> 💡 先从 COCO 转起?运行一次 `coco2yolo` —— 它会生成现成的 `classes.txt`。
+
 #### 🔍 数据集分析
 
 ```bash
@@ -64,19 +88,23 @@ dataflow-cv analyse stats coco_annotations.json
 dataflow-cv analyse stats yolo_train/ yolo_val/ --recursive
 
 # 训练/测试集划分(仅 YOLO / LabelMe —— 标签 / 图像 / 两者模式)
+#   → outputs/train/ + outputs/val/(两者模式下各自含 labels/ + images/)
 dataflow-cv analyse split -l yolo_labels/ outputs/ --ratio 0.8 --seed 42 -c classes.txt
 dataflow-cv analyse split -i images/ outputs/ --ratio 0.8
 dataflow-cv analyse split -l yolo_labels/ -i images/ outputs/ --ratio 0.8
 
 # 类别过滤(保留类别子集,按新的 classes.txt 重映射 ID)
+#   → filtered/ 接收过滤后的标签 + 新的 classes.txt
 dataflow-cv analyse filter yolo_labels/ classes.txt classes_new.txt filtered/
 dataflow-cv analyse filter coco_annotations.json classes.txt classes_new.txt filtered/
 
 # N 路分区 —— 仅 YOLO / LabelMe(标签主导,图像按文件名主干跟随)
+#   → parts/part_1/ … parts/part_N/(两者模式下各自含 labels/ + images/)
 dataflow-cv analyse partition -n 4 --label-dir yolo_labels/ --image-dir images/ parts/
 dataflow-cv analyse partition -n 4 --image-dir images/ --shuffle parts/
 
 # 文件抽样 —— 收集 N 个文件(随机或顺序,标签 / 图像 / 两者模式)
+#   → 平铺文件至 output/(两者模式为 output/labels/ + output/images/)
 dataflow-cv analyse sample -l yolo_labels/ output/ -n 10
 dataflow-cv analyse sample -i images/ output/ -n 10 --no-shuffle
 dataflow-cv analyse sample -l yolo_labels/ -i images/ output/ -n 5 --seed 42
@@ -91,25 +119,25 @@ dataflow-cv analyse stats --verbose yolo_labels/ --class-file classes.txt
 #### 🔄 格式转换
 
 ```bash
-# YOLO → COCO
+# YOLO → COCO                      → output.json:单个 COCO 文件
 dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt output.json
 
 # YOLO → COCO(RLE 编码)
 dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt output.json --do-rle
 
-# YOLO → LabelMe
+# YOLO → LabelMe                   → labelme_json/:每图一个 .json
 dataflow-cv convert yolo2labelme images/ yolo_labels/ classes.txt labelme_json/
 
-# LabelMe → YOLO
+# LabelMe → YOLO                   → yolo_labels/:每图一个 .txt + classes.txt
 dataflow-cv convert labelme2yolo labelme_json/ classes.txt yolo_labels/
 
-# LabelMe → COCO
+# LabelMe → COCO                   → output.json:单个 COCO 文件
 dataflow-cv convert labelme2coco labelme_json/ classes.txt output.json
 
-# COCO → YOLO
+# COCO → YOLO                      → yolo_labels/labels/*.txt + classes.txt
 dataflow-cv convert coco2yolo input.json yolo_labels/
 
-# COCO → LabelMe
+# COCO → LabelMe                   → labelme_json/:每图一个 .json
 dataflow-cv convert coco2labelme input.json labelme_json/
 
 # YOLO 预测文件 → COCO(输出:纯 JSON 列表 —— 预测格式)
@@ -195,6 +223,39 @@ dataflow-cv evaluate detection --verbose --log-dir logs/eval/ anno.json pred.jso
 - **实例分割** —— 掩码 IoU。GT 和 DT 需要 `bbox`、`segmentation`(多边形或 RLE)以及 `area`;DT 还需要 `score`。
 
 `yolo2coco`(标注模式)和 `yolo2coco --prediction`(预测模式)会自动填充两种模式所需的全部字段 —— 无需手动编辑。
+
+#### 🔄 端到端工作流
+
+从原始 YOLO 数据到评估的完整链路 —— 每一步的输出是下一步的输入:
+
+```bash
+# 0) 你的数据:data/images/*.jpg + data/labels/*.txt(同名文件)
+#            + classes.txt(每行一个类别名)
+
+# 1) 查看数据集统计
+dataflow-cv analyse stats data/labels/ --image-dir data/images/ --class-file classes.txt
+
+# 2) 划分训练/验证集                → data/split/train/ + data/split/val/
+dataflow-cv analyse split -l data/labels/ -i data/images/ -c classes.txt \
+    --ratio 0.8 --seed 42 data/split/
+
+# 3) 验证集标签 → COCO 真值         (GT 与 DT 必须覆盖同一批图像 —— 在验证集上评估模型)
+dataflow-cv convert yolo2coco data/split/val/images/ data/split/val/labels/ \
+    classes.txt gt.json
+
+# 4) 模型在验证集上的预测 → COCO 检测结果
+#    (预测文件带置信度 —— 检测行为 6 个 token)
+dataflow-cv convert yolo2coco --prediction data/split/val/images/ preds/ \
+    classes.txt pred.json
+
+# 5) 评估(mAP,或快速 P/R/F1)
+dataflow-cv evaluate detection gt.json pred.json
+dataflow-cv evaluate detection --prf1 --output prf1.json gt.json pred.json
+
+# 6) 可视化抽查验证集
+dataflow-cv visualize yolo --no-display data/split/val/images/ data/split/val/labels/ \
+    classes.txt --save viz/
+```
 
 ### 🐍 Python API
 
