@@ -239,7 +239,7 @@ class SplitAnalyser(BaseAnalyser):
         # ------------------------------------------------------------------
         # 7. Copy class_file to both output dirs if provided
         # ------------------------------------------------------------------
-        _copy_class_file(class_file, output_dir, mode, move, self.logger)
+        _copy_class_file(class_file, output_dir, move, self.logger)
 
         # ------------------------------------------------------------------
         # 8. Build result
@@ -358,7 +358,6 @@ def _split_files(
 def _copy_class_file(
     class_file: Optional[Path],
     output_dir: Path,
-    mode: str,
     move: bool,
     logger,
 ) -> None:
@@ -367,34 +366,31 @@ def _copy_class_file(
     Args:
         class_file: Path to classes.txt (None → skip).
         output_dir: Root output directory.
-        mode: ``"labels"`` | ``"images"`` | ``"both"``.
-        move: If True, move; else copy.
+        move: If True, move to the first target; else copy.
         logger: Logger for warnings.
     """
     if class_file is None or not class_file.exists():
         return
 
-    targets: List[Path] = []
-    if mode == "both":
-        targets = [
-            output_dir / "train" / class_file.name,
-            output_dir / "val" / class_file.name,
-        ]
-    else:
-        targets = [
-            output_dir / "train" / class_file.name,
-            output_dir / "val" / class_file.name,
-        ]
+    targets: List[Path] = [
+        output_dir / "train" / class_file.name,
+        output_dir / "val" / class_file.name,
+    ]
 
-    for target in targets:
+    for i, target in enumerate(targets):
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
             if not target.exists():
-                if move:
+                if move and i == 0:
+                    # Move to the first target only — the source file no
+                    # longer exists afterwards, so remaining targets must
+                    # be copies (spec_analyse.md §3.3: class file copied
+                    # to both output directories).
                     shutil.move(str(class_file), str(target))
-                    # Only move once — subsequent iterations just skip
-                    break
                 else:
-                    shutil.copy2(str(class_file), str(target))
+                    # In move mode the source is gone after iteration 0 —
+                    # copy from the first target instead.
+                    src = class_file if class_file.exists() else targets[0]
+                    shutil.copy2(str(src), str(target))
         except OSError as e:
             logger.warning(f"Could not copy class file to {target}: {e}")

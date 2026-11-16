@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Seg-only annotations with RLE output now get valid bbox/area**: the bbox derivation was gated on the output segmentation type, so `--do-rle` on segmentation data wrote `bbox: []` and `area: 0.0` (violating spec_coco_format.md §4); bbox/area are now derived from the source polygon points regardless of output format.
 - **COCO image with missing/zero dimensions no longer fails the dataset read**: such images previously raised from the model constructor and aborted the entire read in both modes; they are now skipped with a warning, per spec_label.md §5.1/§5.2.
 - **`compute_pr_f1` validates `iou_type` and segmentation data**: invalid `iou_type` now raises a clear ValueError, and `iou_type='segm'` on bbox-only data returns a clear "Segmentation data missing" error instead of a cryptic `NoneType has no len()` TypeError; mixed datasets evaluate the annotations that carry segmentation.
+- **`analyse split --move` copies classes.txt to both train/ and val/**: move mode stopped after the first move, so val/ never received the class file; it now moves to the first target and copies to the rest, per spec_analyse.md §3.3.
 
 ## [3.0.1] - 2026-11-16
 

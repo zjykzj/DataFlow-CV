@@ -189,6 +189,39 @@ class TestSplitAnalyser:
             assert not result.success
             assert any("Ratio" in e for e in result.errors)
 
+    def test_move_copies_class_file_to_both_dirs(self):
+        """--move puts classes.txt in BOTH train/ and val/ (spec §3.3).
+
+        Regression test: move mode broke after the first move, so val/
+        never received the class file.
+        """
+        analyser = SplitAnalyser()
+        for move in (True, False):
+            with tempfile.TemporaryDirectory() as tmpdir:
+                base = Path(tmpdir)
+                label_dir = base / "labels"
+                label_dir.mkdir()
+                class_file = base / "classes.txt"
+                class_file.write_text("cat\ndog\n")
+                for name in ["a", "b", "c", "d"]:
+                    (label_dir / f"{name}.txt").write_text("0 0.5 0.5 0.2 0.2\n")
+
+                output_dir = base / "out"
+                result = analyser.analyse(
+                    output_dir=output_dir,
+                    ratio=0.5,
+                    seed=42,
+                    move=move,
+                    label_dir=label_dir,
+                    class_file=class_file,
+                )
+                assert result.success is True
+                assert (output_dir / "train" / "classes.txt").exists()
+                assert (output_dir / "val" / "classes.txt").exists()
+                if move:
+                    # Source was moved away — must not still exist
+                    assert not class_file.exists()
+
     def test_no_input_source(self):
         """Missing both label_dir and image_dir produces an error."""
         analyser = SplitAnalyser()
