@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 
 from .result import PRF1Result, PRF1Values
-from .utils import _load_coco, _load_dt, _validate_coco_available
+from .utils import _load_coco, _load_dt, _validate_coco_available, _validate_segm_data
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +72,10 @@ def compute_pr_f1(
     if method not in ("macro", "micro"):
         raise ValueError(f"Invalid `method` parameter: '{method}'. Expected 'macro' or 'micro'.")
 
+    # Validate iou_type before any computation
+    if iou_type not in ("bbox", "segm"):
+        raise ValueError(f"Invalid `iou_type` parameter: '{iou_type}'. Expected 'bbox' or 'segm'.")
+
     result = PRF1Result(
         success=False,
         iou_threshold=iou_threshold,
@@ -83,6 +87,17 @@ def compute_pr_f1(
         # Load data
         coco_gt = _load_coco(gt_source)
         coco_dt = _load_dt(dt_source, coco_gt)
+
+        # Segmentation data validation (mirrors BaseEvaluator._validate_segm_data):
+        # mask IoU on bbox-only data would crash with a cryptic TypeError.
+        if iou_type == "segm":
+            seg_errors, seg_warnings = _validate_segm_data(coco_gt, coco_dt)
+            for e in seg_errors:
+                result.add_error(e)
+            for w in seg_warnings:
+                result.add_warning(w)
+            if seg_errors:
+                return result
 
         # Prepare category / image lookup
         cat_ids = coco_gt.getCatIds()
@@ -261,6 +276,23 @@ def _compute_mask_iou(
 
     if not dt_rles or not gt_rles:
         return np.zeros((len(dt_anns), len(gt_anns)))
+
+    # Annotations without segmentation yield None rles — filter them out
+    # (maskUtils.iou crashes on None entries) and scatter the sub-matrix
+    # back into the full shape.
+    if any(r is None for r in dt_rles) or any(r is None for r in gt_rles):
+        dt_valid = [(i, r) for i, r in enumerate(dt_rles) if r is not None]
+        gt_valid = [(j, r) for j, r in enumerate(gt_rles) if r is not None]
+        iou_matrix = np.zeros((len(dt_anns), len(gt_anns)))
+        if dt_valid and gt_valid:
+            sub_iou = maskUtils.iou(
+                [r for _, r in dt_valid],
+                [r for _, r in gt_valid],
+                [gt_iscrowd[j] for j, _ in gt_valid],
+            )
+            for di, row in zip((i for i, _ in dt_valid), sub_iou):
+                iou_matrix[di, [j for j, _ in gt_valid]] = row
+        return iou_matrix
 
     return maskUtils.iou(dt_rles, gt_rles, gt_iscrowd)
 

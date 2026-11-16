@@ -363,3 +363,73 @@ from dataflow.evaluate.log_templates import (  # noqa: E402, F401
     format_per_class_table,
     format_prf1_output,
 )
+
+
+def _validate_segm_data(coco_gt: Any, coco_dt: Any) -> Tuple[List[str], List[str]]:
+    """Check segmentation data presence for mask IoU evaluation.
+
+    Returns:
+        Tuple of ``(errors, warnings)``.
+        *errors* are hard failures (complete absence of segmentation
+        data — evaluation cannot proceed).  *warnings* are advisory
+        (mixed dataset — some annotations lack segmentation, they
+        will be silently excluded by pycocotools).
+    """
+    errors: List[str] = []
+    warnings: List[str] = []
+
+    gt_total = 0
+    gt_with_segm = 0
+    for ann in coco_gt.loadAnns(coco_gt.getAnnIds()):
+        gt_total += 1
+        if ann.get("segmentation") and ann["segmentation"]:
+            gt_with_segm += 1
+
+    dt_total = 0
+    dt_with_segm = 0
+    for ann in coco_dt.loadAnns(coco_dt.getAnnIds()):
+        dt_total += 1
+        if ann.get("segmentation") and ann["segmentation"]:
+            dt_with_segm += 1
+
+    gt_has_segm = gt_with_segm > 0
+    dt_has_segm = dt_with_segm > 0
+
+    if not gt_has_segm and not dt_has_segm:
+        errors.append(
+            "Segmentation data missing — cannot evaluate with "
+            "iouType='segm'. Ensure both GT and DT contain "
+            "segmentation annotations."
+        )
+    elif not gt_has_segm:
+        errors.append(
+            "GT contains no segmentation data — cannot evaluate "
+            "with iouType='segm'. Ensure GT contains segmentation "
+            "annotations."
+        )
+    elif not dt_has_segm:
+        errors.append(
+            "DT contains no segmentation data — cannot evaluate "
+            "with iouType='segm'. Ensure DT contains segmentation "
+            "annotations."
+        )
+
+    # Mixed-dataset detection: some annotations have segmentation,
+    # others don't — pycocotools silently excludes the ones without
+    # segmentation during mask IoU computation.
+    if gt_has_segm and gt_with_segm < gt_total:
+        missing = gt_total - gt_with_segm
+        warnings.append(
+            f"GT is a mixed dataset: {missing}/{gt_total} "
+            f"annotations lack segmentation and will be excluded "
+            f"from mask IoU evaluation."
+        )
+    if dt_has_segm and dt_with_segm < dt_total:
+        missing = dt_total - dt_with_segm
+        warnings.append(
+            f"DT is a mixed dataset: {missing}/{dt_total} "
+            f"annotations lack segmentation and will be excluded "
+            f"from mask IoU evaluation."
+        )
+
+    return errors, warnings

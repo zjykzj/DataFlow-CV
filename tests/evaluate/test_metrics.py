@@ -303,6 +303,28 @@ class TestComputePRF1:
         with pytest.raises(ValueError, match="macro.*micro"):
             compute_pr_f1(gt_path, dt_path, method="invalid_method")
 
+    def test_invalid_iou_type_raises_value_error(self, gt_path, dt_path):
+        """Invalid iou_type should raise ValueError with a clear message."""
+        with pytest.raises(ValueError, match="bbox.*segm"):
+            compute_pr_f1(gt_path, dt_path, iou_type="invalid")
+
+    def test_segm_on_bbox_only_data_fails_clearly(self, gt_path, dt_path):
+        """iou_type='segm' on bbox-only data returns a clear error.
+
+        Regression test: previously passed None RLE entries to
+        maskUtils.iou, failing with "object of type 'NoneType' has no
+        len()" instead of a clear validation message.
+        """
+        result = compute_pr_f1(gt_path, dt_path, iou_type="segm")
+        assert result.success is False
+        assert any("Segmentation data missing" in e for e in result.errors)
+
+    def test_segm_on_segm_data_succeeds(self, gt_segm_path, dt_segm_path):
+        """iou_type='segm' with real segmentation data succeeds."""
+        result = compute_pr_f1(gt_segm_path, dt_segm_path, iou_type="segm")
+        assert result.success is True
+        assert result.overall is not None
+
     def test_method_field(self, gt_path, dt_path):
         """Result.method should reflect the method parameter."""
         macro_result = compute_pr_f1(gt_path, dt_path, method="macro")
