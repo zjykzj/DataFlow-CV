@@ -135,6 +135,41 @@ class TestBaseVisualizer:
         assert result.success is True
         assert result.data["processed_count"] == 0
 
+    def test_batch_valueerror_keeps_partial_results(self):
+        """Batch mode reports partial success when iter_images raises.
+
+        Regression test: the ValueError branch used displayed_indices
+        (interactive-only), so a mid-iteration failure discarded the
+        already-processed images and reported total failure.
+        """
+        from dataflow.label.models import ImageAnnotation
+
+        def raising_iter():
+            for i in (1, 2):
+                yield ImageAnnotation(
+                    image_id=str(i),
+                    image_path=f"{i}.jpg",
+                    width=10,
+                    height=10,
+                    objects=[],
+                )
+            raise ValueError("parse error in file 3")
+
+        visualizer = MockVisualizer(
+            label_dir="/tmp/labels",
+            image_dir="/tmp/images",
+            is_show=False,
+            is_save=False,
+        )
+        visualizer._mock_images = raising_iter()
+        with patch.object(visualizer, "_visualize_single_image", return_value="next"):
+            result = visualizer.visualize()
+
+        assert result.success is True
+        assert result.data["processed_count"] == 2
+        assert result.data["partial"] is True
+        assert any("parse error" in e for e in result.errors)
+
     def test_log_methods(self):
         """Test logging methods.
 

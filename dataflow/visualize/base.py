@@ -489,16 +489,23 @@ class BaseVisualizer(ABC):
             # during iteration. Partial results before the error are valid.
             error_msg = str(e)
             result.add_error(error_msg)
-            self.summary_data["total_images"] = len(buffer)
+            self.summary_data["total_images"] = self.summary_data.get("total_images", len(buffer))
             self.summary_data["total_objects"] = total_objects
-            if len(displayed_indices) > 0:
+            # Interactive mode counts displayed images; batch mode counts
+            # images successfully saved before the failure.
+            processed = (
+                len(displayed_indices)
+                if displayed_indices
+                else int(self.summary_data.get("processed_images") or 0)
+            )
+            if processed > 0:
                 result.success = True
                 result.message = (
                     f"Visualization completed with partial results: "
-                    f"{len(displayed_indices)} displayed. Error: {error_msg}"
+                    f"{processed} processed. Error: {error_msg}"
                 )
                 result.data = {
-                    "processed_count": len(displayed_indices),
+                    "processed_count": processed,
                     "partial": True,
                 }
             else:
