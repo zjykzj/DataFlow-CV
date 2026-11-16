@@ -293,6 +293,11 @@ class BaseAnnotationHandler(ABC):
         Raises:
             ValueError: If any point coordinate is NaN or Inf.
         """
+        # Reject NaN/Inf early — Python min/max silently coerce them
+        for i, (x, y) in enumerate(points):
+            if not math.isfinite(x) or not math.isfinite(y):
+                raise ValueError(f"polygon point {i} must be finite, got: {(x, y)!r}")
+
         clamped_points = []
         changed = False
 
@@ -378,6 +383,11 @@ class BaseAnnotationHandler(ABC):
         Raises:
             ValueError: If any point coordinate is NaN or Inf.
         """
+        # Reject NaN/Inf early — Python min/max silently coerce them
+        for i, (x, y) in enumerate(points):
+            if not math.isfinite(x) or not math.isfinite(y):
+                raise ValueError(f"polygon point {i} must be finite, got: {(x, y)!r}")
+
         clamped_points = []
         changed = False
 

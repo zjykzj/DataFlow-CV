@@ -397,6 +397,20 @@ class TestBaseAnnotationHandler:
         result = handler._clamp_normalized_points([])
         assert result == []
 
+    def test_clamp_normalized_points_nan_raises(self, handler):
+        """NaN/Inf points raise ValueError instead of silently coercing."""
+        with pytest.raises(ValueError, match="polygon point 1 must be finite"):
+            handler._clamp_normalized_points([(0.1, 0.1), (float("nan"), 0.4)])
+        with pytest.raises(ValueError, match="polygon point 0 must be finite"):
+            handler._clamp_normalized_points([(float("inf"), 0.4)])
+
+    def test_clamp_abs_points_nan_raises(self, handler):
+        """NaN/Inf absolute-pixel points raise ValueError instead of coercing."""
+        with pytest.raises(ValueError, match="polygon point 0 must be finite"):
+            handler._clamp_abs_points([(float("nan"), 20.0)], 100, 100)
+        with pytest.raises(ValueError, match="polygon point 1 must be finite"):
+            handler._clamp_abs_points([(10.0, 10.0), (5.0, float("-inf"))], 100, 100)
+
     def test_abstract_methods(self):
         """Test that abstract methods cannot be called on abstract base class."""
         with pytest.raises(TypeError, match="Can't instantiate abstract class"):
