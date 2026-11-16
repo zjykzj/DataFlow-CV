@@ -4,7 +4,7 @@ Unit tests for base.py
 
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -304,3 +304,78 @@ class TestBaseConverter:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestStreamConvert:
+    """Tests for BaseConverter.stream_convert() bookkeeping."""
+
+    def _make_converter(self, tmp_path, strict_mode=False):
+        src = tmp_path / "src.txt"
+        src.touch()
+        converter = ConcreteConverter(strict_mode=strict_mode)
+        return converter, str(src), str(tmp_path / "out")
+
+    def test_stream_convert_log_path_set_in_result(self, tmp_path):
+        """result.log_path mirrors the log manager (verbose mode)."""
+        from dataflow.util.logging import LogConfig
+
+        converter, src, out = self._make_converter(tmp_path)
+        converter._log_manager = None  # force below replacement
+        converter = ConcreteConverter(
+            strict_mode=False,
+            log_config=LogConfig(name="test_stream", verbose=True, log_dir=tmp_path / "logs"),
+        )
+        src_file = tmp_path / "src.txt"
+        src_file.touch()
+
+        # Empty source iterator → clean success with zero images
+        source_handler = Mock()
+        source_handler.iter_images.return_value = iter([])
+        target_handler = Mock()
+        target_handler.label_dir = tmp_path / "out" / "labels"
+        with patch.object(
+            converter, "create_source_handler", return_value=source_handler
+        ), patch.object(converter, "create_target_handler", return_value=target_handler):
+            result = converter.stream_convert(str(src_file), str(tmp_path / "out"))
+
+        assert result.success is True
+        assert result.log_path is not None
+        assert Path(result.log_path).exists()
+
+    def test_stream_convert_validation_failure_logs_result(self, tmp_path):
+        """Early-return paths still emit the result summary log."""
+        from unittest.mock import patch as mock_patch
+
+        converter, src, out = self._make_converter(tmp_path)
+        with mock_patch.object(converter, "_log_info") as mock_info:
+            result = converter.stream_convert(str(tmp_path / "missing.txt"), out)
+        assert result.success is False
+        assert any("Input validation failed" in e for e in result.errors)
+        # Result summary logged via format_convert_result
+        assert any("Failed" in call.args[0] for call in mock_info.call_args_list)
+
+    def test_stream_convert_failed_write_not_marked_written(self, tmp_path):
+        """A failed non-strict write must not poison duplicate checks."""
+        from dataflow.label.models import ImageAnnotation as IA
+
+        converter, src, out = self._make_converter(tmp_path, strict_mode=False)
+        ann = IA(image_id="same", image_path="a.jpg", width=10, height=10, objects=[])
+
+        source_handler = Mock()
+        source_handler.iter_images.return_value = iter([ann, ann])
+        target_handler = Mock()
+        target_handler.label_dir = tmp_path / "out" / "labels"
+
+        # First write fails, second succeeds
+        write_results = [Mock(success=False, message="disk error"), Mock(success=True, errors=[])]
+        target_handler.write_one.side_effect = write_results
+
+        with patch.object(
+            converter, "create_source_handler", return_value=source_handler
+        ), patch.object(converter, "create_target_handler", return_value=target_handler):
+            result = converter.stream_convert(src, out)
+
+        assert result.success is True
+        assert any("disk error" in w for w in result.warnings)
+        # No false duplicate warning — the failed stem was never marked
+        assert not any("Duplicate output stem" in w for w in result.warnings)

@@ -192,6 +192,9 @@ class BaseConverter(ABC):
             source_path=source_path,
             target_path=target_path,
         )
+        # Match the batch path: verbose mode records the log file path
+        # (spec_convert.md §2.4/§2.8).
+        result.log_path = self._log_manager.log_path
 
         # 0. Log conversion header
         from .log_templates import format_convert_header
@@ -268,8 +271,6 @@ class BaseConverter(ABC):
                     )
                     result.add_warning(dup)
                     self._log_warning(dup)
-                else:
-                    written_ids.add(target_ann.image_id)
 
                 write_result = target_handler.write_one(target_ann, write_dir)
                 if not write_result.success:
@@ -280,6 +281,10 @@ class BaseConverter(ABC):
                     else:
                         result.add_warning(err)
                         continue
+
+                # Mark the stem only after a successful write — a failed
+                # write (non-strict) must not poison later duplicate checks.
+                written_ids.add(target_ann.image_id)
 
                 # Per-image post-processing (e.g., image file copying)
                 self._post_stream_image(image_ann, target_ann, target_path, kwargs)
@@ -315,11 +320,11 @@ class BaseConverter(ABC):
         finally:
             # Clean up state — must match the batch path guarantee
             self._source_annotations_for_target = None
+            # Log conversion result on all exits (success, early return,
+            # or exception) — the batch path always logs one.
+            from .log_templates import format_convert_result
 
-        # Log conversion result (always, regardless of success/failure)
-        from .log_templates import format_convert_result
-
-        self._log_info(format_convert_result(result))
+            self._log_info(format_convert_result(result))
 
         return result
 
