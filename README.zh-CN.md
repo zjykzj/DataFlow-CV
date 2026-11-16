@@ -60,6 +60,9 @@ dataflow-cv analyse stats yolo_labels/ --image-dir images/ --class-file classes.
 dataflow-cv analyse stats labelme_json/
 dataflow-cv analyse stats coco_annotations.json
 
+# 多路径合并统计(需同格式); -R 递归子目录
+dataflow-cv analyse stats yolo_train/ yolo_val/ --recursive
+
 # 训练/测试集划分(仅 YOLO / LabelMe —— 标签 / 图像 / 两者模式)
 dataflow-cv analyse split -l yolo_labels/ outputs/ --ratio 0.8 --seed 42 -c classes.txt
 dataflow-cv analyse split -i images/ outputs/ --ratio 0.8
@@ -176,6 +179,9 @@ dataflow-cv evaluate segmentation --verbose anno.json pred.json
 
 # 结果保存为 JSON
 dataflow-cv evaluate detection --output results.json anno.json pred.json
+
+# P/R/F1 结果保存为 JSON(阈值、聚合方式、整体与逐类指标)
+dataflow-cv evaluate detection --prf1 --output prf1_results.json anno.json pred.json
 
 # 自定义日志目录
 dataflow-cv evaluate detection --verbose --log-dir logs/eval/ anno.json pred.json
@@ -360,7 +366,7 @@ claude plugin install dataflow@claude-skills
 
 ### 🧪 测试
 
-**615 个测试,80% 代码覆盖率(5553 条语句)。**
+**656 个测试,81% 代码覆盖率(5645 条语句)。**
 
 ```bash
 pytest                                    # 全部测试
@@ -374,12 +380,12 @@ pytest tests/evaluate/test_evaluator.py     # 单个模块
 
 | 模块 | 覆盖率 | 亮点 |
 |--------|:--------:|------------|
-| `dataflow/label/` | 72% | models (84%), base (84%), utils (83%), coco_handler (74%), labelme_handler (71%), yolo_handler (62%) |
-| `dataflow/analyse/` | 84% | base (99%), log_templates (92%), sample (87%), utils (84%), split (85%), stats (82%), filter (76%), partition (74%) |
-| `dataflow/convert/` | 86% | labelme_and_yolo (93%), yolo_and_coco (89%), utils (88%), coco_and_labelme (88%), log_templates (85%), base (81%), rle (80%) |
-| `dataflow/visualize/` | 81% | yolo_vis (100%), labelme_vis (100%), coco_vis (93%), base (76%) |
-| `dataflow/evaluate/` | 92% | evaluator (100%), result (99%), metrics (93%), base (90%), utils (87%) |
-| `dataflow/cli/` | 74% | main (96%), visualize cmd (87%), utils (87%), evaluate cmd (83%), analyse cmd (65%), convert cmd (52%) |
+| `dataflow/label/` | 72% | models (86%), base (84%), utils (83%), coco_handler (73%), labelme_handler (71%), yolo_handler (63%) |
+| `dataflow/analyse/` | 85% | base (99%), log_templates (93%), sample (88%), split (88%), stats (83%), utils (84%), partition (79%), filter (76%) |
+| `dataflow/convert/` | 87% | labelme_and_yolo (93%), yolo_and_coco (89%), utils (88%), coco_and_labelme (88%), base (86%), log_templates (85%), rle (80%) |
+| `dataflow/visualize/` | 83% | yolo_vis (100%), labelme_vis (100%), coco_vis (93%), base (78%) |
+| `dataflow/evaluate/` | 92% | evaluator (100%), result (99%), metrics (89%), base (92%), utils (89%) |
+| `dataflow/cli/` | 75% | main (96%), utils (88%), visualize cmd (87%), evaluate cmd (83%), analyse cmd (70%), convert cmd (52%) |
 | `dataflow/util/` | 100% | logging (100%) |
 
 </details>
@@ -416,7 +422,7 @@ dataflow/
 ├── evaluate/        # 基于 pycocotools 的指标计算、日志模板
 ├── util/            # 统一日志(LogManager + 格式化辅助)
 └── cli/             # CLI 入口、命令、校验
-tests/               # 单元与集成测试(615 个测试、conftest 夹具)
+tests/               # 单元与集成测试(656 个测试、conftest 夹具)
 samples/             # Python API 使用示例(analyse、convert、visualize、evaluate、cli)
 assets/              # 测试数据(按格式分类的 det/seg)
 specs/               # 权威规范(evaluate/ + formats/ + modules/)
