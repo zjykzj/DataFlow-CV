@@ -11,11 +11,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-# Regex for detecting path traversal characters in image_id values.
-# Matches forward/backward slashes, parent-directory references, and
-# leading dots (hidden files are not traversal but are rejected for
-# safety — image IDs should be plain identifiers).
-_UNSAFE_PATH_CHARS_RE = re.compile(r"[\\/]|\\.\\.")
+# Regex for detecting path traversal characters in image_id values:
+# forward/backward slashes and parent-directory references (".."
+# anywhere in the string, per spec_label.md §2.2).
+_UNSAFE_PATH_CHARS_RE = re.compile(r"[\\/]|\.\.")
 
 
 class AnnotationFormat(Enum):

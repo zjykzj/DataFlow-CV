@@ -425,3 +425,24 @@ class TestBaseAnnotationHandler:
         """Test that abstract methods cannot be called on abstract base class."""
         with pytest.raises(TypeError, match="Can't instantiate abstract class"):
             BaseAnnotationHandler()
+
+
+class TestImageIdPathSafety:
+    """ImageAnnotation model rejects path traversal ids (spec §2.2)."""
+
+    @pytest.mark.parametrize("bad", ["a/b", "a\\b", "a..b", "..", "..hidden"])
+    def test_traversal_ids_rejected(self, bad):
+        """'..' anywhere in image_id is rejected by the model.
+
+        Regression test: the regex's dots were unescaped wildcards, so
+        it never matched '..' and the model accepted what the writer
+        rejects.
+        """
+        with pytest.raises(ValueError):
+            ImageAnnotation(image_id=bad, image_path="x.jpg", width=10, height=10, objects=[])
+
+    @pytest.mark.parametrize("good", ["a.b", "img_01", "2024-01-01"])
+    def test_benign_ids_accepted(self, good):
+        """Plain identifiers pass through."""
+        ann = ImageAnnotation(image_id=good, image_path="x.jpg", width=10, height=10, objects=[])
+        assert ann.image_id == good
