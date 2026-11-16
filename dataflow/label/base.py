@@ -193,14 +193,19 @@ class BaseAnnotationHandler(ABC):
             self._log_warning("No valid annotations detected (no bbox or segmentation)")
 
     def _validate_image_dimensions(self, width: int, height: int) -> bool:
-        """Validate image dimensions are positive integers."""
+        """Validate image dimensions are positive integers.
+
+        Logs a WARNING and returns False on invalid dimensions — the caller
+        raises ImageError (always skip with warning, both modes), so a single
+        bad image never fails the whole dataset read.
+        """
         if not isinstance(width, int) or not isinstance(height, int):
-            self._log_error(
+            self._log_warning(
                 f"Image dimensions must be integers, got {type(width).__name__}x{type(height).__name__}"
             )
             return False
         if width <= 0 or height <= 0:
-            self._log_error(f"Invalid image dimensions: {width}x{height}")
+            self._log_warning(f"Invalid image dimensions: {width}x{height}")
             return False
         return True
 

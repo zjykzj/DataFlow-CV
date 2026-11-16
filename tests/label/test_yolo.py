@@ -588,6 +588,48 @@ class TestYoloAnnotationHandler:
             f"Expected warning about missing image, but got logs: {caplog.records}"
         )
 
+    def test_read_corrupt_image_skips_not_fails_dataset(self, temp_dir, caplog):
+        """One corrupt image in strict mode skips that image, not the dataset.
+
+        Regression test: _get_image_size used _log_error, which raises in
+        strict mode, so a single unreadable image failed the whole read
+        instead of the spec-mandated skip-with-warning (spec_label.md §5.1).
+        """
+        caplog.clear()
+
+        class_file = temp_dir / "classes.txt"
+        class_file.write_text("person\n")
+
+        image_dir = temp_dir / "images"
+        image_dir.mkdir()
+        label_dir = temp_dir / "labels"
+        label_dir.mkdir()
+
+        # One good image + label, one corrupt image + label
+        import numpy as np
+
+        cv2.imwrite(str(image_dir / "good.jpg"), np.zeros((10, 10, 3), dtype=np.uint8))
+        (image_dir / "bad.jpg").write_bytes(b"not a real image")
+        (label_dir / "good.txt").write_text("0 0.5 0.5 0.2 0.2")
+        (label_dir / "bad.txt").write_text("0 0.3 0.3 0.1 0.1")
+
+        handler = YoloAnnotationHandler(
+            label_dir=str(label_dir),
+            class_file=str(class_file),
+            image_dir=str(image_dir),
+            strict_mode=True,
+        )
+
+        result = handler.read()
+        assert result.success is True
+        assert result.data.num_images == 1  # bad.jpg skipped, good.jpg loaded
+
+        warning_logged = any(
+            "Skipping" in record.message and "bad.txt" in record.message
+            for record in caplog.records
+        )
+        assert warning_logged, f"Expected skip warning for bad.txt, but got logs: {caplog.records}"
+
     def test_write_detection_success(self, sample_detection_data):
         """Test successful writing of detection annotations."""
         # First read the data

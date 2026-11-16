@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Per-class P/R/F1 now come from a single (max-F1) operating point**: `evaluate --verbose` previously combined max-precision with max-recall from two different operating points, reporting unreachable metric combinations; per-class P/R/F1 (and the derived TP/FP/FN estimates) are now taken from the confidence threshold that maximizes per-class F1, per spec_evaluate.md §2.2.
 - **NaN/Inf polygon vertices are rejected instead of silently coerced**: YOLO/LabelMe/COCO readers previously turned non-finite polygon coordinates into image boundary values with no warning; the point clampers now raise `ValueError`, so strict mode aborts and non-strict mode skips the annotation with a warning, per spec_label.md §5.1.
+- **One corrupt image no longer fails the whole dataset read**: `_get_image_size()` and `_validate_image_dimensions()` used `_log_error`, which raises in strict mode before the `ImageError` skip path could run; they now warn and return failure sentinels, so the bad image is skipped with a warning in both modes, per spec_label.md §5.1.
 
 ## [3.0.1] - 2026-11-16
 

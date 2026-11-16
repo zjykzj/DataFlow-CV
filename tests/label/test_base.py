@@ -217,11 +217,21 @@ class TestBaseAnnotationHandler:
         assert handler._validate_image_dimensions(100, 100) is True
 
     def test_validate_image_dimensions_invalid(self, handler, mock_logger):
-        """Test _validate_image_dimensions with invalid dimensions."""
+        """Test _validate_image_dimensions with invalid dimensions.
+
+        Returns False and logs a WARNING in both modes — the caller raises
+        ImageError, so image errors always skip (spec_label.md §5.1).
+        """
         handler.logger = mock_logger
         handler.strict_mode = False
         assert handler._validate_image_dimensions(0, 100) is False
-        mock_logger.error.assert_called_once()
+        mock_logger.warning.assert_called_once()
+
+        handler.logger = mock_logger
+        handler.strict_mode = True
+        assert handler._validate_image_dimensions(0, 100) is False  # no raise
+        assert handler._validate_image_dimensions(100.0, 100) is False  # non-int, no raise
+        assert mock_logger.warning.call_count == 3
 
     def test_validate_normalized_coordinate_valid(self, handler):
         """Test _validate_normalized_coordinate with valid values."""

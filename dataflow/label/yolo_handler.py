@@ -158,22 +158,27 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
         return sorted(f for f in pattern("*.txt") if f.name != "classes.txt")
 
     def _get_image_size(self, image_path: Path) -> Tuple[int, int]:
-        """Get image dimensions from image file."""
+        """Get image dimensions from image file.
+
+        Image errors log a WARNING and return (0, 0) — the caller raises
+        ImageError (strict) or uses placeholder dimensions (non-strict),
+        so a single bad image never fails the whole dataset read.
+        """
         try:
             if not image_path.exists():
-                self._log_error(f"Image file not found: {image_path}")
+                self._log_warning(f"Image file not found: {image_path}")
                 return 0, 0
 
             # Read image using OpenCV
             img = cv2.imread(str(image_path))
             if img is None:
-                self._log_error(f"Failed to read image: {image_path}")
+                self._log_warning(f"Failed to read image: {image_path}")
                 return 0, 0
 
             height, width = img.shape[:2]
             return width, height
         except (OSError, cv2.error) as e:
-            self._log_error(f"Error getting image size for {image_path}: {e}")
+            self._log_warning(f"Error getting image size for {image_path}: {e}")
             return 0, 0
 
     def read(self) -> AnnotationResult:
