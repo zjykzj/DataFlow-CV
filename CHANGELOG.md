@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **One corrupt image no longer fails the whole dataset read**: `_get_image_size()` and `_validate_image_dimensions()` used `_log_error`, which raises in strict mode before the `ImageError` skip path could run; they now warn and return failure sentinels, so the bad image is skipped with a warning in both modes, per spec_label.md §5.1.
 - **`python -m dataflow.cli` now works**: added the missing `dataflow/cli/__main__.py`, so the documented editable-install invocation behaves exactly like the `dataflow-cv` entry point.
 - **`evaluate --prf1 --output` now saves the result**: previously the option was silently ignored on the P/R/F1 path; it now writes a `PRF1Result` JSON (thresholds, method, overall + per-class P/R/F1/TP/FP/FN) while the mAP path keeps its `EvaluationResult` JSON shape.
+- **Evaluate log output now comes from the module, not the CLI**: the evaluator renders the full spec_evaluate.md §6 pipeline (header, Load/Validate/Compute phases, metric table, per-class table, result block) through its LogManager; the CLI's click.echo table rendering was removed, restoring the architecture constraint that all log output is module-owned.
 
 ## [3.0.1] - 2026-11-16
 

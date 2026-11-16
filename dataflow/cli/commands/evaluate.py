@@ -162,22 +162,16 @@ def detection(
             click.echo(f"P/R/F1 failed: {error_msg}", err=True)
             raise RuntimeCLIError(f"P/R/F1 failed: {error_msg}")
     else:
-        # Path A: mAP via COCOeval
+        # Path A: mAP via COCOeval — all log output (header, phases,
+        # metric table, per-class table, result block) is produced by the
+        # evaluator module via its LogManager (spec_evaluate.md §6).
         evaluator = DetectionEvaluator(log_config=log_config)
         result = evaluator.evaluate(str(gt_json), str(dt_json))
 
         if result.success and result.metrics is not None:
-            _print_eval_result(result, verbose)
-
             if output:
                 _save_result_json(result, output)
                 click.echo(f"Evaluation result saved to: {output}")
-
-            if result.log_path:
-                click.echo(f"Log saved to: {result.log_path}")
-
-            for w in result.warnings:
-                click.echo(f"Warning: {w}")
         else:
             error_msg = result.errors[0] if result.errors else "Evaluation failed"
             click.echo(f"Evaluation failed: {error_msg}", err=True)
@@ -246,22 +240,15 @@ def segmentation(
             click.echo(f"P/R/F1 failed: {error_msg}", err=True)
             raise RuntimeCLIError(f"P/R/F1 failed: {error_msg}")
     else:
-        # Path A: mAP via COCOeval
+        # Path A: mAP via COCOeval — all log output is produced by the
+        # evaluator module (spec_evaluate.md §6).
         evaluator = SegmentationEvaluator(log_config=log_config)
         result = evaluator.evaluate(str(gt_json), str(dt_json))
 
         if result.success and result.metrics is not None:
-            _print_eval_result(result, verbose)
-
             if output:
                 _save_result_json(result, output)
                 click.echo(f"Evaluation result saved to: {output}")
-
-            if result.log_path:
-                click.echo(f"Log saved to: {result.log_path}")
-
-            for w in result.warnings:
-                click.echo(f"Warning: {w}")
         else:
             error_msg = result.errors[0] if result.errors else "Evaluation failed"
             click.echo(f"Evaluation failed: {error_msg}", err=True)
@@ -271,30 +258,6 @@ def segmentation(
 # ---------------------------------------------------------------------------
 # Output helpers
 # ---------------------------------------------------------------------------
-
-
-def _print_eval_result(result, verbose):
-    """Print evaluation results (mAP path) for detection or segmentation."""
-    from dataflow.evaluate.utils import format_metric_table, format_per_class_table
-
-    iou_label = "detection (bbox)" if result.iou_type == "bbox" else "segmentation (mask)"
-
-    click.echo()
-    click.echo(
-        f"Evaluation: {iou_label}\n"
-        f"Ground Truth: {result.gt_stats.get('images', 0)} images, "
-        f"{result.gt_stats.get('annotations', 0)} annotations, "
-        f"{result.gt_stats.get('categories', 0)} categories\n"
-        f"Detections:   {result.dt_stats.get('images', 0)} images, "
-        f"{result.dt_stats.get('annotations', 0)} detections, "
-        f"{result.dt_stats.get('categories', 0)} categories"
-    )
-    click.echo()
-    click.echo(format_metric_table(result.metrics))
-
-    if verbose and result.per_class:
-        click.echo()
-        click.echo(format_per_class_table(result.per_class))
 
 
 def _save_result_json(result: Any, output_path: Path) -> None:

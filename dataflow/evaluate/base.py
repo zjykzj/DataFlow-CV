@@ -6,6 +6,7 @@ logging / validation logic used by all concrete evaluators.
 """
 
 import os
+import time
 from abc import ABC, abstractmethod
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -13,6 +14,13 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
+from .log_templates import (
+    format_eval_header,
+    format_eval_phase,
+    format_eval_result,
+    format_metric_table,
+    format_per_class_table,
+)
 from .result import (
     EvaluationMetrics,
     EvaluationResult,
@@ -88,27 +96,49 @@ class BaseEvaluator(ABC):
             # 1. Check pycocotools availability
             _validate_coco_available()
 
+            start_time = time.time()
+            verbose = self._log_config.verbose
+
             # 2. Load GT and DT
-            self._log_info("Loading ground truth annotations...")
+            if verbose:
+                self._log_info(
+                    format_eval_phase("Load", "Loading ground truth and detection annotations")
+                )
             coco_gt = _load_coco(gt_source)
             coco_dt = _load_dt(dt_source, coco_gt)
 
+            gt_stats, dt_stats = _extract_stats(coco_gt, coco_dt)
+            result.gt_stats = gt_stats
+            result.dt_stats = dt_stats
+            if verbose:
+                self._log_info(format_eval_header(self._iou_type(), gt_stats, dt_stats))
+
             # 3. Validate inputs
+            if verbose:
+                matched = len(set(coco_gt.getCatIds()) & set(coco_dt.getCatIds()))
+                total = len(coco_gt.getCatIds())
+                self._log_info(
+                    format_eval_phase("Validate", f"Categories match: {matched}/{total}")
+                )
             valid, warnings = self.validate_inputs(coco_gt, coco_dt)
             for w in warnings:
                 result.add_warning(w)
+                self._log_warning(w)
             if not valid:
                 return result
 
             # 4. Create COCOeval and run
-            self._log_info("Running COCO evaluation...")
+            if verbose:
+                self._log_info(
+                    format_eval_phase("Compute", f"COCOeval ({self._iou_type()}) running")
+                )
             coco_eval = self._create_cocoeval(coco_gt, coco_dt)
 
             coco_eval.evaluate()
             coco_eval.accumulate()
             # summarize() populates coco_eval.stats (needed for
             # _extract_metrics) but also prints to stdout. Suppress
-            # the print — the CLI handles output formatting.
+            # the print — output formatting is owned by this module.
             with open(os.devnull, "w") as f, redirect_stdout(f):
                 coco_eval.summarize()
 
@@ -117,19 +147,25 @@ class BaseEvaluator(ABC):
             result.metrics = metrics
             result.iou_type = self._iou_type()
 
-            # 6. Stats
-            gt_stats, dt_stats = _extract_stats(coco_gt, coco_dt)
-            result.gt_stats = gt_stats
-            result.dt_stats = dt_stats
+            # 6. Metric table (always on console, per spec §6)
+            self._log_info(format_metric_table(metrics))
 
             # 7. Per-class (verbose only)
-            if self._log_config.verbose:
+            if verbose:
                 self._log_info("Computing per-class metrics...")
                 result.per_class = self._compute_per_class(coco_eval, coco_gt, coco_dt)
+                self._log_info(format_per_class_table(result.per_class))
 
             result.success = True
             result.log_path = self._log_manager.log_path
-            self._log_info(f"Evaluation complete: {result.get_summary()}")
+            self._log_info(
+                format_eval_result(
+                    self._iou_type(),
+                    True,
+                    time.time() - start_time,
+                    result.log_path,
+                )
+            )
 
         except ValueError as e:
             # Validation errors are newline-separated — add each
