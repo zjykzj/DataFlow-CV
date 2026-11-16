@@ -66,6 +66,12 @@ def validate_visualize_params(
         image_dir = validate_path_exists(image_dir, "image directory")
 
     if output_dir:
+        if output_dir.is_file():
+            from dataflow.cli.exceptions import InputError
+
+            raise InputError(
+                f"Output path exists and is a file, expected a directory: {output_dir}"
+            )
         output_dir.mkdir(parents=True, exist_ok=True)
 
     return input_path, image_dir, output_dir

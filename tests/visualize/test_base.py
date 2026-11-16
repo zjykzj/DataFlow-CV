@@ -603,3 +603,24 @@ def test_draw_methods_signatures():
     assert callable(visualizer._draw_polygon)
     assert callable(visualizer._draw_rle_mask)
     assert callable(visualizer._draw_text)
+
+
+def test_save_to_existing_file_returns_error_not_raise(tmp_path):
+    """Save mode with an existing FILE at output_dir returns a clean error.
+
+    Regression test: mkdir(exist_ok=True) raised FileExistsError when a
+    file occupied the output path.
+    """
+    conflict = tmp_path / "conflict"
+    conflict.write_text("not a directory")
+
+    visualizer = MockVisualizer(
+        label_dir="/tmp/labels",
+        image_dir="/tmp/images",
+        output_dir=str(conflict),
+        is_show=False,
+        is_save=True,
+    )
+    result = visualizer.visualize()
+    assert result.success is False
+    assert any("exists and is a file" in e for e in result.errors)

@@ -264,6 +264,15 @@ class BaseVisualizer(ABC):
                     result.add_error(error_msg)
                     result.message = error_msg
                     return result
+                if self.output_dir.is_file():
+                    # mkdir(exist_ok=True) would raise FileExistsError —
+                    # report a clean error instead (read-only module).
+                    error_msg = (
+                        f"Output path exists and is a file, expected a directory: {self.output_dir}"
+                    )
+                    result.add_error(error_msg)
+                    result.message = error_msg
+                    return result
                 self.output_dir.mkdir(parents=True, exist_ok=True)
 
             # 2. Create handler and obtain streaming iterator

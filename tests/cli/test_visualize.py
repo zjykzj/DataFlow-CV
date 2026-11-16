@@ -248,3 +248,36 @@ def test_visualize_failure():
             # Should fail with error
             assert result.exit_code != 0
             assert "failed" in result.output
+
+
+def test_visualize_save_to_existing_file_fails_cleanly():
+    """--save pointing at an existing file yields a clean error, not a traceback."""
+    runner = CliRunner()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_path = Path(tmpdir)
+        image_dir = tmpdir_path / "images"
+        image_dir.mkdir()
+        label_dir = tmpdir_path / "labels"
+        label_dir.mkdir()
+        class_file = tmpdir_path / "classes.txt"
+        class_file.write_text("person\n")
+        conflict_file = tmpdir_path / "conflict"
+        conflict_file.write_text("not a directory")
+
+        result = runner.invoke(
+            cli,
+            [
+                "visualize",
+                "yolo",
+                "--no-display",
+                str(image_dir),
+                str(label_dir),
+                str(class_file),
+                "--save",
+                str(conflict_file),
+            ],
+        )
+        assert result.exit_code == 2
+        assert "exists and is a file" in result.output
+        assert "Traceback" not in result.output
