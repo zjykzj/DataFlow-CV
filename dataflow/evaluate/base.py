@@ -383,8 +383,6 @@ class BaseEvaluator(ABC):
             try:
                 # Precision for this class: [T, R, K=idx, A=0 (all), M=2 (maxDets=100)]
                 prec = coco_eval.eval["precision"][:, :, idx, 0, 2]
-                # Recall for this class: [T, K=idx, A=0 (all), M=2 (maxDets=100)]
-                rec = coco_eval.eval["recall"][:, idx, 0, 2]
 
                 # AP across all IoU thresholds (mean over T)
                 valid_prec = prec[prec > -1]
@@ -399,19 +397,31 @@ class BaseEvaluator(ABC):
                     prec75 = prec[5][prec[5] > -1]
                     m.ap75 = float(np.mean(prec75)) if len(prec75) > 0 else -1.0
 
-                # Best P/R/F1 from recall array (IoU=0.50, area=all, maxDets=100)
-                valid_rec = rec[0][rec[0] > -1]
-                if len(valid_rec) > 0:
-                    m.recall = float(np.max(valid_rec))
+                # P/R/F1 at the operating point maximizing per-class F1
+                # (IoU=0.50, area=all, maxDets=100). precision is [T, R] with
+                # 101 recall thresholds; recall is [T] (max recall, no
+                # threshold axis), so the scan runs over the precision
+                # threshold axis, pairing prec[0, r] with recThrs[r].
+                rec_thrs = coco_eval.params.recThrs
+                best_f1 = -1.0
+                best_p, best_r = 0.0, 0.0
+                for r_idx in range(prec.shape[1]):
+                    p_r = prec[0, r_idx]
+                    if p_r <= 0:  # skips invalid (-1) and zero-precision points
+                        continue
+                    r_val = float(rec_thrs[r_idx])
+                    if r_val <= 0:
+                        continue
+                    f1_r = 2.0 * p_r * r_val / (p_r + r_val)
+                    if f1_r > best_f1:
+                        best_f1 = f1_r
+                        best_p = float(p_r)
+                        best_r = r_val
 
-                    # Precision at the max-recall operating point
-                    r_max_idx = int(np.argmax(rec[0]))
-                    if r_max_idx < prec.shape[1]:
-                        p_at_r = prec[0, r_max_idx]
-                        m.precision = float(p_at_r) if p_at_r > -1 else 0.0
-
-                    if m.precision + m.recall > 0:
-                        m.f1_score = 2.0 * m.precision * m.recall / (m.precision + m.recall)
+                if best_f1 >= 0:
+                    m.precision = best_p
+                    m.recall = best_r
+                    m.f1_score = best_f1
 
                 # Estimate TP/FP/FN from recall and precision at IoU=0.50
                 if m.recall > 0 and m.gt_count > 0:

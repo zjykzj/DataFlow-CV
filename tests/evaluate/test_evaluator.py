@@ -69,6 +69,97 @@ class TestDetectionEvaluator:
         assert "cat" in names
         assert "dog" in names
 
+    def test_per_class_prf1_at_max_f1_operating_point(self, tmp_path):
+        """Per-class P/R/F1 come from a single (max-F1) operating point.
+
+        Regression test for the max-P precision + max-R recall bug: with FP
+        scores ranked above TP scores, P=0.5 at R=1.0 is unreachable, so the
+        max-F1 point (P=0.4, R=1.0) must be reported — not the impossible
+        combination (P=0.5, R=1.0, F1=0.667). See spec_evaluate.md §2.2.
+        """
+        import json
+
+        from dataflow.util.logging import LogConfig
+
+        gt = {
+            "images": [{"id": 1, "file_name": "a.jpg", "width": 100, "height": 100}],
+            "categories": [{"id": 1, "name": "cat"}],
+            "annotations": [
+                {
+                    "id": 1,
+                    "image_id": 1,
+                    "category_id": 1,
+                    "bbox": [0, 0, 10, 10],
+                    "area": 100.0,
+                    "iscrowd": 0,
+                },
+                {
+                    "id": 2,
+                    "image_id": 1,
+                    "category_id": 1,
+                    "bbox": [50, 50, 10, 10],
+                    "area": 100.0,
+                    "iscrowd": 0,
+                },
+            ],
+        }
+        dt = [
+            {
+                "image_id": 1,
+                "category_id": 1,
+                "bbox": [20, 20, 10, 10],
+                "area": 100.0,
+                "score": 0.95,
+            },  # FP
+            {
+                "image_id": 1,
+                "category_id": 1,
+                "bbox": [0, 0, 10, 10],
+                "area": 100.0,
+                "score": 0.90,
+            },  # TP
+            {
+                "image_id": 1,
+                "category_id": 1,
+                "bbox": [30, 30, 10, 10],
+                "area": 100.0,
+                "score": 0.85,
+            },  # FP
+            {
+                "image_id": 1,
+                "category_id": 1,
+                "bbox": [40, 40, 10, 10],
+                "area": 100.0,
+                "score": 0.80,
+            },  # FP
+            {
+                "image_id": 1,
+                "category_id": 1,
+                "bbox": [50, 50, 10, 10],
+                "area": 100.0,
+                "score": 0.75,
+            },  # TP
+        ]
+        gt_file = tmp_path / "gt.json"
+        dt_file = tmp_path / "dt.json"
+        gt_file.write_text(json.dumps(gt), encoding="utf-8")
+        dt_file.write_text(json.dumps(dt), encoding="utf-8")
+
+        ev = DetectionEvaluator(log_config=LogConfig(name="test_maxf1", verbose=True))
+        result = ev.evaluate(str(gt_file), str(dt_file))
+        assert result.success is True
+        assert result.per_class is not None
+
+        m = result.per_class[1]
+        # Reaching R=1.0 requires all 5 detections → P=0.4; that point also
+        # maximizes F1 (0.571 vs 0.5 at R=0.5, P=0.5).
+        assert m.precision == pytest.approx(0.4, abs=1e-3)
+        assert m.recall == pytest.approx(1.0)
+        assert m.f1_score == pytest.approx(0.5714, abs=1e-3)
+        assert m.tp == 2
+        assert m.fp == 3
+        assert m.fn == 0
+
     def test_evaluate_with_list_dt(self, gt_path, dt_list_path):
         """List-format DT should work with DetectionEvaluator."""
         ev = DetectionEvaluator()

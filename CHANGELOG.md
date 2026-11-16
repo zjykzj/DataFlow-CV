@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Per-class P/R/F1 now come from a single (max-F1) operating point**: `evaluate --verbose` previously combined max-precision with max-recall from two different operating points, reporting unreachable metric combinations; per-class P/R/F1 (and the derived TP/FP/FN estimates) are now taken from the confidence threshold that maximizes per-class F1, per spec_evaluate.md §2.2.
+
 ## [3.0.1] - 2026-11-16
 
 ### Fixed
