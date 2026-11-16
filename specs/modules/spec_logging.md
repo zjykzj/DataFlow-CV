@@ -1,6 +1,6 @@
 # Logging Module Specification
 
-> **Version:** v1.1 | **Last Updated:** 2026-07-30
+> **Version:** v1.2 | **Last Updated:** 2026-11-16
 > **Status:** Canonical
 > **Layer:** Modules
 > **Dependencies:** None (foundation module, parallel to Label)
@@ -306,7 +306,12 @@ def format_per_class_table(per_class: Dict[int, "PerClassMetrics"]) -> str:
 def format_prf1_output(result: "PRF1Result") -> str:
     """P/R/F1 results as a formatted block."""
 
-def format_eval_result(status: str, duration_sec: float, log_path: Optional[str]) -> str:
+def format_eval_result(
+    iou_type: str,
+    success: bool,
+    duration_sec: float,
+    log_path: Optional[str] = None,
+) -> str:
     """Final result block."""
 ```
 
@@ -326,13 +331,15 @@ class BaseModule:
         log_config: Optional[LogConfig] = None,  # NEW — unified entry point
     ):
         if log_config is None:
-            log_config = LogConfig(name=self._default_log_name())
+            log_config = LogConfig(name="<module-specific default>")
         self._log_manager = LogManager(log_config)
         self.logger = self._log_manager.logger
         self._log_path = self._log_manager.log_path
 ```
 
-Where `_default_log_name()` provides a sensible default (e.g., `"convert.yolo_to_coco"`).
+The default name is **inlined in each module base** (there is no `_default_log_name()`
+helper). Examples: `dataflow/convert/base.py` uses `f"convert.{source_format}_to_{target_format}"`
+(e.g. `"convert.yolo_to_coco"`).
 
 **The old `verbose`, `logger`, and `log_file_path` constructor parameters are removed** —
 they are replaced by a single `log_config: Optional[LogConfig]` parameter.
@@ -370,7 +377,7 @@ and are captured in the same log file.
 ```python
 # CLI parses command-line options
 log_config = LogConfig(
-    name=f"dataflow.{command_name}",
+    name=f"{module}.{command_name}",  # no "dataflow." prefix, e.g. "convert.yolo_to_coco"
     verbose=verbose,
     log_dir=log_dir,
 )
@@ -452,9 +459,12 @@ or use `detect_image_error()`.
 ```
 dataflow/util/logging.py imports FROM:
 └── logging (stdlib)
+└── logging.handlers (stdlib — RotatingFileHandler)
+└── dataclasses (stdlib)
 └── pathlib (stdlib)
 └── datetime (stdlib)
 └── sys (stdlib)
+└── typing (stdlib)
 
 dataflow/util/logging.py is imported BY:
 ├── dataflow.label.base           (LogManager → handler logger)
@@ -462,8 +472,10 @@ dataflow/util/logging.py is imported BY:
 ├── dataflow.convert.base         (LogManager → converter pipeline)
 ├── dataflow.visualize.base       (LogManager → visualization pipeline)
 ├── dataflow.evaluate.base        (LogManager → evaluation pipeline)
-├── dataflow.cli.commands.*       (LogConfig only — passed to module constructors)
-└── dataflow.cli.main             (LogConfig only)
+└── dataflow.cli.commands.*       (LogConfig only — passed to module constructors)
+
+Note: `dataflow.cli.main` imports nothing from `util/logging` — logging is
+module-owned; the CLI entry point only registers command groups.
 ```
 
 `LogManager` does NOT import from any DataFlow-CV module — it is a pure leaf dependency.
