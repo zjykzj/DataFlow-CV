@@ -407,3 +407,45 @@ class TestPartitionAnalyser:
                 )
                 assert not result.success
                 assert any("Image directory does not exist" in e for e in result.errors)
+
+
+class TestPartitionMoveSkipsRewrite:
+    """--move skips the parse+rewrite cycle and moves source files verbatim."""
+
+    def _run(self, base, mode, move):
+        label_dir = base / "labels"
+        label_dir.mkdir()
+        image_dir = base / "images"
+        image_dir.mkdir()
+        for name in ["a", "b", "c", "d"]:
+            (label_dir / f"{name}.txt").write_text("0 0.5 0.5 0.2 0.2\n")
+            (image_dir / f"{name}.jpg").write_bytes(b"fake")
+        kwargs = {"label_dir": label_dir, "output_dir": base / "out", "num": 2}
+        if mode == "both":
+            kwargs["image_dir"] = image_dir
+        result = PartitionAnalyser().analyse(move=move, **kwargs)
+        assert result.success
+        files = [f for p in sorted((base / "out").glob("part_*")) for f in sorted(p.rglob("*.txt"))]
+        contents = sorted(f.read_text().strip() for f in files)
+        return contents, not any(label_dir.glob("*.txt"))
+
+    def test_move_mode_preserves_source_bytes(self):
+        """Move mode moves source files verbatim (no handler rewrite)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for mode in ("labels", "both"):
+                base = Path(tmpdir) / f"m_{mode}"
+                base.mkdir()
+                contents, source_gone = self._run(base, mode, move=True)
+                assert contents == ["0 0.5 0.5 0.2 0.2"] * 4
+                assert source_gone
+
+    def test_copy_mode_still_rewrites_via_handler(self):
+        """Copy mode keeps the parse+rewrite path (reformatted output)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for mode in ("labels", "both"):
+                base = Path(tmpdir) / f"c_{mode}"
+                base.mkdir()
+                contents, source_gone = self._run(base, mode, move=False)
+                assert len(contents) == 4
+                assert all(c.startswith("0 ") for c in contents)
+                assert not source_gone

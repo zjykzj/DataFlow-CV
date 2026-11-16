@@ -240,15 +240,21 @@ class PartitionAnalyser(BaseAnalyser):
                     _copy_or_move_file(img_path, part_dir, move, self.logger)
 
             elif mode == "labels":
-                # Labels-only: write labels via handler
-                for img_ann in items[start:end]:
-                    try:
-                        wr = handler.write_one(img_ann, part_dir)
-                        if not wr.success:
-                            for err in wr.errors:
-                                result.add_error(f"Write {part_dir.name}/{img_ann.image_id}: {err}")
-                    except Exception as e:
-                        result.add_error(f"Write {part_dir.name}/{img_ann.image_id}: {e}")
+                # Labels-only: write labels via handler (copy mode only —
+                # in move mode the source files are moved verbatim below,
+                # so a parse+rewrite cycle would be wasted I/O and would
+                # be overwritten anyway).
+                if not move:
+                    for img_ann in items[start:end]:
+                        try:
+                            wr = handler.write_one(img_ann, part_dir)
+                            if not wr.success:
+                                for err in wr.errors:
+                                    result.add_error(
+                                        f"Write {part_dir.name}/{img_ann.image_id}: {err}"
+                                    )
+                        except Exception as e:
+                            result.add_error(f"Write {part_dir.name}/{img_ann.image_id}: {e}")
 
                 # Move label files if in move mode
                 if move:
@@ -268,16 +274,21 @@ class PartitionAnalyser(BaseAnalyser):
                 images_subdir.mkdir(parents=True, exist_ok=True)
 
                 for img_ann in items[start:end]:
-                    # Write label
-                    try:
-                        wr = handler.write_one(img_ann, labels_subdir)
-                        if not wr.success:
-                            for err in wr.errors:
-                                result.add_error(
-                                    f"Write {part_dir.name}/labels/{img_ann.image_id}: {err}"
-                                )
-                    except Exception as e:
-                        result.add_error(f"Write {part_dir.name}/labels/{img_ann.image_id}: {e}")
+                    # Write label (copy mode only — in move mode the source
+                    # files are moved verbatim below, so a parse+rewrite
+                    # cycle would be wasted I/O and overwritten anyway).
+                    if not move:
+                        try:
+                            wr = handler.write_one(img_ann, labels_subdir)
+                            if not wr.success:
+                                for err in wr.errors:
+                                    result.add_error(
+                                        f"Write {part_dir.name}/labels/{img_ann.image_id}: {err}"
+                                    )
+                        except Exception as e:
+                            result.add_error(
+                                f"Write {part_dir.name}/labels/{img_ann.image_id}: {e}"
+                            )
 
                     # Match and copy/move image
                     stem = img_ann.image_id
