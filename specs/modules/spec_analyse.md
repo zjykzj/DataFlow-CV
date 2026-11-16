@@ -401,12 +401,14 @@ class FilterAnalyser(BaseAnalyser):
 1. Validate args (both class files must exist)
 2. Load original class mapping: load_class_names(original_class_file) → {id: name}
 3. Load new class mapping:   load_class_names(new_class_file)   → {id: name}
-4. Build filter mapping:
-   a. For each (new_id, name) in new_class_file:
-      - Find old_id where original_classes[old_id] == name
+4. Build filter mapping (`_build_filter_mapping(data_categories, new_classes)`):
+   a. `data_categories` — the actual categories from the handler/dataset — are the
+      source of truth for old_id values (IDs can differ between the class file and
+      the data). For each (new_id, name) in new_class_file:
+      - Find old_id where data_categories[old_id] == name
       - If not found → record in missing_categories, emit WARNING
       - If found → record mapping: old_id → (new_id, name)
-   b. For each (old_id, name) in original_class_file not in kept set:
+   b. For each (old_id, name) in data_categories not in kept set:
       - Record in removed_categories
 5. detect_format(label_path) → "yolo" | "labelme" | "coco"
 6. create_handler(format, label_path, original_class_file, image_dir, logger)
@@ -1378,8 +1380,8 @@ Python API callers can pass ``move=True`` directly without interactive confirmat
 
 | Format | Read | Write | Output |
 |--------|------|-------|--------|
-| YOLO | `iter_images()` streaming | `write_one()` per `.txt` | Individual `.txt` files in each `part_N/` (or `part_N/labels/` in both mode) |
-| LabelMe | `iter_images()` streaming | `write_one()` per `.json` | Individual `.json` files in each `part_N/` (or `part_N/labels/` in both mode) |
+| YOLO | `read()` batch | `write_one()` per `.txt` | Individual `.txt` files in each `part_N/` (or `part_N/labels/` in both mode) |
+| LabelMe | `read()` batch | `write_one()` per `.json` | Individual `.json` files in each `part_N/` (or `part_N/labels/` in both mode) |
 | COCO | — | — | **Rejected** — error directing to `split` |
 
 ## 11. Summary of Public API
