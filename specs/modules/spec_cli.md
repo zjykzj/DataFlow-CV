@@ -341,13 +341,12 @@ CLIError (base, exit_code configurable)
 
 Parameter errors (invalid/missing command-line parameters) are handled by `click.UsageError` and `click.BadParameter`, which Click raises automatically — the CLI does not need custom exception types for these.
 
-pycocotools availability is checked via `_validate_coco_available()` which raises `ImportError` with a helpful installation message when pycocotools is not installed.
+pycocotools availability is checked module-side (e.g. `dataflow/evaluate/utils.py::_validate_coco_available()`), which raises `ImportError` with a helpful installation message when pycocotools is not installed — the CLI never imports it directly.
 
 **Usage:**
-- `validate_convert_params()` / `validate_evaluate_params()` raise `InputError` for missing/invalid inputs
 - `validate_path_exists()` raises `InputError` for non-existent paths
 - Post-conversion/visualization/evaluation failures raise `RuntimeCLIError`
-- `_validate_coco_available()` raises `ImportError` when pycocotools is not installed for commands that require it
+- `_validate_coco_available()` (evaluate module) raises `ImportError` when pycocotools is not installed for commands that require it
 
 ## 7. Validators
 
@@ -409,7 +408,7 @@ Logging is **module-owned**. CLI does not write log messages.
 
 **CLI responsibilities:**
 1. Parse `--verbose` and `--log-dir` from command-line options
-2. Construct `LogConfig(name=f"dataflow.{command_name}", verbose=verbose, log_dir=log_dir)`
+2. Construct `LogConfig(name=f"{module}.{command_name}", verbose=verbose, log_dir=log_dir)` — no `"dataflow."` prefix (e.g. `"convert.yolo_to_coco"`, `"analyse.stats"`)
 3. Pass `log_config` to the module constructor (Converter / Visualizer / Evaluator)
 4. After operation completes, print final summary and log path via `click.echo()`
 

@@ -208,7 +208,7 @@ class FormattedCommand(click.Command):
             return self.argument_help[param_name]
         help_map = {
             "image_dir": "Image file directory (for obtaining image dimensions)",
-            "label_dir": "YOLO label directory",
+            "label_dir": "Label directory (YOLO .txt or LabelMe .json files)",
             "label_path": "Path to labels — directory (YOLO/LabelMe) or COCO .json file",
             "label_paths": "One or more paths to labels",
             "class_file": "Class file path (classes.txt)",

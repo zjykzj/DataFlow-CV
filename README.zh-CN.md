@@ -360,7 +360,7 @@ claude plugin install dataflow@claude-skills
 
 ### 🧪 测试
 
-**606 个测试,80% 代码覆盖率(5532 条语句)。**
+**615 个测试,80% 代码覆盖率(5553 条语句)。**
 
 ```bash
 pytest                                    # 全部测试
@@ -374,11 +374,11 @@ pytest tests/evaluate/test_evaluator.py     # 单个模块
 
 | 模块 | 覆盖率 | 亮点 |
 |--------|:--------:|------------|
-| `dataflow/label/` | 71% | models (84%), base (82%), utils (83%), coco_handler (74%), labelme_handler (71%), yolo_handler (61%) |
+| `dataflow/label/` | 72% | models (84%), base (84%), utils (83%), coco_handler (74%), labelme_handler (71%), yolo_handler (62%) |
 | `dataflow/analyse/` | 84% | base (99%), log_templates (92%), sample (87%), utils (84%), split (85%), stats (82%), filter (76%), partition (74%) |
 | `dataflow/convert/` | 86% | labelme_and_yolo (93%), yolo_and_coco (89%), utils (88%), coco_and_labelme (88%), log_templates (85%), base (81%), rle (80%) |
 | `dataflow/visualize/` | 81% | yolo_vis (100%), labelme_vis (100%), coco_vis (93%), base (76%) |
-| `dataflow/evaluate/` | 90% | evaluator (100%), result (99%), metrics (93%), base (90%), utils (87%) |
+| `dataflow/evaluate/` | 92% | evaluator (100%), result (99%), metrics (93%), base (90%), utils (87%) |
 | `dataflow/cli/` | 74% | main (96%), visualize cmd (87%), utils (87%), evaluate cmd (83%), analyse cmd (65%), convert cmd (52%) |
 | `dataflow/util/` | 100% | logging (100%) |
 
@@ -416,7 +416,7 @@ dataflow/
 ├── evaluate/        # 基于 pycocotools 的指标计算、日志模板
 ├── util/            # 统一日志(LogManager + 格式化辅助)
 └── cli/             # CLI 入口、命令、校验
-tests/               # 单元与集成测试(606 个测试、conftest 夹具)
+tests/               # 单元与集成测试(615 个测试、conftest 夹具)
 samples/             # Python API 使用示例(analyse、convert、visualize、evaluate、cli)
 assets/              # 测试数据(按格式分类的 det/seg)
 specs/               # 权威规范(evaluate/ + formats/ + modules/)

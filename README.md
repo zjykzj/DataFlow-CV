@@ -364,7 +364,7 @@ For detailed developer guidance including advanced test commands, debugging, and
 
 ### 🧪 Testing
 
-**606 tests, 80% code coverage (5532 statements).**
+**615 tests, 80% code coverage (5553 statements).**
 
 ```bash
 pytest                                    # All tests
@@ -378,11 +378,11 @@ pytest tests/evaluate/test_evaluator.py     # Single module
 
 | Module | Coverage | Highlights |
 |--------|:--------:|------------|
-| `dataflow/label/` | 71% | models (84%), base (82%), utils (83%), coco_handler (74%), labelme_handler (71%), yolo_handler (61%) |
+| `dataflow/label/` | 72% | models (84%), base (84%), utils (83%), coco_handler (74%), labelme_handler (71%), yolo_handler (62%) |
 | `dataflow/analyse/` | 84% | base (99%), log_templates (92%), sample (87%), utils (84%), split (85%), stats (82%), filter (76%), partition (74%) |
 | `dataflow/convert/` | 86% | labelme_and_yolo (93%), yolo_and_coco (89%), utils (88%), coco_and_labelme (88%), log_templates (85%), base (81%), rle (80%) |
 | `dataflow/visualize/` | 81% | yolo_vis (100%), labelme_vis (100%), coco_vis (93%), base (76%) |
-| `dataflow/evaluate/` | 90% | evaluator (100%), result (99%), metrics (93%), base (90%), utils (87%) |
+| `dataflow/evaluate/` | 92% | evaluator (100%), result (99%), metrics (93%), base (90%), utils (87%) |
 | `dataflow/cli/` | 74% | main (96%), visualize cmd (87%), utils (87%), evaluate cmd (83%), analyse cmd (65%), convert cmd (52%) |
 | `dataflow/util/` | 100% | logging (100%) |
 
@@ -420,7 +420,7 @@ dataflow/
 ├── evaluate/        # pycocotools-based metrics, log templates
 ├── util/            # Unified logging (LogManager + format helpers)
 └── cli/             # CLI entry point, commands, validation
-tests/               # Unit & integration tests (606 tests, conftest fixtures)
+tests/               # Unit & integration tests (615 tests, conftest fixtures)
 samples/             # Python API usage examples (analyse, convert, visualize, evaluate, cli)
 assets/              # Test data (det/seg by format)
 specs/               # Canonical specifications (evaluate/ + formats/ + modules/)
