@@ -13,7 +13,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 from dataflow.label.utils import parse_yolo_class_id
 
@@ -236,7 +236,7 @@ def create_handler(
     from dataflow.label.labelme_handler import LabelMeAnnotationHandler
     from dataflow.label.yolo_handler import YoloAnnotationHandler
 
-    handler_kwargs = {
+    handler_kwargs: Dict[str, Any] = {
         "strict_mode": False,
         "logger": logger,
     }

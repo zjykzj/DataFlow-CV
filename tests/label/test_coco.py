@@ -852,3 +852,45 @@ class TestOrphanAnnotations:
 
             log_text = Path(lm.log_path).read_text(encoding="utf-8")
             assert "unknown image_id" in log_text
+
+
+class TestDoRleExplicitVsAuto:
+    """Explicit do_rle=True/False disables auto-detection; None enables it."""
+
+    RLE_DATA = "seg/coco/annotations-rle.json"
+    POLY_DATA = "det/coco/annotations.json"
+
+    def test_explicit_false_requests_polygon_output_from_rle_data(self, test_data_dir):
+        """Explicit do_rle=False stays False after reading RLE data.
+
+        Regression test: False was both default and explicit, so an RLE
+        source always forced RLE output.
+        """
+        handler = CocoAnnotationHandler(
+            annotation_file=str(test_data_dir / self.RLE_DATA),
+            do_rle=False,
+            strict_mode=False,
+        )
+        result = handler.read()
+        assert result.success is True
+        assert handler.output_rle is False  # explicit choice wins
+
+    def test_default_auto_detects_from_rle_data(self, test_data_dir):
+        """Default (None) auto-detects RLE output from an RLE source."""
+        handler = CocoAnnotationHandler(
+            annotation_file=str(test_data_dir / self.RLE_DATA), strict_mode=False
+        )
+        result = handler.read()
+        assert result.success is True
+        assert handler.output_rle is True  # auto-detected
+
+    def test_explicit_true_stays_true(self, test_data_dir):
+        """Explicit do_rle=True stays True even for polygon data."""
+        handler = CocoAnnotationHandler(
+            annotation_file=str(test_data_dir / self.POLY_DATA),
+            do_rle=True,
+            strict_mode=False,
+        )
+        result = handler.read()
+        assert result.success is True
+        assert handler.output_rle is True

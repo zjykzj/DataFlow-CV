@@ -39,14 +39,20 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
     """Handler for COCO annotation format."""
 
     def __init__(
-        self, annotation_file: str, do_rle: bool = False, prediction: bool = False, **kwargs
+        self,
+        annotation_file: str,
+        do_rle: Optional[bool] = None,
+        prediction: bool = False,
+        **kwargs,
     ):
         """
         Initialize COCO handler.
 
         Args:
             annotation_file: Path to COCO JSON annotation file
-            do_rle: Whether to output RLE format when writing (default False)
+            do_rle: Whether to output RLE format when writing. ``None``
+                (default) auto-detects from the source dataset on read;
+                ``True``/``False`` are an explicit choice.
             prediction: Whether to output prediction format (plain JSON list
                 of annotation dicts) instead of full COCO dict. When True,
                 ``score`` is always included in each annotation.
@@ -59,9 +65,9 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         self.images = {}
         self.annotations = []
         self.dataset_info = {}
-        self.output_rle = do_rle  # Whether to output RLE format when writing
+        self.output_rle = bool(do_rle)  # Whether to output RLE format when writing
         self.prediction = prediction  # Whether to output prediction (list) format
-        self._user_set_output_rle = do_rle  # Track whether user explicitly set do_rle
+        self._user_set_output_rle = do_rle is not None  # None = auto-detect on read
 
     def read(self) -> AnnotationResult:
         """
