@@ -789,12 +789,12 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
             # Include score for prediction output only.
             # Annotation-mode COCO JSON must never include score
-            # (spec_coco_format.md §10.3).
+            # (spec_coco_format.md §9.3).
             if self.prediction:
                 ann_dict["score"] = obj.confidence
 
             # Enforce iscrowd=0 for prediction output (crowd is GT-only,
-            # spec_coco_format.md §10.3).
+            # spec_coco_format.md §9.3).
             if self.prediction and iscrowd != 0:
                 iscrowd = 0
                 ann_dict["iscrowd"] = 0
