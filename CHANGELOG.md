@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-11-16
+
 ### Fixed
 
 - **Per-class P/R/F1 now come from a single (max-F1) operating point**: `evaluate --verbose` previously combined max-precision with max-recall from two different operating points, reporting unreachable metric combinations; per-class P/R/F1 (and the derived TP/FP/FN estimates) are now taken from the confidence threshold that maximizes per-class F1, per spec_evaluate.md §2.2.
@@ -24,6 +26,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Analyse Python API no longer raises on a missing image_dir**: Split/Partition/Sample previously crashed with a raw `FileNotFoundError` when `image_dir` didn't exist (both-mode and images-only paths); all three now return a clean error result, per spec_analyse.md §9.1.
 - **Streaming conversions report the log path and always log a result summary**: the four per-file conversion commands now populate `result.log_path` in verbose mode (the batch path already did), failed non-strict writes no longer poison duplicate-stem detection, and early-return failures emit the result block like the batch path.
 - **`analyse stats --descending --sort-by id` keeps alphabetical ties**: reverse=True previously reversed the whole (id, name) key, so unknown-id classes sorted reverse-alphabetically; the id component is now negated instead, keeping the name tiebreak ascending per spec_analyse.md §2.2.
+- **Model rejects `..` in image ids**: the path-traversal regex's dots were unescaped wildcards, so the model accepted ids the writer rejects; it now enforces the spec_label.md §2.2 invariant consistently.
+- **Batch conversions contain exceptions as structured errors**: exceptions from read/convert/write (e.g. coordinate math on malformed data) previously escaped `convert()` as raw tracebacks; they now return `ConversionResult(success=False)` with the error.
+- **Seg-only objects evaluate correctly**: `_dataset_to_coco_dict()` now derives bbox/area from the polygon extent when absent, fixing a pycocotools `KeyError: 'area'` for segmentation-only in-memory datasets.
+- **`analyse filter` drops its dead `--class-file` option**: the option was shown in `--help` but silently ignored (class files are positional arguments for filter).
+- **`--prf1-iou` / `--prf1-conf` are range-validated**: out-of-range values previously produced meaningless P/R/F1 silently; click now rejects them with a clear message.
+- **`visualize --save` to an existing file fails cleanly**: previously a raw `FileExistsError` traceback; both CLI and API now report a clear error.
+- **COCO orphan annotations warn instead of vanishing**: annotations whose `image_id` is not in the images list are still dropped, but now with a summary warning in both modes.
+- **YOLO `validate()` agrees with `read()`**: validate now applies the same clamp-then-validate logic (clamps edges, rejects zero-area bboxes), fixing opposite verdicts on the same file.
+- **`CocoAnnotationHandler(do_rle=False)` now means polygon output**: `do_rle` is `None` by default (auto-detect from the source); explicit `True`/`False` disable auto-detection.
+- **`compute_pr_f1(log_config=...)` actually logs**: the parameter was dead; verbose mode now writes the computation header, per-class details, and a summary to the log file.
+- **LabelMe streaming exposes categories upfront**: `iter_images()` pre-scans shapes so `self.categories` is complete before the first yield (early-break consumers no longer see an incomplete dict).
 
 ## [3.0.1] - 2026-11-16
 
