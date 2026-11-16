@@ -379,3 +379,37 @@ class TestStreamConvert:
         assert any("disk error" in w for w in result.warnings)
         # No false duplicate warning — the failed stem was never marked
         assert not any("Duplicate output stem" in w for w in result.warnings)
+
+
+class TestBatchConvertContainment:
+    """_batch_convert() returns structured errors instead of raising."""
+
+    def test_convert_annotations_exception_contained(self, tmp_path):
+        """An exception in convert_annotations becomes a failed result."""
+        src = tmp_path / "src.txt"
+        src.touch()
+        converter = ConcreteConverter(strict_mode=False)
+
+        source_handler = Mock()
+        read_result = Mock(success=True)
+        read_result.data = DatasetAnnotations(
+            images=[
+                ImageAnnotation(
+                    image_id="img1", image_path="/img1.jpg", width=10, height=10, objects=[]
+                )
+            ]
+        )
+        source_handler.read.return_value = read_result
+        target_handler = Mock()
+        write_result = Mock(success=True, errors=[])
+        target_handler.write.return_value = write_result
+
+        with patch.object(
+            converter, "create_source_handler", return_value=source_handler
+        ), patch.object(
+            converter, "create_target_handler", return_value=target_handler
+        ), patch.object(converter, "convert_annotations", side_effect=ValueError("boom")):
+            result = converter._batch_convert(str(src), str(tmp_path / "out.json"))
+
+        assert result.success is False
+        assert any("Conversion failed: boom" in e for e in result.errors)

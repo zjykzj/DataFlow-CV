@@ -389,71 +389,87 @@ class BaseConverter(ABC):
                 log_path=self._log_manager.log_path,
             )
 
-        # 2. Read data using source handler
-        source_handler = self.create_source_handler(source_path, kwargs)
-        read_result = source_handler.read()
-        if not read_result.success:
+        # 2-6. Read -> convert -> write, with exception containment: any
+        # failure returns a structured ConversionResult instead of a raw
+        # traceback (spec_convert.md §7.1 / spec_conversion.md §10.1).
+        try:
+            # 2. Read data using source handler
+            source_handler = self.create_source_handler(source_path, kwargs)
+            read_result = source_handler.read()
+            if not read_result.success:
+                return self._create_conversion_result(
+                    success=False,
+                    source_path=source_path,
+                    target_path=target_path,
+                    errors=read_result.errors,
+                    log_path=self._log_manager.log_path,
+                )
+
+            # 3. Convert data
+            annotations = read_result.data
+            self._log_info(
+                f"Read {annotations.num_images} images, "
+                f"{len(annotations.categories)} categories, "
+                f"{annotations.num_objects} objects"
+            )
+            if self._log_manager.log_path is not None:
+                self.logger.debug(f"Category count: {len(annotations.categories)}")
+
+            converted_annotations = self.convert_annotations(annotations, kwargs)
+
+            if self._log_manager.log_path is not None:
+                self.logger.debug(
+                    f"Conversion completed, object count: {converted_annotations.num_objects}"
+                )
+
+            # 4. Write data (with state cleanup guarantee)
+            self._source_annotations_for_target = converted_annotations
+            try:
+                target_handler = self.create_target_handler(target_path, kwargs)
+                write_result = target_handler.write(converted_annotations, target_path)
+            finally:
+                self._source_annotations_for_target = None
+
+            if write_result.success:
+                duration = _time.time() - start_time
+                self._log_info(
+                    f"Wrote {target_path} "
+                    f"({converted_annotations.num_objects} annotations)"
+                    f" in {duration:.1f}s"
+                )
+
+            # 5. Build result
+            result = self._create_conversion_result(
+                success=write_result.success,
+                source_path=source_path,
+                target_path=target_path,
+                annotations=converted_annotations,
+                write_result=write_result,
+                log_path=self._log_manager.log_path,
+            )
+
+            if self._log_manager.log_path is not None:
+                result.add_verbose_log(f"Images processed: {annotations.num_images}")
+                result.add_verbose_log(f"Objects converted: {converted_annotations.num_objects}")
+                if write_result.errors:
+                    for error in write_result.errors:
+                        result.add_verbose_log(f"Error: {error}")
+
+            # 6. Post-processing hook (e.g., RLE warnings)
+            self._post_batch_convert(result, source_handler, kwargs)
+
+        except Exception as e:
+            # Containment: exceptions from read/convert/write (e.g.
+            # coordinate math on malformed data) become result errors.
+            if self._log_manager.log_path is not None:
+                self.logger.exception("Batch conversion failed")
             return self._create_conversion_result(
                 success=False,
                 source_path=source_path,
                 target_path=target_path,
-                errors=read_result.errors,
+                errors=[f"Conversion failed: {e}"],
                 log_path=self._log_manager.log_path,
             )
-
-        # 3. Convert data
-        annotations = read_result.data
-        self._log_info(
-            f"Read {annotations.num_images} images, "
-            f"{len(annotations.categories)} categories, "
-            f"{annotations.num_objects} objects"
-        )
-        if self._log_manager.log_path is not None:
-            self.logger.debug(f"Category count: {len(annotations.categories)}")
-
-        converted_annotations = self.convert_annotations(annotations, kwargs)
-
-        if self._log_manager.log_path is not None:
-            self.logger.debug(
-                f"Conversion completed, object count: {converted_annotations.num_objects}"
-            )
-
-        # 4. Write data (with state cleanup guarantee)
-        self._source_annotations_for_target = converted_annotations
-        try:
-            target_handler = self.create_target_handler(target_path, kwargs)
-            write_result = target_handler.write(converted_annotations, target_path)
-        finally:
-            self._source_annotations_for_target = None
-
-        if write_result.success:
-            duration = _time.time() - start_time
-            self._log_info(
-                f"Wrote {target_path} "
-                f"({converted_annotations.num_objects} annotations)"
-                f" in {duration:.1f}s"
-            )
-
-        # 5. Build result
-        result = self._create_conversion_result(
-            success=write_result.success,
-            source_path=source_path,
-            target_path=target_path,
-            annotations=converted_annotations,
-            write_result=write_result,
-            log_path=self._log_manager.log_path,
-        )
-
-        if self._log_manager.log_path is not None:
-            result.add_verbose_log(f"Images processed: {annotations.num_images}")
-            result.add_verbose_log(f"Objects converted: {converted_annotations.num_objects}")
-            if write_result.errors:
-                for error in write_result.errors:
-                    result.add_verbose_log(f"Error: {error}")
-
-        # 6. Post-processing hook (e.g., RLE warnings)
-        self._post_batch_convert(result, source_handler, kwargs)
-
         # 7. Log conversion result
         from .log_templates import format_convert_result
 
