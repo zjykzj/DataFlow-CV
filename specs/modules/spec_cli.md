@@ -1,6 +1,6 @@
 # CLI Module Specification
 
-> **Version:** 2.5 | **Last Updated:** 2026-11-16
+> **Version:** 2.6 | **Last Updated:** 2026-11-16
 > **Layer:** Modules
 > **Dependencies:** Convert module + Visualize module + Evaluate module (public APIs only) + Logging module (LogConfig only)
 
@@ -188,7 +188,7 @@ dataflow-cv visualize labelme [OPTIONS] IMAGE_DIR LABEL_DIR
 | `--prf1-iou` | Float | 0.5 | IoU threshold for P/R/F1 calculation |
 | `--prf1-conf` | Float | 0.0 | Confidence threshold for P/R/F1 calculation |
 | `--prf1-method` | Choice | `"macro"` | Aggregation: `"macro"` or `"micro"` |
-| `--output`, `-o` | Path | None | Save full `EvaluationResult` as JSON to this path |
+| `--output`, `-o` | Path | None | Save the evaluation result as JSON to this path — mAP path: full `EvaluationResult`; `--prf1` path: `PRF1Result` (thresholds, method, overall + per-class P/R/F1/TP/FP/FN, class_names, warnings, errors) |
 
 **Design rule**: `--prf1` and the mAP path are mutually exclusive. When `--prf1` is set, COCOeval is skipped entirely — only single-threshold P/R/F1 is computed via manual greedy matching. If both metrics are needed, run the command twice.
 
@@ -226,7 +226,7 @@ Evaluates instance segmentation results using mask IoU (`iouType='segm'`).
 
 **`--prf1` mode** — P/R/F1 per-class table + overall summary. mAP is NOT computed in this mode.
 
-**`--output` mode** — Full `EvaluationResult` serialized as JSON, containing: 12 metrics, per-class data (class_id, class_name, gt/dt/tp/fp/fn counts, AP/AP50/AP75, P/R/F1), GT/DT stats, warnings, errors. Intended for programmatic consumption (CI pipelines, experiment tracking).
+**`--output` mode** — mAP path: full `EvaluationResult` serialized as JSON, containing: 12 metrics, per-class data (class_id, class_name, gt/dt/tp/fp/fn counts, AP/AP50/AP75, P/R/F1), GT/DT stats, warnings, errors. `--prf1` path: `PRF1Result` serialized as JSON, containing: `iou_threshold`, `confidence_threshold`, `method`, `overall` (P/R/F1/TP/FP/FN), `per_class`, `class_names`, `warnings`, `errors`. Intended for programmatic consumption (CI pipelines, experiment tracking).
 
 ## 5. Analyse Subcommands
 

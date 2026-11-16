@@ -84,6 +84,34 @@ class TestEvaluateDetection:
         assert result.exit_code == 0
         assert "IoU=0.75" in result.output
 
+    def test_prf1_output_json(self, runner, tmp_path):
+        """--prf1 --output saves a PRF1Result JSON (spec_cli.md §4.3)."""
+        import json
+
+        output_file = tmp_path / "prf1_result.json"
+        result = runner.invoke(
+            cli,
+            [
+                "evaluate",
+                "detection",
+                "--prf1",
+                "--output",
+                str(output_file),
+                GT_JSON,
+                DT_JSON,
+            ],
+        )
+        assert result.exit_code == 0
+        assert output_file.exists()
+
+        data = json.loads(output_file.read_text(encoding="utf-8"))
+        assert data["success"] is True
+        assert data["method"] == "macro"
+        assert data["iou_threshold"] == pytest.approx(0.5)
+        assert "overall" in data and "per_class" in data
+        assert data["overall"]["tp"] == 4
+        assert data["overall"]["fp"] == 1
+
     def test_output_json(self, runner, tmp_path):
         output_file = tmp_path / "result.json"
         result = runner.invoke(

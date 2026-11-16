@@ -153,6 +153,10 @@ def detection(
         if prf1_result.success:
             click.echo()
             click.echo(format_prf1_output(prf1_result))
+
+            if output:
+                _save_result_json(prf1_result, output)
+                click.echo(f"P/R/F1 result saved to: {output}")
         else:
             error_msg = prf1_result.errors[0] if prf1_result.errors else "P/R/F1 computation failed"
             click.echo(f"P/R/F1 failed: {error_msg}", err=True)
@@ -233,6 +237,10 @@ def segmentation(
         if prf1_result.success:
             click.echo()
             click.echo(format_prf1_output(prf1_result))
+
+            if output:
+                _save_result_json(prf1_result, output)
+                click.echo(f"P/R/F1 result saved to: {output}")
         else:
             error_msg = prf1_result.errors[0] if prf1_result.errors else "P/R/F1 computation failed"
             click.echo(f"P/R/F1 failed: {error_msg}", err=True)
@@ -290,7 +298,7 @@ def _print_eval_result(result, verbose):
 
 
 def _save_result_json(result: Any, output_path: Path) -> None:
-    """Serialize an EvaluationResult to JSON."""
+    """Serialize an EvaluationResult or PRF1Result to JSON."""
 
     def _convert(obj: Any) -> Any:
         import numpy as np
@@ -307,16 +315,21 @@ def _save_result_json(result: Any, output_path: Path) -> None:
             return {k: _convert(v) for k, v in obj.__dict__.items()}
         return obj
 
-    data = {
-        "success": result.success,
-        "iou_type": getattr(result, "iou_type", ""),
-        "metrics": _convert(result.metrics),
-        "per_class": _convert(result.per_class),
-        "gt_stats": result.gt_stats,
-        "dt_stats": result.dt_stats,
-        "warnings": result.warnings,
-        "errors": result.errors,
-    }
+    if hasattr(result, "metrics"):
+        # mAP path: EvaluationResult-shaped JSON (spec_cli.md §4.3)
+        data = {
+            "success": result.success,
+            "iou_type": getattr(result, "iou_type", ""),
+            "metrics": _convert(result.metrics),
+            "per_class": _convert(result.per_class),
+            "gt_stats": result.gt_stats,
+            "dt_stats": result.dt_stats,
+            "warnings": result.warnings,
+            "errors": result.errors,
+        }
+    else:
+        # --prf1 path: full PRF1Result serialization (spec_cli.md §4.3)
+        data = _convert(result)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
