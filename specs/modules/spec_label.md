@@ -1,6 +1,6 @@
 # Label Module Specification
 
-> **Version:** v4.6 | **Last Updated:** 2026-10-10
+> **Version:** v4.7 | **Last Updated:** 2026-11-16
 > **Status:** Draft — logger receives from caller's LogManager via `logger=` parameter
 > **Layer:** Modules
 > **Dependencies:** None (foundation module; logging via stdlib `logging.Logger` only)
@@ -388,6 +388,10 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
 
 **`write(annotations, output_dir)`**: Writes one `.txt` per image.
 - Output: `class_id cx cy w h` (5 tokens for detection) or `class_id x1 y1 x2 y2 ...` (segmentation)
+- **Row selection when both present**: If an object carries both `bbox` and `segmentation`
+  (the norm for COCO sources, where every annotation includes `bbox`), the segmentation
+  (polygon) row wins — the 5-token detection row is written only when segmentation is
+  absent. A `Segmentation` with an empty point list falls back to the bbox row.
 - **Prediction write**: When `ObjectAnnotation.confidence < 1.0`, writes 6 tokens (detection) or appends confidence (segmentation)
 - Coordinates written with 6 decimal places (`.6f`); confidence written with 6 decimal places
 - Empty images produce empty `.txt` files

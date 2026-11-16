@@ -180,6 +180,32 @@ class TestIntegrationConversions:
             classes = [line.strip() for line in f if line.strip()]
         assert len(classes) > 0, "Class file is empty"
 
+    def test_coco_to_yolo_segmentation_writes_polygon_rows(self, test_data_dir, temp_output_dir):
+        """Test COCO→YOLO keeps segmentation as polygon rows.
+
+        Regression test: COCO annotations always carry a bbox, so the YOLO
+        write path must prefer the segmentation over the bbox
+        (spec_label.md §4.1 — row selection when both are present).
+        """
+        source_file = test_data_dir / "seg" / "coco" / "annotations.json"
+
+        converter = YoloAndCocoConverter(source_to_target=False)
+        result = converter.convert(source_path=str(source_file), target_path=str(temp_output_dir))
+
+        assert result.success, f"conversion failed: {result.errors}"
+        assert result.num_objects_converted == 6
+
+        labels_dir = temp_output_dir / "labels"
+        for label_file in sorted(labels_dir.glob("*.txt")):
+            for line in label_file.read_text(encoding="utf-8").splitlines():
+                tokens = line.split()
+                # Polygon rows: odd token count > 5. A 5-token row would mean
+                # the segmentation was dropped in favor of the bbox.
+                assert len(tokens) > 5 and len(tokens) % 2 == 1, (
+                    f"Expected polygon row, got {len(tokens)} tokens: {line}"
+                )
+                assert all(0.0 <= float(t) <= 1.0 for t in tokens[1:])
+
     def test_coco_to_labelme_detection(self, test_data_dir, temp_output_dir):
         """Test COCO→LabelMe object detection conversion"""
         # Prepare test data paths

@@ -543,28 +543,29 @@ Test data lives in `assets/test_data/`, organized by format (det/seg) and annota
 28. **YOLO prediction format**: 6 tokens for detection, even tokens for segmentation, vs 5/odd for labels. Use `--prediction` with `yolo2coco`. Mixed label/prediction files not supported.
 29. **YOLO confidence validation rejects NaN**: `YoloAnnotationHandler` uses `math.isfinite()` alongside `[0, 1]` range check. `float('nan')` passes a range-only check silently — the `isfinite()` guard catches NaN, Inf, and -Inf.
 30. **YOLO class_id may be float-formatted**: Some tooling writes ``5.000000`` instead of ``5``. `YoloAnnotationHandler._parse_class_id()` handles this, but code parsing YOLO `.txt` directly must also handle it. Use `_parse_class_id_token()` from `dataflow/analyse/utils.py` — `int(token)` on float strings raises `ValueError`.
+31. **[!] YOLO write row priority — segmentation wins over bbox**: In `_object_to_yolo_line()`, the segmentation branch must be checked **first**. COCO annotations always carry a `bbox` field, so bbox-first ordering silently drops polygon/RLE segmentation from COCO→YOLO conversions (writes 5-token rows). Empty `Segmentation.points` falls back to the bbox row. Contract: `spec_label.md` §4.1.
 
 ### [*] Logging
 
-31. **`LogConfig` is the single entry point**: All modules accept `log_config: Optional[LogConfig] = None`. `LogConfig` is a frozen dataclass with `name`, `verbose`, `log_dir`. The old `LoggingOperations`, `VerboseLoggingOperations`, and `FileOperations` classes have been removed.
+32. **`LogConfig` is the single entry point**: All modules accept `log_config: Optional[LogConfig] = None`. `LogConfig` is a frozen dataclass with `name`, `verbose`, `log_dir`. The old `LoggingOperations`, `VerboseLoggingOperations`, and `FileOperations` classes have been removed.
 
 ### Visualizer Behavior
 
-32. **Progress bar edge case**: Guard against `filled == width` causing `"." * -1`. Batch-mode progress bars only — interactive mode uses window title bar.
-33. **Visualization keyboard control**: OpenCV window captures input via `cv2.waitKeyEx(0)`. Arrow keys (`←/↑` prev, `→/↓` next), `s` = snapshot, `h` = hints, `Enter`/`Space` = advance, `q`/`ESC` = exit. Window manager close button (X) may not work — always use keyboard.
-34. **Single persistent window**: One window (`"DataFlow-CV Visualization"`), reused for all images. Title bar: `[N/T] filename.jpg`. Auto-sizes to image dimensions, fixed position.
-35. **`RenderData` has no width/height fields**: Only holds `annotations: List[RenderAnnotation]`. Image dimensions read from `image.shape` at draw time. Do not add `image_width`/`image_height` — redundant.
+33. **Progress bar edge case**: Guard against `filled == width` causing `"." * -1`. Batch-mode progress bars only — interactive mode uses window title bar.
+34. **Visualization keyboard control**: OpenCV window captures input via `cv2.waitKeyEx(0)`. Arrow keys (`←/↑` prev, `→/↓` next), `s` = snapshot, `h` = hints, `Enter`/`Space` = advance, `q`/`ESC` = exit. Window manager close button (X) may not work — always use keyboard.
+35. **Single persistent window**: One window (`"DataFlow-CV Visualization"`), reused for all images. Title bar: `[N/T] filename.jpg`. Auto-sizes to image dimensions, fixed position.
+36. **`RenderData` has no width/height fields**: Only holds `annotations: List[RenderAnnotation]`. Image dimensions read from `image.shape` at draw time. Do not add `image_width`/`image_height` — redundant.
 
 ### Analyse Module
 
-36. **Format auto-detection**: `detect_format()` inspects the label path — single `.json` → COCO, directory of only `.txt` → YOLO, directory of `.json` (first checked: `"shapes"` → LabelMe, `"images"` → COCO). Mixed extensions or empty directories raise `ValueError`.
-37. **Analyse is read-only**: All operations run handlers with `strict_mode=False` — errors accumulated in `AnalysisResult.errors`, never raised. Differs from Convert (raises in strict mode) and Evaluate (always raises).
-38. **`--no-strict` unavailable for analyse**: Analyse is always non-strict. `--no-strict` only available on `convert` and `visualize` subcommands.
+37. **Format auto-detection**: `detect_format()` inspects the label path — single `.json` → COCO, directory of only `.txt` → YOLO, directory of `.json` (first checked: `"shapes"` → LabelMe, `"images"` → COCO). Mixed extensions or empty directories raise `ValueError`.
+38. **Analyse is read-only**: All operations run handlers with `strict_mode=False` — errors accumulated in `AnalysisResult.errors`, never raised. Differs from Convert (raises in strict mode) and Evaluate (always raises).
+39. **`--no-strict` unavailable for analyse**: Analyse is always non-strict. `--no-strict` only available on `convert` and `visualize` subcommands.
 
 ### Misc
 
-39. **LabelMe imageData**: Not required on read; valid external files may omit it.
-40. **Evaluate `validate_inputs` raises with all errors**: All validation errors collected and raised together via `ValueError("\n".join(errors))`. `evaluate()` catches this and splits into individual `result.errors` entries — all problems visible in log and programmatic output.
-41. **Deleted exception classes**: `ParameterError`, `OutputError`, `SystemError` no longer exist. Use `InputError` (exit 2) and `RuntimeCLIError` (exit 4).
-42. **Auto-generated class files cleaned up at exit**: `_auto_generate_class_file()` registers temp `classes.txt` for cleanup via `atexit`. Do not add manual cleanup in callers.
-43. **dataflow-cv skill version sync after release**: after each release that changes the CLI/API surface, sync the `dataflow>=X.Y.Z` minimum-version check in `plugins/dataflow/skills/dataflow-cv/SKILL.md` (claude-skills repo).
+40. **LabelMe imageData**: Not required on read; valid external files may omit it.
+41. **Evaluate `validate_inputs` raises with all errors**: All validation errors collected and raised together via `ValueError("\n".join(errors))`. `evaluate()` catches this and splits into individual `result.errors` entries — all problems visible in log and programmatic output.
+42. **Deleted exception classes**: `ParameterError`, `OutputError`, `SystemError` no longer exist. Use `InputError` (exit 2) and `RuntimeCLIError` (exit 4).
+43. **Auto-generated class files cleaned up at exit**: `_auto_generate_class_file()` registers temp `classes.txt` for cleanup via `atexit`. Do not add manual cleanup in callers.
+44. **dataflow-cv skill version sync after release**: after each release that changes the CLI/API surface, sync the `dataflow>=X.Y.Z` minimum-version check in `plugins/dataflow/skills/dataflow-cv/SKILL.md` (claude-skills repo).

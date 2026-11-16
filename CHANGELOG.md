@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **coco2yolo preserves segmentation** (breaking): COCO annotations with polygon or RLE segmentation now convert to YOLO polygon rows instead of 5-token bbox rows, matching spec_conversion.md §3.2/§9.3.
+
 ## [3.0.0] - 2026-10-11
 
 ### Changed

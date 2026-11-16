@@ -900,6 +900,64 @@ class TestYoloAnnotationHandler:
         assert float(parts[1]) == pytest.approx(0.1, abs=1e-6)
         assert float(parts[2]) == pytest.approx(0.1, abs=1e-6)
 
+    def test_object_to_yolo_line_segmentation_wins_over_bbox(self, sample_detection_data):
+        """Object with both bbox and segmentation writes a polygon row.
+
+        COCO sources always carry a bbox on every annotation, so the write
+        path must prefer the segmentation when both are present
+        (spec_label.md §4.1).
+        """
+        handler = YoloAnnotationHandler(
+            label_dir=str(sample_detection_data["label_dir"]),
+            class_file=str(sample_detection_data["class_file"]),
+            image_dir=str(sample_detection_data["image_dir"]),
+            strict_mode=True,
+        )
+
+        bbox = BoundingBox(x=0.5, y=0.5, width=0.2, height=0.2)
+        points = [(0.1, 0.1), (0.2, 0.1), (0.15, 0.2)]
+        obj = ObjectAnnotation(
+            class_id=0,
+            class_name="person",
+            bbox=bbox,
+            segmentation=Segmentation(points=points),
+            confidence=1.0,
+        )
+
+        line = handler._object_to_yolo_line(obj, 100, 100)
+        assert line is not None
+
+        parts = line.split()
+        assert len(parts) == 7  # class_id + 3 points * 2
+        assert parts[0] == "0"
+        assert float(parts[1]) == pytest.approx(0.1, abs=1e-6)
+        assert float(parts[2]) == pytest.approx(0.1, abs=1e-6)
+
+    def test_object_to_yolo_line_empty_segmentation_falls_back_to_bbox(self, sample_detection_data):
+        """Empty segmentation point list falls back to the 5-token bbox row."""
+        handler = YoloAnnotationHandler(
+            label_dir=str(sample_detection_data["label_dir"]),
+            class_file=str(sample_detection_data["class_file"]),
+            image_dir=str(sample_detection_data["image_dir"]),
+            strict_mode=True,
+        )
+
+        bbox = BoundingBox(x=0.5, y=0.5, width=0.2, height=0.2)
+        obj = ObjectAnnotation(
+            class_id=0,
+            class_name="person",
+            bbox=bbox,
+            segmentation=Segmentation(points=[]),
+            confidence=1.0,
+        )
+
+        line = handler._object_to_yolo_line(obj, 100, 100)
+        assert line is not None
+
+        parts = line.split()
+        assert len(parts) == 5
+        assert parts[0] == "0"
+
     def test_object_to_yolo_line_no_annotation(self, sample_detection_data):
         """Test conversion of object with class name not in categories."""
         handler = YoloAnnotationHandler(

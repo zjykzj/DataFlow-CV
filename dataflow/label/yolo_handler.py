@@ -702,7 +702,23 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     return None
                 class_id = found_id
 
-            if obj.bbox:
+            # Segmentation wins when both are present: COCO sources always carry
+            # a bbox on every annotation, so checking bbox first would silently
+            # drop polygon/RLE segmentation data (see spec_label.md §4.1).
+            if obj.segmentation and obj.segmentation.points:
+                # Instance segmentation format: class_id x1 y1 x2 y2 ... xn yn
+                points = obj.segmentation.points
+                coords = []
+                for x, y in points:
+                    coords.extend([f"{x:.6f}", f"{y:.6f}"])
+
+                # Append confidence if present (prediction output)
+                if obj.confidence < 1.0:
+                    return f"{class_id} " + " ".join(coords) + f" {obj.confidence:.6f}"
+                else:
+                    return f"{class_id} " + " ".join(coords)
+
+            elif obj.bbox:
                 # Object detection format: class_id x_center y_center width height
                 x_center = obj.bbox.x
                 y_center = obj.bbox.y
@@ -717,19 +733,6 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     )
                 else:
                     return f"{class_id} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}"
-
-            elif obj.segmentation:
-                # Instance segmentation format: class_id x1 y1 x2 y2 ... xn yn
-                points = obj.segmentation.points
-                coords = []
-                for x, y in points:
-                    coords.extend([f"{x:.6f}", f"{y:.6f}"])
-
-                # Append confidence if present (prediction output)
-                if obj.confidence < 1.0:
-                    return f"{class_id} " + " ".join(coords) + f" {obj.confidence:.6f}"
-                else:
-                    return f"{class_id} " + " ".join(coords)
 
             else:
                 self._log_warning(f"Object {obj.class_name} has neither bbox nor segmentation")
