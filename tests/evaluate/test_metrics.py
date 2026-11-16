@@ -399,3 +399,29 @@ class TestComputePRF1:
         )
         assert result.success is True
         assert result.class_names == {1: "cat", 2: "dog"}
+
+
+class TestComputePRF1Logging:
+    """log_config produces real log output (header, per-class, summary)."""
+
+    def test_log_config_writes_log_file(self, gt_path, dt_path, tmp_path):
+        """Verbose LogConfig produces a log file with computation details.
+
+        Regression test: log_config was accepted but never used.
+        """
+        from dataflow.util.logging import LogConfig
+
+        result = compute_pr_f1(
+            gt_path,
+            dt_path,
+            iou_threshold=0.5,
+            log_config=LogConfig(name="prf1_logging_test", verbose=True, log_dir=tmp_path / "logs"),
+        )
+        assert result.success is True
+
+        log_files = list((tmp_path / "logs").glob("*.log"))
+        assert len(log_files) == 1
+        log_text = log_files[0].read_text(encoding="utf-8")
+        assert "Computing P/R/F1" in log_text
+        assert "Per-class 'cat'" in log_text
+        assert "P/R/F1 complete" in log_text

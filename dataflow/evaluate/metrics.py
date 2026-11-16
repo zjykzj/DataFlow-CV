@@ -76,6 +76,18 @@ def compute_pr_f1(
     if iou_type not in ("bbox", "segm"):
         raise ValueError(f"Invalid `iou_type` parameter: '{iou_type}'. Expected 'bbox' or 'segm'.")
 
+    # Wire up logging when a LogConfig is provided (previously a dead
+    # parameter). Verbose mode records per-class computation details.
+    logger = None
+    if log_config is not None:
+        from dataflow.util.logging import LogManager
+
+        logger = LogManager(log_config).logger
+        logger.info(
+            f"Computing P/R/F1: iou={iou_threshold}, conf={confidence_threshold}, "
+            f"iou_type={iou_type}, method={method}"
+        )
+
     result = PRF1Result(
         success=False,
         iou_threshold=iou_threshold,
@@ -167,6 +179,12 @@ def compute_pr_f1(
                 fn=fn,
             )
 
+            if logger is not None:
+                logger.debug(
+                    f"Per-class '{result.class_names.get(cat_id, cat_id)}': "
+                    f"TP={tp} FP={fp} FN={fn} P={p:.4f} R={r:.4f} F1={f1:.4f}"
+                )
+
         # Overall P/R/F1 — method-dependent aggregation
         if method == "macro":
             # Macro averaging: mean of per-class P and R
@@ -208,6 +226,16 @@ def compute_pr_f1(
 
     except Exception as e:
         result.add_error(str(e))
+
+    if logger is not None:
+        overall = result.overall
+        if result.success and overall is not None:
+            logger.info(
+                f"P/R/F1 complete: P={overall.precision:.4f} R={overall.recall:.4f} "
+                f"F1={overall.f1_score:.4f} TP={overall.tp} FP={overall.fp} FN={overall.fn}"
+            )
+        else:
+            logger.info(f"P/R/F1 failed: {result.errors}")
 
     return result
 
