@@ -1,6 +1,6 @@
 # Evaluation Metrics Specification
 
-> **Version:** v1.2 | **Last Updated:** 2026-07-30
+> **Version:** v1.3 | **Last Updated:** 2026-11-16
 > **Status:** Canonical
 > **Layer:** Evaluate
 > **Dependencies:** `spec_evaluate_fundamentals.md` (IoU, matching, TP/FP/FN)
@@ -156,31 +156,38 @@ The Precision-Recall curve plots P against R as the confidence threshold varies:
 
 Before computing AP (area under PR curve), the raw PR curve is interpolated to remove zig-zag fluctuations:
 
-#### All-Point Interpolation (COCO Standard — Current)
-
-```
-P_interp(r) = max_{r' ≥ r} P(r')
-```
-
-For every recall level `r`, take the maximum precision at any recall ≥ r. This makes the PR curve monotonically decreasing.
-
-#### 101-Point Interpolation (COCO Legacy — Deprecated)
+#### 101-Point Interpolation (COCO / pycocotools Standard — What DataFlow-CV Produces)
 
 ```
 P_interp(r) = max_{r' ≥ r} P(r')
 ```
 Sampled at 101 uniformly spaced recall levels: `[0.00, 0.01, 0.02, ..., 1.00]`.
 
-Historical note: This was used in earlier COCO challenges (pre-2017). Modern COCO evaluation and DataFlow-CV use **all-point interpolation** by default.
+For every recall level `r` on the grid, take the maximum precision at any recall ≥ r.
+This makes the PR curve monotonically decreasing. pycocotools' `COCOeval.accumulate()`
+computes its precision array on this 101-recall-threshold grid (`R = len(p.recThrs)`),
+and DataFlow-CV delegates entirely to `COCOeval`, so 101-point interpolation is what
+the library produces by default.
+
+#### All-Point Interpolation (Theoretical Alternative — Not Used)
+
+```
+P_interp(r) = max_{r' ≥ r} P(r')
+```
+Evaluated at every unique recall value in the data (every score threshold), instead of
+the fixed 101-level grid.
+
+Historical note: Proposed as a more accurate alternative to the classic COCO metric.
+pycocotools does not expose it via its public API, and DataFlow-CV does not implement it.
 
 ### 4.3 Interpolation Comparison
 
-| Property | All-Point | 101-Point |
+| Property | 101-Point | All-Point |
 |----------|-----------|-----------|
-| Sample points | Every unique recall value in the data | 101 fixed recall levels |
-| Accuracy | More accurate (uses all data) | Slightly underestimates AP |
-| AP difference | — | Typically 0.1-0.5 AP lower |
-| pycocotools | Default | Available via parameter change |
+| Sample points | 101 fixed recall levels | Every unique recall value in the data |
+| Accuracy | COCO standard | Slightly higher (uses all data) |
+| AP difference | Baseline | Typically 0.1-0.5 AP higher |
+| pycocotools | Default (only mode) | Not available |
 
 ## 5. AP — Average Precision
 
@@ -192,7 +199,7 @@ AP is the area under the interpolated PR curve:
 AP = ∫[0,1] P_interp(r) dr
 ```
 
-In discrete form (all-point interpolation):
+In discrete form (101-point interpolation, the pycocotools implementation):
 
 ```
 AP = Σ[i=0 to N-1] (R_{i+1} - R_i) × P_interp(R_{i+1})
