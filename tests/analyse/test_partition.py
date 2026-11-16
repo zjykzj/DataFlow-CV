@@ -390,3 +390,20 @@ class TestPartitionAnalyser:
             # 2 files into 3: base=0, remainder=2
             # First (3-2)=1 partition: 0, last 2: 1 each → [0, 1, 1]
             assert pr.partition_sizes == [0, 1, 1]
+
+    def test_nonexistent_image_dir_returns_error_not_raise(self):
+        """Nonexistent image_dir returns an error result, never raises."""
+        analyser = PartitionAnalyser()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            missing = Path(tmpdir) / "missing_images"
+            for kwargs in (
+                {"label_dir": Path(tmpdir), "image_dir": missing},
+                {"image_dir": missing},
+            ):
+                result = analyser.analyse(
+                    output_dir=Path(tmpdir) / "out",
+                    num=2,
+                    **kwargs,
+                )
+                assert not result.success
+                assert any("Image directory does not exist" in e for e in result.errors)

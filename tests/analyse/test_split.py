@@ -253,3 +253,25 @@ class TestSplitAnalyser:
             )
             assert not result.success
             assert any("coco" in e.lower() for e in result.errors)
+
+    def test_nonexistent_image_dir_returns_error_not_raise(self):
+        """Nonexistent image_dir returns an error result, never raises.
+
+        Regression test: both-mode and images-only paths called
+        image_dir.iterdir() unguarded, raising FileNotFoundError out of
+        the analyser (violating spec_analyse.md §9.1).
+        """
+        analyser = SplitAnalyser()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            missing = Path(tmpdir) / "missing_images"
+            for kwargs in (
+                {"label_dir": Path(tmpdir), "image_dir": missing},  # both mode
+                {"image_dir": missing},  # images-only mode
+            ):
+                result = analyser.analyse(
+                    output_dir=Path(tmpdir) / "out",
+                    ratio=0.5,
+                    **kwargs,
+                )
+                assert not result.success
+                assert any("Image directory does not exist" in e for e in result.errors)

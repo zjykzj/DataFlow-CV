@@ -99,6 +99,11 @@ class PartitionAnalyser(BaseAnalyser):
             result.add_error("At least one of label_dir or image_dir must be provided")
             return result
 
+        if image_dir is not None and not image_dir.is_dir():
+            # Analysers never raise for data issues (spec_analyse.md §9.1)
+            result.add_error(f"Image directory does not exist: {image_dir}")
+            return result
+
         # ------------------------------------------------------------------
         # 2. Determine mode
         # ------------------------------------------------------------------

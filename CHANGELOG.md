@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`analyse split --move` copies classes.txt to both train/ and val/**: move mode stopped after the first move, so val/ never received the class file; it now moves to the first target and copies to the rest, per spec_analyse.md §3.3.
 - **`analyse partition` no longer emits false unmatched-image warnings**: the both-mode check compared each image against the current partition's label slice, warning about every correctly matched image once per remaining partition; the check now runs once over all items, and only genuinely unmatched images warn (once).
 - **Batch visualization keeps partial results on mid-iteration errors**: when `iter_images()` raised ValueError partway through a save-only run, the already-saved images were discarded and the run reported total failure; the result now carries `processed_count` for the saved images with `partial: true`, per spec_visualize.md §7.
+- **Analyse Python API no longer raises on a missing image_dir**: Split/Partition/Sample previously crashed with a raw `FileNotFoundError` when `image_dir` didn't exist (both-mode and images-only paths); all three now return a clean error result, per spec_analyse.md §9.1.
 
 ## [3.0.1] - 2026-11-16
 

@@ -362,3 +362,20 @@ class TestSampleAnalyser:
             files2 = {f.name for f in out2.glob("*.txt")}
             # Sequential always takes first N by sorted name — identical result
             assert files1 == files2
+
+    def test_nonexistent_image_dir_returns_error_not_raise(self):
+        """Nonexistent image_dir returns an error result, never raises."""
+        analyser = SampleAnalyser()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            missing = Path(tmpdir) / "missing_images"
+            for kwargs in (
+                {"label_dir": Path(tmpdir), "image_dir": missing},
+                {"image_dir": missing},
+            ):
+                result = analyser.analyse(
+                    output_dir=Path(tmpdir) / "out",
+                    count=2,
+                    **kwargs,
+                )
+                assert not result.success
+                assert any("Image directory does not exist" in e for e in result.errors)

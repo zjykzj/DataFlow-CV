@@ -108,6 +108,11 @@ class SplitAnalyser(BaseAnalyser):
             result.add_error(f"Ratio must be between 0 and 1 (exclusive), got: {ratio}")
             return result
 
+        if image_dir is not None and not image_dir.is_dir():
+            # Analysers never raise for data issues (spec_analyse.md §9.1)
+            result.add_error(f"Image directory does not exist: {image_dir}")
+            return result
+
         # ------------------------------------------------------------------
         # 2. Determine mode and collect items
         # ------------------------------------------------------------------
