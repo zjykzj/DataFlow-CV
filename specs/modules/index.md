@@ -1,6 +1,6 @@
 # Modules Layer — Specification Index
 
-> **Version:** v1.2 | **Last Updated:** 2026-07-30
+> **Version:** v1.3 | **Last Updated:** 2026-11-16
 > **Status:** Canonical — these documents define the authoritative module architecture and interface contracts for DataFlow-CV.
 
 ## What This Layer Covers
@@ -61,8 +61,8 @@ The Modules layer defines **how** the software components work — their archite
 
 | # | Document | Purpose |
 |---|----------|---------|
-| 1 | [`spec_label.md`](spec_label.md) | **Label module** — format-aware data models (`DatasetAnnotations` with `format` field, `BoundingBox`, `Segmentation` in native coordinates), handler interface (`BaseAnnotationHandler`), and concrete handlers (`YoloHandler`, `CocoHandler`, `LabelMeHandler`) |
-| 2 | [`spec_analyse.md`](spec_analyse.md) | **Analyse module** — `BaseAnalyser` + `StatsAnalyser` + `SplitAnalyser`, `AnalysisResult` / `StatsResult` / `SplitResult` data models, format auto-detection, dataset statistics, train/test split |
+| 1 | [`spec_label.md`](spec_label.md) | **Label module** — format-aware data models (`DatasetAnnotations` with `format` field, `BoundingBox`, `Segmentation` in native coordinates), handler interface (`BaseAnnotationHandler`), and concrete handlers (`YoloAnnotationHandler`, `CocoAnnotationHandler`, `LabelMeAnnotationHandler`) |
+| 2 | [`spec_analyse.md`](spec_analyse.md) | **Analyse module** — `BaseAnalyser` + five analysers (`StatsAnalyser`, `SplitAnalyser`, `FilterAnalyser`, `PartitionAnalyser`, `SampleAnalyser`), result data models (`AnalysisResult` / `StatsResult` / `SplitResult` / `FilterResult` / `PartitionResult` / `SampleResult`), format auto-detection, dataset statistics, train/test split, filtering, partitioning, sampling |
 | 3 | [`spec_convert.md`](spec_convert.md) | **Convert module** — `BaseConverter` pipeline, `ConversionResult`, three converter classes, RLE converter, state management contract |
 | 4 | [`spec_visualize.md`](spec_visualize.md) | **Visualize module** — `BaseVisualizer` rendering pipeline, `ColorManager`, three visualizers, display/save modes, keyboard interaction |
 | 5 | [`spec_evaluate.md`](spec_evaluate.md) | **Evaluate module** — `BaseEvaluator` pipeline, `DetectionEvaluator` / `SegmentationEvaluator`, `EvaluationResult` / `PRF1Result` data models, pycocotools wrapper, per-class metrics, P/R/F1 API |

@@ -1,6 +1,6 @@
 # Evaluate Layer — Specification Index
 
-> **Version:** v1.1 | **Last Updated:** 2026-07-30
+> **Version:** v1.2 | **Last Updated:** 2026-11-16
 > **Status:** Canonical — these documents define the authoritative evaluation metric contracts for DataFlow-CV.
 
 ## What This Layer Covers
@@ -46,10 +46,12 @@ specs/
 └── modules/           # HOW — module implementations
     ├── index.md
     ├── spec_label.md
+    ├── spec_analyse.md
     ├── spec_convert.md
     ├── spec_visualize.md
     ├── spec_evaluate.md                # Evaluate module implementation
-    └── spec_cli.md
+    ├── spec_cli.md
+    └── spec_logging.md
 ```
 
 **Key design**: The Evaluate layer is **independent** of the Formats layer. Evaluation works on COCO-format annotations (the de facto exchange standard for detection/segmentation evaluation), regardless of how the data was originally stored (YOLO, LabelMe, or COCO). The Evaluate module internally converts input to COCO format when needed.
