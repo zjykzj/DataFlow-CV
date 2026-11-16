@@ -1,6 +1,6 @@
 # Label Module Specification
 
-> **Version:** v4.7 | **Last Updated:** 2026-11-16
+> **Version:** v4.8 | **Last Updated:** 2026-11-16
 > **Status:** Draft — logger receives from caller's LogManager via `logger=` parameter
 > **Layer:** Modules
 > **Dependencies:** None (foundation module; logging via stdlib `logging.Logger` only)
@@ -36,7 +36,7 @@ It exposes a stable public API through:
 - `DatasetAnnotations` with `format` field identifying coordinate semantics
 - `BaseAnnotationHandler` abstract interface (read/write/validate/iter_images)
 - `AnnotationResult` return type
-- `ImageError` exception — raised for image-related errors (missing files, unreadable images, invalid dimensions). In strict mode causes abort; in non-strict mode causes skip. YOLO non-strict mode: uses placeholder dimensions (1,1) instead of raising
+- `ImageError` exception — raised for image-related errors (missing files, unreadable images, invalid dimensions). **Always caught and downgraded to skip-with-warning in both modes** — never aborts a batch read or stops iteration. YOLO non-strict mode: uses placeholder dimensions (1,1) instead of raising
 - `iter_images()` streaming iterator — incremental per-image yield for memory-efficient processing
 
 ## 2. Data Model (`models.py`)
@@ -432,7 +432,7 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
 - `Segmentation.rle`: Preserved RLE data when segmentation is RLE-encoded
 - No coordinate normalization — COCO native coordinates are absolute pixels
 
-**`iter_images()`**: Yields `ImageAnnotation` objects one at a time with format-native coordinates. Groups annotations by `image_id` from the COCO JSON, yields each image with its annotations. In strict mode, raises `ValueError` on first invalid annotation. In non-strict mode, logs warnings and skips invalid annotations. Image errors always skip regardless of strict_mode.
+**`iter_images()`**: Yields `ImageAnnotation` objects one at a time with format-native coordinates. Groups annotations by `image_id` from the COCO JSON, yields each image with its annotations. Invalid annotations are **skipped with a warning in both modes** — each annotation is wrapped in a per-annotation `try/except` that catches even the strict-mode `_log_error` raise (strict additionally logs an ERROR line before the skip), so COCO reads never abort on invalid annotations. Image errors always skip regardless of strict_mode.
 
 **`write(annotations, output_file, output_rle=None)`**: Writes COCO JSON.
 - Crowd annotations (`iscrowd=1`) always use RLE format
@@ -495,7 +495,7 @@ from `shape.label` values during reading.
 | Error Type | Strict Mode | Non-Strict Mode |
 |------------|-------------|-----------------|
 | Invalid annotation format (wrong token count, bad JSON) | Abort immediately | Skip annotation, log warning, continue |
-| Invalid class_id (not in categories) | Abort immediately | Skip annotation, log warning, continue |
+| Invalid class_id (not in categories) | Abort immediately (YOLO/LabelMe); COCO: skip annotation, log warning, continue (per-annotation catch — never aborts) | Skip annotation, log warning, continue |
 | Invalid coordinate — YOLO (not finite) | Abort immediately | Skip annotation, log warning, continue |
 | Invalid coordinate — YOLO (outside [0,1]) | **Clamp to [0, 1] + WARNING**, then validate. Abort only if clamp produces zero-area bbox | Same as strict (clamping is independent of strict_mode) |
 | Invalid coordinate — COCO/LabelMe (outside image boundary) | **Clamp to `[0, width] × [0, height]` + WARNING**, then validate. Abort only if clamp produces zero-area bbox | Same as strict (clamping is independent of strict_mode) |
@@ -518,7 +518,8 @@ from `shape.label` values during reading.
 | Invalid coordinate — YOLO (not finite) | Raise `ValueError` immediately, stop iteration | Skip line, log warning, continue |
 | Invalid coordinate — YOLO (outside [0,1]) | **Clamp to [0, 1] + WARNING**, then validate. Stop iteration only if clamp produces zero-area bbox | Same as strict (clamping is independent of strict_mode) |
 | Invalid coordinate — COCO/LabelMe (outside image boundary) | **Clamp to `[0, width] × [0, height]` + WARNING**, then validate. Stop iteration only if clamp produces zero-area bbox | Same as strict (clamping is independent of strict_mode) |
-| Invalid class_id / bbox (other) | Raise `ValueError` immediately, stop iteration | Skip line, log warning, continue |
+| Invalid class_id / bbox (LabelMe) | Raise `ValueError` immediately, stop iteration | Skip shape, log warning, continue |
+| Invalid class_id / bbox (COCO) | Skip annotation, log warning, continue (per-annotation catch — never stops iteration) | Skip annotation, log warning, continue |
 | Image file not found (YOLO) | Raise `ImageError` → skip with warning, continue to next file (does not stop iteration) | Use placeholder dims (1,1), log debug, continue yielding |
 | Image file not found (LabelMe) | JSON has `imageWidth`/`imageHeight` → yield succeeds silently. JSON lacks dimensions → always skip with warning | JSON has `imageWidth`/`imageHeight` → yield succeeds silently. JSON lacks dimensions → always skip with warning |
 | Image unreadable / corrupt | **Always skip with warning** | **Always skip with warning** |
