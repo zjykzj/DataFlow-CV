@@ -478,6 +478,48 @@ class TestCocoAnnotationHandler:
         )
         assert has_rle, "RLE format not found in output"
 
+    def test_write_seg_only_rle_derives_bbox_and_area(self, temp_dir):
+        """Seg-only objects with RLE output still get bbox/area.
+
+        Regression test: the bbox/area derivation was gated on the OUTPUT
+        segmentation type (list), so RLE output left bbox=[] and area=0.0,
+        violating spec_coco_format.md §4. The derivation must use the
+        source polygon points.
+        """
+        import importlib.util
+
+        if importlib.util.find_spec("pycocotools.mask") is None:
+            pytest.skip("pycocotools not installed, skipping RLE write tests")
+
+        dataset = DatasetAnnotations()
+        dataset.add_category(1, "person")
+
+        # Seg-only object: polygon points, no bbox (YOLO seg / LabelMe polygon source)
+        segmentation = Segmentation(points=[(100.0, 100.0), (300.0, 100.0), (300.0, 200.0)])
+        obj = ObjectAnnotation(
+            class_id=1,
+            class_name="person",
+            bbox=None,
+            segmentation=segmentation,
+            confidence=1.0,
+        )
+        image = ImageAnnotation(
+            image_id="1", image_path="image1.jpg", width=640, height=480, objects=[obj]
+        )
+        dataset.add_image(image)
+
+        handler = CocoAnnotationHandler(annotation_file=str(temp_dir / "out.json"))
+        write_result = handler.write(dataset, str(temp_dir / "out.json"), output_rle=True)
+        assert write_result.success is True
+
+        with open(temp_dir / "out.json", "r", encoding="utf-8") as f:
+            written_data = json.load(f)
+
+        ann = written_data["annotations"][0]
+        assert isinstance(ann["segmentation"], dict), "expected RLE output"
+        assert ann["bbox"] == [100.0, 100.0, 200.0, 100.0]
+        assert ann["area"] == 20000.0
+
     def test_write_with_crowd_annotation(self, temp_dir):
         """Test writing annotations with is_crowd flag."""
         # Create a simple dataset with crowd annotation

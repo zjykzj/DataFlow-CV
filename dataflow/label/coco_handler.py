@@ -756,25 +756,33 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                     float(obj.bbox.height),
                 ]
                 area = float(obj.bbox.width * obj.bbox.height)
-            elif (
-                obj.segmentation
-                and segmentation
-                and isinstance(segmentation, list)
-                and segmentation
-            ):
-                # Derive bbox and area from segmentation polygon extent.
-                # COCO format requires bbox as [x, y, w, h] for every
-                # annotation (spec_coco_format.md §4).
+            elif obj.segmentation and obj.segmentation.points:
+                # Derive bbox and area from the SOURCE polygon extent — the
+                # output `segmentation` variable may be RLE (a dict), so the
+                # gate must not depend on the output type. COCO format
+                # requires bbox/area for every annotation (spec_coco_format.md §4).
                 points = obj.segmentation.points
-                if points:
-                    xs = [p[0] for p in points]
-                    ys = [p[1] for p in points]
-                    min_x = min(xs)
-                    min_y = min(ys)
-                    w = max(xs) - min_x
-                    h = max(ys) - min_y
-                    bbox = [float(min_x), float(min_y), float(w), float(h)]
-                    area = float(w * h)
+                xs = [p[0] for p in points]
+                ys = [p[1] for p in points]
+                min_x = min(xs)
+                min_y = min(ys)
+                w = max(xs) - min_x
+                h = max(ys) - min_y
+                bbox = [float(min_x), float(min_y), float(w), float(h)]
+                area = float(w * h)
+            elif obj.segmentation and obj.segmentation.has_rle() and HAS_COCO_MASK:
+                # RLE without decodable contours: derive bbox/area from the
+                # mask itself (still required by the COCO format).
+                rle_data = obj.segmentation.rle
+                if isinstance(rle_data, dict):
+                    try:
+                        area = float(coco_mask.area(rle_data))
+                        bx, by, bw, bh = coco_mask.toBbox(rle_data)
+                        bbox = [float(bx), float(by), float(bw), float(bh)]
+                    except Exception as e:
+                        self._log_warning(
+                            f"Failed to derive bbox/area from RLE: {e}, falling back to empty bbox"
+                        )
 
             ann_dict = {
                 "image_id": resolved_img_id,
