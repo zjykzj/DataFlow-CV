@@ -128,6 +128,50 @@ class TestPartitionAnalyser:
                 assert len(list(labels_dir.glob("*.txt"))) > 0
                 assert len(list(images_dir.glob("*"))) > 0
 
+    def test_partition_both_no_false_unmatched_warnings(self):
+        """Matched images never produce 'no matching label' warnings.
+
+        Regression test: the unmatched-image check used the current
+        partition's label slice, warning about every correctly matched
+        image once per remaining partition. Only a genuinely unmatched
+        image may warn — exactly once. (Asserted via the verbose log
+        file because the module logger does not propagate to the root.)
+        """
+        import cv2
+        import numpy as np
+
+        from dataflow.util.logging import LogConfig
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base = Path(tmpdir)
+            label_dir = base / "labels"
+            label_dir.mkdir()
+            image_dir = base / "images"
+            image_dir.mkdir()
+            for name in ["a", "b", "c"]:
+                (label_dir / f"{name}.txt").write_text("0 0.5 0.5 0.2 0.2\n")
+                cv2.imwrite(str(image_dir / f"{name}.jpg"), np.zeros((10, 10, 3), dtype=np.uint8))
+            cv2.imwrite(str(image_dir / "orphan.jpg"), np.zeros((10, 10, 3), dtype=np.uint8))
+
+            log_dir = base / "logs"
+            log_config = LogConfig(name="test_partition", verbose=True, log_dir=log_dir)
+            analyser = PartitionAnalyser(log_config=log_config)
+            result = analyser.analyse(
+                output_dir=base / "out",
+                num=2,
+                label_dir=label_dir,
+                image_dir=image_dir,
+            )
+            assert result.success
+            assert analyser._log_manager.log_path is not None
+
+            log_text = Path(analyser._log_manager.log_path).read_text(encoding="utf-8")
+            unmatched_lines = [
+                line for line in log_text.splitlines() if "no matching label" in line
+            ]
+            assert len(unmatched_lines) == 1
+            assert "orphan.jpg" in unmatched_lines[0]
+
     # ------------------------------------------------------------------
     # Shuffle
     # ------------------------------------------------------------------

@@ -295,15 +295,6 @@ class PartitionAnalyser(BaseAnalyser):
                                 src_label, labels_subdir, move=True, logger=self.logger
                             )
 
-                # Report unmatched images (in image_dir but not in labels)
-                if not move:  # Only warn for copy mode; move mode self-resolves
-                    label_stems = {img_ann.image_id for img_ann in items[start:end]}
-                    for stem, img_path in image_stems.items():
-                        if stem not in label_stems:
-                            self._log_warning(
-                                f"Image '{img_path.name}' has no matching label — skipped"
-                            )
-
             # Copy class_file to partition directory
             if class_file is not None and class_file.exists():
                 try:
@@ -312,6 +303,15 @@ class PartitionAnalyser(BaseAnalyser):
                         shutil.copy2(str(class_file), str(target_cf))
                 except OSError as e:
                     result.add_warning(f"Could not copy class file to {part_dir.name}: {e}")
+
+        # Report unmatched images (in image_dir but with no label in ANY
+        # partition) — computed once over all items, not per partition, so
+        # correctly matched images are never flagged.
+        if mode == "both" and not move:  # Only warn for copy mode; move mode self-resolves
+            all_label_stems = {img_ann.image_id for img_ann in items}
+            for stem, img_path in image_stems.items():
+                if stem not in all_label_stems:
+                    self._log_warning(f"Image '{img_path.name}' has no matching label — skipped")
 
         # ------------------------------------------------------------------
         # 6. Build result
