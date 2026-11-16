@@ -801,3 +801,54 @@ class TestCocoAnnotationHandler:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestOrphanAnnotations:
+    """Orphan annotations (unknown image_id) warn instead of vanishing silently."""
+
+    def _write(self, tmp_path):
+        data = {
+            "images": [{"id": 1, "file_name": "a.jpg", "width": 100, "height": 100}],
+            "categories": [{"id": 1, "name": "cat"}],
+            "annotations": [
+                {
+                    "id": 1,
+                    "image_id": 1,
+                    "category_id": 1,
+                    "bbox": [0, 0, 10, 10],
+                    "area": 100.0,
+                    "iscrowd": 0,
+                },
+                {
+                    "id": 2,
+                    "image_id": 99,
+                    "category_id": 1,
+                    "bbox": [0, 0, 10, 10],
+                    "area": 100.0,
+                    "iscrowd": 0,
+                },
+            ],
+        }
+        f = tmp_path / "orphans.json"
+        f.write_text(json.dumps(data))
+        return f
+
+    def test_orphan_annotation_warns_and_is_dropped(self, tmp_path):
+        """Orphan dropped with a summary warning in both modes and paths.
+
+        Regression test: orphans previously vanished with no warning.
+        """
+        from dataflow.util.logging import LogConfig, LogManager
+
+        f = self._write(tmp_path)
+        for strict in (True, False):
+            lm = LogManager(LogConfig(name="orphan_test", verbose=True, log_dir=tmp_path / "logs"))
+            handler = CocoAnnotationHandler(
+                annotation_file=str(f), strict_mode=strict, logger=lm.logger
+            )
+            result = handler.read()
+            assert result.success is True
+            assert result.data.num_objects == 1  # orphan dropped
+
+            log_text = Path(lm.log_path).read_text(encoding="utf-8")
+            assert "unknown image_id" in log_text

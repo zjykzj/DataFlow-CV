@@ -115,6 +115,10 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             if not self._user_set_output_rle:
                 self.output_rle = self.is_rle
 
+            # Warn about orphan annotations (image_id not in the images
+            # list) — they would otherwise be silently dropped.
+            self._warn_orphan_annotations(self.images)
+
             # Create dataset annotations
             dataset = self._create_dataset()
 
@@ -185,6 +189,10 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             if img_id is not None:
                 anns_by_image.setdefault(img_id, []).append(ann)
 
+        # Warn about orphan annotations (image_id not in the images list)
+        self.annotations = annotations_list
+        self._warn_orphan_annotations(images_meta)
+
         # Yield per image
         for img_id, img_info in images_meta.items():
             if img_info["width"] <= 0 or img_info["height"] <= 0:
@@ -231,6 +239,23 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                     "flickr_url": img.get("flickr_url", ""),
                 }
         return images
+
+    def _warn_orphan_annotations(self, images: Dict[int, Dict]) -> None:
+        """Warn about annotations whose image_id is not in the images list.
+
+        These annotations are silently dropped from the dataset — COCO
+        reads never abort on them (spec_label.md §5.1), but the loss
+        must not be invisible.
+        """
+        known_ids = set(images.keys())
+        orphans = [a for a in self.annotations if a.get("image_id") not in known_ids]
+        if orphans:
+            ids = sorted({str(a.get("image_id")) for a in orphans})
+            self._log_warning(
+                f"{len(orphans)} annotation(s) reference unknown image_id(s) "
+                f"{', '.join(ids[:5])}{'...' if len(ids) > 5 else ''} "
+                f"— dropped from the dataset"
+            )
 
     def _detect_rle_format(self, annotations: List[Dict]) -> bool:
         """Detect if annotations contain RLE format segmentation."""
