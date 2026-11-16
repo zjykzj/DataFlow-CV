@@ -352,7 +352,6 @@ def split(
     metavar="OUTPUT_DIR",
 )
 def filter(
-    ctx: click.Context,
     label_path: Path,
     original_class_file: Path,
     new_class_file: Path,

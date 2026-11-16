@@ -275,3 +275,37 @@ def test_partition_yolo_smoke(tmp_path):
     assert result.exit_code == 0
     assert (output_dir / "part_1").is_dir()
     assert (output_dir / "part_2").is_dir()
+
+
+def test_filter_end_to_end(tmp_path):
+    """``analyse filter`` runs end-to-end (regression: missing ctx crash).
+
+    The dead --class-file removal replaced the shared decorator (which
+    carried @click.pass_context) with inline options, but the function
+    kept ctx as its first parameter — click then crashed with
+    "missing 1 required positional argument: 'ctx'".
+    """
+    from pathlib import Path
+
+    test_data = Path(__file__).parent.parent.parent / "assets" / "test_data"
+    label_dir = test_data / "det" / "yolo" / "labels"
+    original = tmp_path / "original.txt"
+    original.write_text("person\ncar\n", encoding="utf-8")
+    keep = tmp_path / "keep.txt"
+    keep.write_text("person\n", encoding="utf-8")
+    out_dir = tmp_path / "out"
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "analyse",
+            "filter",
+            str(label_dir),
+            str(original),
+            str(keep),
+            str(out_dir),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Traceback" not in result.output
