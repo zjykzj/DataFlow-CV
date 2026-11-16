@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Batch visualization keeps partial results on mid-iteration errors**: when `iter_images()` raised ValueError partway through a save-only run, the already-saved images were discarded and the run reported total failure; the result now carries `processed_count` for the saved images with `partial: true`, per spec_visualize.md §7.
 - **Analyse Python API no longer raises on a missing image_dir**: Split/Partition/Sample previously crashed with a raw `FileNotFoundError` when `image_dir` didn't exist (both-mode and images-only paths); all three now return a clean error result, per spec_analyse.md §9.1.
 - **Streaming conversions report the log path and always log a result summary**: the four per-file conversion commands now populate `result.log_path` in verbose mode (the batch path already did), failed non-strict writes no longer poison duplicate-stem detection, and early-return failures emit the result block like the batch path.
+- **`analyse stats --descending --sort-by id` keeps alphabetical ties**: reverse=True previously reversed the whole (id, name) key, so unknown-id classes sorted reverse-alphabetically; the id component is now negated instead, keeping the name tiebreak ascending per spec_analyse.md §2.2.
 
 ## [3.0.1] - 2026-11-16
 

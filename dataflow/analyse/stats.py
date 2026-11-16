@@ -132,9 +132,18 @@ class StatsAnalyser(BaseAnalyser):
                 name_to_id[cname] = cid
 
         if sort_by == "id":
+            if descending:
 
-            def key_fn(item):
-                return (name_to_id.get(item[0], 999999), item[0])
+                def key_fn(item):
+                    # Negate the id so the name tiebreak stays ascending
+                    # (spec §2.2: ties broken alphabetically in all modes);
+                    # unknown ids sort last in both directions.
+                    return (-name_to_id.get(item[0], 999999), item[0])
+
+            else:
+
+                def key_fn(item):
+                    return (name_to_id.get(item[0], 999999), item[0])
 
         elif descending:
 
@@ -146,13 +155,7 @@ class StatsAnalyser(BaseAnalyser):
             def key_fn(item):
                 return (item[1], item[0])
 
-        return dict(
-            sorted(
-                per_class.items(),
-                key=key_fn,
-                reverse=(sort_by == "id" and descending),
-            )
-        )
+        return dict(sorted(per_class.items(), key=key_fn))
 
     @staticmethod
     def _normalize_paths(label_paths: Union[Path, List[Path]]) -> List[Path]:

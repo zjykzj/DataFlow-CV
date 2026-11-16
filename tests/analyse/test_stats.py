@@ -281,3 +281,40 @@ class TestStatsAnalyser:
         assert result.success
         stats = result.data
         assert stats.total_files > 0
+
+
+class TestOrderPerClass:
+    """Ordering unit tests for _order_per_class."""
+
+    def test_descending_id_keeps_name_tiebreak_alphabetical(self):
+        """descending + sort_by=id must not reverse the name tiebreak.
+
+        Regression test: reverse=True reversed the whole (id, name) key,
+        so unknown-id classes tied at the sentinel sorted
+        reverse-alphabetically (spec_analyse.md §2.2: ties broken
+        alphabetically in all modes).
+        """
+        analyser = StatsAnalyser()
+        per_class = {"zebra": 5, "apple": 10}  # both unknown ids (tie)
+        ordered = analyser._order_per_class(per_class, None, {}, sort_by="id", descending=True)
+        assert list(ordered.keys()) == ["apple", "zebra"]  # alphabetical
+
+    def test_descending_id_orders_by_id(self):
+        """descending by id puts higher ids first."""
+        analyser = StatsAnalyser()
+        per_class = {"zebra": 5, "apple": 10, "banana": 10}
+        categories = {2: "apple", 1: "banana", 0: "zebra"}
+        ordered = analyser._order_per_class(
+            per_class, None, categories, sort_by="id", descending=True
+        )
+        assert list(ordered.keys()) == ["apple", "banana", "zebra"]
+
+    def test_ascending_id_orders_by_id(self):
+        """ascending by id puts lower ids first."""
+        analyser = StatsAnalyser()
+        per_class = {"zebra": 5, "apple": 10, "banana": 10}
+        categories = {2: "apple", 1: "banana", 0: "zebra"}
+        ordered = analyser._order_per_class(
+            per_class, None, categories, sort_by="id", descending=False
+        )
+        assert list(ordered.keys()) == ["zebra", "banana", "apple"]
