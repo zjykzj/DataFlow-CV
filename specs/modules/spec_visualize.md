@@ -1,6 +1,6 @@
 # Visualize Module Specification
 
-> **Version:** v4.7 | **Last Updated:** 2026-10-10
+> **Version:** v4.8 | **Last Updated:** 2026-11-16
 > **Status:** Draft — bidirectional nav; buffer limit; save dedup; h hints; s snapshot
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
@@ -33,7 +33,7 @@ dataflow/visualize/
 ├── yolo_visualizer.py       # YOLO visualization (wraps YOLO handler + converts to RenderData)
 ├── labelme_visualizer.py    # LabelMe visualization (wraps LabelMe handler + converts to RenderData)
 ├── coco_visualizer.py       # COCO visualization (wraps COCO handler + converts to RenderData)
-└── utils.py                 # Image scaling, color map, blending utilities
+└── utils.py                 # Empty stub — former scale/blend/color-map utilities removed as dead code (ColorManager in base.py owns colour generation)
 ```
 
 ## 2. Unified Rendering Format
@@ -457,12 +457,12 @@ image (with all annotations rendered) to `./visualized_snapshots/`:
 
 ### 4.6 Progress Feedback
 
-**Batch mode** (``is_show=False``): When a progress logger is available (verbose
-mode), progress is reported every 10 images with a counter-based format (total
-count is unknown in streaming mode):
+**Batch mode** (``is_show=False``): Progress is reported every 10 images (every
+image in verbose mode — the total count is unknown in streaming mode) as a
+per-image ``format_viz_progress`` line (index, image name, object count, status):
 
 ```
-[====] Processed 40 images, 0 failed
+010  image_010.jpg  (5 objects)  ✓
 ```
 
 **Interactive mode** (``is_show=True``): Progress is displayed in the window
@@ -539,7 +539,7 @@ For each `ObjectAnnotation` in `image_ann.objects`:
 3. If `obj.segmentation.rle`: preserve RLE dict as-is in `RenderAnnotation.rle`
 4. **Bbox from polygon fallback**: If polygon exists but bbox is None, compute
    bbox from polygon's axis-aligned bounds: `(min(xs), min(ys), max(xs), max(ys))`
-5. Return `RenderData(annotations=[...], image_width, image_height)`
+5. Return `RenderData(annotations=[...])`
 
 ### 5.3 `LabelMeVisualizer`
 
@@ -641,7 +641,7 @@ Visualize: YOLO
 
 2. **Per-image progress** — `format_viz_progress()` is called for each image, producing a single-line entry with image index, name, object count, and status mark (e.g., `001  image_001.jpg  (5 objects)  ✓`). This is logged at INFO level for detailed output.
 
-3. **Aggregate progress** — When the message parameter is empty, a counter-based summary line is logged instead: `[====] Processed X images, Y failed`. This provides batch progress suitable for lower-verbosity modes.
+3. **Aggregate progress (unreachable)** — `_log_progress` has a `message=""` branch that logs a counter-based summary (`[====] Processed X images, Y failed`), but no caller passes an empty message, so this branch is dead code; the batch loop always uses the per-image format above.
 
 4. **Result summary** — `format_viz_result()` is called at the end, logging a summary block (status, image counts, object counts, duration, log path) at INFO level. This is logged in **both** verbose and non-verbose modes.
 
