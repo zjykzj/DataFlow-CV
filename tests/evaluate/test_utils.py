@@ -351,3 +351,50 @@ class TestDatasetToCocoDictImageIds:
 
         with pytest.raises(ValueError, match="format must be COCO"):
             _dataset_to_coco_dict(DatasetAnnotations(format=AnnotationFormat.YOLO))
+
+
+class TestDatasetToCocoDictSegOnly:
+    """Seg-only objects get bbox/area derived from the polygon extent."""
+
+    def test_seg_only_object_gets_bbox_and_area(self):
+        """bbox/area derived from polygon extent (spec_coco_format §4).
+
+        Regression test: without bbox/area pycocotools COCOeval dies
+        with KeyError: 'area'.
+        """
+        from dataflow.label.models import (
+            AnnotationFormat,
+            DatasetAnnotations,
+            ImageAnnotation,
+            ObjectAnnotation,
+            Segmentation,
+        )
+
+        dataset = DatasetAnnotations(
+            format=AnnotationFormat.COCO,
+            images=[
+                ImageAnnotation(
+                    image_id="1",
+                    image_path="1.jpg",
+                    width=100,
+                    height=100,
+                    objects=[
+                        ObjectAnnotation(
+                            class_id=1,
+                            class_name="cat",
+                            bbox=None,
+                            segmentation=Segmentation(
+                                points=[(10.0, 10.0), (30.0, 10.0), (30.0, 20.0)]
+                            ),
+                        )
+                    ],
+                )
+            ],
+            categories={1: "cat"},
+        )
+
+        result = _dataset_to_coco_dict(dataset)
+        ann = result["annotations"][0]
+        assert ann["bbox"] == [10.0, 10.0, 20.0, 10.0]
+        assert ann["area"] == 200.0
+        assert ann["segmentation"] == [[10.0, 10.0, 30.0, 10.0, 30.0, 20.0]]

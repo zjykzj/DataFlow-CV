@@ -246,6 +246,19 @@ def _dataset_to_coco_dict(dataset: Any) -> Dict[str, Any]:
                     obj.bbox.height,
                 ]
                 ann_entry["area"] = obj.bbox.width * obj.bbox.height
+            elif obj.segmentation is not None and obj.segmentation.points:
+                # Seg-only objects: derive bbox/area from the polygon
+                # extent — pycocotools COCOeval requires area on every
+                # annotation (mirrors CocoAnnotationHandler's write path,
+                # spec_coco_format.md §4).
+                points = obj.segmentation.points
+                xs = [p[0] for p in points]
+                ys = [p[1] for p in points]
+                min_x, min_y = min(xs), min(ys)
+                w = max(xs) - min_x
+                h = max(ys) - min_y
+                ann_entry["bbox"] = [min_x, min_y, w, h]
+                ann_entry["area"] = w * h
 
             if obj.segmentation is not None:
                 if obj.segmentation.has_rle():
