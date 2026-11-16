@@ -1,6 +1,6 @@
 # Label Module Specification
 
-> **Version:** v4.8 | **Last Updated:** 2026-11-16
+> **Version:** v4.9 | **Last Updated:** 2026-11-16
 > **Status:** Draft — logger receives from caller's LogManager via `logger=` parameter
 > **Layer:** Modules
 > **Dependencies:** None (foundation module; logging via stdlib `logging.Logger` only)
@@ -275,9 +275,9 @@ def iter_images(self) -> Iterator[ImageAnnotation]:
 
 | Method | Description |
 |--------|-------------|
-| `_clamp_abs_bbox(bbox, w, h)` | Clamp COCO/LabelMe bbox to `[0, width] x [0, height]`; emits WARNING when clamping changes a value by > 1e-6 |
-| `_clamp_abs_points(points, w, h)` | Clamp COCO/LabelMe polygon points to image boundaries; same threshold |
-| `_clamp_normalized_bbox(bbox)` | Clamp YOLO bbox to `[0, 1]`; emits WARNING when clamping changes a value by > 1e-6 |
+| `_clamp_abs_bbox(x, y, w, h, img_width, img_height)` | Clamp COCO/LabelMe bbox to `[0, width] x [0, height]`; emits WARNING when clamping changes a value by > 1e-6 |
+| `_clamp_abs_points(points, img_width, img_height)` | Clamp COCO/LabelMe polygon points to image boundaries; same threshold |
+| `_clamp_normalized_bbox(cx, cy, w, h)` | Clamp YOLO bbox to `[0, 1]`; emits WARNING when clamping changes a value by > 1e-6 |
 | `_clamp_normalized_points(points)` | Clamp YOLO polygon points to `[0, 1]`; same threshold |
 
 Clamping is applied regardless of `strict_mode` — it is data normalization, not error handling. Only non-finite values or zero-area bboxes after clamping are rejected.
@@ -502,7 +502,7 @@ from `shape.label` values during reading.
 | Invalid bbox (zero area, NaN, overflow) | Abort immediately | Skip annotation, log warning, continue |
 | Image file not found (YOLO) | Raise `ImageError` → skip with warning | Use placeholder dims (1,1), log debug, continue |
 | Image file not found (LabelMe) | JSON has `imageWidth`/`imageHeight` → read succeeds silently. JSON lacks dimensions → always skip with warning | JSON has `imageWidth`/`imageHeight` → read succeeds silently. JSON lacks dimensions → always skip with warning |
-| Image unreadable / corrupt | **Always skip with warning** | **Always skip with warning** |
+| Image unreadable / corrupt | **Skip with warning** | YOLO: use placeholder dims (1,1), log warning, continue (image kept); LabelMe/COCO: **skip with warning** |
 | Invalid image dimensions (YOLO non-strict) | Raise `ImageError` → skip with warning | Use placeholder dims (1,1), log debug, continue |
 | Invalid image dimensions (other) | **Always skip with warning** | **Always skip with warning** |
 
@@ -510,7 +510,8 @@ from `shape.label` values during reading.
 
 | Error Type | Strict Mode | Non-Strict Mode |
 |------------|-------------|-----------------|
-| Label/image directory not found (YOLO) | Raise `ValueError` immediately | Log debug, continue (labels parsed with placeholder dims) |
+| Label directory not found (YOLO) | Raise `ValueError` immediately | Raise `ValueError` immediately |
+| Image directory not found (YOLO) | Raise `ValueError` immediately | Log warning, continue (labels parsed with placeholder dims) |
 | Label/image directory not found (COCO/LabelMe) | Raise `ValueError` immediately | Raise `ValueError` immediately |
 | No categories loaded | Raise `ValueError` immediately (no images yielded) | Raise `ValueError` immediately (no images yielded) |
 | No annotation files found | Raise `ValueError` immediately (no images yielded) | Raise `ValueError` immediately (no images yielded) |
@@ -522,7 +523,7 @@ from `shape.label` values during reading.
 | Invalid class_id / bbox (COCO) | Skip annotation, log warning, continue (per-annotation catch — never stops iteration) | Skip annotation, log warning, continue |
 | Image file not found (YOLO) | Raise `ImageError` → skip with warning, continue to next file (does not stop iteration) | Use placeholder dims (1,1), log debug, continue yielding |
 | Image file not found (LabelMe) | JSON has `imageWidth`/`imageHeight` → yield succeeds silently. JSON lacks dimensions → always skip with warning | JSON has `imageWidth`/`imageHeight` → yield succeeds silently. JSON lacks dimensions → always skip with warning |
-| Image unreadable / corrupt | **Always skip with warning** | **Always skip with warning** |
+| Image unreadable / corrupt | **Skip with warning** | YOLO: use placeholder dims (1,1), log warning, continue (image kept); LabelMe/COCO: **skip with warning** |
 | Invalid image dimensions | **Always skip with warning** | **Always skip with warning** |
 
 **Key rule**: Image-related errors never cause an abort — they are always downgraded to
@@ -585,4 +586,5 @@ A valid read operation must satisfy ALL of:
 | `load_classes_file(file_path)` | Loads `classes.txt` into `Dict[int, str]` |
 | `calculate_file_hash(file_path, algorithm="md5")` | Computes hash of a file for integrity comparison |
 | `parse_yolo_class_id(token)` | **Float-tolerant** YOLO class ID parser. Accepts ``"5"`` and ``"5.000000"`` → `5`. Returns `None` for invalid tokens. Canonical lenient parser — use this when parsing class IDs from raw YOLO text outside the handler. For strict validation (raising on non-integer floats), use ``YoloAnnotationHandler._parse_class_id()``. |
+| `resolve_coco_image_ids(image_anns)` | Canonical COCO image-id resolver — digit ids keep their `int` value, non-digit ids get dedicated counter ids, colliding ids (e.g. ``"01"`` vs ``"1"``) get fresh counter ids. Used by `CocoAnnotationHandler` and the Evaluate module. |
 
