@@ -372,6 +372,50 @@ class TestCocoAnnotationHandler:
             "Missing required field" in e for e in result.errors
         )
 
+    def test_read_zero_dims_image_skipped_not_fatal(self, temp_dir):
+        """An image with missing/zero width/height is skipped with a warning.
+
+        Regression test: ImageAnnotation's __post_init__ raised for
+        width <= 0, failing the whole read in both modes instead of the
+        spec-mandated skip-with-warning (spec_label.md §5.1/§5.2).
+        """
+        data = {
+            "images": [
+                {"id": 1, "file_name": "a.jpg", "width": 100, "height": 100},
+                {"id": 2, "file_name": "b.jpg"},  # missing width/height → 0
+            ],
+            "categories": [{"id": 1, "name": "cat"}],
+            "annotations": [
+                {
+                    "id": 1,
+                    "image_id": 1,
+                    "category_id": 1,
+                    "bbox": [0, 0, 10, 10],
+                    "area": 100.0,
+                    "iscrowd": 0,
+                },
+                {
+                    "id": 2,
+                    "image_id": 2,
+                    "category_id": 1,
+                    "bbox": [0, 0, 10, 10],
+                    "area": 100.0,
+                    "iscrowd": 0,
+                },
+            ],
+        }
+        f = temp_dir / "zero_dims.json"
+        f.write_text(json.dumps(data))
+
+        for strict in (True, False):
+            handler = CocoAnnotationHandler(annotation_file=str(f), strict_mode=strict)
+            result = handler.read()
+            assert result.success is True
+            assert len(result.data.images) == 1  # bad image skipped
+
+            yielded = list(handler.iter_images())
+            assert len(yielded) == 1
+
     def test_write_image_id_resolution(self, temp_dir):
         """Write resolves non-digit and colliding image_ids to unique int ids."""
         dataset = DatasetAnnotations(

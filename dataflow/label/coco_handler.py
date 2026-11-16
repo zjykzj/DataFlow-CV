@@ -187,6 +187,15 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
         # Yield per image
         for img_id, img_info in images_meta.items():
+            if img_info["width"] <= 0 or img_info["height"] <= 0:
+                # Invalid image dimensions always skip with a warning
+                # (spec_label.md §5.2).
+                self._log_warning(
+                    f"Skipping image {img_id}: invalid dimensions "
+                    f"{img_info['width']}x{img_info['height']}"
+                )
+                continue
+
             img_anns = anns_by_image.get(img_id, [])
             objects = self._create_objects(img_anns, img_info["width"], img_info["height"])
             image_ann = IA(
@@ -270,6 +279,16 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         dataset.dataset_info = self.dataset_info.copy()
 
         for img_id, img_info in self.images.items():
+            if img_info["width"] <= 0 or img_info["height"] <= 0:
+                # Invalid image dimensions always skip with a warning —
+                # ImageAnnotation would otherwise raise and fail the whole
+                # read (spec_label.md §5.1).
+                self._log_warning(
+                    f"Skipping image {img_id}: invalid dimensions "
+                    f"{img_info['width']}x{img_info['height']}"
+                )
+                continue
+
             # Find annotations for this image
             img_anns = [ann for ann in self.annotations if ann.get("image_id") == img_id]
 
