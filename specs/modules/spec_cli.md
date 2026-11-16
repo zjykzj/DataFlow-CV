@@ -1,6 +1,6 @@
 # CLI Module Specification
 
-> **Version:** 2.4 | **Last Updated:** 2026-07-30
+> **Version:** 2.5 | **Last Updated:** 2026-11-16
 > **Layer:** Modules
 > **Dependencies:** Convert module + Visualize module + Evaluate module (public APIs only) + Logging module (LogConfig only)
 
@@ -8,7 +8,7 @@
 
 The CLI module (`dataflow/cli/`) is a **thin wrapper** over Convert, Visualize, and Evaluate. It owns zero business logic and zero log output.
 
-- **CLI → Analyse**: Calls `StatsAnalyser.analyse()` / `SplitAnalyser.analyse()` only. Does NOT import label handlers.
+- **CLI → Analyse**: Calls the five analysers' `analyse()` methods (`StatsAnalyser`, `SplitAnalyser`, `FilterAnalyser`, `PartitionAnalyser`, `SampleAnalyser`). Does NOT import label handlers.
 - **CLI → Convert**: Calls `Converter.convert()` only. Does NOT import label handlers.
 - **CLI → Visualize**: Calls `Visualizer.visualize()` only. Does NOT import label handlers.
 - **CLI → Evaluate**: Calls `Evaluator.evaluate()` only. Does NOT import label handlers or `pycocotools` directly.
@@ -241,14 +241,14 @@ The ``stats`` subcommand additionally accepts `--sort-by` (`id`|`count`) and `--
 #### `stats`
 
 ```
-dataflow-cv analyse stats [OPTIONS] LABEL_PATH
+dataflow-cv analyse stats [OPTIONS] LABEL_PATH [LABEL_PATH ...]
 ```
 
-Compute dataset statistics. Auto-detects the annotation format from `LABEL_PATH`.
+Compute dataset statistics. Auto-detects the annotation format from each `LABEL_PATH`.
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `LABEL_PATH` | Path (exists) | Path to labels — directory (YOLO/LabelMe) or JSON file (COCO) |
+| `LABEL_PATH...` | Path (exists, 1+) | Path(s) to labels — directory (YOLO/LabelMe) or JSON file (COCO). Multiple paths are merged into a single result; all paths must share one format. Empty list raises `click.UsageError`. |
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -256,6 +256,7 @@ Compute dataset statistics. Auto-detects the annotation format from `LABEL_PATH`
 | `--image-dir` | Path | None | Image directory for YOLO format (auto-detected if omitted) |
 | `--sort-by` | Choice | `"id"` | Sort key: `"id"` (class_id) or `"count"`. Ignored when `--class-file` is provided. |
 | `--descending/--ascending` | Flag | ascending | Sort direction (default: ascending) |
+| `--recursive`, `-R` | Flag | False | Recursively traverse subdirectories for label files (YOLO/LabelMe only) |
 
 #### `split`
 
