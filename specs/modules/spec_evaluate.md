@@ -169,7 +169,7 @@ class BaseEvaluator(ABC):
 
     # Static: Validate segmentation data presence for mask IoU evaluation
     @staticmethod
-    def _validate_segm_data(coco_gt, coco_dt) -> List[str]: ...
+    def _validate_segm_data(coco_gt, coco_dt) -> Tuple[List[str], List[str]]: ...
 
     # Hook: Compute per-class metrics from COCOeval results
     def _compute_per_class(self, cocoeval, gt_coco, dt_coco) -> Dict[int, PerClassMetrics]: ...
@@ -386,9 +386,10 @@ The `validate_inputs()` method checks:
    - Logged as an ERROR and evaluation aborts with
      ``"No shared categories between GT and DT — nothing to evaluate"``
 7. If `iouType='segm'`, segmentation data is present on GT and DT annotations
-   - Calls ``_validate_segm_data(coco_gt, coco_dt)`` which returns a list of
-     error messages (not warnings — missing segmentation data is fatal for mask
-     IoU evaluation)
+   - Calls ``_validate_segm_data(coco_gt, coco_dt)`` which returns an
+     ``(errors, warnings)`` tuple — errors are fatal (missing segmentation data
+     is fatal for mask IoU evaluation, the evaluation aborts), warnings are
+     non-fatal
    - Checks whether GT, DT, or both lack ``segmentation`` fields on annotations
    - Returns specific error messages depending on which side lacks data:
      both missing → ``"Segmentation data missing — cannot evaluate with iouType='segm'. Ensure both GT and DT contain segmentation annotations."``;
@@ -540,7 +541,7 @@ COCOeval.accumulate() fails → EvaluationResult(success=False, errors=[...])
 | GT/DT file not found | `EvaluationResult(success=False, errors=["File not found: ..."])` |
 | DT missing `score` field | `EvaluationResult(success=False, errors=["N DT annotations missing 'score' field"])` |
 | No GT for any category | `EvaluationResult(success=False, errors=["GT contains no annotations"])` |
-| pycocotools not installed | `ImportError` with message: "pycocotools is required for evaluation. Install with: pip install pycocotools" |
+| pycocotools not installed | `EvaluationResult(success=False, errors=["pycocotools is required for evaluation. Install with: pip install pycocotools"])` — the ImportError from `_validate_coco_available()` is caught by `evaluate()`'s exception handling, never raised to callers. Exception: `compute_pr_f1()` raises it directly. |
 | Empty category (has GT but no DT) | Warning in `warnings` list; metrics for that category are -1.0 |
 | DT image_id not in GT | Warning in `warnings` list; those DTs are excluded |
 | `iouType='segm'` but no segmentation data | `EvaluationResult(success=False, errors=["Segmentation data missing for iouType='segm'"])` |

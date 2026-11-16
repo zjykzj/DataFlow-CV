@@ -103,6 +103,7 @@ class BaseConverter(ABC):
 
     # Template methods — orchestrate the pipeline
     def convert(self, source_path, target_path, **kwargs) -> ConversionResult: ...
+    def _batch_convert(self, source_path, target_path, **kwargs) -> ConversionResult: ...
     def stream_convert(self, source_path, target_path, **kwargs) -> ConversionResult: ...
 
     # Hook 1: Validate inputs (default: check source exists, create target parent dir)
@@ -163,9 +164,10 @@ class BaseConverter(ABC):
 - Called after `handler.write()` completes in the batch pipeline
 - Default implementation in `BaseConverter` is a no-op
 - Receives the `ConversionResult`, source handler, and kwargs
-- Override point for post-conversion side effects. Example: `YoloAndCocoConverter`
-  overrides this hook to add RLE accuracy warnings to the result when `do_rle=True`
-  and segmentation data exists
+- Override point for post-conversion side effects. The base class implementation
+  adds RLE accuracy warnings to the result when `do_rle=True` and segmentation
+  data exists; subclasses that override this hook must call
+  `super()._post_batch_convert()` to keep that behavior
 
 ### 2.3 Conversion Method Contracts
 
@@ -328,6 +330,22 @@ def absolute_pixel_to_yolo(
 3. Callers remain responsible for class_id/class_name/confidence/is_crowd preservation
 4. The COCO↔LabelMe direction (both absolute pixel) does NOT use these — coordinates
    pass through unchanged
+
+**Additional shared utilities** (also in `convert/utils.py`):
+
+```python
+def read_coco_categories(json_path) -> Dict[int, str]:
+    """Read COCO categories without loading the full dataset (streaming pre-load)."""
+
+def coco_file_name_to_image_id(file_name, fallback_id) -> str:
+    """Derive the per-file output image_id from the COCO file_name stem —
+    leading zeros preserved, backslashes normalized, subdirectories flattened,
+    degenerate stems fall back to the numeric id."""
+
+def ensure_coco_categories_for_streaming(converter, handler, source_path) -> None:
+    """Pre-load categories before streaming iteration (shared by the two
+    COCO-source converters)."""
+```
 
 ### 2.7 Streaming Category Pre-Loading
 
@@ -635,7 +653,7 @@ The RLE accuracy warning is **conditionally emitted** only when both conditions 
 - `do_rle=True` is set on the converter
 - The source dataset contains segmentation data (`source_handler.is_seg` is `True`)
 
-Detection-only datasets with `--do-rle` do not produce a misleading warning. The check is performed in `_post_batch_convert()` (e.g., `YoloAndCocoConverter` and `CocoAndLabelMeConverter`).
+Detection-only datasets with `--do-rle` do not produce a misleading warning. The check is performed in the `BaseConverter._post_batch_convert()` base implementation (shared by all converters).
 
 ## 6. Dependency Contract
 
