@@ -1233,20 +1233,22 @@ dataflow-cv analyse sample [OPTIONS] OUTPUT_DIR --count N [--label-dir L] [--ima
 
 | Option | Applies To | Type | Default | Description |
 |--------|-----------|------|---------|-------------|
-| `--verbose` | all three | Flag | False | Enable verbose log output |
-| `--log-dir` | all three | Path | `./logs` | Log file output directory |
-| `--class-file`, `-c` | stats, split | Path | None | Classes.txt for name mapping. For stats: enables **strict validation** — data classes not in this file cause an error. |
-| `--image-dir` | all three | Path | None | Image directory for YOLO (auto-detected if omitted: tries ``labels/images/``, ``dataset/images/``, ``dataset_parent/images/``) |
+| `--verbose` | all five | Flag | False | Enable verbose log output |
+| `--log-dir` | all five | Path | `./logs` | Log file output directory |
+| `--class-file`, `-c` | stats, split, filter, partition, sample | Path | None | Classes.txt for name mapping / copying. For stats: enables **strict validation** — data classes not in this file cause an error. For filter it is accepted by the shared decorator but ignored (noted for removal). |
+| `--image-dir` | all five | Path | None | Image directory for YOLO (auto-detected if omitted: tries ``labels/images/``, ``dataset/images/``, ``dataset_parent/images/``) |
 | `--sort-by` | stats | Choice | `"id"` | `"id"` or `"count"` |
 | `--descending/--ascending` | stats | Flag | `--ascending` | Sort direction |
 | `--recursive`, `-R` | stats | Flag | False | Recursively traverse subdirectories for label files (YOLO/LabelMe only) |
 | `--ratio`, `-r` | split | Float | 0.8 | Train proportion |
-| `--seed`, `-s` | split, partition | Int | 42 | Random seed |
+| `--seed`, `-s` | split, partition, sample | Int | 42 | Random seed |
 | `--num`, `-n` | partition | Int | *(required)* | Number of partitions (>= 2) |
+| `--count`, `-n` | sample | Int | *(required)* | Number of files to collect (>= 1) |
 | `--shuffle` | partition | Flag | False | Randomly shuffle before partitioning |
-| `--move` | partition | Flag | False | Move source files instead of copying (CLI requires confirmation) |
-| `--label-dir`, `-l` | partition | Path | None | Label directory (YOLO or LabelMe). At least one of `--label-dir` / `--image-dir` required. |
-| `--image-dir`, `-i` | partition | Path | None | Image directory. At least one of `--label-dir` / `--image-dir` required. |
+| `--shuffle/--no-shuffle` | sample | Flag | `--shuffle` (default) | Randomly sample or take first N in sort order |
+| `--move` | split, partition, sample | Flag | False | Move source files instead of copying (CLI requires confirmation) |
+| `--label-dir`, `-l` | split, partition, sample | Path | None | Label directory (YOLO or LabelMe). At least one of `--label-dir` / `--image-dir` required. |
+| `--image-dir`, `-i` | split, partition, sample | Path | None | Image directory. At least one of `--label-dir` / `--image-dir` required. |
 
 ### 10.6 Sample Command
 
