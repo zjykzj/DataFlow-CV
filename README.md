@@ -140,6 +140,10 @@ dataflow-cv convert coco2yolo input.json yolo_labels/
 # COCO → LabelMe                   → labelme_json/: one .json per image
 dataflow-cv convert coco2labelme input.json labelme_json/
 
+# iscrowd=1 (crowd) annotations are skipped by default on both directions;
+# opt in to writing them as ordinary rows/shapes:
+dataflow-cv convert coco2yolo --save-crowd input.json yolo_labels/
+
 # YOLO predictions → COCO (output: plain JSON list — prediction format)
 dataflow-cv convert yolo2coco --prediction images/ yolo_preds/ classes.txt pred.json
 

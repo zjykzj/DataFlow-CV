@@ -140,6 +140,9 @@ dataflow-cv convert coco2yolo input.json yolo_labels/
 # COCO → LabelMe                   → labelme_json/:每图一个 .json
 dataflow-cv convert coco2labelme input.json labelme_json/
 
+# iscrowd=1(crowd)标注在两个方向默认跳过;如需写成普通行/shape 需显式开启:
+dataflow-cv convert coco2yolo --save-crowd input.json yolo_labels/
+
 # YOLO 预测文件 → COCO(输出:纯 JSON 列表 —— 预测格式)
 dataflow-cv convert yolo2coco --prediction images/ yolo_preds/ classes.txt pred.json
 

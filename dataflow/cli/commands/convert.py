@@ -239,12 +239,19 @@ def labelme2coco(
 
 @convert_group.command(cls=FormattedCommand)
 @add_common_options
+@click.option(
+    "--save-crowd",
+    is_flag=True,
+    default=False,
+    help="Write iscrowd=1 annotations as ordinary rows (default: skip them)",
+)
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path), metavar="COCO_FILE")
 @click.argument("output_path", type=click.Path(path_type=Path), metavar="OUTPUT_DIR")
 def coco2yolo(
     ctx,
     input_path: Path,
     output_path: Path,
+    save_crowd: bool,
 ):
     """Convert COCO format to YOLO format"""
     from dataflow.convert import YoloAndCocoConverter
@@ -269,6 +276,7 @@ def coco2yolo(
         class_file=None,
         image_dir=None,
         category_mapping=None,
+        save_crowd=save_crowd,
     )
 
     # Print terminal output
@@ -285,12 +293,19 @@ def coco2yolo(
 
 @convert_group.command(cls=FormattedCommand)
 @add_common_options
+@click.option(
+    "--save-crowd",
+    is_flag=True,
+    default=False,
+    help="Write iscrowd=1 annotations as ordinary shapes (default: skip them)",
+)
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path), metavar="COCO_FILE")
 @click.argument("output_path", type=click.Path(path_type=Path), metavar="OUTPUT_DIR")
 def coco2labelme(
     ctx,
     input_path: Path,
     output_path: Path,
+    save_crowd: bool,
 ):
     """Convert COCO format to LabelMe format"""
     from dataflow.convert import CocoAndLabelMeConverter
@@ -315,6 +330,7 @@ def coco2labelme(
         class_file=None,
         image_dir=None,
         category_mapping=None,
+        save_crowd=save_crowd,
     )
 
     # Print terminal output

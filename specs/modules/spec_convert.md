@@ -1,6 +1,6 @@
 # Convert Module Specification
 
-> **Version:** v6.3 | **Last Updated:** 2026-11-16
+> **Version:** v7.0 | **Last Updated:** 2026-11-17
 > **Status:** Draft — unified logging via `LogManager`
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
@@ -183,7 +183,11 @@ Every implementation MUST:
 1. Receive a `DatasetAnnotations` with coordinates in the **source format's native space**
 2. Transform ALL coordinates to the **target format's native space**
 3. Set `result.format = target_format` on the returned DatasetAnnotations
-4. Preserve all non-coordinate data (categories, image metadata, is_crowd flags)
+4. Preserve all non-coordinate data (categories, image metadata, is_crowd flags).
+   Exception: COCO-source directions (COCO → YOLO, COCO → LabelMe) **skip
+   `is_crowd=True` objects by default** and log one WARNING per image naming
+   the image and the skipped count; `save_crowd=True` (a `convert()` kwarg)
+   preserves them as ordinary annotations (see spec_conversion.md §7.1).
 5. Document the precision characteristics of the transform (lossless or lossy, see §9)
 
 **Implementation pattern**: The canonical batch `convert_annotations()` delegates to
@@ -211,7 +215,11 @@ Every implementation MUST:
    stem of the COCO `file_name` so per-file output names match the image file stem
    required by the YOLO/LabelMe format specs (see §3.1 / §3.3 for the exact
    naming rules and edge cases).
-4. Preserve non-coordinate data (class_name, class_id, confidence, is_crowd)
+4. Preserve non-coordinate data (class_name, class_id, confidence, is_crowd).
+   Exception: COCO-source directions (COCO → YOLO, COCO → LabelMe) **skip
+   `is_crowd=True` objects by default** and log one WARNING per image naming
+   the image and the skipped count; `save_crowd=True` (a `convert()` kwarg)
+   preserves them as ordinary annotations (see spec_conversion.md §7.1).
 5. Be stateless — each call is independent
 6. Match the precision characteristics of `convert_annotations()` for the same direction
 
@@ -453,10 +461,10 @@ actual target path and lists its top-level entries:
 
 **Required parameters per direction:**
 
-| Direction | class_file | image_dir | do_rle | prediction |
-|-----------|-----------|-----------|--------|------------|
-| YOLO → COCO | **Required** | **Required** | Optional (default False) | Optional (default False) |
-| COCO → YOLO | Optional (auto-generated) | Optional (auto-created) | N/A | N/A |
+| Direction | class_file | image_dir | do_rle | prediction | save_crowd |
+|-----------|-----------|-----------|--------|------------|------------|
+| YOLO → COCO | **Required** | **Required** | Optional (default False) | Optional (default False) | N/A |
+| COCO → YOLO | Optional (auto-generated) | Optional (auto-created) | N/A | N/A | Optional (default False) |
 
 **YOLO → COCO behavior (batch — COCO output is single JSON):**
 1. Validates `class_file` and `image_dir` exist
@@ -483,6 +491,8 @@ actual target path and lists its top-level entries:
    - `_convert_single_image()`:
      - Reads COCO-native coordinates (absolute pixels, top-left)
      - Transforms to YOLO-native coordinates (normalized, center-based)
+     - Skips `is_crowd=True` objects by default (one WARNING per image with
+       the skipped count); `save_crowd=True` keeps them as ordinary rows
      - Rewrites `image_id` to the basename stem of the COCO `file_name` so the
        output `.txt` shares the stem with the image file (YOLO format spec
        requirement — the YOLO format defines labels as flat per-image files,
@@ -547,16 +557,19 @@ actual target path and lists its top-level entries:
 
 **Required parameters per direction:**
 
-| Direction | class_file | do_rle |
-|-----------|-----------|--------|
-| COCO → LabelMe | Optional (auto-generated) | N/A |
-| LabelMe → COCO | **Required** | Optional (default False) |
+| Direction | class_file | do_rle | save_crowd |
+|-----------|-----------|--------|------------|
+| COCO → LabelMe | Optional (auto-generated) | N/A | Optional (default False) |
+| LabelMe → COCO | **Required** | Optional (default False) | N/A |
 
 **Conversion characteristics:**
 - Both formats use absolute pixels — **no normalization step**
 - Transform is limited to reformatting between COCO bbox `[x,y,w,h]` and LabelMe rectangle `[[x1,y1],[x2,y2]]`
 - Polygon points are reformatted (flatten/unflatten) but values are preserved
 - Precision: **near-lossless** (bound by floating-point arithmetic, << 1 pixel)
+- COCO → LabelMe skips `is_crowd=True` objects by default (one WARNING per
+  image with the skipped count); `save_crowd=True` keeps them as ordinary
+  shapes (see spec_conversion.md §7.1)
 
 **COCO → LabelMe behavior (streaming — LabelMe output is per-file):**
 1. `stream_convert()`:

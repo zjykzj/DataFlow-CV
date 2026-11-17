@@ -219,7 +219,28 @@ class CocoAndLabelMeConverter(BaseConverter):
         Both formats share the same absolute-pixel coordinate semantics.
         Only the structural representation differs — coordinate values pass
         through unchanged.
+
+        LabelMe has no crowd representation, so on the COCO → LabelMe
+        direction ``is_crowd=True`` objects are skipped by default
+        (contract: spec_conversion.md §7.1); ``save_crowd=True`` writes
+        them as ordinary shapes.
         """
+        if self.source_format == "coco" and not kwargs.get("save_crowd", False):
+            crowd_count = sum(1 for obj in image_ann.objects if obj.is_crowd)
+            if crowd_count:
+                self._log_warning(
+                    f"Skipped {crowd_count} crowd annotation(s) in image "
+                    f"'{image_ann.image_id}' (pass save_crowd=True to preserve "
+                    "them as ordinary shapes)"
+                )
+                image_ann = ImageAnnotation(
+                    image_id=image_ann.image_id,
+                    image_path=image_ann.image_path,
+                    width=image_ann.width,
+                    height=image_ann.height,
+                    objects=[obj for obj in image_ann.objects if not obj.is_crowd],
+                )
+
         # COCO → LabelMe only: rewrite image_id to the COCO file_name stem so
         # the output .json shares the stem with the image file (LabelMe format
         # requirement; leading zeros preserved). LabelMe → COCO must NOT

@@ -1,6 +1,6 @@
 # Annotation Format Conversion Specification
 
-> **Version:** v3.1 | **Last Updated:** 2026-10-10
+> **Version:** v4.0 | **Last Updated:** 2026-11-17
 > **Status:** Draft — updated to reflect native-coordinate architecture
 
 ## 1. Conversion Architecture
@@ -270,12 +270,25 @@ When `do_rle=True`:
 
 ### 7.1 Behavior During Conversion
 
+YOLO and LabelMe have no crowd representation. Writing `iscrowd=1`
+annotations as ordinary instance rows silently promotes a group of
+unlabeled objects to a training GT instance, so crowd annotations are
+**skipped by default** on the two COCO-source directions:
+
 | Direction | `iscrowd=1` Handling |
 |-----------|---------------------|
-| COCO → YOLO | `is_crowd` flag preserved in `ObjectAnnotation.is_crowd` |
-| COCO → LabelMe | `is_crowd` flag preserved but has no LabelMe equivalent |
+| COCO → YOLO | **Skipped by default** (converted-object counts exclude them); `save_crowd=True` writes them as ordinary rows |
+| COCO → LabelMe | **Skipped by default**; `save_crowd=True` writes them as ordinary shapes |
 | YOLO → COCO | Crowd not natively represented, default `iscrowd=0` |
 | LabelMe → COCO | Crowd not natively represented, default `iscrowd=0` |
+
+- The skip applies to the conversion layer only — handlers keep reading
+  `is_crowd` into `ObjectAnnotation.is_crowd` (evaluation and visualization
+  retain their crowd semantics).
+- Each image with skipped crowd annotations logs a WARNING naming the image
+  and the skipped count.
+- `save_crowd` is a conversion keyword (`Converter.convert(..., save_crowd=True)`)
+  exposed on the CLI as `--save-crowd` (`coco2yolo` / `coco2labelme` only).
 
 ### 7.2 RLE for Crowd
 

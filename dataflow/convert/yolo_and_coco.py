@@ -256,7 +256,7 @@ class YoloAndCocoConverter(BaseConverter):
         if self.source_format == "yolo":
             return self._yolo_to_coco_one(image_ann)
         else:
-            return self._coco_to_yolo_one(image_ann)
+            return self._coco_to_yolo_one(image_ann, save_crowd=kwargs.get("save_crowd", False))
 
     def _yolo_to_coco_one(self, img: ImageAnnotation) -> ImageAnnotation:
         """Convert single image: YOLO normalized center → COCO absolute px."""
@@ -286,12 +286,21 @@ class YoloAndCocoConverter(BaseConverter):
             objects=new_objects,
         )
 
-    def _coco_to_yolo_one(self, img: ImageAnnotation) -> ImageAnnotation:
-        """Convert single image: COCO absolute px → YOLO normalized center."""
+    def _coco_to_yolo_one(self, img: ImageAnnotation, save_crowd: bool = False) -> ImageAnnotation:
+        """Convert single image: COCO absolute px → YOLO normalized center.
+
+        YOLO has no crowd representation, so ``is_crowd=True`` objects are
+        skipped by default (contract: spec_conversion.md §7.1);
+        ``save_crowd=True`` writes them as ordinary rows.
+        """
         from .utils import absolute_pixel_to_yolo, coco_file_name_to_image_id
 
         new_objects = []
+        skipped_crowd = 0
         for obj in img.objects:
+            if obj.is_crowd and not save_crowd:
+                skipped_crowd += 1
+                continue
             new_bbox, new_seg = absolute_pixel_to_yolo(
                 obj.bbox, obj.segmentation, img.width, img.height
             )
@@ -304,6 +313,13 @@ class YoloAndCocoConverter(BaseConverter):
                     confidence=obj.confidence,
                     is_crowd=obj.is_crowd,
                 )
+            )
+
+        if skipped_crowd:
+            self._log_warning(
+                f"Skipped {skipped_crowd} crowd annotation(s) in image "
+                f"'{img.image_id}' (pass save_crowd=True to preserve them "
+                "as ordinary rows)"
             )
 
         # YOLO format requires label files to share the stem with the image

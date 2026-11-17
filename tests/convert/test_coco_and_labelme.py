@@ -431,5 +431,63 @@ class TestCocoToLabelMeOutputNaming:
         assert any("Output '000001': renamed 1 → 000001" in w for w in result.warnings)
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+class TestCocoToLabelMeCrowd:
+    """Regression tests: iscrowd=1 skipped by default in COCO→LabelMe (#48)."""
+
+    def _write_coco(self, tmp_path):
+        import json
+
+        coco = {
+            "images": [{"id": 1, "file_name": "img1.jpg", "width": 640, "height": 480}],
+            "annotations": [
+                {
+                    "id": 1,
+                    "image_id": 1,
+                    "category_id": 1,
+                    "segmentation": [[10, 10, 60, 10, 60, 60, 10, 60]],
+                    "bbox": [10, 10, 50, 50],
+                    "area": 2500.0,
+                    "iscrowd": 1,
+                },
+                {
+                    "id": 2,
+                    "image_id": 1,
+                    "category_id": 1,
+                    "segmentation": [[400, 300, 450, 300, 450, 350, 400, 350]],
+                    "bbox": [400, 300, 50, 50],
+                    "area": 2500.0,
+                    "iscrowd": 0,
+                },
+            ],
+            "categories": [{"id": 1, "name": "obj"}],
+        }
+        src = tmp_path / "ann.json"
+        src.write_text(json.dumps(coco), encoding="utf-8")
+        return src
+
+    def test_crowd_skipped_by_default(self, tmp_path):
+        import json
+
+        src = self._write_coco(tmp_path)
+        out = tmp_path / "out"
+
+        converter = CocoAndLabelMeConverter(source_to_target=True)
+        result = converter.convert(str(src), str(out))
+
+        assert result.success is True, f"Conversion failed: {result.errors}"
+        data = json.loads((out / "img1.json").read_text())
+        assert len(data["shapes"]) == 1  # crowd shape skipped
+        assert data["shapes"][0]["points"][0][0] == 400  # the non-crowd rect
+
+    def test_save_crowd_preserves_shapes(self, tmp_path):
+        import json
+
+        src = self._write_coco(tmp_path)
+        out = tmp_path / "out"
+
+        converter = CocoAndLabelMeConverter(source_to_target=True)
+        result = converter.convert(str(src), str(out), save_crowd=True)
+
+        assert result.success is True, f"Conversion failed: {result.errors}"
+        data = json.loads((out / "img1.json").read_text())
+        assert len(data["shapes"]) == 2  # crowd written as ordinary shape

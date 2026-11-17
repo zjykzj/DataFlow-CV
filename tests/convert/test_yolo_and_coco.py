@@ -615,8 +615,6 @@ class TestCocoToYoloOutputNaming:
         assert label_files == ["000001.txt"]
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
 class TestCocoToYoloMultiSegment:
     """Regression tests: multi-segment polygons merge into one outline (#47)."""
 
@@ -691,3 +689,62 @@ class TestCocoToYoloMultiSegment:
         assert row == ("0 0.015625 0.020833 0.093750 0.020833 0.093750 0.125000 0.015625 0.125000")
 
 
+class TestCocoToYoloCrowd:
+    """Regression tests: iscrowd=1 skipped by default (#48)."""
+
+    def _write_coco(self, tmp_path):
+        import json
+
+        coco = {
+            "images": [{"id": 1, "file_name": "img1.jpg", "width": 640, "height": 480}],
+            "annotations": [
+                {
+                    "id": 1,
+                    "image_id": 1,
+                    "category_id": 1,
+                    "segmentation": [[10, 10, 60, 10, 60, 60, 10, 60]],
+                    "bbox": [10, 10, 50, 50],
+                    "area": 2500.0,
+                    "iscrowd": 1,
+                },
+                {
+                    "id": 2,
+                    "image_id": 1,
+                    "category_id": 1,
+                    "segmentation": [[400, 300, 450, 300, 450, 350, 400, 350]],
+                    "bbox": [400, 300, 50, 50],
+                    "area": 2500.0,
+                    "iscrowd": 0,
+                },
+            ],
+            "categories": [{"id": 1, "name": "obj"}],
+        }
+        src = tmp_path / "ann.json"
+        src.write_text(json.dumps(coco), encoding="utf-8")
+        return src
+
+    def test_crowd_skipped_by_default(self, tmp_path):
+        src = self._write_coco(tmp_path)
+        out = tmp_path / "out"
+
+        r = YoloAndCocoConverter(source_to_target=False).convert(str(src), str(out))
+        assert r.success is True
+        rows = (out / "labels" / "img1.txt").read_text().strip().split("\n")
+        assert len(rows) == 1  # crowd row skipped
+        # The surviving row is the non-crowd rect (starts at x=400/640)
+        assert rows[0].startswith("0 0.625000")
+
+    def test_save_crowd_preserves_rows(self, tmp_path):
+        src = self._write_coco(tmp_path)
+        out = tmp_path / "out"
+
+        r = YoloAndCocoConverter(source_to_target=False).convert(
+            str(src), str(out), save_crowd=True
+        )
+        assert r.success is True
+        rows = (out / "labels" / "img1.txt").read_text().strip().split("\n")
+        assert len(rows) == 2  # crowd written as ordinary row
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

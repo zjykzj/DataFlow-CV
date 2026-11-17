@@ -1,6 +1,6 @@
 # CLI Module Specification
 
-> **Version:** 2.7 | **Last Updated:** 2026-11-16
+> **Version:** 2.8 | **Last Updated:** 2026-11-17
 > **Layer:** Modules
 > **Dependencies:** Convert module + Visualize module + Evaluate module (public APIs only) + Logging module (LogConfig only)
 
@@ -75,6 +75,10 @@ dataflow-cv convert coco2yolo [OPTIONS] COCO_FILE OUTPUT_DIR
 | `COCO_FILE` | Path (exists) | Input COCO JSON file |
 | `OUTPUT_DIR` | Path | Output directory (creates `labels/` + `images/` + `classes.txt`) |
 
+| Option | Description |
+|--------|-------------|
+| `--save-crowd` | Write `iscrowd=1` annotations as ordinary rows (default: skip them) |
+
 #### `coco2labelme`
 
 ```
@@ -85,6 +89,10 @@ dataflow-cv convert coco2labelme [OPTIONS] COCO_FILE OUTPUT_DIR
 |----------|------|-------------|
 | `COCO_FILE` | Path (exists) | Input COCO JSON file |
 | `OUTPUT_DIR` | Path | Output LabelMe directory |
+
+| Option | Description |
+|--------|-------------|
+| `--save-crowd` | Write `iscrowd=1` annotations as ordinary shapes (default: skip them) |
 
 #### `labelme2yolo`
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`coco2yolo` / `coco2labelme` skip `iscrowd=1` annotations by default** (breaking): crowd regions were previously written as ordinary instance rows, silently promoting unlabeled object groups to training GT; the new `--save-crowd` flag restores the old behavior, and each skipped image logs a warning with the count.
+
 ### Fixed
 
 - **Multi-segment COCO polygons convert as one merged outline**: `coco2yolo` / `coco2labelme` concatenated multi-segment vertices (RLE kept only the largest contour), fabricating mask area between disjoint segments; the reader now merges all rings/contours via nearest-point chaining with doubled-back bridges, so rasterization reproduces the union and single-segment annotations stay bit-identical.
