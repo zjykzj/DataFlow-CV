@@ -678,7 +678,7 @@ class TestCocoAnnotationHandler:
         """Test polygon segmentation parsing."""
         handler = CocoAnnotationHandler(annotation_file="/dummy.json", strict_mode=True)
 
-        # Valid polygon (absolute pixel coordinates)
+        # Valid polygon (absolute pixel coordinates) — single ring is identity
         seg_data = [[100, 100, 200, 100, 200, 200, 100, 200]]
         points = handler._parse_polygon_segmentation(seg_data)
         assert len(points) == 4
@@ -687,18 +687,97 @@ class TestCocoAnnotationHandler:
         assert points[2] == (200, 200)
         assert points[3] == (100, 200)
 
-        # Multiple polygons
+        # Multiple polygons — merged into one outline via nearest points:
+        # triangle1 = A(100,100) B(200,100) C(200,200), triangle2 =
+        # D(300,300) E(350,300) F(350,350); nearest pair is C↔D, so the
+        # merged ring is [C, A, B, C, D, E, F, D] (bridge C→D doubled back)
         seg_data_multi = [
             [100, 100, 200, 100, 200, 200],
             [300, 300, 350, 300, 350, 350],
         ]
         points_multi = handler._parse_polygon_segmentation(seg_data_multi)
-        assert len(points_multi) == 6
+        assert len(points_multi) == 8
+        assert points_multi[0] == (200, 200)  # p = C
+        assert points_multi[3] == (200, 200)  # A closes back at p
+        assert points_multi[4] == (300, 300)  # q = D (bridge out)
+        assert points_multi[7] == (300, 300)  # B closes back at q
+
+        # Touching rings (p == q): the consecutive duplicate at the
+        # connection point is removed; the connection point remains at the
+        # start, A's closing, and the final q.
+        seg_data_touch = [
+            [0, 0, 10, 0, 10, 10, 0, 10],
+            [10, 10, 20, 10, 20, 20, 10, 20],
+        ]
+        points_touch = handler._parse_polygon_segmentation(seg_data_touch)
+        assert points_touch.count((10, 10)) == 3
+        for i in range(1, len(points_touch)):
+            assert points_touch[i] != points_touch[i - 1]  # no consecutive dups
 
         # Odd number of coordinates (should be skipped with warning)
         seg_data_odd = [[100, 100, 200, 100, 200]]
         points_odd = handler._parse_polygon_segmentation(seg_data_odd)
         assert len(points_odd) == 0
+
+    def test_parse_polygon_segmentation_union_fill(self):
+        """Rasterizing the merged outline reproduces the union of segments."""
+        cv2 = pytest.importorskip("cv2")
+        import numpy as np
+
+        handler = CocoAnnotationHandler(annotation_file="/dummy.json", strict_mode=True)
+
+        # Two disjoint rectangles — the old concatenation fabricated a
+        # filled bridge region between them
+        seg_data = [
+            [10, 10, 60, 10, 60, 60, 10, 60],
+            [400, 300, 450, 300, 450, 350, 400, 350],
+        ]
+        points = handler._parse_polygon_segmentation(seg_data)
+
+        h, w = 480, 640
+        src_mask = np.zeros((h, w), np.uint8)
+        for seg in seg_data:
+            cv2.fillPoly(src_mask, [np.array(seg, np.int32).reshape(-1, 1, 2)], 1)
+        out_mask = np.zeros((h, w), np.uint8)
+        cv2.fillPoly(
+            out_mask,
+            [np.array([(int(p[0]), int(p[1])) for p in points], np.int32).reshape(-1, 1, 2)],
+            1,
+        )
+        # Union preserved; only the ~1-px bridge band is extra
+        assert int((out_mask & ~src_mask).sum()) < 600
+        assert int((src_mask & ~out_mask).sum()) == 0
+
+    def test_decode_rle_merges_all_contours(self):
+        """RLE decode keeps disjoint components, not just the largest contour."""
+        pytest.importorskip("pycocotools")
+        cv2 = pytest.importorskip("cv2")
+        import numpy as np
+        from pycocotools import mask as coco_mask
+
+        handler = CocoAnnotationHandler(annotation_file="/dummy.json", strict_mode=True)
+
+        # Two disconnected blobs of unequal size
+        mask = np.zeros((60, 60), dtype=np.uint8)
+        mask[5:15, 5:15] = 1  # small blob (10x10)
+        mask[30:55, 30:55] = 1  # large blob (25x25)
+        rle = coco_mask.encode(np.asfortranarray(mask))
+        rle["counts"] = rle["counts"].decode("latin1")
+
+        points = handler._decode_rle_to_polygon(rle, 60, 60)
+
+        out_mask = np.zeros((60, 60), np.uint8)
+        cv2.fillPoly(
+            out_mask,
+            [np.array([(int(p[0]), int(p[1])) for p in points], np.int32).reshape(-1, 1, 2)],
+            1,
+        )
+        union = int(mask.sum())
+        assert int((out_mask & ~mask).sum()) < 300  # bridge band only
+        # The small blob must survive — the old largest-contour-only decode
+        # dropped it entirely (100 px)
+        assert int((mask & ~out_mask).sum()) < 300
+        assert int(out_mask.sum()) >= union
 
     def test_output_rle_flag(self, sample_coco_data, temp_dir):
         """Test output_rle flag behavior."""

@@ -363,6 +363,29 @@ of the binary mask, which is already an approximation of the original polygon.
   (~1e-15 relative), which for typical image sizes is well under 1 pixel
 - RLE-based round-trips always have additional rasterization loss (polygon → mask → polygon)
 
+### 9.4 Multi-Segment Polygons
+
+COCO allows several polygon segments per instance (`segmentation: [[...], [...]]`),
+whose semantics are the union of the segments. A flat concatenation of the
+vertices fabricates mask area — the implicit connecting edges between
+disjoint segments become part of the outline. Both COCO → YOLO and
+COCO → LabelMe therefore write **one merged outline** per instance:
+
+- The merge happens in the COCO read path (see `spec_label.md` §4.2):
+  rings are chained via their nearest point pair and each connecting bridge
+  is traversed out-and-back, so it cancels at rasterization under both
+  even-odd and non-zero winding fill rules. Consecutive duplicate points
+  are removed.
+- **Fidelity contract**: rasterizing the merged outline reproduces the
+  union of the source segments — the only difference is a ~1-px band of
+  boundary pixels along the connecting bridges (see `spec_label.md` §4.2
+  for why the bridge interior cancels). No fabricated mask region and no
+  lost source area, unlike flat concatenation.
+- **Single-segment identity**: annotations with exactly one segment are
+  written **unchanged** — bit-identical to the pre-merge behavior.
+- RLE segmentation is merged the same way from all decoded contours
+  (disjoint components and holes are preserved, not dropped).
+
 ## 10. Error Handling
 
 ### 10.1 Error Categories

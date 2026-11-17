@@ -4,7 +4,7 @@ Utility functions for the label module.
 
 import hashlib
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Set
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 
 def resolve_coco_image_ids(image_ids: Iterable[str]) -> Dict[str, int]:
@@ -99,6 +99,92 @@ def parse_yolo_class_id(token: str) -> Optional[int]:
     except (ValueError, OverflowError):
         pass
     return None
+
+
+def merge_polygon_segments(
+    segments: List[List[Tuple[float, float]]],
+) -> List[Tuple[float, float]]:
+    """Merge multiple closed polygon rings into a single outline.
+
+    COCO allows several polygon segments per instance
+    (``segmentation: [[...], [...]]``) whose semantics are the **union**
+    of the segments, and RLE masks decode to multiple contours (disjoint
+    components plus holes).  ``Segmentation.points`` is a single flat
+    outline, so the reader reduces the rings to one merged outline
+    (contract: ``spec_label.md`` §4.2):
+
+    - Rings are chained via their **nearest point pair**: repeatedly merge
+      the two rings whose closest points have the smallest distance.  The
+      merged ring traverses ring A fully, bridges to the nearest point of
+      ring B, traverses B fully, then bridges back along the **same edge**.
+      A bridge traversed out-and-back cancels under both the even-odd and
+      non-zero winding fill rules, so rasterizing the merged outline
+      reproduces the union of the source rings (within boundary-pixel
+      tolerance).
+    - Consecutive duplicate points are removed after merging (they arise
+      when two rings touch at the connection point).  No intersection
+      surgery is performed — doubled-back bridges self-cancel at
+      rasterization.
+    - Single-ring input is returned **unchanged** (identity), keeping
+      single-segment annotations bit-identical to the pre-merge behavior.
+
+    Canonical implementation — used by ``CocoAnnotationHandler`` for both
+    polygon parsing and RLE contour decoding.
+
+    Args:
+        segments: Closed polygon rings, each a list of ``(x, y)`` points.
+
+    Returns:
+        One merged ring as a flat list of ``(x, y)`` points (empty for
+        empty input).
+    """
+    rings: List[List[Tuple[float, float]]] = [list(seg) for seg in segments if len(seg) >= 3]
+
+    if not rings:
+        return []
+    if len(rings) == 1:
+        return rings[0]
+
+    while len(rings) > 1:
+        # Greedy nearest merge: find the ring pair whose closest points
+        # have the smallest distance (scan order breaks ties deterministically).
+        best: Optional[float] = None
+        best_i = best_j = 0
+        best_p = best_q = 0
+        for i, ring_a in enumerate(rings):
+            for j in range(i + 1, len(rings)):
+                ring_b = rings[j]
+                for pi, p in enumerate(ring_a):
+                    for qj, q in enumerate(ring_b):
+                        dist = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2
+                        if best is None or dist < best:
+                            best = dist
+                            best_i, best_j = i, j
+                            best_p, best_q = pi, qj
+
+        ring_a = rings[best_i]
+        ring_b = rings[best_j]
+        p = ring_a[best_p]
+        q = ring_b[best_q]
+
+        # Rotate A so p leads, traverse A fully and close it back to p,
+        # bridge to q, rotate B so q leads, traverse B fully and close it
+        # back to q.  The polygon's final edge (q → first point) doubles
+        # back over the p → q bridge, cancelling it at rasterization.
+        merged = ring_a[best_p:] + ring_a[:best_p] + [p]
+        merged += ring_b[best_q:] + ring_b[:best_q] + [q]
+
+        rings.pop(best_j)  # remove B first (larger index)
+        rings[best_i] = merged
+
+    # Remove consecutive duplicate points (they arise when two rings touch
+    # at the connection point, i.e. p == q).
+    merged = rings[0]
+    deduped: List[Tuple[float, float]] = [merged[0]]
+    for pt in merged[1:]:
+        if pt != deduped[-1]:
+            deduped.append(pt)
+    return deduped
 
 
 def calculate_file_hash(file_path: Path, algorithm: str = "md5") -> str:

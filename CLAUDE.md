@@ -244,7 +244,7 @@ Source Format → Handler.iter_images() → ImageAnnotation → _convert_single_
   - `write_one()`: Single-image write — writes one `ImageAnnotation` to target format. Used by Convert streaming path for per-file output (YOLO `.txt`, LabelMe `.json`). COCO handler raises `NotImplementedError` (always batch).
 - `YoloHandler(label_dir, class_file, image_dir, **kwargs)`: Reads/writes `.txt` files (one per image). Supports detection (`class_id x y w h`) and segmentation (`class_id x1 y1 x2 y2 ...`).
 - `LabelMeHandler(label_dir, class_file=None, **kwargs)`: Reads/writes per-image `.json` files.
-- `CocoHandler(annotation_file, do_rle=False, prediction=False, **kwargs)`: Reads/writes a single COCO JSON file. Supports polygon and RLE segmentation. `write_one()` raises `NotImplementedError` — COCO is always batch output. When `prediction=True`, `write()` outputs a plain JSON list of annotation dicts (prediction format, Variant B per `spec_coco_format.md` §9.1) instead of a full COCO dict.
+- `CocoHandler(annotation_file, do_rle=False, prediction=False, **kwargs)`: Reads/writes a single COCO JSON file. Supports polygon and RLE segmentation; multi-segment polygons and all RLE contours are merged into one outline at read time (see gotcha #45). `write_one()` raises `NotImplementedError` — COCO is always batch output. When `prediction=True`, `write()` outputs a plain JSON list of annotation dicts (prediction format, Variant B per `spec_coco_format.md` §9.1) instead of a full COCO dict.
 
 ### Converters (`dataflow/convert/`)
 
@@ -514,6 +514,7 @@ Test data lives in `assets/test_data/`, organized by format (det/seg) and annota
 ### [!] Cross-Format Conversion
 
 9. **COCO↔YOLO precision loss**: Cross-format conversion between normalized (YOLO) and absolute pixel (LabelMe/COCO) is inherently lossy (±1 px). See `spec_conversion.md` for details.
+45. **[!] Multi-segment COCO polygons merge at read time**: `CocoAnnotationHandler` reduces multi-segment `segmentation: [[...], [...]]` (and all RLE contours) to **one merged outline** via `merge_polygon_segments()` in `label/utils.py` — nearest-point chaining with doubled-back bridges, consecutive-dup removal, single-ring identity (bit-identical). A flat concatenation fabricates mask area between disjoint segments, so never revert to append-only. Rasterizing the merged outline reproduces the source union; the only artifact is a ~1-px band along the connecting bridge. Contract: `spec_label.md` §4.2 / `spec_conversion.md` §9.4.
 
 ### [*] Converter Implementation
 

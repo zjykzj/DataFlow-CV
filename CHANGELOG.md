@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Multi-segment COCO polygons convert as one merged outline**: `coco2yolo` / `coco2labelme` concatenated multi-segment vertices (RLE kept only the largest contour), fabricating mask area between disjoint segments; the reader now merges all rings/contours via nearest-point chaining with doubled-back bridges, so rasterization reproduces the union and single-segment annotations stay bit-identical.
+
 ## [3.1.0] - 2026-11-16
 
 ### Fixed

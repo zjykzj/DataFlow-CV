@@ -617,3 +617,77 @@ class TestCocoToYoloOutputNaming:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+class TestCocoToYoloMultiSegment:
+    """Regression tests: multi-segment polygons merge into one outline (#47)."""
+
+    def _write_coco(self, tmp_path, segmentation):
+        import json
+
+        coco = {
+            "images": [{"id": 1, "file_name": "img1.jpg", "width": 640, "height": 480}],
+            "annotations": [
+                {
+                    "id": 1,
+                    "image_id": 1,
+                    "category_id": 1,
+                    "segmentation": segmentation,
+                    "bbox": [10, 10, 440, 340],
+                    "area": 2500.0,
+                    "iscrowd": 0,
+                }
+            ],
+            "categories": [{"id": 1, "name": "obj"}],
+        }
+        src = tmp_path / "ann.json"
+        src.write_text(json.dumps(coco), encoding="utf-8")
+        return src
+
+    def _row_points(self, out):
+        row = (out / "labels" / "img1.txt").read_text().strip()
+        vals = [float(v) for v in row.split()[1:]]
+        return [(vals[i], vals[i + 1]) for i in range(0, len(vals), 2)]
+
+    def test_two_disjoint_rects_merge_to_union(self, tmp_path):
+        """Rasterizing the merged outline must reproduce the source union."""
+        import cv2
+        import numpy as np
+
+        two_rects = [
+            [10, 10, 60, 10, 60, 60, 10, 60],
+            [400, 300, 450, 300, 450, 350, 400, 350],
+        ]
+        src = self._write_coco(tmp_path, two_rects)
+        out = tmp_path / "out"
+
+        r = YoloAndCocoConverter(source_to_target=False).convert(str(src), str(out))
+        assert r.success is True, f"conversion failed: {r.errors}"
+
+        pts = self._row_points(out)
+        h, w = 480, 640
+        src_mask = np.zeros((h, w), np.uint8)
+        for seg in two_rects:
+            cv2.fillPoly(src_mask, [np.array(seg, np.int32).reshape(-1, 1, 2)], 1)
+        out_mask = np.zeros((h, w), np.uint8)
+        cv2.fillPoly(
+            out_mask,
+            [np.array([(p[0] * w, p[1] * h) for p in pts], np.int32).reshape(-1, 1, 2)],
+            1,
+        )
+        # No fabricated mask region and no lost source area beyond the
+        # ~1-px bridge band: old concatenated output fabricated ~8750 px
+        # and lost ~1430 px.
+        assert int((out_mask & ~src_mask).sum()) < 600  # bridge band only
+        assert int((src_mask & ~out_mask).sum()) == 0
+
+    def test_single_segment_stays_bit_identical(self, tmp_path):
+        """Single-segment annotations must be unchanged (no #1 regression)."""
+        single = [[10, 10, 60, 10, 60, 60, 10, 60]]
+        src = self._write_coco(tmp_path, single)
+        out = tmp_path / "out"
+
+        r = YoloAndCocoConverter(source_to_target=False).convert(str(src), str(out))
+        assert r.success is True
+        row = (out / "labels" / "img1.txt").read_text().strip()
+        assert row == ("0 0.015625 0.020833 0.093750 0.020833 0.093750 0.125000 0.015625 0.125000")
+
+

@@ -25,6 +25,7 @@ import numpy as np
 
 
 from .base import AnnotationResult, BaseAnnotationHandler
+from .utils import merge_polygon_segments
 from .models import (
     AnnotationFormat,
     BoundingBox,
@@ -483,16 +484,15 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 self._log_warning("RLE decode produced no contours, returning empty polygon")
                 return []
 
-            # Use the largest contour
-            largest_contour = max(contours, key=cv2.contourArea)
+            # Merge ALL contours into one outline — keeping only the
+            # largest silently drops disjoint components and holes
+            # (contract: spec_label.md §4.2).
+            rings = []
+            for contour in contours:
+                ring = [(float(point[0][0]), float(point[0][1])) for point in contour]
+                rings.append(ring)
 
-            # Return contour points as absolute pixel coordinates
-            points = []
-            for point in largest_contour:
-                x, y = point[0]
-                points.append((float(x), float(y)))
-
-            return points
+            return merge_polygon_segments(rings)
 
         except (ImportError, ValueError, TypeError) as e:
             self._log_error(f"Error decoding RLE: {e}")
@@ -546,8 +546,15 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             raise
 
     def _parse_polygon_segmentation(self, seg_data: List) -> List[Tuple[float, float]]:
-        """Parse polygon segmentation data to absolute pixel point list."""
-        points = []
+        """Parse polygon segmentation data to a single merged outline.
+
+        Multi-segment COCO polygons (``segmentation: [[...], [...]]``)
+        carry union semantics, so the rings are merged into one outline
+        via ``merge_polygon_segments()`` — nearest-point chaining with
+        doubled-back bridges (contract: ``spec_label.md`` §4.2).
+        Single-ring input is returned unchanged.
+        """
+        rings: List[List[Tuple[float, float]]] = []
 
         for polygon in seg_data:
             if len(polygon) % 2 != 0:
@@ -560,12 +567,10 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 continue
 
             # Convert to (x, y) pairs — coordinates are already absolute pixels
-            for i in range(0, len(polygon), 2):
-                x = polygon[i]
-                y = polygon[i + 1]
-                points.append((x, y))
+            ring = [(float(polygon[i]), float(polygon[i + 1])) for i in range(0, len(polygon), 2)]
+            rings.append(ring)
 
-        return points
+        return merge_polygon_segments(rings)
 
     def write(
         self,

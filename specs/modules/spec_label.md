@@ -1,6 +1,6 @@
 # Label Module Specification
 
-> **Version:** v4.9 | **Last Updated:** 2026-11-16
+> **Version:** v5.0 | **Last Updated:** 2026-11-17
 > **Status:** Draft — logger receives from caller's LogManager via `logger=` parameter
 > **Layer:** Modules
 > **Dependencies:** None (foundation module; logging via stdlib `logging.Logger` only)
@@ -431,6 +431,40 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
   Each point is similarly clamped to image boundaries.
 - `Segmentation.rle`: Preserved RLE data when segmentation is RLE-encoded
 - No coordinate normalization — COCO native coordinates are absolute pixels
+
+**Multi-segment polygons and multi-contour RLE** (both `read()` and
+`iter_images()`): COCO allows several polygon segments per instance
+(`segmentation: [[...], [...]]`) whose semantics are the **union** of the
+segments, and RLE masks can contain several disconnected components plus
+holes. `Segmentation.points` is a single outline (one flat point list), so
+the reader must reduce the input to **one merged outline**:
+
+- Canonical implementation: `merge_polygon_segments()` in
+  `dataflow/label/utils.py`. Input: closed rings (each ≥ 3 points).
+  Output: one flat `(x, y)` list.
+- Rings are chained **via their nearest point pair**: repeatedly merge the
+  two rings whose closest points have the smallest distance; the merged
+  ring traverses ring A fully, bridges to the nearest point of ring B,
+  traverses B fully, then bridges back along the **same edge**. A bridge
+  traversed out-and-back cancels under both even-odd and non-zero winding
+  fill rules, so rasterizing the merged outline reproduces the **union** of
+  the source rings — the only difference is a ~1-px band of boundary
+  pixels along the connecting bridge (the bridge interior cancels; the
+  band is the inherent artifact of coincident opposite edges in scanline
+  rasterization, shared by the de-facto standard COCO→YOLO-seg merge
+  algorithms).
+- Consecutive duplicate points are removed after merging. No intersection
+  surgery is performed — doubled-back bridges self-cancel at rasterization.
+- **Single-ring identity**: input of exactly one ring returns that ring's
+  points **unchanged** — single-segment annotations are bit-identical to
+  pre-merge behavior.
+- Invalid rings (odd coordinate count, fewer than 3 vertices) are skipped
+  with a warning as before.
+- RLE read path: `mask.decode()` → `cv2.findContours(RETR_EXTERNAL)` →
+  **all** contours are merged via `merge_polygon_segments()` (previously
+  only the largest contour was kept, silently dropping disjoint components
+  and holes). When pycocotools is unavailable, `points` stays empty and the
+  raw RLE is preserved in `Segmentation.rle` (unchanged).
 
 **`iter_images()`**: Yields `ImageAnnotation` objects one at a time with format-native coordinates. Groups annotations by `image_id` from the COCO JSON, yields each image with its annotations. Invalid annotations are **skipped with a warning in both modes** — each annotation is wrapped in a per-annotation `try/except` that catches even the strict-mode `_log_error` raise (strict additionally logs an ERROR line before the skip), so COCO reads never abort on invalid annotations. Image errors always skip regardless of strict_mode.
 
