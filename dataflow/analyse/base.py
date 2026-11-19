@@ -63,6 +63,7 @@ class StatsResult:
     format: str
     categories: Dict[int, str] = field(default_factory=dict)
     source_paths: List[Path] = field(default_factory=list)
+    keypoint_stats: Optional[Dict[str, Any]] = None  # pose datasets only (spec_analyse.md §3.2a)
 
 
 @dataclass

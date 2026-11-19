@@ -67,6 +67,45 @@ def format_analyse_header(
     return "\n".join(lines)
 
 
+def format_stats_keypoints(keypoint_stats: Dict[str, Dict]) -> str:
+    """Keypoint statistics section (contract: spec_analyse.md §3.2a).
+
+    Renders a per-class summary table (Class | Instances | k | Labeled% |
+    Visible% | Occluded | Missing) followed by per-keypoint labeling-rate
+    lines (index, name, labeled count/ratio, visible ratio).
+    """
+    lines = [format_section("Keypoints")]
+
+    headers = ["Class", "Instances", "k", "Labeled%", "Visible%", "Occluded", "Missing"]
+    rows = []
+    for class_name, t in keypoint_stats.items():
+        rows.append(
+            [
+                class_name,
+                str(t["instances"]),
+                str(t["k"]),
+                f"{t['labeled_ratio'] * 100:.1f}%",
+                f"{t['visible_ratio'] * 100:.1f}%",
+                str(t["occluded"]),
+                str(t["missing"]),
+            ]
+        )
+    lines.append(format_table(headers, rows))
+
+    for class_name, t in keypoint_stats.items():
+        lines.append("")
+        lines.append(f"Per-Keypoint Labeling Rate ({class_name}):")
+        for p in t["per_keypoint"]:
+            lines.append(
+                f"  #{p['index']:02d} {p['name']:<16} labeled "
+                f"{p['labeled']}/{t['instances']} ({p['labeled_ratio'] * 100:.1f}%)"
+                f"  visible {p['visible_ratio'] * 100:.1f}%"
+                f"  occluded {p['occluded']}  missing {p['missing']}"
+            )
+
+    return "\n".join(lines)
+
+
 def format_stats_path_breakdown(path_stats) -> str:
     """Per-path file and annotation counts (multi-path only).
 

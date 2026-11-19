@@ -201,6 +201,8 @@ def create_handler(
     logger: Optional[logging.Logger] = None,
     skip_image_loading: bool = False,
     recursive: bool = False,
+    pose: bool = False,
+    kpts_config: Optional[Path] = None,
 ) -> "BaseAnnotationHandler":
     """Create the appropriate handler for the detected format.
 
@@ -220,6 +222,10 @@ def create_handler(
             like stats that don't need real image dimensions.
         recursive: If True, handler uses ``rglob`` for file discovery,
             traversing subdirectories recursively.  Default False.
+        pose: If True and format is YOLO, parse pose rows
+            (``pose=True`` on the handler — explicit, see
+            ``spec_yolo_format.md`` §2.3).
+        kpts_config: Optional keypoint-definition YAML (LabelMe handler).
 
     Returns:
         Configured BaseAnnotationHandler instance.
@@ -255,6 +261,7 @@ def create_handler(
         if skip_image_loading:
             kwargs["skip_image_loading"] = True
         kwargs["recursive"] = recursive
+        kwargs["pose"] = pose
         handler = YoloAnnotationHandler(
             label_dir=str(label_path),
             class_file=str(class_file),
@@ -267,6 +274,7 @@ def create_handler(
             label_dir=str(label_path),
             class_file=str(class_file) if class_file else None,
             recursive=recursive,
+            kpts_config=str(kpts_config) if kpts_config else None,
             **handler_kwargs,
         )
     elif format == "coco":

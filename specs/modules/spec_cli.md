@@ -1,6 +1,6 @@
 # CLI Module Specification
 
-> **Version:** 2.11 | **Last Updated:** 2026-11-19
+> **Version:** 2.12 | **Last Updated:** 2026-11-19
 > **Layer:** Modules
 > **Dependencies:** Convert module + Visualize module + Evaluate module (public APIs only) + Logging module (LogConfig only)
 
@@ -306,6 +306,7 @@ Compute dataset statistics. Auto-detects the annotation format from each `LABEL_
 | `--sort-by` | Choice | `"id"` | Sort key: `"id"` (class_id) or `"count"`. Ignored when `--class-file` is provided. |
 | `--descending/--ascending` | Flag | ascending | Sort direction (default: ascending) |
 | `--recursive`, `-R` | Flag | False | Recursively traverse subdirectories for label files (YOLO/LabelMe only) |
+| `--kpts-config` | Path | None | Keypoint-definition YAML — supplies keypoint names for the keypoint statistics section (cosmetic; see `spec_analyse.md` §3.2a) |
 
 #### `split`
 

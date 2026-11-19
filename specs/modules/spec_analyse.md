@@ -1,6 +1,6 @@
 # Analyse Module Specification
 
-> **Version:** v2.1 | **Last Updated:** 2026-07-24
+> **Version:** v2.2 | **Last Updated:** 2026-11-19
 > **Status:** Stable
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
@@ -209,6 +209,7 @@ class StatsAnalyser(BaseAnalyser):
         sort_by: str = "id",
         descending: bool = False,
         recursive: bool = False,
+        kpts_config: Optional[Path] = None,
     ) -> AnalysisResult:
         """Compute statistics for the datasets at ``label_paths``.
 
@@ -228,6 +229,14 @@ class StatsAnalyser(BaseAnalyser):
             recursive: When True, recursively traverse subdirectories
                 for YOLO and LabelMe formats.  Ignored for COCO
                 (single-file format).
+            kpts_config: Optional keypoint-definition YAML — supplies
+                per-class keypoint names for the keypoint statistics
+                (see §3.2a). For **YOLO sources it is not cosmetic**:
+                its presence also enables pose-row parsing
+                (``pose=True`` on the handler — explicit mode, see
+                ``spec_yolo_format.md`` §2.3); without it, YOLO pose
+                rows are unparseable and keypoint statistics are
+                absent. For COCO/LabelMe sources it is names-only.
 
         Returns:
             AnalysisResult with StatsResult in ``.data``
@@ -268,6 +277,46 @@ After all paths:
 - `per_class`: merge by class_name (sum counts for matching names)
 - `categories`: all paths share the same class_file → use class_file definitions
 - `format`: all paths must be identical; first path's format is authoritative
+- `keypoint_stats`: merged by class_name (sums across paths)
+
+### 3.2a Keypoint Statistics (Pose Datasets)
+
+When the dataset contains keypoint annotations, `StatsResult.keypoint_stats`
+is a per-class dict (``None`` for detection/segmentation-only datasets):
+
+```python
+keypoint_stats: Optional[Dict[str, Dict[str, Any]]] = {
+    "person": {
+        "instances": int,        # objects with keypoints
+        "k": int,                # dataset keypoint count for this class
+        "labeled": int,          # total v>0 keypoints
+        "labeled_ratio": float,  # labeled / (instances * k)
+        "visible": int,          # total v=2 keypoints
+        "visible_ratio": float,  # visible / (instances * k)
+        "occluded": int,         # total v=1 keypoints
+        "missing": int,          # total v=0 keypoints
+        "kpt_names": List[str],  # names: COCO categories_meta > kpts_config > keypoint_N placeholders
+        "per_keypoint": [        # one entry per keypoint index
+            {"index": 0, "name": "nose", "labeled": n, "labeled_ratio": r,
+             "visible": n2, "visible_ratio": r2, "occluded": n1, "missing": n0},
+            ...
+        ],
+    },
+}
+```
+
+**Contract points:**
+- Keypoint names are cosmetic — COCO sources read them from
+  `dataset_info["categories_meta"]`; YOLO/LabelMe sources from
+  `kpts_config`; otherwise `keypoint_N` placeholders.
+- Ratios are 0.0 when `instances * k == 0`.
+- Merging across paths sums the counts; k must agree (a mismatch is an
+  ERROR — mixed-k datasets are malformed, mirroring `spec_conversion.md`
+  §3.7.3).
+- Log output: after the main stats table, a keypoint section renders a
+  per-class summary table (Class | Instances | k | Labeled% | Visible% |
+  Occluded | Missing) followed by per-keypoint labeling-rate lines
+  (index, name, labeled count/ratio, visible ratio).
 
 ### 3.3 `SplitAnalyser` (`split.py`)
 

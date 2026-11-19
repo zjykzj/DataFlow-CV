@@ -11,12 +11,13 @@ YOLO and LabelMe formats.
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from .base import AnalysisResult, BaseAnalyser, StatsResult
 from .log_templates import (
     format_analyse_header,
     format_analyse_result,
+    format_stats_keypoints,
     format_stats_path_breakdown,
     format_stats_result,
 )
@@ -77,6 +78,169 @@ class StatsAnalyser(BaseAnalyser):
                 per_class[name] = per_class.get(name, 0) + 1
 
         return total_files, total_annotations, per_class
+
+    @staticmethod
+    def _count_keypoints(dataset) -> Dict[str, Dict]:
+        """Per-class keypoint tallies from a dataset.
+
+        Returns:
+            ``{class_name: {"instances", "k", "labeled", "visible",
+            "occluded", "missing", "per_keypoint"}}`` where
+            ``per_keypoint`` is a list of per-index count dicts.
+
+        Raises:
+            ValueError: If a class mixes objects with different k
+                (malformed dataset — spec_analyse.md §3.2a).
+        """
+        tallies: Dict[str, Dict] = {}
+        for image_ann in dataset.images:
+            for obj in image_ann.objects:
+                if obj.keypoints is None:
+                    continue
+                name = obj.class_name or f"class_{obj.class_id}"
+                t = tallies.get(name)
+                if t is None:
+                    t = tallies[name] = {
+                        "instances": 0,
+                        "k": 0,
+                        "labeled": 0,
+                        "visible": 0,
+                        "occluded": 0,
+                        "missing": 0,
+                        "per_keypoint": [],
+                    }
+                k = len(obj.keypoints.points)
+                if t["k"] == 0:
+                    t["k"] = k
+                    t["per_keypoint"] = [
+                        {"labeled": 0, "visible": 0, "occluded": 0, "missing": 0} for _ in range(k)
+                    ]
+                elif t["k"] != k:
+                    raise ValueError(
+                        f"Inconsistent keypoint count for class '{name}': {k} (class k={t['k']})"
+                    )
+                t["instances"] += 1
+                for i, v in enumerate(obj.keypoints.visibility):
+                    entry = t["per_keypoint"][i]
+                    if v > 0:
+                        t["labeled"] += 1
+                        entry["labeled"] += 1
+                        if v == 2:
+                            t["visible"] += 1
+                            entry["visible"] += 1
+                        else:
+                            t["occluded"] += 1
+                            entry["occluded"] += 1
+                    else:
+                        t["missing"] += 1
+                        entry["missing"] += 1
+        return tallies
+
+    @staticmethod
+    def _merge_keypoint_tallies(all_tallies: List[Dict[str, Dict]]) -> Dict[str, Dict]:
+        """Merge per-path keypoint tallies by class name (sums; k must agree).
+
+        Raises:
+            ValueError: If a class has differing k across paths.
+        """
+        merged: Dict[str, Dict] = {}
+        for tallies in all_tallies:
+            for name, t in tallies.items():
+                m = merged.get(name)
+                if m is None:
+                    m = merged[name] = {
+                        "instances": 0,
+                        "k": t["k"],
+                        "labeled": 0,
+                        "visible": 0,
+                        "occluded": 0,
+                        "missing": 0,
+                        "per_keypoint": [
+                            {"labeled": 0, "visible": 0, "occluded": 0, "missing": 0}
+                            for _ in range(t["k"])
+                        ],
+                    }
+                elif m["k"] != t["k"]:
+                    raise ValueError(
+                        f"Inconsistent keypoint count for class '{name}' "
+                        f"across paths: {t['k']} (first path k={m['k']})"
+                    )
+                m["instances"] += t["instances"]
+                m["labeled"] += t["labeled"]
+                m["visible"] += t["visible"]
+                m["occluded"] += t["occluded"]
+                m["missing"] += t["missing"]
+                for i, entry in enumerate(t["per_keypoint"]):
+                    m["per_keypoint"][i]["labeled"] += entry["labeled"]
+                    m["per_keypoint"][i]["visible"] += entry["visible"]
+                    m["per_keypoint"][i]["occluded"] += entry["occluded"]
+                    m["per_keypoint"][i]["missing"] += entry["missing"]
+        return merged
+
+    @staticmethod
+    def _build_keypoint_stats(
+        tallies: Dict[str, Dict],
+        kpts_config_obj: Optional[Any],
+        coco_meta: Dict[int, Dict],
+        categories: Dict[int, str],
+    ) -> Optional[Dict[str, Dict]]:
+        """Resolve keypoint names + ratios onto merged tallies.
+
+        Returns None when there are no keypoint tallies at all
+        (contract: spec_analyse.md §3.2a).
+        """
+        if not tallies:
+            return None
+
+        id_to_name = {cid: cname for cid, cname in categories.items()}
+        name_to_meta = {
+            id_to_name[cid]: meta
+            for cid, meta in coco_meta.items()
+            if cid in id_to_name and meta.get("keypoints")
+        }
+
+        keypoint_stats: Dict[str, Dict] = {}
+        for class_name, t in tallies.items():
+            names = None
+            if kpts_config_obj is not None:
+                try:
+                    names = kpts_config_obj.names_for(class_name)
+                except ValueError:
+                    names = None
+            if names is None and class_name in name_to_meta:
+                names = list(name_to_meta[class_name]["keypoints"])
+            if names is None:
+                names = [f"keypoint_{i}" for i in range(t["k"])]
+
+            denom = t["instances"] * t["k"]
+            entry: Dict[str, Any] = {
+                "instances": t["instances"],
+                "k": t["k"],
+                "labeled": t["labeled"],
+                "labeled_ratio": (t["labeled"] / denom) if denom else 0.0,
+                "visible": t["visible"],
+                "visible_ratio": (t["visible"] / denom) if denom else 0.0,
+                "occluded": t["occluded"],
+                "missing": t["missing"],
+                "kpt_names": names,
+                "per_keypoint": [],
+            }
+            for i, p in enumerate(t["per_keypoint"]):
+                labeled = p["labeled"]
+                entry["per_keypoint"].append(
+                    {
+                        "index": i,
+                        "name": names[i] if i < len(names) else f"keypoint_{i}",
+                        "labeled": labeled,
+                        "labeled_ratio": (labeled / t["instances"]) if t["instances"] else 0.0,
+                        "visible": p["visible"],
+                        "visible_ratio": (p["visible"] / t["instances"]) if t["instances"] else 0.0,
+                        "occluded": p["occluded"],
+                        "missing": p["missing"],
+                    }
+                )
+            keypoint_stats[class_name] = entry
+        return keypoint_stats
 
     @staticmethod
     def _merge_per_class(all_per_class: List[Dict[str, int]]) -> Dict[str, int]:
@@ -176,6 +340,7 @@ class StatsAnalyser(BaseAnalyser):
         sort_by: str = "id",
         descending: bool = False,
         recursive: bool = False,
+        kpts_config: Optional[Path] = None,
     ) -> AnalysisResult:
         """Compute statistics for one or more datasets.
 
@@ -195,6 +360,9 @@ class StatsAnalyser(BaseAnalyser):
             descending: When True, reverse the sort direction.
             recursive: When True, recursively find label files in
                 subdirectories (YOLO/LabelMe only).  Ignored for COCO.
+            kpts_config: Optional keypoint-definition YAML — supplies
+                per-class keypoint names for the keypoint statistics
+                (purely cosmetic; spec_analyse.md §3.2a).
 
         Returns:
             ``AnalysisResult`` with ``StatsResult`` in ``.data``.
@@ -214,12 +382,25 @@ class StatsAnalyser(BaseAnalyser):
                 result.add_error(f"Failed to load class file: {e}")
                 return result
 
+        # ---- 0a. Load keypoint definition (cosmetic names) ---------------
+        kpts_config_obj = None
+        if kpts_config is not None:
+            from ..label.utils import load_kpts_config
+
+            try:
+                kpts_config_obj = load_kpts_config(Path(kpts_config))
+            except (ValueError, ImportError) as e:
+                result.add_error(f"Failed to load keypoint definition: {e}")
+                return result
+
         # ---- Per-path state ---------------------------------------------
         fmt: Optional[str] = None
         all_categories: Dict[int, str] = {}
         total_files = 0
         total_annotations = 0
         all_per_class: List[Dict[str, int]] = []
+        all_kpt_tallies: List[Dict[str, Dict]] = []
+        coco_meta: Dict[int, Dict] = {}
         path_stats: List[Dict[str, object]] = []  # for breakdown display
 
         for path in paths:
@@ -271,6 +452,8 @@ class StatsAnalyser(BaseAnalyser):
                     logger=self.logger,
                     skip_image_loading=True,
                     recursive=recursive,
+                    pose=(fmt == "yolo" and kpts_config_obj is not None),
+                    kpts_config=kpts_config,
                 )
             except (ValueError, FileNotFoundError) as e:
                 result.add_error(str(e))
@@ -299,6 +482,18 @@ class StatsAnalyser(BaseAnalyser):
             total_annotations += p_anns
             all_per_class.append(p_per_class)
             all_categories.update(dict(dataset.categories))
+
+            # Keypoint tallies + COCO keypoint metadata
+            try:
+                p_kpt = self._count_keypoints(dataset)
+            except ValueError as e:
+                result.add_error(str(e))
+                return result
+            if p_kpt:
+                all_kpt_tallies.append(p_kpt)
+            for cid, meta in (dataset.dataset_info.get("categories_meta") or {}).items():
+                if meta.get("keypoints"):
+                    coco_meta[cid] = meta
 
             path_stats.append(
                 {
@@ -331,6 +526,16 @@ class StatsAnalyser(BaseAnalyser):
             per_class, class_file, all_categories, sort_by, descending
         )
 
+        # ---- 9a. Build keypoint statistics ------------------------------
+        try:
+            kpt_tallies = self._merge_keypoint_tallies(all_kpt_tallies)
+            keypoint_stats = self._build_keypoint_stats(
+                kpt_tallies, kpts_config_obj, coco_meta, all_categories
+            )
+        except ValueError as e:
+            result.add_error(str(e))
+            return result
+
         # ---- 10. Build result -------------------------------------------
         stats_result = StatsResult(
             total_files=total_files,
@@ -339,6 +544,7 @@ class StatsAnalyser(BaseAnalyser):
             format=fmt,
             categories=all_categories,
             source_paths=list(paths),
+            keypoint_stats=keypoint_stats,
         )
         result.data = stats_result
         result.log_path = self._log_manager.log_path
@@ -358,6 +564,8 @@ class StatsAnalyser(BaseAnalyser):
         self._log_info(
             format_stats_result(total_files, total_annotations, per_class, all_categories)
         )
+        if keypoint_stats:
+            self._log_info(format_stats_keypoints(keypoint_stats))
         if result.log_path:
             self._log_info(format_analyse_result("✓ Success", result.log_path))
 

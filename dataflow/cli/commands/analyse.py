@@ -99,6 +99,13 @@ def _add_analyse_options(func):
     default=False,
     help="Recursively traverse subdirectories for label files (YOLO/LabelMe only)",
 )
+@click.option(
+    "--kpts-config",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="Keypoint-definition YAML — supplies keypoint names for the "
+    "keypoint statistics section (cosmetic)",
+)
 @click.argument(
     "label_paths",
     nargs=-1,
@@ -113,6 +120,7 @@ def stats(
     sort_by: str,
     descending: bool,
     recursive: bool,
+    kpts_config: Path,
 ):
     """Compute dataset statistics for annotations at one or more LABEL_PATHs.
 
@@ -146,6 +154,7 @@ def stats(
         sort_by=sort_by,
         descending=descending,
         recursive=recursive,
+        kpts_config=kpts_config,
     )
 
     if result.success and result.data is not None:
