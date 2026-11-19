@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-11-19
+
 ### Added
 
 - **Pose (keypoint) support in the Label layer**: new `Keypoints` data model, YOLO pose rows (explicit `pose` mode, 5+3k tokens), LabelMe point+group_id convention with a keypoint-definition YAML, and COCO `keypoints`/`num_keypoints`/skeleton read-write across all three handlers; converters reject keypoint data explicitly until pose conversion ships in v3.4.0.
