@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **READMEs document the pose (keypoint) feature set**: both READMEs now cover pose data layouts, the keypoint-definition YAML, `--pose`/`--kpts-config`/`--save-kpts-config` usage across convert/visualize/analyse, OKS evaluation, and the updated test/coverage numbers.
+
 ## [3.6.0] - 2026-11-19
 
 ### Added

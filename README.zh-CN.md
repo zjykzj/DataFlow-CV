@@ -21,10 +21,10 @@ DataFlow-CV 是一个计算机视觉数据集处理库 —— 支持在 YOLO、L
 
 | | | |
 |:---|:---|:---|
-| 🔍 **分析** | 统计、训练/验证集划分、类别过滤、N 路分区与文件抽样 —— 格式自动检测 | `dataflow-cv analyse stats ...` |
-| 🔄 **转换** | 6 个方向:YOLO ↔ LabelMe ↔ COCO,外加模型预测文件 | `dataflow-cv convert yolo2coco ...` |
-| 🎨 **可视化** | OpenCV 渲染、按类别着色,支持显示与保存模式 | `dataflow-cv visualize yolo ...` |
-| 📊 **评估** | 基于 pycocotools 的 COCO mAP、按类别的单阈值 P/R/F1 | `dataflow-cv evaluate detection ...` |
+| 🔍 **分析** | 统计、训练/验证集划分、类别过滤、N 路分区与文件抽样 —— 格式自动检测;**pose 数据集的关键点标注率统计** | `dataflow-cv analyse stats ...` |
+| 🔄 **转换** | 6 个方向:YOLO ↔ LabelMe ↔ COCO,外加模型预测文件;**全方向 pose 转换**(`--pose`) | `dataflow-cv convert yolo2coco ...` |
+| 🎨 **可视化** | OpenCV 渲染、按类别着色,支持显示与保存模式;**关键点 + 骨架渲染** | `dataflow-cv visualize yolo ...` |
+| 📊 **评估** | 基于 pycocotools 的 COCO mAP、按类别的单阈值 P/R/F1;**基于 OKS 的 pose 评估** | `dataflow-cv evaluate detection ...` |
 | 💻 **CLI + API** | 基于 Click 的 CLI,带丰富的 `--help`;Python API 用于构建流水线 | `from dataflow.convert import ...` |
 | 🤖 **AI 助手技能** | 面向 AI 助手的 Claude Code 技能(`/dataflow:dataflow-cv`)—— CLI/API 参考与已知坑点 | `claude plugin install dataflow@claude-skills` |
 
@@ -58,9 +58,9 @@ cd DataFlow-CV && pip install .
 
 | 格式 | 传入什么 | 期望布局 |
 |--------|---------------|-----------------|
-| **YOLO** | `labels/` 目录(+ `images/` 目录) | 每张图像一个 `.txt`:`labels/000001.txt` 与 `images/000001.jpg` 对应 —— 标签文件**必须与图像同名**。检测行格式为 `class_id cx cy w h`;分割行格式为 `class_id x1 y1 x2 y2 …`(归一化 [0,1] 坐标)。 |
-| **LabelMe** | 一个 `.json` 文件目录 | 每张图像一个 `.json`(`shapes` 含 `label` + `points`)。 |
-| **COCO** | 单个 `.json` 文件 | 一个包含 `images`、`annotations`、`categories` 数组的文件。 |
+| **YOLO** | `labels/` 目录(+ `images/` 目录) | 每张图像一个 `.txt`:`labels/000001.txt` 与 `images/000001.jpg` 对应 —— 标签文件**必须与图像同名**。检测行格式为 `class_id cx cy w h`;分割行格式为 `class_id x1 y1 x2 y2 …`;pose 行格式为 `class_id cx cy w h px1 py1 pv1 …`(5+3k 个 token,k 在数据集内固定 —— 坐标全部归一化 [0,1],`pv` ∈ {0,1,2} 可见性)。 |
+| **LabelMe** | 一个 `.json` 文件目录 | 每张图像一个 `.json`(`shapes` 含 `label` + `points`)。Pose 约定:每个关键点一个 `point` shape(label = 关键点名称)+ 一个 `rectangle`(类别 + bbox)共用 `group_id`。 |
+| **COCO** | 单个 `.json` 文件 | 一个包含 `images`、`annotations`、`categories` 数组的文件。Pose 数据集携带 `annotations[].keypoints` + `num_keypoints` 以及 `categories[].keypoints`/`skeleton`。 |
 
 `classes.txt` 是 YOLO 相关命令使用的**类别名映射**。每行一个类别名 —— 行号即类别 id(0 开始):
 
@@ -75,6 +75,21 @@ car
 - `analyse stats -c` 用于显示类别名并启用严格类别校验
 
 > 💡 先从 COCO 转起?运行一次 `coco2yolo` —— 它会生成现成的 `classes.txt`。
+
+> 🦴 **Pose 数据集**使用**关键点定义 YAML** 保存名称/骨架元数据(`kpts.yaml`):
+>
+> ```yaml
+> keypoints:           # 或按类别的 "classes:"(X-AnyLabeling 风格)
+>   - nose
+>   - left_eye
+>   # ...
+> skeleton:            # 可选:以名称列表下标表示的边对
+>   - [0, 1]
+> sigmas:              # 可选:每个关键点的 OKS sigmas(evaluate keypoints 使用)
+>   - 0.026
+> ```
+>
+> 通过 `--kpts-config` 传入(convert / visualize / analyse),或使用 `--save-kpts-config` 从 COCO 数据集导出一份。
 
 #### 🔍 数据集分析
 
@@ -112,6 +127,9 @@ dataflow-cv analyse sample -l yolo_labels/ -i images/ output/ -n 5 --seed 42
 # 按数量降序排序(默认:类别 ID 升序)
 dataflow-cv analyse stats --sort-by count --descending yolo_labels/
 
+# Pose:关键点统计(逐关键点标注率;YOLO pose 源必需 —— 该选项同时启用 pose 行解析)
+dataflow-cv analyse stats --kpts-config kpts.yaml yolo_pose_labels/
+
 # 详细日志
 dataflow-cv analyse stats --verbose yolo_labels/ --class-file classes.txt
 ```
@@ -146,6 +164,14 @@ dataflow-cv convert coco2yolo --save-crowd input.json yolo_labels/
 # YOLO 预测文件 → COCO(输出:纯 JSON 列表 —— 预测格式)
 dataflow-cv convert yolo2coco --prediction images/ yolo_preds/ classes.txt pred.json
 
+# Pose:六个方向均可加 --pose
+dataflow-cv convert coco2yolo --pose coco_pose.json yolo_pose_labels/
+dataflow-cv convert yolo2coco --pose --kpts-config kpts.yaml images/ yolo_pose_labels/ classes.txt pose.json
+dataflow-cv convert coco2yolo --pose --save-kpts-config kpts.yaml coco_pose.json yolo_pose_labels/   # 导出定义 YAML
+
+# Pose 预测文件(yolo2coco --prediction --pose → keypoints + score)
+dataflow-cv convert yolo2coco --prediction --pose images/ yolo_pose_preds/ classes.txt pred.json
+
 # 选项
 dataflow-cv convert yolo2coco --verbose images/ labels/ classes.txt output.json
 dataflow-cv convert yolo2coco --no-strict images/ labels/ classes.txt output.json
@@ -165,6 +191,10 @@ dataflow-cv visualize labelme images/ labelme_json/ --save visualized/
 # 可视化 COCO 标注
 dataflow-cv visualize coco images/ coco_annotations.json --save visualized/
 
+# Pose:关键点 + 骨架渲染(v=2 实心绿点,v=1 空心橙点)
+dataflow-cv visualize yolo --pose --kpts-config kpts.yaml images/ yolo_pose_labels/ classes.txt --save visualized/
+dataflow-cv visualize coco images/ coco_pose.json --save visualized/   # 骨架来自 COCO categories
+
 # 详细日志 + 无界面模式
 dataflow-cv visualize yolo --verbose --no-display images/ yolo_labels/ classes.txt --save visualized/
 ```
@@ -176,7 +206,7 @@ dataflow-cv visualize yolo --verbose --no-display images/ yolo_labels/ classes.t
 
 #### 📊 评估
 
-使用 COCO 标准指标评估目标检测和实例分割模型。需要两个 COCO 格式的 JSON 文件:
+使用 COCO 标准指标评估目标检测、实例分割和姿态估计模型。需要两个 COCO 格式的 JSON 文件:
 
 | 文件 | 角色 | 格式 | 如何生成 |
 |------|------|--------|---------------|
@@ -208,6 +238,11 @@ dataflow-cv evaluate detection --prf1 --prf1-iou 0.75 --prf1-method micro anno.j
 dataflow-cv evaluate segmentation anno.json pred.json
 dataflow-cv evaluate segmentation --verbose anno.json pred.json
 
+# 姿态估计(OKS)—— sigmas 取自定义 YAML;缺省时使用 COCO 17 关键点官方值
+#(其他 k 退化为均匀 0.05 + 警告)
+dataflow-cv evaluate keypoints --kpts-config kpts.yaml anno_pose.json pred_pose.json
+dataflow-cv evaluate keypoints --prf1 anno_pose.json pred_pose.json   # 基于 OKS 的 P/R/F1
+
 # 结果保存为 JSON
 dataflow-cv evaluate detection --output results.json anno.json pred.json
 
@@ -218,14 +253,15 @@ dataflow-cv evaluate detection --prf1 --output prf1_results.json anno.json pred.
 dataflow-cv evaluate detection --verbose --log-dir logs/eval/ anno.json pred.json
 ```
 
-##### ③ 检测 vs 分割
+##### ③ 检测 vs 分割 vs 姿态
 
-两种评估模式,区别在于重叠程度的度量方式:
+三种评估模式,区别在于重叠程度的度量方式:
 
 - **目标检测** —— 边界框 IoU。GT 和 DT 需要 `bbox`;DT 还需要 `score`。
 - **实例分割** —— 掩码 IoU。GT 和 DT 需要 `bbox`、`segmentation`(多边形或 RLE)以及 `area`;DT 还需要 `score`。
+- **姿态估计** —— OKS(对象关键点相似度)。GT 和 DT 需要 `keypoints`(扁平 `[x, y, v, ...]` 三元组)和 `area`;DT 还需要 `score`。逐关键点 sigmas 依次来自 `--kpts-config`、COCO 17 关键点官方值、均匀回退值。
 
-`yolo2coco`(标注模式)和 `yolo2coco --prediction`(预测模式)会自动填充两种模式所需的全部字段 —— 无需手动编辑。
+`yolo2coco`(标注模式)和 `yolo2coco --prediction`(预测模式)会自动填充三种模式所需的全部字段 —— 无需手动编辑。
 
 #### 🔄 端到端工作流
 
@@ -380,6 +416,14 @@ print(f"Micro F1: {prf1.overall.f1_score:.3f}")
 # 分割 P/R/F1(mask IoU)
 prf1 = compute_pr_f1("anno_segm.json", "pred_segm.json", iou_type="segm")
 print(f"Segm F1: {prf1.overall.f1_score:.3f}")
+
+# Pose:OKS 评估 + 基于 OKS 的 P/R/F1(阈值为 OKS 阈值)
+from dataflow.evaluate import KeypointEvaluator
+kpt_eval = KeypointEvaluator(log_config=LogConfig(name="eval", verbose=True))
+result = kpt_eval.evaluate("anno_pose.json", "pred_pose.json")
+print(f"AP: {result.metrics.ap:.3f}")
+prf1 = compute_pr_f1("anno_pose.json", "pred_pose.json", iou_type="keypoints")
+print(f"OKS F1: {prf1.overall.f1_score:.3f}")
 ```
 
 > 📂 完整示例见 `samples/` 目录:`samples/analyse/`(统计与划分)、`samples/convert/`(6 个转换方向)、`samples/visualize/`(YOLO、LabelMe、COCO)、`samples/evaluate/`(检测与分割)、`samples/cli/`(CLI 工作流)。
@@ -388,8 +432,8 @@ print(f"Segm F1: {prf1.overall.f1_score:.3f}")
 
 我们为 dataflow-cv 创建了专用的 Claude Code 技能 —— `/dataflow:dataflow-cv`,让 LLM / AI Agent 在任意项目中都能正确调用它的 CLI 与 Python API。技能内容涵盖:
 
-- **CLI 命令树与任务映射**:analyse / convert / visualize / evaluate 共 16 个子命令
-- **Python API 参考**:handlers、analysers、converters、visualizers、evaluators
+- **CLI 命令树与任务映射**:analyse / convert / visualize / evaluate 共 17 个子命令
+- **Python API 参考**:handlers(含 pose `Keypoints`)、analysers、converters、visualizers、evaluators
 - **权威示例命令**与**已知坑点**(坐标语义、预测格式、RLE 编码等)
 
 安装(每台机器一次):
@@ -421,6 +465,7 @@ claude plugin install dataflow@claude-skills
 - **键盘快捷键**(可视化):`←` / `↑` 上一张,`→` / `↓` / `Enter` / `Space` 下一张,`s` 保存快照,`h` 显示帮助,`q` / `ESC` 退出。首尾边界操作为空操作。标题栏显示 `[N/T]` 位置。
 - **评估**:`--prf1` 仅计算 P/R/F1(单阈值、按类别 TP/FP/FN)—— 跳过完整的 COCOeval mAP 流程以获得更快的速度。支持 macro/micro 平均以及 bbox/mask IoU。不加 `--prf1` 即计算标准 COCO mAP。如需两种指标,运行两次。
 - **预测文件**:YOLO 预测文件检测任务每行 6 个 token、分割任务为偶数个 token,而标注文件为 5 个/奇数个。对 `yolo2coco` 使用 `--prediction` —— 输出纯 JSON 列表格式的标注字典,与 pycocotools `loadRes()` 兼容。
+- **Pose(关键点)**:pose 行为显式模式(`--pose`)—— token 数可能与分割行冲突,自动检测不安全。关键点可见性 `v ∈ {0,1,2}`:0 = 未标注(存储为 0,0),1 = 已标注但被遮挡,2 = 已标注且可见。COCO `num_keypoints` 在写出时重新计算;关键点定义 YAML 承载名称/骨架/sigmas。
 
 ---
 
@@ -430,7 +475,7 @@ claude plugin install dataflow@claude-skills
 
 ### 🧪 测试
 
-**656 个测试,81% 代码覆盖率(5645 条语句)。**
+**755 个测试,81% 代码覆盖率(6784 条语句)。**
 
 ```bash
 pytest                                    # 全部测试
@@ -444,12 +489,12 @@ pytest tests/evaluate/test_evaluator.py     # 单个模块
 
 | 模块 | 覆盖率 | 亮点 |
 |--------|:--------:|------------|
-| `dataflow/label/` | 72% | models (86%), base (84%), utils (83%), coco_handler (73%), labelme_handler (71%), yolo_handler (63%) |
-| `dataflow/analyse/` | 85% | base (99%), log_templates (93%), sample (88%), split (88%), stats (83%), utils (84%), partition (79%), filter (76%) |
-| `dataflow/convert/` | 87% | labelme_and_yolo (93%), yolo_and_coco (89%), utils (88%), coco_and_labelme (88%), base (86%), log_templates (85%), rle (80%) |
-| `dataflow/visualize/` | 83% | yolo_vis (100%), labelme_vis (100%), coco_vis (93%), base (78%) |
-| `dataflow/evaluate/` | 92% | evaluator (100%), result (99%), metrics (89%), base (92%), utils (89%) |
-| `dataflow/cli/` | 75% | main (96%), utils (88%), visualize cmd (87%), evaluate cmd (83%), analyse cmd (70%), convert cmd (52%) |
+| `dataflow/label/` | 73% | models (88%), utils (86%), base (84%), coco_handler (75%), labelme_handler (73%), yolo_handler (64%) |
+| `dataflow/analyse/` | 85% | base (99%), log_templates (94%), sample (88%), split (88%), stats (86%), utils (84%), partition (79%), filter (76%) |
+| `dataflow/convert/` | 86% | base (88%), labelme_and_yolo (87%), yolo_and_coco (87%), coco_and_labelme (86%), utils (86%), log_templates (85%), rle (80%) |
+| `dataflow/visualize/` | 82% | yolo_vis (100%), coco_vis (91%), labelme_vis (90%), base (79%) |
+| `dataflow/evaluate/` | 91% | log_templates (100%), result (100%), evaluator (98%), base (92%), utils (89%), metrics (87%) |
+| `dataflow/cli/` | 72% | main (96%), utils (88%), visualize cmd (87%), analyse cmd (71%), evaluate cmd (66%), convert cmd (64%) |
 | `dataflow/util/` | 100% | logging (100%) |
 
 </details>
@@ -486,7 +531,7 @@ dataflow/
 ├── evaluate/        # 基于 pycocotools 的指标计算、日志模板
 ├── util/            # 统一日志(LogManager + 格式化辅助)
 └── cli/             # CLI 入口、命令、校验
-tests/               # 单元与集成测试(656 个测试、conftest 夹具)
+tests/               # 单元与集成测试(755 个测试、conftest 夹具)
 samples/             # Python API 使用示例(analyse、convert、visualize、evaluate、cli)
 assets/              # 测试数据(按格式分类的 det/seg)
 specs/               # 权威规范(evaluate/ + formats/ + modules/)

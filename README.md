@@ -21,10 +21,10 @@ A computer vision dataset processing library — analyse, convert, visualize, an
 
 | | | |
 |:---|:---|:---|
-| 🔍 **Analyse** | Stats, train/val split, category filter, N-way partition & file sampling — format auto-detection | `dataflow-cv analyse stats ...` |
-| 🔄 **Convert** | 6 directions: YOLO ↔ LabelMe ↔ COCO, plus model predictions | `dataflow-cv convert yolo2coco ...` |
-| 🎨 **Visualize** | OpenCV rendering with color-coded classes, display & save modes | `dataflow-cv visualize yolo ...` |
-| 📊 **Evaluate** | COCO mAP via pycocotools, single-threshold P/R/F1 per class | `dataflow-cv evaluate detection ...` |
+| 🔍 **Analyse** | Stats, train/val split, category filter, N-way partition & file sampling — format auto-detection; **keypoint labeling-rate stats for pose datasets** | `dataflow-cv analyse stats ...` |
+| 🔄 **Convert** | 6 directions: YOLO ↔ LabelMe ↔ COCO, plus model predictions; **pose conversion in all directions** (`--pose`) | `dataflow-cv convert yolo2coco ...` |
+| 🎨 **Visualize** | OpenCV rendering with color-coded classes, display & save modes; **keypoint + skeleton rendering** | `dataflow-cv visualize yolo ...` |
+| 📊 **Evaluate** | COCO mAP via pycocotools, single-threshold P/R/F1 per class; **pose evaluation via OKS** | `dataflow-cv evaluate detection ...` |
 | 💻 **CLI + API** | Click-based CLI with rich `--help`; Python API for pipelines | `from dataflow.convert import ...` |
 | 🤖 **AI Skills** | Claude Code skill (`/dataflow:dataflow-cv`) for AI assistants — CLI/API reference & known gotchas | `claude plugin install dataflow@claude-skills` |
 
@@ -58,9 +58,9 @@ Input data must follow each format's native layout — dataflow-cv detects the f
 
 | Format | What you pass | Expected layout |
 |--------|---------------|-----------------|
-| **YOLO** | `labels/` directory (+ `images/` directory) | One `.txt` per image: `labels/000001.txt` next to `images/000001.jpg` — the label file **must share the image's file name**. Detection lines are `class_id cx cy w h`; segmentation lines are `class_id x1 y1 x2 y2 …` (normalized [0,1] coordinates). |
-| **LabelMe** | a directory of `.json` files | One `.json` per image (`shapes` with `label` + `points`). |
-| **COCO** | a single `.json` file | One file containing `images`, `annotations`, `categories` arrays. |
+| **YOLO** | `labels/` directory (+ `images/` directory) | One `.txt` per image: `labels/000001.txt` next to `images/000001.jpg` — the label file **must share the image's file name**. Detection lines are `class_id cx cy w h`; segmentation lines are `class_id x1 y1 x2 y2 …`; pose lines are `class_id cx cy w h px1 py1 pv1 …` (5+3k tokens, k fixed per dataset — all coordinates normalized [0,1], `pv` ∈ {0,1,2} visibility). |
+| **LabelMe** | a directory of `.json` files | One `.json` per image (`shapes` with `label` + `points`). Pose convention: one `point` shape per keypoint (label = keypoint name) + a `rectangle` (class + bbox) sharing a `group_id`. |
+| **COCO** | a single `.json` file | One file containing `images`, `annotations`, `categories` arrays. Pose datasets carry `annotations[].keypoints` + `num_keypoints` and `categories[].keypoints`/`skeleton`. |
 
 `classes.txt` is the **class name mapping** used by YOLO-related commands. It is just one class name per line — the line number is the class id (0-indexed):
 
@@ -75,6 +75,21 @@ car
 - Also used by `analyse stats -c` for display names and strict category validation
 
 > 💡 Converting a COCO dataset first? Run `coco2yolo` once — it writes a ready-to-use `classes.txt`.
+
+> 🦴 **Pose datasets** use a **keypoint-definition YAML** for names/skeleton metadata (`kpts.yaml`):
+>
+> ```yaml
+> keypoints:           # or per-class "classes:" (X-AnyLabeling style)
+>   - nose
+>   - left_eye
+>   # ...
+> skeleton:            # optional: edge pairs as indices into the name list
+>   - [0, 1]
+> sigmas:              # optional: per-keypoint OKS sigmas (evaluate keypoints)
+>   - 0.026
+> ```
+>
+> Pass it with `--kpts-config` (convert / visualize / analyse) or `--save-kpts-config` to export one from a COCO dataset.
 
 #### 🔍 Dataset Analysis
 
@@ -112,6 +127,10 @@ dataflow-cv analyse sample -l yolo_labels/ -i images/ output/ -n 5 --seed 42
 # Sort by count descending (default: class ID ascending)
 dataflow-cv analyse stats --sort-by count --descending yolo_labels/
 
+# Pose: keypoint statistics (per-keypoint labeling rates; required for
+# YOLO pose sources — it also enables pose-row parsing)
+dataflow-cv analyse stats --kpts-config kpts.yaml yolo_pose_labels/
+
 # Verbose logging
 dataflow-cv analyse stats --verbose yolo_labels/ --class-file classes.txt
 ```
@@ -147,6 +166,14 @@ dataflow-cv convert coco2yolo --save-crowd input.json yolo_labels/
 # YOLO predictions → COCO (output: plain JSON list — prediction format)
 dataflow-cv convert yolo2coco --prediction images/ yolo_preds/ classes.txt pred.json
 
+# Pose: add --pose to any of the six directions
+dataflow-cv convert coco2yolo --pose coco_pose.json yolo_pose_labels/
+dataflow-cv convert yolo2coco --pose --kpts-config kpts.yaml images/ yolo_pose_labels/ classes.txt pose.json
+dataflow-cv convert coco2yolo --pose --save-kpts-config kpts.yaml coco_pose.json yolo_pose_labels/   # export the definition YAML
+
+# Pose predictions (yolo2coco --prediction --pose → keypoints + score)
+dataflow-cv convert yolo2coco --prediction --pose images/ yolo_pose_preds/ classes.txt pred.json
+
 # Options
 dataflow-cv convert yolo2coco --verbose images/ labels/ classes.txt output.json
 dataflow-cv convert yolo2coco --no-strict images/ labels/ classes.txt output.json
@@ -170,6 +197,10 @@ dataflow-cv visualize labelme images/ labelme_json/ --save visualized/
 # Visualize COCO annotations
 dataflow-cv visualize coco images/ coco_annotations.json --save visualized/
 
+# Pose: keypoints + skeleton rendering (v=2 filled green, v=1 hollow orange)
+dataflow-cv visualize yolo --pose --kpts-config kpts.yaml images/ yolo_pose_labels/ classes.txt --save visualized/
+dataflow-cv visualize coco images/ coco_pose.json --save visualized/   # skeleton from COCO categories
+
 # Verbose logging + headless mode
 dataflow-cv visualize yolo --verbose --no-display images/ yolo_labels/ classes.txt --save visualized/
 ```
@@ -181,7 +212,7 @@ dataflow-cv visualize yolo --verbose --no-display images/ yolo_labels/ classes.t
 
 #### 📊 Evaluation
 
-Evaluate object detection and instance segmentation models with COCO-standard metrics. Two COCO-format JSON files are required:
+Evaluate object detection, instance segmentation, and pose estimation models with COCO-standard metrics. Two COCO-format JSON files are required:
 
 | File | Role | Format | How to create |
 |------|------|--------|---------------|
@@ -213,6 +244,11 @@ dataflow-cv evaluate detection --prf1 --prf1-iou 0.75 --prf1-method micro anno.j
 dataflow-cv evaluate segmentation anno.json pred.json
 dataflow-cv evaluate segmentation --verbose anno.json pred.json
 
+# Pose estimation (OKS) — sigmas from the definition YAML, else COCO
+# 17-keypoint defaults (uniform 0.05 + warning for other k)
+dataflow-cv evaluate keypoints --kpts-config kpts.yaml anno_pose.json pred_pose.json
+dataflow-cv evaluate keypoints --prf1 anno_pose.json pred_pose.json   # OKS-based P/R/F1
+
 # Save results as JSON
 dataflow-cv evaluate detection --output results.json anno.json pred.json
 
@@ -223,14 +259,15 @@ dataflow-cv evaluate detection --prf1 --output prf1_results.json anno.json pred.
 dataflow-cv evaluate detection --verbose --log-dir logs/eval/ anno.json pred.json
 ```
 
-##### ③ Detection vs Segmentation
+##### ③ Detection vs Segmentation vs Pose
 
-Two evaluation modes, distinguished by how overlap is measured:
+Three evaluation modes, distinguished by how overlap is measured:
 
 - **Object Detection** — bounding box IoU. GT and DT require `bbox`; DT additionally requires `score`.
 - **Instance Segmentation** — mask IoU. GT and DT require `bbox`, `segmentation` (polygon or RLE), and `area`; DT additionally requires `score`.
+- **Pose Estimation** — OKS (Object Keypoint Similarity). GT and DT require `keypoints` (flat `[x, y, v, ...]` triplets) and `area`; DT additionally requires `score`. Per-keypoint sigmas resolve via `--kpts-config`, the COCO 17-keypoint official values, or a uniform fallback.
 
-`yolo2coco` (label mode) and `yolo2coco --prediction` (prediction mode) automatically populate all required fields for both modes — no manual editing needed.
+`yolo2coco` (label mode) and `yolo2coco --prediction` (prediction mode) automatically populate all required fields for all three modes — no manual editing needed.
 
 #### 🔄 End-to-End Workflow
 
@@ -386,6 +423,14 @@ print(f"Micro F1: {prf1.overall.f1_score:.3f}")
 # Segmentation P/R/F1 (mask IoU)
 prf1 = compute_pr_f1("anno_segm.json", "pred_segm.json", iou_type="segm")
 print(f"Segm F1: {prf1.overall.f1_score:.3f}")
+
+# Pose: OKS evaluation + OKS-based P/R/F1 (threshold = OKS threshold)
+from dataflow.evaluate import KeypointEvaluator
+kpt_eval = KeypointEvaluator(log_config=LogConfig(name="eval", verbose=True))
+result = kpt_eval.evaluate("anno_pose.json", "pred_pose.json")
+print(f"AP: {result.metrics.ap:.3f}")
+prf1 = compute_pr_f1("anno_pose.json", "pred_pose.json", iou_type="keypoints")
+print(f"OKS F1: {prf1.overall.f1_score:.3f}")
 ```
 
 > 📂 See the `samples/` directory for complete examples: `samples/analyse/` (statistics & split), `samples/convert/` (6 conversion directions), `samples/visualize/` (YOLO, LabelMe, COCO), `samples/evaluate/` (detection & segmentation), `samples/cli/` (CLI workflows).
@@ -394,8 +439,8 @@ print(f"Segm F1: {prf1.overall.f1_score:.3f}")
 
 We maintain a dedicated Claude Code skill for dataflow-cv — `/dataflow:dataflow-cv` — so LLMs and AI agents can operate its CLI and Python API correctly in any project. The skill covers:
 
-- **CLI command tree and task mapping**: 16 subcommands across analyse / convert / visualize / evaluate
-- **Python API reference**: handlers, analysers, converters, visualizers, evaluators
+- **CLI command tree and task mapping**: 17 subcommands across analyse / convert / visualize / evaluate
+- **Python API reference**: handlers (incl. pose `Keypoints`), analysers, converters, visualizers, evaluators
 - **Canonical example commands** and **known gotchas** (coordinate semantics, prediction formats, RLE encoding, …)
 
 Install once per machine:
@@ -427,6 +472,7 @@ Once installed, AI assistants load the skill on demand when working on dataset c
 - **Keyboard Shortcuts** (visualization): `←` / `↑` for previous, `→` / `↓` / `Enter` / `Space` for next, `s` to save snapshot, `h` to show hints, `q` / `ESC` to exit. First/last-image boundaries are no-ops. Title bar shows `[N/T]` position.
 - **Evaluation**: `--prf1` computes P/R/F1 only (single-threshold, per-class TP/FP/FN) — skips the full COCOeval mAP pipeline for speed. Supports macro/micro averaging and bbox/mask IoU. Run without `--prf1` for standard COCO mAP. For both metrics, run twice.
 - **Prediction Files**: YOLO predictions use 6 tokens (detection) or even tokens (segmentation) vs 5/odd for labels. Use `--prediction` with `yolo2coco` — outputs a plain JSON list of annotation dicts compatible with pycocotools `loadRes()`.
+- **Pose (Keypoints)**: Pose rows are explicit (`--pose`) — token counts can collide with segmentation rows, so auto-detection is unsafe. Keypoint visibility is `v ∈ {0,1,2}`: 0 = not labeled (stored at 0,0), 1 = labeled but occluded, 2 = labeled and visible. COCO `num_keypoints` is recomputed on write; the keypoint-definition YAML carries names/skeleton/sigmas.
 
 ---
 
@@ -436,7 +482,7 @@ For detailed developer guidance including advanced test commands, debugging, and
 
 ### 🧪 Testing
 
-**656 tests, 81% code coverage (5645 statements).**
+**755 tests, 81% code coverage (6784 statements).**
 
 ```bash
 pytest                                    # All tests
@@ -450,12 +496,12 @@ pytest tests/evaluate/test_evaluator.py     # Single module
 
 | Module | Coverage | Highlights |
 |--------|:--------:|------------|
-| `dataflow/label/` | 72% | models (86%), base (84%), utils (83%), coco_handler (73%), labelme_handler (71%), yolo_handler (63%) |
-| `dataflow/analyse/` | 85% | base (99%), log_templates (93%), sample (88%), split (88%), stats (83%), utils (84%), partition (79%), filter (76%) |
-| `dataflow/convert/` | 87% | labelme_and_yolo (93%), yolo_and_coco (89%), utils (88%), coco_and_labelme (88%), base (86%), log_templates (85%), rle (80%) |
-| `dataflow/visualize/` | 83% | yolo_vis (100%), labelme_vis (100%), coco_vis (93%), base (78%) |
-| `dataflow/evaluate/` | 92% | evaluator (100%), result (99%), metrics (89%), base (92%), utils (89%) |
-| `dataflow/cli/` | 75% | main (96%), utils (88%), visualize cmd (87%), evaluate cmd (83%), analyse cmd (70%), convert cmd (52%) |
+| `dataflow/label/` | 73% | models (88%), utils (86%), base (84%), coco_handler (75%), labelme_handler (73%), yolo_handler (64%) |
+| `dataflow/analyse/` | 85% | base (99%), log_templates (94%), sample (88%), split (88%), stats (86%), utils (84%), partition (79%), filter (76%) |
+| `dataflow/convert/` | 86% | base (88%), labelme_and_yolo (87%), yolo_and_coco (87%), coco_and_labelme (86%), utils (86%), log_templates (85%), rle (80%) |
+| `dataflow/visualize/` | 82% | yolo_vis (100%), coco_vis (91%), labelme_vis (90%), base (79%) |
+| `dataflow/evaluate/` | 91% | log_templates (100%), result (100%), evaluator (98%), base (92%), utils (89%), metrics (87%) |
+| `dataflow/cli/` | 72% | main (96%), utils (88%), visualize cmd (87%), analyse cmd (71%), evaluate cmd (66%), convert cmd (64%) |
 | `dataflow/util/` | 100% | logging (100%) |
 
 </details>
@@ -492,7 +538,7 @@ dataflow/
 ├── evaluate/        # pycocotools-based metrics, log templates
 ├── util/            # Unified logging (LogManager + format helpers)
 └── cli/             # CLI entry point, commands, validation
-tests/               # Unit & integration tests (656 tests, conftest fixtures)
+tests/               # Unit & integration tests (755 tests, conftest fixtures)
 samples/             # Python API usage examples (analyse, convert, visualize, evaluate, cli)
 assets/              # Test data (det/seg by format)
 specs/               # Canonical specifications (evaluate/ + formats/ + modules/)
