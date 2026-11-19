@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-11-19
+
 ### Added
 
 - **Pose conversion across all six directions**: `--pose` converts keypoints (visibility passthrough), `--kpts-config` supplies names/skeleton, `--save-kpts-config` exports a definition-YAML sidecar from COCO categories; without `--pose` keypoints are dropped with a warning (replacing the v3.3.0 hard error), and `yolo2coco --prediction --pose` writes `keypoints`+`score`.
