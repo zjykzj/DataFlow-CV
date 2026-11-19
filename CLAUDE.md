@@ -228,12 +228,13 @@ Source Format → Handler.iter_images() → ImageAnnotation → _convert_single_
 
 - `DatasetAnnotations`: Top-level container (images list, categories dict, `format` field, dataset_info). `format` defines coordinate semantics.
 - `ImageAnnotation`: Per-image data (width, height, objects list, image_path, image_id)
-- `ObjectAnnotation`: Single annotation (class_id, class_name, optional `BoundingBox` and `Segmentation`, is_crowd flag)
+- `ObjectAnnotation`: Single annotation (class_id, class_name, optional `BoundingBox` / `Segmentation` / `Keypoints`, is_crowd flag; at least one of the three must be set)
 - `BoundingBox`: Coordinates in **format-native** representation. See `DatasetAnnotations.format`:
   - `YOLO`: `(x, y)` = center, `(width, height)` = normalized [0,1]
   - `LABELME`: `(x, y)` = top-left, `(width, height)` = absolute pixels
   - `COCO`: `(x, y)` = top-left, `(width, height)` = absolute pixels
 - `Segmentation`: Polygon points in native coordinates (normalized for YOLO, absolute pixels for LabelMe/COCO)
+- `Keypoints`: Pose keypoints — `points` (native coords, same semantics as Segmentation) + parallel `visibility` list (0 = not labeled, 1 = labeled but not visible, 2 = labeled and visible). `count_labeled()` (v > 0) is the source of COCO `num_keypoints`. Readers normalize v=0 coordinates to (0, 0).
 
 ### Annotation Handlers (`dataflow/label/`)
 
@@ -242,9 +243,9 @@ Source Format → Handler.iter_images() → ImageAnnotation → _convert_single_
   - `iter_images()`: Streaming iterator — yields `ImageAnnotation` one at a time. Used by Visualize, Convert (streaming path). Lower memory, faster first-image latency.
   - `write()`: Batch write — writes entire `DatasetAnnotations` to target format (e.g., COCO JSON).
   - `write_one()`: Single-image write — writes one `ImageAnnotation` to target format. Used by Convert streaming path for per-file output (YOLO `.txt`, LabelMe `.json`). COCO handler raises `NotImplementedError` (always batch).
-- `YoloHandler(label_dir, class_file, image_dir, **kwargs)`: Reads/writes `.txt` files (one per image). Supports detection (`class_id x y w h`) and segmentation (`class_id x1 y1 x2 y2 ...`).
-- `LabelMeHandler(label_dir, class_file=None, **kwargs)`: Reads/writes per-image `.json` files.
-- `CocoHandler(annotation_file, do_rle=False, prediction=False, **kwargs)`: Reads/writes a single COCO JSON file. Supports polygon and RLE segmentation; multi-segment polygons and all RLE contours are merged into one outline at read time (see gotcha #45). `write_one()` raises `NotImplementedError` — COCO is always batch output. When `prediction=True`, `write()` outputs a plain JSON list of annotation dicts (prediction format, Variant B per `spec_coco_format.md` §9.1) instead of a full COCO dict.
+- `YoloHandler(label_dir, class_file, image_dir, pose=False, **kwargs)`: Reads/writes `.txt` files (one per image). Supports detection (`class_id x y w h`), segmentation (`class_id x1 y1 x2 y2 ...`), and pose (`class_id cx cy w h px1 py1 pv1 ...`, 5+3k tokens) — pose mode is explicit (see gotcha #47), k inferred from the first row and fixed per dataset.
+- `LabelMeHandler(label_dir, class_file=None, kpts_config=None, **kwargs)`: Reads/writes per-image `.json` files. Pose convention: `point` shapes (keypoint-name labels) + a `rectangle` (class + bbox) sharing a `group_id` per instance (see gotcha #49); `kpts_config` (YAML) provides keypoint-name ordering.
+- `CocoHandler(annotation_file, do_rle=False, prediction=False, **kwargs)`: Reads/writes a single COCO JSON file. Supports polygon and RLE segmentation; multi-segment polygons and all RLE contours are merged into one outline at read time (see gotcha #45). Reads/writes the `keypoints` field and recomputes `num_keypoints` on write; category `keypoints`/`skeleton` metadata round-trips via `dataset_info["categories_meta"]` (see gotcha #50). `write_one()` raises `NotImplementedError` — COCO is always batch output. When `prediction=True`, `write()` outputs a plain JSON list of annotation dicts (prediction format, Variant B per `spec_coco_format.md` §9.1) instead of a full COCO dict.
 
 ### Converters (`dataflow/convert/`)
 
@@ -364,10 +365,12 @@ Evaluation of object detection and instance segmentation results, wrapping pycoc
 
 YOLO prediction files (model output) differ from YOLO label files (ground truth):
 
-| Format | Detection | Segmentation | Token Count |
-|--------|-----------|-------------|-------------|
-| **Label** (GT) | `class_id cx cy w h` | `class_id x1 y1 ... xn yn` | Odd (>0) |
-| **Prediction** (DT) | `class_id cx cy w h confidence` | `class_id x1 y1 ... xn yn confidence` | Even (>0) |
+| Format | Detection | Segmentation | Pose (Keypoints) | Token Count |
+|--------|-----------|-------------|------------------|-------------|
+| **Label** (GT) | `class_id cx cy w h` | `class_id x1 y1 ... xn yn` | `class_id cx cy w h px1 py1 pv1 ...` (5+3k) | Odd (>0) / 5+3k |
+| **Prediction** (DT) | `class_id cx cy w h confidence` | `class_id x1 y1 ... xn yn confidence` | `class_id cx cy w h px1 py1 pv1 ... confidence` (6+3k) | Even (>0) / 6+3k |
+
+Pose mode is explicit (`pose=True` / `--pose`) — token-count auto-detection is ambiguous (see gotcha #47).
 
 Use `yolo2coco --prediction` to convert prediction files. **Output format**: plain JSON list of annotation dicts (Variant B per `spec_coco_format.md` §9.1) — each entry contains `image_id`, `category_id`, `bbox`, `area`, `score`, and optionally `segmentation`. The list format matches standard model inference output (Detectron2, MMDetection) and is loaded by pycocotools' `loadRes()`. For segmentation predictions, polygon format is used by default (pycocotools handles polygon→RLE internally during evaluation).
 
@@ -526,6 +529,13 @@ Test data lives in `assets/test_data/`, organized by format (det/seg) and annota
 15. **[!] COCO→per-file outputs are named by `file_name` stem, not COCO `id`**: `coco2yolo` / `coco2labelme` rewrite `image_id` to the basename stem of the COCO `file_name` via `coco_file_name_to_image_id()` (leading zeros preserved, backslashes normalized, subdirectories flattened, empty `file_name` falls back to the numeric id). `stream_convert()` warns on renames and duplicate output stems. The COCO handler itself still exposes `image_id` as the numeric id string — `evaluate/utils.py` `_dataset_to_coco_dict()` and the COCO write path depend on that, so never change the handler's image_id semantics. `image_path` keeps the full relative `file_name` (not flattened).
 46. **[!] COCO→YOLO / COCO→LabelMe skip `iscrowd=1` by default**: crowd annotations are filtered in `_convert_single_image()` (converter layer, not the handler — evaluation and visualization keep their crowd semantics). `save_crowd=True` (CLI: `--save-crowd`) writes them as ordinary rows/shapes, and each skipped image logs one WARNING with the count. Converted-object counts exclude skipped crowds. Contract: `spec_conversion.md` §7.1.
 
+### [!] Pose & Keypoints
+
+47. **[!] YOLO pose mode is explicit — never auto-detect by token count**: A pose row has 5+3k (label) / 6+3k (prediction) tokens; whenever 3k is even these collide with segmentation row lengths (11 tokens = 2-keypoint pose OR 3-point segmentation; a 17-keypoint row silently parses as a 29-point segmentation). `pose=True` (handler param, CLI `--pose` in P3) selects the interpretation. Within a dataset k is fixed — the first valid row sets it, mismatches are errors (strict) / skipped with WARNING (non-strict). Contracts: `spec_yolo_format.md` §2.3 / `spec_label.md` §4.1.
+48. **[!] Converters reject keypoint data until v3.4.0 (D8 guard)**: `BaseConverter._check_pose_guard()` raises "Pose (keypoints) conversion is not yet supported; coming in v3.4.0" in BOTH pipelines and BOTH strict modes — silent loss of an unconverted field is never acceptable. Remove the guard (and the `spec_convert.md` §2.1.3 section) when P3 lands.
+49. **[!] LabelMe pose requires a rectangle per group**: One pose instance = `point` shapes (keypoint-name labels) + one `rectangle` (class + bbox) sharing a `group_id`. The rectangle is **required** — keypoint labels carry no class information, so a point group without one is a parse error. A `point` without a `group_id` is a parse error (unchanged). Point labels never enter `categories` (they are keypoint names, not classes). Contract: `spec_labelme_format.md` §3.4/§3.5.
+50. **[!] COCO pose metadata round-trips via `categories_meta`**: Category `keypoints` (names) / `skeleton` (edges) are stored in `dataset_info["categories_meta"]` on read and merged back into `categories` on write (`_prepare_coco_data` excludes the key from the extras passthrough). Source `num_keypoints` is **ignored on read** — recomputed via `Keypoints.count_labeled()` on write. kpts YAML configs (superset of X-AnyLabeling `yolov8_pose.yaml`: `keypoints` global list, per-class `classes`, optional `skeleton`/`sigmas`) load via `load_kpts_config()` in `label/utils.py`. Contracts: `spec_label.md` §4.2/§4.4.
+
 ### [*] COCO & Evaluation
 16. **DT predictions require `score`**: COCO prediction JSON must include `"score"` in every annotation. Missing scores cause errors in strict mode.
 17. **DT predictions require `area`**: pycocotools `COCOeval` requires `area` on both GT and DT. Populate as `bbox.width * bbox.height`.
@@ -545,7 +555,7 @@ Test data lives in `assets/test_data/`, organized by format (det/seg) and annota
 28. **YOLO prediction format**: 6 tokens for detection, even tokens for segmentation, vs 5/odd for labels. Use `--prediction` with `yolo2coco`. Mixed label/prediction files not supported.
 29. **YOLO confidence validation rejects NaN**: `YoloAnnotationHandler` uses `math.isfinite()` alongside `[0, 1]` range check. `float('nan')` passes a range-only check silently — the `isfinite()` guard catches NaN, Inf, and -Inf.
 30. **YOLO class_id may be float-formatted**: Some tooling writes ``5.000000`` instead of ``5``. `YoloAnnotationHandler._parse_class_id()` handles this, but code parsing YOLO `.txt` directly must also handle it. Use `parse_yolo_class_id()` from `dataflow/label/utils.py` — `int(token)` on float strings raises `ValueError`.
-31. **[!] YOLO write row priority — segmentation wins over bbox**: In `_object_to_yolo_line()`, the segmentation branch must be checked **first**. COCO annotations always carry a `bbox` field, so bbox-first ordering silently drops polygon/RLE segmentation from COCO→YOLO conversions (writes 5-token rows). Empty `Segmentation.points` falls back to the bbox row. Contract: `spec_label.md` §4.1.
+31. **[!] YOLO write row priority — pose wins over segmentation, which wins over bbox**: In `_object_to_yolo_line()`, the keypoints branch (pose mode) must be checked **first**, then segmentation, then bbox. COCO annotations always carry a `bbox` field, so bbox-first ordering silently drops polygon/RLE segmentation and pose keypoints from COCO→YOLO conversions (writes 5-token rows). Empty `Segmentation.points` falls back to the bbox row. In pose mode, segmentation is dropped with a WARNING (pose rows cannot carry it); in det/seg mode, objects with keypoints are skipped with a WARNING. Contract: `spec_label.md` §4.1.
 
 ### [*] Logging
 

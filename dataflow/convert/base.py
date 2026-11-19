@@ -164,6 +164,23 @@ class BaseConverter(ABC):
         """
         pass
 
+    def _check_pose_guard(self, image_ann) -> None:
+        """Reject keypoint data — pose conversion is not yet supported.
+
+        Applies in both strict and non-strict modes: silent loss of an
+        unconverted field is never acceptable (contract:
+        ``spec_convert.md`` §2.1.3). Removed when pose conversion ships
+        (v3.4.0).
+
+        Raises:
+            ValueError: If any object in *image_ann* carries keypoints.
+        """
+        if any(obj.keypoints is not None for obj in image_ann.objects):
+            raise ValueError(
+                "Pose (keypoints) conversion is not yet supported; coming in v3.4.0. "
+                "Remove pose data or wait for the pose release."
+            )
+
     def stream_convert(self, source_path: str, target_path: str, **kwargs) -> ConversionResult:
         """Convert annotations using streaming (per-image) pipeline.
 
@@ -241,6 +258,8 @@ class BaseConverter(ABC):
             self._log_info("Converting images...")
 
             for image_ann in source_handler.iter_images():
+                # Pose data guard (temporary, spec_convert.md §2.1.3)
+                self._check_pose_guard(image_ann)
                 target_ann = self._convert_single_image(image_ann, **kwargs)
 
                 # Output-name notices: COCO-source converters rewrite
@@ -414,6 +433,10 @@ class BaseConverter(ABC):
             )
             if self._log_manager.log_path is not None:
                 self.logger.debug(f"Category count: {len(annotations.categories)}")
+
+            # Pose data guard (temporary, spec_convert.md §2.1.3)
+            for img in annotations.images:
+                self._check_pose_guard(img)
 
             converted_annotations = self.convert_annotations(annotations, kwargs)
 

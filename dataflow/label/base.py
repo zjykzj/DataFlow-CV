@@ -62,6 +62,7 @@ class BaseAnnotationHandler(ABC):
         self.logger = logger or logging.getLogger(__name__)
         self.is_det = False  # Whether annotations are for object detection
         self.is_seg = False  # Whether annotations are for instance segmentation
+        self.is_pose = False  # Whether annotations contain keypoints (pose estimation)
         self.is_rle = False  # Whether annotations use RLE format (COCO specific)
 
     @abstractmethod
@@ -176,21 +177,33 @@ class BaseAnnotationHandler(ABC):
         has_segmentation = any(
             obj.segmentation is not None for img in annotations.images for obj in img.objects
         )
+        has_keypoints = any(
+            obj.keypoints is not None for img in annotations.images for obj in img.objects
+        )
 
         self.is_det = has_detection
         self.is_seg = has_segmentation
+        self.is_pose = has_keypoints
 
         # Log detection results
-        if self.is_det and self.is_seg:
+        if self.is_det and self.is_seg and self.is_pose:
+            self._log_info("Detected mixed annotation types: detection + segmentation + keypoints")
+        elif self.is_det and self.is_seg:
             self._log_info(
                 "Detected mixed annotation types: object detection + instance segmentation"
             )
+        elif self.is_det and self.is_pose:
+            self._log_info("Detected mixed annotation types: object detection + keypoints")
+        elif self.is_seg and self.is_pose:
+            self._log_info("Detected mixed annotation types: segmentation + keypoints")
         elif self.is_det:
             self._log_info("Detected object detection annotations")
         elif self.is_seg:
             self._log_info("Detected instance segmentation annotations")
+        elif self.is_pose:
+            self._log_info("Detected keypoint (pose) annotations")
         else:
-            self._log_warning("No valid annotations detected (no bbox or segmentation)")
+            self._log_warning("No valid annotations detected (no bbox, segmentation, or keypoints)")
 
     def _validate_image_dimensions(self, width: int, height: int) -> bool:
         """Validate image dimensions are positive integers.
@@ -499,5 +512,33 @@ class BaseAnnotationHandler(ABC):
         if len(points) < 3:
             self._log_error(f"Segmentation polygon needs at least 3 points, got {len(points)}")
             return False
+
+        return True
+
+    def _validate_keypoints(
+        self,
+        keypoints,
+        format: AnnotationFormat = AnnotationFormat.YOLO,
+    ) -> bool:
+        """Validate keypoint annotation based on format.
+
+        The ``Keypoints`` dataclass already enforces structural invariants
+        (non-empty, points/visibility length match, v ∈ {0,1,2}) in its
+        ``__post_init__``; this method validates the coordinate values in
+        the format-native range.
+        """
+        if keypoints is None:
+            return True
+
+        if format == AnnotationFormat.YOLO:
+            validator = self._validate_normalized_coordinate
+        else:
+            validator = self._validate_absolute_coordinate
+
+        for i, (x, y) in enumerate(keypoints.points):
+            if not validator(x, f"keypoint[{i}].x"):
+                return False
+            if not validator(y, f"keypoint[{i}].y"):
+                return False
 
         return True

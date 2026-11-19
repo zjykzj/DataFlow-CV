@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Pose (keypoint) support in the Label layer**: new `Keypoints` data model, YOLO pose rows (explicit `pose` mode, 5+3k tokens), LabelMe point+group_id convention with a keypoint-definition YAML, and COCO `keypoints`/`num_keypoints`/skeleton read-write across all three handlers; converters reject keypoint data explicitly until pose conversion ships in v3.4.0.
+
 ### Changed
 
 - **DeepWiki badge replaced with a static shields.io badge**: DeepWiki serves `badge.svg` from Vercel behind a bot-protection challenge, so GitHub's image proxy gets HTTP 429 and renders the badge broken; both READMEs now use a shields.io badge (soft violet) with the wiki link unchanged.

@@ -1,6 +1,6 @@
 # LabelMe Annotation Format Specification
 
-> **Version:** v1.1 | **Last Updated:** 2026-07-30
+> **Version:** v1.2 | **Last Updated:** 2026-11-19
 > **Status:** Canonical — this document defines the authoritative LabelMe format contract for DataFlow-CV.
 
 ## 1. File Organization
@@ -64,7 +64,7 @@ Each shape object represents one annotation:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `label` | string | **Yes** | Class/category name |
-| `shape_type` | string | **Yes** | `"rectangle"` or `"polygon"` |
+| `shape_type` | string | **Yes** | `"rectangle"`, `"polygon"`, or `"point"` (pose keypoint, §3.4) |
 | `points` | [[float, float], ...] | **Yes** | List of `[x, y]` coordinate pairs in absolute pixels |
 | `group_id` | int\|null | No | Group identifier for related shapes (nullable) |
 | `flags` | object | No | Shape-level flags (typically empty `{}`) |
@@ -94,7 +94,35 @@ height = abs(y2 - y1)
 The following LabelMe shape types are **not supported** by DataFlow-CV and will cause a parse error:
 - `circle`
 - `line`
-- `point`
+- `point` **without** a `group_id` (a point shape with a non-null `group_id` is a pose keypoint — see §3.4)
+
+### 3.4 Point Shape (Pose Keypoint)
+
+- `shape_type`: `"point"`
+- `points`: Exactly **1 point** — `[[x, y]]`
+- `group_id`: **Required** (non-null) — groups the keypoints of one pose instance
+- `label`: The **keypoint name** (e.g., `"nose"`, `"left_eye"`) — not the class name
+
+This is the de-facto ecosystem convention (official labelme2coco workflow, X-AnyLabeling:
+"group_id 用于关联同一组内的多个对象 (e.g., pose keypoints)"). LabelMe has no native
+keypoint shape type; keypoint annotation is performed as per-keypoint point shapes.
+
+### 3.5 Pose Instance Convention
+
+One pose instance = all point shapes sharing a `group_id`, plus optionally one `rectangle`
+shape with the same `group_id`:
+
+| Element | Shape | Role |
+|---------|-------|------|
+| Class + bbox | `rectangle` (same `group_id`) | `label` = class name; provides the instance bbox. **Required** — keypoint labels carry no class information, so a point group without a rectangle is invalid |
+| Keypoints | `point` shapes (same `group_id`) | `label` = keypoint name, `points` = one `[x, y]` pair |
+| Visibility | Implicit | A point shape present = labeled and visible (v=2); a keypoint absent from the file = not labeled (v=0). v=1 (labeled but occluded) is **not representable** — LabelMe has no visibility field |
+
+**Keypoint ordering**: DataFlow-CV orders keypoints by the keypoint-definition file
+(`kpts_config`, see `spec_label.md` §4.4): each instance produces exactly `k = len(names)`
+keypoints, with absent names becoming v=0 (0, 0) entries. Without a definition file, count
+and order follow the shapes' appearance order in the JSON file (with a WARNING that
+ordering is file-order-based).
 
 ## 4. Coordinate System
 
@@ -113,6 +141,7 @@ All LabelMe coordinates are in **absolute pixels** with the origin at the **top-
 | Coordinate space | Absolute pixels | Normalized [0,1] | Absolute pixels |
 | Bbox origin | Two corners (agnostic) | Center | Top-left |
 | Polygon format | `[[x,y], ...]` | Flattened on one line | `[[x1,y1,x2,y2,...], ...]` |
+| Keypoints | `point` shapes + `group_id` | `5+3k` tokens flattened | `[x1,y1,v1,...]` triplets |
 
 ## 5. Category Management
 
@@ -137,8 +166,10 @@ A valid LabelMe JSON file must satisfy:
 2. Each shape in `shapes` has non-empty `label`, valid `shape_type`, and `points`
 3. Rectangle shapes have exactly 2 points
 4. Polygon shapes have at least 3 points
-5. `imageHeight` > 0 and `imageWidth` > 0 (if present)
-6. `imagePath` points to an existing image file (warning if not found, but processing continues). **Exception**: When the JSON file contains valid `imageHeight` and `imageWidth` fields, the image file itself is not required — its absence in this case produces no warning, as dimensions are read directly from the JSON.
+5. Point shapes have exactly 1 point and a non-null `group_id`
+6. Pose instances: every point group has at least 1 labeled point; a group's rectangle (if present) carries the class label
+7. `imageHeight` > 0 and `imageWidth` > 0 (if present)
+8. `imagePath` points to an existing image file (warning if not found, but processing continues). **Exception**: When the JSON file contains valid `imageHeight` and `imageWidth` fields, the image file itself is not required — its absence in this case produces no warning, as dimensions are read directly from the JSON.
 
 ## 7. Reference Example
 
@@ -166,6 +197,34 @@ A valid LabelMe JSON file must satisfy:
       "points": [[100, 200], [150, 180], [200, 220], [180, 280], [120, 270]],
       "group_id": null,
       "shape_type": "polygon",
+      "flags": {}
+    },
+    {
+      "label": "person",
+      "points": [[300, 150], [360, 380]],
+      "group_id": 1,
+      "shape_type": "rectangle",
+      "flags": {}
+    },
+    {
+      "label": "nose",
+      "points": [[320, 200]],
+      "group_id": 1,
+      "shape_type": "point",
+      "flags": {}
+    },
+    {
+      "label": "left_eye",
+      "points": [[310, 190]],
+      "group_id": 1,
+      "shape_type": "point",
+      "flags": {}
+    },
+    {
+      "label": "right_eye",
+      "points": [[330, 190]],
+      "group_id": 1,
+      "shape_type": "point",
       "flags": {}
     }
   ],

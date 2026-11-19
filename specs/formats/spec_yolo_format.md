@@ -1,6 +1,6 @@
 # YOLO Annotation Format Specification
 
-> **Version:** v1.1 | **Last Updated:** 2026-07-30
+> **Version:** v1.2 | **Last Updated:** 2026-11-19
 > **Status:** Canonical — this document defines the authoritative YOLO format contract for DataFlow-CV.
 
 ## 1. File Organization
@@ -109,6 +109,22 @@ Format detection is **mode-sensitive**. The same token count has different meani
 | 9 | Segmentation label (4 points) | **Invalid** |
 | 10 | **Invalid** | Segmentation prediction (4 points) |
 
+#### Pose Mode (`pose=True`)
+
+| Token Count | Pose Label Mode | Pose Prediction Mode |
+|------------|-----------------|----------------------|
+| `5 + 3k` (k ≥ 1) | Pose label (k keypoints) | **Invalid** |
+| `6 + 3k` (k ≥ 1) | **Invalid** | Pose prediction (k keypoints) |
+| Any other | **Invalid** | **Invalid** |
+
+**Pose mode is explicit, never auto-detected.** A pose row has `5 + 3k` tokens (label) or
+`6 + 3k` (prediction); when 3k is even these lengths **collide** with segmentation rows —
+e.g., 11 tokens is both a 2-keypoint pose label row and a 3-point segmentation label row,
+and a 17-keypoint row (56 tokens) silently parses as a 29-point segmentation row. The
+`pose` flag (handler parameter / CLI `--pose`) selects the interpretation; within one
+dataset k is fixed — the first valid row sets k, rows with a different k are invalid
+(strict: error; non-strict: skip with warning).
+
 ### 2.4 Prediction Format
 
 When reading YOLO files in **prediction mode** (`prediction=True`), each line contains an additional trailing `confidence` token beyond the standard label format.
@@ -158,6 +174,28 @@ All coordinate tokens except the last are identical to the segmentation label fo
 
 Empty lines (whitespace-only) are ignored during parsing. An empty file indicates an image with no objects.
 
+### 2.6 Keypoints (Pose)
+
+Each pose row carries a detection-style bbox **plus** k keypoint triplets (coordinate
+pair + visibility flag):
+
+```
+<class_id> <x_center> <y_center> <width> <height> <px1> <py1> <pv1> <px2> <py2> <pv2> ... <pxk> <pyk> <pvk>
+```
+
+| Token | Type | Range | Description |
+|-------|------|-------|-------------|
+| `class_id` | int | 0..N-1 | Zero-based class index |
+| `x_center`, `y_center`, `width`, `height` | float | [0, 1] | Bbox, same semantics as §2.1 |
+| `px, py` | float | [0, 1] | Normalized keypoint coordinates |
+| `pv` | int | {0, 1, 2} | Visibility: 0 = not labeled (px=py=0), 1 = labeled but not visible, 2 = labeled and visible |
+
+**Constraints**:
+- k ≥ 1 and fixed per dataset (see §2.3 Pose Mode)
+- `pv` ∈ {0, 1, 2}; a point with `pv == 0` is conventionally written as `0 0 0`
+- Pose prediction rows append a `confidence` token after the last `pv` (§2.4 rules apply)
+- The row carries no segmentation — segmentation cannot be represented in a pose row
+
 ## 3. Coordinate System
 
 ### 3.1 Normalization
@@ -191,6 +229,9 @@ A valid YOLO annotation line must satisfy ALL of the following:
 3. For detection: exactly 5 tokens
 4. For segmentation: odd number of tokens, at least 7 (class_id + 3 point pairs)
 5. Polygon has at least 3 vertices
+6. For pose (label): `5 + 3k` tokens for the dataset's fixed k ≥ 1
+7. For pose (prediction): `6 + 3k` tokens for the dataset's fixed k ≥ 1
+8. Pose visibility values are integers in {0, 1, 2}
 
 ### 3.4 Common Misinterpretations
 
@@ -232,3 +273,16 @@ car
 ```
 
 This defines a 5-vertex polygon (10 coordinate values + class_id = 11 tokens).
+
+### Keypoints (Pose)
+
+```
+# For an 800×600 image — 3-keypoint pose (k=3): 5 + 3×3 = 14 tokens
+0 0.500000 0.375000 0.200000 0.300000 0.480000 0.350000 2 0.520000 0.340000 2 0.000000 0.000000 0
+```
+
+**Verification**:
+- Bbox: center=(400, 225), size=(160×180) — same as the detection example
+- Keypoint 0: (384, 210), v=2 (labeled and visible)
+- Keypoint 1: (416, 204), v=2 (labeled and visible)
+- Keypoint 2: (0, 0), v=0 (not labeled)

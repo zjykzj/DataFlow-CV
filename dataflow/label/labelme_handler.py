@@ -18,16 +18,23 @@ from .models import (
     BoundingBox,
     DatasetAnnotations,
     ImageAnnotation,
+    Keypoints,
     ObjectAnnotation,
     Segmentation,
 )
+from .utils import load_kpts_config
 
 
 class LabelMeAnnotationHandler(BaseAnnotationHandler):
     """Handler for LabelMe JSON annotation format."""
 
     def __init__(
-        self, label_dir: str, class_file: Optional[str] = None, recursive: bool = False, **kwargs
+        self,
+        label_dir: str,
+        class_file: Optional[str] = None,
+        kpts_config: Optional[str] = None,
+        recursive: bool = False,
+        **kwargs,
     ):
         """
         Initialize LabelMe handler.
@@ -35,6 +42,10 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
         Args:
             label_dir: Directory containing LabelMe JSON files
             class_file: Optional file containing class names (one per line)
+            kpts_config: Optional path to a keypoint-definition YAML
+                (per-class name lists + optional skeleton/sigmas — see
+                spec_label.md §4.4). Provides semantic keypoint ordering
+                for pose read/write.
             recursive: If True, use ``rglob`` for file discovery,
                 traversing subdirectories recursively.  Default False.
             **kwargs: Additional arguments for BaseAnnotationHandler
@@ -42,7 +53,17 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
         super().__init__(**kwargs)
         self.label_dir = Path(label_dir)
         self.class_file = Path(class_file) if class_file else None
+        self.kpts_config = None
+        if kpts_config:
+            try:
+                self.kpts_config = load_kpts_config(Path(kpts_config))
+                self._log_info(f"Loaded keypoint definition from {kpts_config}")
+            except (ValueError, ImportError) as e:
+                self._log_error(f"Failed to load keypoint definition: {e}")
         self.recursive = recursive
+        # One-shot WARNINGs per read/write pass (avoids per-instance noise)
+        self._kpts_order_warned = False
+        self._kpts_names_warned = False
         self.categories = self._load_categories()
 
     def _list_json_files(self) -> List[Path]:
@@ -78,6 +99,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
 
         try:
             json_files = self._list_json_files()
+            self._kpts_order_warned = False
             if not json_files:
                 result.add_error(f"No JSON files found in {self.label_dir}")
                 return result
@@ -160,6 +182,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
             raise ValueError(f"Label directory does not exist: {self.label_dir}")
 
         json_files = self._list_json_files()
+        self._kpts_order_warned = False
         if not json_files:
             raise ValueError(f"No JSON files found in {self.label_dir}")
 
@@ -177,6 +200,11 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 except (OSError, json.JSONDecodeError):
                     continue  # the per-file read reports the real error
                 for shape in data.get("shapes", []):
+                    # Point shapes with a group_id are pose keypoints — their
+                    # labels are keypoint names, not class names, and must not
+                    # pollute the category list (contract: spec_label.md §4.3).
+                    if shape.get("shape_type") == "point" and shape.get("group_id") is not None:
+                        continue
                     label = shape.get("label")
                     if label and label not in self.categories.values():
                         self.categories[len(self.categories)] = label
@@ -268,7 +296,26 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
 
             # Process shapes
             objects: List[ObjectAnnotation] = []
+
+            # Split shapes: point shapes with a non-null group_id form pose
+            # instances (contract: spec_label.md §4.3 / spec_labelme_format.md
+            # §3.5); rectangles sharing a pose group_id belong to that
+            # instance. Everything else is parsed shape-by-shape as before.
+            pose_groups: Dict[Any, List[Dict]] = {}
             for shape in data["shapes"]:
+                if shape.get("shape_type") == "point" and shape.get("group_id") is not None:
+                    pose_groups.setdefault(shape["group_id"], []).append(shape)
+
+            normal_shapes = [
+                shape
+                for shape in data["shapes"]
+                if not (shape.get("shape_type") == "point" and shape.get("group_id") is not None)
+                and not (
+                    shape.get("shape_type") == "rectangle" and shape.get("group_id") in pose_groups
+                )
+            ]
+
+            for shape in normal_shapes:
                 obj_result = self._parse_shape(shape, image_width, image_height)
                 if obj_result.success:
                     obj_data = obj_result.data
@@ -284,6 +331,29 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 else:
                     self._log_warning(
                         f"Skipping invalid shape in {json_file}: {obj_result.message}"
+                    )
+
+            # Parse pose instances (one ObjectAnnotation per point group)
+            for group_id, group_shapes in pose_groups.items():
+                obj_result = self._parse_pose_group(
+                    group_shapes, data["shapes"], image_width, image_height
+                )
+                if obj_result.success:
+                    obj_data = obj_result.data
+                    if obj_data is None or not isinstance(obj_data, ObjectAnnotation):
+                        result.add_error(f"Internal error: invalid pose group data in {json_file}")
+                        return result
+                    objects.append(obj_data)
+                elif self.strict_mode:
+                    result.add_error(
+                        f"Failed to parse pose group {group_id} in {json_file}: "
+                        f"{obj_result.message}"
+                    )
+                    return result
+                else:
+                    self._log_warning(
+                        f"Skipping invalid pose group {group_id} in {json_file}: "
+                        f"{obj_result.message}"
                     )
 
             # Create image annotation
@@ -394,6 +464,141 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
 
         return result
 
+    def _parse_pose_group(
+        self,
+        group_shapes: List[Dict],
+        all_shapes: List[Dict],
+        img_width: int,
+        img_height: int,
+    ) -> AnnotationResult:
+        """Parse one pose instance from its point shapes + rectangle.
+
+        The instance's class and bbox come from the ``rectangle`` shape
+        sharing the group_id (contract: spec_label.md §4.3).  Keypoints are
+        ordered by the ``kpts_config`` name list (missing names become v=0
+        entries at (0, 0)); without a config, order follows the point
+        shapes' appearance order in the file.
+        """
+        result = AnnotationResult(success=False)
+
+        try:
+            group_id = group_shapes[0].get("group_id")
+
+            rect = None
+            for shape in all_shapes:
+                if shape.get("group_id") == group_id and shape.get("shape_type") == "rectangle":
+                    rect = shape
+                    break
+
+            if rect is None:
+                result.add_error(f"Pose group {group_id} has no rectangle with the same group_id")
+                return result
+
+            # Reuse _parse_shape for the rectangle — it resolves the
+            # category, clamps, and validates the bbox.
+            rect_result = self._parse_shape(rect, img_width, img_height)
+            if not rect_result.success:
+                return rect_result
+            rect_obj = rect_result.data
+            if rect_obj is None or rect_obj.bbox is None:
+                result.add_error(f"Pose group {group_id}: rectangle produced no bbox")
+                return result
+            class_id = rect_obj.class_id
+            class_name = rect_obj.class_name
+            bbox = rect_obj.bbox
+
+            # Collect point shapes by keypoint label
+            by_name: Dict[str, tuple] = {}
+            for shape in group_shapes:
+                kpt_label = str(shape.get("label", "")).strip()
+                if not kpt_label:
+                    result.add_error(f"Pose group {group_id}: point shape missing label")
+                    return result
+                pts = shape.get("points", [])
+                if len(pts) != 1:
+                    if self.strict_mode:
+                        result.add_error(
+                            f"Pose group {group_id}: point shape '{kpt_label}' must "
+                            f"have exactly 1 point, got {len(pts)}"
+                        )
+                        return result
+                    else:
+                        self._log_warning(
+                            f"Skipping point shape '{kpt_label}' in pose group "
+                            f"{group_id}: expected 1 point, got {len(pts)}"
+                        )
+                        continue
+                if kpt_label in by_name:
+                    if self.strict_mode:
+                        result.add_error(
+                            f"Pose group {group_id}: duplicate keypoint label '{kpt_label}'"
+                        )
+                        return result
+                    else:
+                        self._log_warning(
+                            f"Skipping duplicate keypoint label '{kpt_label}' in "
+                            f"pose group {group_id}"
+                        )
+                        continue
+                by_name[kpt_label] = (float(pts[0][0]), float(pts[0][1]))
+
+            if self.kpts_config is not None:
+                try:
+                    names = self.kpts_config.names_for(class_name)
+                except ValueError as e:
+                    result.add_error(f"Pose group {group_id}: {e}")
+                    return result
+                unknown = set(by_name) - set(names)
+                if unknown:
+                    if self.strict_mode:
+                        result.add_error(
+                            f"Pose group {group_id}: keypoint label(s) not in the "
+                            f"definition file: {sorted(unknown)}"
+                        )
+                        return result
+                    else:
+                        self._log_warning(
+                            f"Dropping keypoint label(s) not in the definition file "
+                            f"for pose group {group_id}: {sorted(unknown)}"
+                        )
+                        for name in unknown:
+                            by_name.pop(name)
+                points = [by_name.get(name, (0.0, 0.0)) for name in names]
+                visibility = [2 if name in by_name else 0 for name in names]
+            else:
+                if not self._kpts_order_warned:
+                    self._log_warning(
+                        "No kpts_config provided — keypoint order follows the point "
+                        "shapes' appearance order in the file (no semantic guarantee)"
+                    )
+                    self._kpts_order_warned = True
+                points = list(by_name.values())
+                visibility = [2] * len(points)
+
+            # Clamp to image boundaries (tolerates FP imprecision at edges)
+            points = self._clamp_abs_points(points, img_width, img_height)
+
+            keypoints = Keypoints(points=points, visibility=visibility)
+            if not self._validate_keypoints(keypoints, format=AnnotationFormat.LABELME):
+                result.add_error(f"Pose group {group_id}: invalid keypoint coordinates")
+                return result
+
+            obj = ObjectAnnotation(
+                class_id=class_id,
+                class_name=class_name,
+                bbox=bbox,
+                keypoints=keypoints,
+                confidence=1.0,
+            )
+
+            result.success = True
+            result.data = obj
+
+        except Exception as e:
+            result.add_error(f"Error parsing pose group: {e}")
+
+        return result
+
     def write(self, annotations: DatasetAnnotations, output_dir: str) -> AnnotationResult:
         """Write annotations to LabelMe JSON format."""
         result = AnnotationResult(success=False)
@@ -432,10 +637,16 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
         try:
             # Prepare shapes
             shapes = []
+            self._kpts_names_warned = False
+            next_group_id = 1
             for obj in image_ann.objects:
-                shape = self._object_to_shape(obj)
-                if shape:
-                    shapes.append(shape)
+                group_id = None
+                if obj.keypoints is not None:
+                    group_id = next_group_id
+                    next_group_id += 1
+                obj_shapes = self._object_to_shapes(obj, group_id)
+                if obj_shapes:
+                    shapes.extend(obj_shapes)
                 elif self.strict_mode:
                     result.add_error(f"Failed to convert object {obj.class_name} to LabelMe shape")
                     return result
@@ -469,13 +680,70 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
 
         return result
 
-    def _object_to_shape(self, obj: ObjectAnnotation) -> Optional[Dict]:
-        """Convert ObjectAnnotation to LabelMe shape dict.
+    def _object_to_shapes(
+        self, obj: ObjectAnnotation, group_id: Optional[int] = None
+    ) -> List[Dict]:
+        """Convert ObjectAnnotation to LabelMe shape dicts.
 
         Coordinates are already in native LabelMe format (absolute pixels).
+        A pose object produces one ``rectangle`` shape (bbox) plus one
+        ``point`` shape per labeled keypoint, all sharing *group_id*
+        (contract: spec_label.md §4.3). v=0 keypoints are skipped.
         """
         try:
             label = obj.class_name
+            shapes: List[Dict] = []
+
+            if obj.keypoints:
+                if not obj.bbox:
+                    self._log_warning(
+                        f"Object {label} has keypoints but no bbox — skipping pose write"
+                    )
+                    return []
+                names = None
+                if self.kpts_config is not None:
+                    try:
+                        names = self.kpts_config.names_for(label)
+                    except ValueError:
+                        names = None
+                if names is not None and len(names) != len(obj.keypoints.points):
+                    names = None
+                if names is None:
+                    if not self._kpts_names_warned:
+                        self._log_warning(
+                            "No keypoint names available (missing or mismatched "
+                            "kpts_config) — writing 'keypoint_N' placeholder labels"
+                        )
+                        self._kpts_names_warned = True
+                x1 = obj.bbox.x
+                y1 = obj.bbox.y
+                x2 = obj.bbox.x + obj.bbox.width
+                y2 = obj.bbox.y + obj.bbox.height
+                shapes.append(
+                    {
+                        "label": label,
+                        "points": [[float(x1), float(y1)], [float(x2), float(y2)]],
+                        "group_id": group_id,
+                        "shape_type": "rectangle",
+                        "flags": {},
+                    }
+                )
+                for i, ((x, y), v) in enumerate(
+                    zip(obj.keypoints.points, obj.keypoints.visibility)
+                ):
+                    if v == 0:
+                        continue
+                    kpt_label = names[i] if names is not None else f"keypoint_{i}"
+                    shapes.append(
+                        {
+                            "label": kpt_label,
+                            "points": [[float(x), float(y)]],
+                            "group_id": group_id,
+                            "shape_type": "point",
+                            "flags": {},
+                        }
+                    )
+                return shapes
 
             if obj.bbox:
                 # Bbox is already in absolute pixel, top-left format
@@ -490,20 +758,22 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                 points = [[float(x), float(y)] for x, y in obj.segmentation.points]
                 shape_type = "polygon"
             else:
-                self._log_warning(f"Object {label} has neither bbox nor segmentation")
-                return None
+                self._log_warning(f"Object {label} has neither bbox, segmentation, nor keypoints")
+                return []
 
-            return {
-                "label": label,
-                "points": points,
-                "group_id": None,
-                "shape_type": shape_type,
-                "flags": {},
-            }
+            return [
+                {
+                    "label": label,
+                    "points": points,
+                    "group_id": None,
+                    "shape_type": shape_type,
+                    "flags": {},
+                }
+            ]
 
         except Exception as e:
-            self._log_error(f"Error converting object {obj.class_name} to shape: {e}")
-            return None
+            self._log_error(f"Error converting object {obj.class_name} to shapes: {e}")
+            return []
 
     def validate(self, annotation_file: str) -> bool:
         """Validate a single LabelMe JSON file."""
@@ -546,6 +816,18 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                     if len(points) < 3:
                         self.logger.error(
                             f"Polygon shape must have at least 3 points, got {len(points)} in {annotation_file}"
+                        )
+                        return False
+
+                if shape_type == "point":
+                    if len(points) != 1:
+                        self.logger.error(
+                            f"Point shape must have exactly 1 point, got {len(points)} in {annotation_file}"
+                        )
+                        return False
+                    if shape.get("group_id") is None:
+                        self.logger.error(
+                            f"Point shape requires a non-null group_id in {annotation_file}"
                         )
                         return False
 

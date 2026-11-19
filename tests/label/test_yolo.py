@@ -198,10 +198,11 @@ class TestYoloAnnotationHandler:
 
         # Test detection format (5 items)
         line_items = ["0", "0.5", "0.5", "0.2", "0.2"]
-        is_det, is_seg, has_conf = handler._detect_annotation_type(line_items)
+        is_det, is_seg, has_conf, is_pose = handler._detect_annotation_type(line_items)
         assert is_det is True
         assert is_seg is False
         assert has_conf is False
+        assert is_pose is False
 
     def test_detect_annotation_type_segmentation(self, sample_segmentation_data):
         """Test annotation type detection for instance segmentation."""
@@ -214,10 +215,11 @@ class TestYoloAnnotationHandler:
 
         # Test segmentation format (7 items: class_id + 3 points = 6 coordinates)
         line_items = ["0", "0.1", "0.1", "0.2", "0.1", "0.15", "0.2"]
-        is_det, is_seg, has_conf = handler._detect_annotation_type(line_items)
+        is_det, is_seg, has_conf, is_pose = handler._detect_annotation_type(line_items)
         assert is_det is False
         assert is_seg is True
         assert has_conf is False
+        assert is_pose is False
 
     def test_detect_annotation_type_invalid(self, sample_detection_data):
         """Test annotation type detection for invalid format."""
@@ -249,10 +251,11 @@ class TestYoloAnnotationHandler:
         )
         # 6 items: class_id + 4 coords + confidence
         line_items = ["0", "0.5", "0.5", "0.2", "0.2", "0.85"]
-        is_det, is_seg, has_conf = handler._detect_annotation_type(line_items)
+        is_det, is_seg, has_conf, is_pose = handler._detect_annotation_type(line_items)
         assert is_det is True
         assert is_seg is False
         assert has_conf is True
+        assert is_pose is False
 
     def test_detect_annotation_type_segmentation_prediction(self, sample_segmentation_data):
         """prediction=True: 8-token segmentation → has_conf=True."""
@@ -265,10 +268,11 @@ class TestYoloAnnotationHandler:
         )
         # 8 items: class_id + 6 coords (3 points) + confidence
         line_items = ["0", "0.1", "0.1", "0.2", "0.1", "0.15", "0.2", "0.92"]
-        is_det, is_seg, has_conf = handler._detect_annotation_type(line_items)
+        is_det, is_seg, has_conf, is_pose = handler._detect_annotation_type(line_items)
         assert is_det is False
         assert is_seg is True
         assert has_conf is True
+        assert is_pose is False
 
     # === _parse_class_id unit tests ===
 

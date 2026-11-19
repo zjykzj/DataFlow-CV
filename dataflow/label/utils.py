@@ -263,3 +263,129 @@ def load_classes_file(class_file: Path) -> Dict[int, str]:
 
         logging.getLogger(__name__).error(f"Failed to load classes file {class_file}: {e}")
     return categories
+
+
+class KptsConfig:
+    """Keypoint definition loaded from a YAML config (contract: spec_label.md §4.4).
+
+    The schema is a superset of the ecosystem configs (X-AnyLabeling
+    ``yolov8_pose.yaml``, ultralytics pose YAML) so existing files load
+    unchanged.  Instance creation is validated by :func:`load_kpts_config`.
+    """
+
+    def __init__(
+        self,
+        keypoints: Optional[List[str]],
+        classes: Optional[Dict[str, List[str]]],
+        skeleton: Optional[List[List[int]]],
+        sigmas: Optional[List[float]],
+    ):
+        self.keypoints = keypoints  # Global keypoint name list (default for all classes)
+        self.classes = classes  # Per-class name lists (X-AnyLabeling style overrides)
+        self.skeleton = skeleton  # Edge pairs as indices into the resolved name list
+        self.sigmas = sigmas  # Per-keypoint OKS sigmas (consumed by Evaluate in P4)
+
+    def names_for(self, class_name: str) -> List[str]:
+        """Resolve the ordered keypoint name list for *class_name*.
+
+        Per-class list wins over the global list.  Raises ``ValueError`` if
+        neither defines the class.
+        """
+        if self.classes and class_name in self.classes:
+            return list(self.classes[class_name])
+        if self.keypoints:
+            return list(self.keypoints)
+        raise ValueError(f"No keypoint names defined for class '{class_name}' in the kpts config")
+
+
+def load_kpts_config(config_path: Path) -> KptsConfig:
+    """Load and validate a keypoint-definition YAML file.
+
+    Raises:
+        ImportError: If PyYAML is not installed.
+        ValueError: If the file is missing, invalid YAML, or violates the
+            schema (no ``keypoints``/``classes``, non-unique names,
+            out-of-range skeleton indices, mismatched sigmas length).
+    """
+    try:
+        import yaml  # type: ignore[import-untyped]
+    except ImportError as e:
+        raise ImportError(
+            "PyYAML is required to load keypoint definition files. Install with: pip install PyYAML"
+        ) from e
+
+    if not config_path.exists():
+        raise ValueError(f"Keypoint definition file does not exist: {config_path}")
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        raise ValueError(f"Invalid YAML in {config_path}: {e}")
+
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"Keypoint definition must be a YAML mapping, got {type(data).__name__}: {config_path}"
+        )
+
+    keypoints = data.get("keypoints")
+    classes = data.get("classes")
+    skeleton = data.get("skeleton")
+    sigmas = data.get("sigmas")
+
+    if not keypoints and not classes:
+        raise ValueError(
+            f"Keypoint definition must contain 'keypoints' or 'classes': {config_path}"
+        )
+
+    def _validate_names(names: List[str], section: str) -> List[str]:
+        if not isinstance(names, list) or not names:
+            raise ValueError(f"'{section}' in {config_path} must be a non-empty list")
+        cleaned = []
+        for name in names:
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError(f"'{section}' in {config_path} contains a non-string name")
+            if name in cleaned:
+                raise ValueError(
+                    f"Duplicate keypoint name '{name}' in '{section}' of {config_path}"
+                )
+            cleaned.append(name)
+        return cleaned
+
+    if keypoints is not None:
+        keypoints = _validate_names(keypoints, "keypoints")
+
+    if classes is not None:
+        if not isinstance(classes, dict) or not classes:
+            raise ValueError(f"'classes' in {config_path} must be a non-empty mapping")
+        classes = {name: _validate_names(ns, f"classes.{name}") for name, ns in classes.items()}
+
+    # Skeleton indices and sigmas length are validated against the global
+    # list when present, otherwise the first per-class list.
+    reference = keypoints
+    if reference is None:
+        assert classes is not None  # guaranteed by the keypoints-or-classes gate above
+        reference = next(iter(classes.values()))
+    k = len(reference)
+
+    if skeleton is not None:
+        if not isinstance(skeleton, list):
+            raise ValueError(f"'skeleton' in {config_path} must be a list of [i, j] pairs")
+        for edge in skeleton:
+            if not isinstance(edge, list) or len(edge) != 2:
+                raise ValueError(f"'skeleton' entries in {config_path} must be [i, j] pairs")
+            i, j = edge
+            if not isinstance(i, int) or not isinstance(j, int):
+                raise ValueError(f"'skeleton' indices in {config_path} must be integers")
+            if not (0 <= i < k and 0 <= j < k):
+                raise ValueError(
+                    f"'skeleton' index out of range [0, {k}) in {config_path}: [{i}, {j}]"
+                )
+
+    if sigmas is not None:
+        if not isinstance(sigmas, list) or len(sigmas) != k:
+            raise ValueError(f"'sigmas' in {config_path} must have {k} values (one per keypoint)")
+        if not all(isinstance(s, (int, float)) and s >= 0 for s in sigmas):
+            raise ValueError(f"'sigmas' in {config_path} must be non-negative numbers")
+        sigmas = [float(s) for s in sigmas]
+
+    return KptsConfig(keypoints=keypoints, classes=classes, skeleton=skeleton, sigmas=sigmas)

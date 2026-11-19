@@ -62,24 +62,60 @@ class Segmentation:
 
 
 @dataclass
+class Keypoints:
+    """Keypoint annotation for pose estimation.
+
+    Coordinate semantics depend on the parent DatasetAnnotations.format:
+
+    - format=YOLO:    points are (x, y) normalized [0, 1]
+    - format=COCO:    points are (x, y) in absolute pixels
+    - format=LABELME: points are (x, y) in absolute pixels
+
+    ``visibility`` is parallel to ``points``: 0 = not labeled, 1 = labeled
+    but not visible (occluded), 2 = labeled and visible.  A keypoint with
+    v=0 is conventionally stored at (0, 0) — readers normalize v=0
+    coordinates to (0, 0) silently (COCO/YOLO ecosystem convention).
+    """
+
+    points: List[Tuple[float, float]]  # Keypoint coordinates in native coords
+    visibility: List[int]  # Visibility flag per keypoint, parallel to points
+
+    def __post_init__(self):
+        if not self.points:
+            raise ValueError("Keypoints must have at least 1 point")
+        if len(self.points) != len(self.visibility):
+            raise ValueError(
+                f"points/visibility length mismatch: {len(self.points)} != {len(self.visibility)}"
+            )
+        for i, v in enumerate(self.visibility):
+            if not isinstance(v, int) or v not in (0, 1, 2):
+                raise ValueError(f"visibility[{i}] must be 0, 1, or 2, got {v!r}")
+
+    def count_labeled(self) -> int:
+        """Number of labeled keypoints (v > 0) — the source of COCO num_keypoints."""
+        return sum(1 for v in self.visibility if v > 0)
+
+
+@dataclass
 class ObjectAnnotation:
     """Annotation for a single object.
 
-    All coordinate fields (bbox, segmentation) use the coordinate semantics
-    of the parent DatasetAnnotations.format.
+    All coordinate fields (bbox, segmentation, keypoints) use the coordinate
+    semantics of the parent DatasetAnnotations.format.
     """
 
     class_id: int  # Class ID
     class_name: str  # Class name
     bbox: Optional[BoundingBox] = None  # Bounding box (object detection)
     segmentation: Optional[Segmentation] = None  # Segmentation polygon (instance segmentation)
+    keypoints: Optional[Keypoints] = None  # Keypoints (pose estimation)
     confidence: float = 1.0  # Confidence score
     is_crowd: bool = False  # Whether this is a crowd annotation (COCO specific)
 
     def __post_init__(self):
-        # Validate that at least one of bbox or segmentation is provided
-        if self.bbox is None and self.segmentation is None:
-            raise ValueError("At least one of bbox or segmentation must be provided")
+        # Validate that at least one of bbox / segmentation / keypoints is provided
+        if self.bbox is None and self.segmentation is None and self.keypoints is None:
+            raise ValueError("At least one of bbox, segmentation, or keypoints must be provided")
 
 
 @dataclass

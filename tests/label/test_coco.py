@@ -648,7 +648,7 @@ class TestCocoAnnotationHandler:
         # Create object without bbox or segmentation (should be invalid)
         # This should raise ValueError in ObjectAnnotation.__post_init__
         with pytest.raises(
-            ValueError, match="At least one of bbox or segmentation must be provided"
+            ValueError, match="At least one of bbox, segmentation, or keypoints must be provided"
         ):
             ObjectAnnotation(class_id=1, class_name="person", bbox=None, segmentation=None)
 

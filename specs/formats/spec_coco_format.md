@@ -1,6 +1,6 @@
 # COCO Annotation Format Specification
 
-> **Version:** v1.2 | **Last Updated:** 2026-11-16
+> **Version:** v1.3 | **Last Updated:** 2026-11-19
 > **Status:** Canonical — this document defines the authoritative COCO format contract for DataFlow-CV.
 
 ## 1. File Organization
@@ -66,6 +66,8 @@ Each annotation object:
 | `category_id` | int | **Yes** | References `categories[].id` |
 | `bbox` | [float×4] | **Recommended** | `[x, y, width, height]` in absolute pixels. If absent but ``segmentation`` is present, the code derives the bbox from the polygon extent automatically. |
 | `segmentation` | list or dict | No | Polygon `[[x1,y1,...], ...]` or RLE `{"size":[h,w],"counts":"..."}` |
+| `keypoints` | [float×3k] | No | Pose keypoints `[x1, y1, v1, x2, y2, v2, ...]` in absolute pixels (see §4.5) |
+| `num_keypoints` | int | Conditional | Number of labeled keypoints (v > 0). Required when `keypoints` is non-empty. |
 | `area` | float | **Yes** | Area in square pixels |
 | `iscrowd` | int | **Yes** | 0 = single instance, 1 = crowd region |
 
@@ -127,6 +129,25 @@ Crowd annotations (`iscrowd=1`) are always written with RLE segmentation.
 - For bbox: `area = width * height`
 - For segmentation without bbox: estimated from polygon bounding box
 
+### 4.5 `keypoints` Field
+
+A flat list of k triplets, one per keypoint:
+
+```json
+"keypoints": [x1, y1, v1, x2, y2, v2, ..., xk, yk, vk]
+```
+
+| Element | Type | Range | Description |
+|---------|------|-------|-------------|
+| `x, y` | float | ≥ 0 (absolute pixels) | Keypoint coordinates |
+| `v` | int | {0, 1, 2} | 0 = not labeled (x=y=0 by convention), 1 = labeled but not visible, 2 = labeled and visible |
+
+**Constraints:**
+- The array length is `3k` for the dataset's keypoint count k (defined per category — see §5)
+- `num_keypoints` = count of v > 0; DataFlow-CV **recomputes** this on write (`count_labeled()`) rather than trusting the source value
+- An empty `keypoints` list marks an object without pose annotation
+- v=0 triplets are conventionally `0, 0, 0`
+
 ## 5. `categories` Array (Required)
 
 Each category object:
@@ -136,6 +157,8 @@ Each category object:
 | `id` | int | **Yes** | Category identifier (arbitrary integer, not necessarily zero-based or contiguous) |
 | `name` | string | **Yes** | Category name |
 | `supercategory` | string | No | Parent category name |
+| `keypoints` | [string×k] | No | Keypoint names, in triplet order (pose categories only) |
+| `skeleton` | [[int, int]...] | No | Skeleton edges as index pairs into `keypoints` (pose categories only) |
 
 **Critical distinction from YOLO**: COCO `category_id` is an **arbitrary integer** — it does NOT need to be zero-based or contiguous. For example, the COCO dataset uses IDs like 1, 2, 3, ... rather than 0, 1, 2.
 
@@ -217,6 +240,8 @@ A valid COCO JSON file must satisfy:
 7. Bbox `[x, y, w, h]` has `w > 0` and `h > 0`
 8. Polygon segmentation has at least 3 vertices (6 values)
 9. RLE segmentation has `size` (2-element list) and `counts` (string)
+10. `keypoints` (when present and non-empty) has a length divisible by 3, visibility values in {0, 1, 2}, and a `num_keypoints` field equal to the count of v > 0
+11. Category `skeleton` indices reference valid positions in the category's `keypoints` array
 
 ## 9. Prediction JSON (vs Annotation JSON)
 
@@ -305,6 +330,13 @@ For segmentation predictions, **polygon format is recommended** over RLE:
 - pycocotools `COCOeval` internally converts polygon → RLE during evaluation via `annToRLE()`. Pre-converting to RLE in the prediction file provides no evaluation benefit.
 - Polygon is **lossless** (preserves original vertex coordinates). RLE involves rasterization loss during polygon→mask conversion.
 - The `--do-rle` flag remains available for users who prioritize smaller file size over precision.
+
+### 9.5 Keypoint Predictions
+
+Pose predictions carry the `keypoints` field alongside `score` (and typically `bbox` +
+`area`). pycocotools evaluates them via OKS (`iouType='keypoints'`) with **no
+pre-conversion needed** — the same principle as segmentation predictions (§9.4): write
+triplets directly, let `COCOeval` handle the metric.
 
 ## 10. Reference Example
 

@@ -30,6 +30,7 @@ from .models import (
     BoundingBox,
     DatasetAnnotations,
     ImageAnnotation,
+    Keypoints,
     ObjectAnnotation,
     Segmentation,
 )
@@ -42,6 +43,7 @@ __all__ = [
     "ImageAnnotation",
     "ObjectAnnotation",
     "BoundingBox",
+    "Keypoints",
     "Segmentation",
     "AnnotationFormat",
     "YoloAnnotationHandler",

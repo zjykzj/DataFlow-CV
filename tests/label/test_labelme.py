@@ -362,8 +362,9 @@ class TestLabelMeAnnotationHandler:
             bbox=BoundingBox(x=40, y=40, width=20, height=20),
         )
 
-        shape = handler._object_to_shape(obj)
-        assert shape is not None
+        shapes = handler._object_to_shapes(obj)
+        assert len(shapes) == 1
+        shape = shapes[0]
         assert shape["label"] == "car"
         assert shape["shape_type"] == "rectangle"
         assert len(shape["points"]) == 2
@@ -382,8 +383,9 @@ class TestLabelMeAnnotationHandler:
             segmentation=Segmentation(points=[(10, 20), (30, 40), (50, 60)]),
         )
 
-        shape = handler._object_to_shape(obj)
-        assert shape is not None
+        shapes = handler._object_to_shapes(obj)
+        assert len(shapes) == 1
+        shape = shapes[0]
         assert shape["label"] == "person"
         assert shape["shape_type"] == "polygon"
         assert len(shape["points"]) == 3
@@ -404,8 +406,8 @@ class TestLabelMeAnnotationHandler:
         # Remove bbox and segmentation to test edge case
         obj.bbox = None
 
-        shape = handler._object_to_shape(obj)
-        assert shape is None
+        shapes = handler._object_to_shapes(obj)
+        assert shapes == []
 
 
 class TestIterImagesCategoriesUpfront:

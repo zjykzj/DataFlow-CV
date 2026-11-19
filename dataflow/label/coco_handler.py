@@ -31,6 +31,7 @@ from .models import (
     BoundingBox,
     DatasetAnnotations,
     ImageAnnotation,
+    Keypoints,
     ObjectAnnotation,
     Segmentation,
 )
@@ -63,6 +64,8 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         super().__init__(**kwargs)
         self.annotation_file = Path(annotation_file)
         self.categories = {}
+        # category_id -> {"keypoints": [...], "skeleton": [...]}
+        self.categories_meta: Dict[int, Dict] = {}
         self.images = {}
         self.annotations = []
         self.dataset_info = {}
@@ -109,6 +112,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
             # Load categories
             self.categories = self._load_categories(coco_data["categories"])
+            self.categories_meta = self._load_categories_meta(coco_data["categories"])
 
             # Load images
             self.images = self._load_images(coco_data["images"])
@@ -176,6 +180,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
         # Load metadata
         self.categories = self._load_categories(coco_data["categories"])
+        self.categories_meta = self._load_categories_meta(coco_data["categories"])
         if not self.categories:
             raise ValueError(f"No categories found in {self.annotation_file}")
 
@@ -231,6 +236,26 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             if cat_id is not None:
                 categories[cat_id] = cat_name
         return categories
+
+    def _load_categories_meta(self, coco_categories: List[Dict]) -> Dict[int, Dict]:
+        """Extract pose metadata (keypoint names + skeleton) per category.
+
+        Preserved in ``dataset_info["categories_meta"]`` so a read→write
+        round-trip retains them (contract: spec_label.md §4.2).
+        """
+        meta = {}
+        for cat in coco_categories:
+            cat_id = cat.get("id")
+            if cat_id is None:
+                continue
+            entry = {}
+            if cat.get("keypoints"):
+                entry["keypoints"] = cat["keypoints"]
+            if cat.get("skeleton"):
+                entry["skeleton"] = cat["skeleton"]
+            if entry:
+                meta[cat_id] = entry
+        return meta
 
     def _load_images(self, coco_images: List[Dict]) -> Dict[int, Dict]:
         """Load image information from COCO images list."""
@@ -309,6 +334,8 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
         dataset = DatasetAnnotations(format=AnnotationFormat.COCO)
         dataset.categories = self.categories.copy()
         dataset.dataset_info = self.dataset_info.copy()
+        if self.categories_meta:
+            dataset.dataset_info["categories_meta"] = self.categories_meta
 
         for img_id, img_info in self.images.items():
             if img_info["width"] <= 0 or img_info["height"] <= 0:
@@ -427,6 +454,49 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                                 f"Invalid polygon segmentation in annotation {ann.get('id')}"
                             )
 
+                # Parse keypoints (pose) — flat [x1, y1, v1, ...] triplets in
+                # absolute pixels. The source num_keypoints is ignored on
+                # read; it is recomputed via count_labeled() at write time
+                # (contract: spec_label.md §4.2).
+                keypoints = None
+                if ann.get("keypoints"):
+                    try:
+                        kpt_data = ann["keypoints"]
+                        if len(kpt_data) % 3 != 0:
+                            self._log_warning(
+                                f"Invalid keypoints length {len(kpt_data)} in annotation "
+                                f"{ann.get('id')}, skipping keypoints"
+                            )
+                        else:
+                            visibility: List[int] = []
+                            for i in range(2, len(kpt_data), 3):
+                                v_val = kpt_data[i]
+                                if (
+                                    isinstance(v_val, bool)
+                                    or not isinstance(v_val, (int, float))
+                                    or float(v_val) != int(v_val)
+                                    or v_val < 0
+                                    or v_val > 2
+                                ):
+                                    raise ValueError(f"invalid visibility value {v_val!r}")
+                                visibility.append(int(v_val))
+                            raw_points = [
+                                (float(kpt_data[i]), float(kpt_data[i + 1]))
+                                for i in range(0, len(kpt_data), 3)
+                            ]
+                            points = self._clamp_abs_points(raw_points, img_width, img_height)
+                            # v=0 keypoints are conventionally stored at (0, 0)
+                            points = [
+                                (0.0, 0.0) if v == 0 else p for v, p in zip(visibility, points)
+                            ]
+                            keypoints = Keypoints(points=points, visibility=visibility)
+                    except (ValueError, KeyError, TypeError) as e:
+                        self._log_warning(
+                            f"Invalid keypoints in annotation {ann.get('id')}: {e}, "
+                            f"skipping keypoints"
+                        )
+                        keypoints = None
+
                 # Parse confidence/score (prediction JSONs include "score" field)
                 confidence = ann.get("score", 1.0)
 
@@ -436,6 +506,7 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                     class_name=class_name,
                     bbox=bbox,
                     segmentation=segmentation,
+                    keypoints=keypoints,
                     confidence=confidence,
                     is_crowd=is_crowd,
                 )
@@ -649,14 +720,22 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
 
         # Prepare categories from annotations.categories
         categories = []
+        categories_meta = annotations.dataset_info.get("categories_meta", {})
         # Check if dataset_info has original category data with extra fields
         original_cats = annotations.dataset_info.get("categories")
         if original_cats:
-            categories = original_cats.copy()
+            categories = [dict(c) for c in original_cats]
             self._log_debug(f"Using dataset_info categories: {len(categories)} categories")
         else:
             for cat_id, cat_name in annotations.categories.items():
                 categories.append({"id": cat_id, "name": cat_name, "supercategory": "none"})
+
+        # Reattach pose metadata (keypoint names + skeleton) to categories
+        # (contract: spec_label.md §4.2)
+        for cat in categories:
+            meta = categories_meta.get(cat.get("id"))
+            if meta:
+                cat.update(meta)
 
         # Prepare images and annotations
         images = []
@@ -712,9 +791,11 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             "categories": categories,
         }
 
-        # Include any additional dataset_info fields (licenses, etc.)
+        # Include any additional dataset_info fields (licenses, etc.).
+        # categories_meta is excluded — it has been merged into the
+        # categories list above.
         for k, v in annotations.dataset_info.items():
-            if k not in ["info", "images", "annotations", "categories"]:
+            if k not in ["info", "images", "annotations", "categories", "categories_meta"]:
                 result[k] = v
 
         return result
@@ -732,6 +813,17 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
             # Determine segmentation format
             segmentation = None
             iscrowd = 1 if obj.is_crowd else 0
+
+            # Pose objects without a bbox: bbox/area are derived below from
+            # the labeled keypoint extent (COCO requires bbox/area on every
+            # annotation, spec_coco_format.md §4). At least one labeled
+            # keypoint is required for that derivation.
+            if obj.keypoints and obj.bbox is None and obj.segmentation is None:
+                if obj.keypoints.count_labeled() == 0:
+                    self._log_warning(
+                        f"Object {obj.class_name} has no labeled keypoints and no bbox — skipping"
+                    )
+                    return None
 
             if obj.segmentation:
                 seg = obj.segmentation
@@ -792,11 +884,13 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                             segmentation = []
                             iscrowd = 0
 
-            elif obj.bbox:
+            elif obj.bbox or obj.keypoints:
                 segmentation = []
                 iscrowd = 0
             else:
-                self._log_warning(f"Object {obj.class_name} has neither bbox nor segmentation")
+                self._log_warning(
+                    f"Object {obj.class_name} has neither bbox, segmentation, nor keypoints"
+                )
                 return None
 
             # Convert bbox to COCO format: [x, y, width, height] in absolute pixels
@@ -838,6 +932,21 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                         self._log_warning(
                             f"Failed to derive bbox/area from RLE: {e}, falling back to empty bbox"
                         )
+            elif obj.keypoints:
+                # Derive bbox/area from the labeled keypoint extent (the
+                # early gate above guarantees at least one labeled point).
+                labeled = [
+                    (x, y)
+                    for (x, y), v in zip(obj.keypoints.points, obj.keypoints.visibility)
+                    if v > 0
+                ]
+                xs = [p[0] for p in labeled]
+                ys = [p[1] for p in labeled]
+                min_x, min_y = min(xs), min(ys)
+                w = max(xs) - min_x
+                h = max(ys) - min_y
+                bbox = [float(min_x), float(min_y), float(w), float(h)]
+                area = float(w * h)
 
             ann_dict = {
                 "image_id": resolved_img_id,
@@ -847,6 +956,16 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                 "bbox": bbox,
                 "iscrowd": iscrowd,
             }
+
+            # Keypoints: flat [x1, y1, v1, ...] triplets plus the recomputed
+            # num_keypoints (contract: spec_label.md §4.2)
+            if obj.keypoints:
+                kpt_flat: List[float] = []
+                for (x, y), v in zip(obj.keypoints.points, obj.keypoints.visibility):
+                    kpt_flat.extend([float(x), float(y), int(v)])
+                ann_dict["keypoints"] = kpt_flat
+                ann_dict["num_keypoints"] = obj.keypoints.count_labeled()
+
             if not self.prediction:
                 ann_dict["id"] = ann_id
 
@@ -946,6 +1065,35 @@ class CocoAnnotationHandler(BaseAnnotationHandler):
                                     f"Polygon segmentation has fewer than 3 vertices ({len(polygon)} values) in annotation {ann.get('id')}"
                                 )
                                 return False
+
+                if "keypoints" in ann and ann["keypoints"]:
+                    kpt = ann["keypoints"]
+                    if len(kpt) % 3 != 0:
+                        self.logger.error(
+                            f"Keypoints length must be divisible by 3 in annotation {ann.get('id')}"
+                        )
+                        return False
+                    for i in range(2, len(kpt), 3):
+                        v = kpt[i]
+                        if (
+                            isinstance(v, bool)
+                            or not isinstance(v, (int, float))
+                            or float(v) != int(v)
+                            or v < 0
+                            or v > 2
+                        ):
+                            self.logger.error(
+                                f"Invalid keypoint visibility {v!r} in annotation {ann.get('id')}"
+                            )
+                            return False
+                    labeled = sum(1 for i in range(2, len(kpt), 3) if kpt[i] > 0)
+                    num = ann.get("num_keypoints")
+                    if num is None or num != labeled:
+                        self.logger.error(
+                            f"num_keypoints ({num}) must equal the count of v>0 ({labeled}) "
+                            f"in annotation {ann.get('id')}"
+                        )
+                        return False
 
             return True
 

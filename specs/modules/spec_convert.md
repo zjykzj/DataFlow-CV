@@ -1,6 +1,6 @@
 # Convert Module Specification
 
-> **Version:** v7.0 | **Last Updated:** 2026-11-17
+> **Version:** v7.1 | **Last Updated:** 2026-11-19
 > **Status:** Draft — unified logging via `LogManager`
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
@@ -93,6 +93,22 @@ validate_inputs()
 - For COCO target (single JSON), use the batch pipeline; streaming is not applicable
 - Categories must be extractable upfront (via `handler.categories` or source metadata)
   before iteration begins, so the target handler can be configured correctly
+
+#### 2.1.3 Pose Data Guard (Temporary — removed when pose conversion ships, v3.4.0)
+
+Until pose conversion is implemented, all six converters **reject keypoint data
+explicitly** — silent loss of an unconverted field is never acceptable:
+
+- **Batch pipeline**: after `handler.read()`, if any object carries `keypoints`
+  (see `spec_label.md` §2.6), `convert()` raises `ValueError` with a message naming
+  the pose-supporting version ("pose conversion is not yet supported; coming in v3.4.0").
+- **Streaming pipeline**: `_convert_single_image()` raises the same error when an image
+  contains keypoints.
+- The guard applies in **both strict and non-strict modes** — it is a capability
+  boundary, not a data-quality issue.
+- Detection/segmentation-only datasets are unaffected; the guard triggers only on
+  keypoint data.
+- Removal: this subsection is deleted when P3 (v3.4.0) implements pose conversion.
 
 ### 2.2 `BaseConverter` Abstract Class
 

@@ -1,6 +1,6 @@
 # Label Module Specification
 
-> **Version:** v5.0 | **Last Updated:** 2026-11-17
+> **Version:** v5.1 | **Last Updated:** 2026-11-19
 > **Status:** Draft — logger receives from caller's LogManager via `logger=` parameter
 > **Layer:** Modules
 > **Dependencies:** None (foundation module; logging via stdlib `logging.Logger` only)
@@ -104,11 +104,12 @@ Single annotation instance:
 | `class_name` | str | **Yes** | Category name |
 | `bbox` | Optional[BoundingBox] | No | Detection bounding box (native coords) |
 | `segmentation` | Optional[Segmentation] | No | Instance segmentation polygon (native coords) |
+| `keypoints` | Optional[Keypoints] | No | Pose keypoint annotation (native coords) |
 | `confidence` | float | No | Detection confidence (default 1.0) |
 | `is_crowd` | bool | No | COCO crowd flag (default False) |
 
 **Invariants:**
-- At least one of `bbox` or `segmentation` must be non-None (validated in `__post_init__`)
+- At least one of `bbox`, `segmentation`, or `keypoints` must be non-None (validated in `__post_init__`)
 
 ### 2.4 `BoundingBox`
 
@@ -158,7 +159,34 @@ format=LABELME:    points are (x, y) absolute pixels
 **No conversion methods.** Use converters from the Convert module for coordinate
 transformations.
 
-### 2.6 `AnnotationFormat` Enum
+### 2.6 `Keypoints`
+
+Pose keypoint annotation **in native format coordinates**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `points` | List[Tuple[float, float]] | Keypoint coordinates in native coords (parallel to `visibility`) |
+| `visibility` | List[int] | Visibility flag per keypoint: 0 = not labeled, 1 = labeled but not visible (occluded), 2 = labeled and visible |
+
+```
+format=YOLO:       points are (x, y) normalized [0,1]
+format=COCO:       points are (x, y) absolute pixels (from flat [x1,y1,v1,...] triplets)
+format=LABELME:    points are (x, y) absolute pixels (from point shapes)
+```
+
+**Invariants:**
+- `len(visibility) == len(points)` and `len(points) >= 1` (validated in `__post_init__`)
+- Every visibility value ∈ {0, 1, 2}
+- **Unlabeled convention**: a keypoint with v=0 is conventionally stored at (0, 0) —
+  readers normalize v=0 coordinates to (0, 0) silently (COCO/YOLO ecosystem convention)
+
+**Key methods:**
+- `count_labeled() -> int` — number of keypoints with v > 0 (the source of COCO `num_keypoints`)
+
+**No conversion methods.** Use converters from the Convert module for coordinate
+transformations.
+
+### 2.7 `AnnotationFormat` Enum
 
 ```python
 class AnnotationFormat(Enum):
@@ -268,6 +296,7 @@ def iter_images(self) -> Iterator[ImageAnnotation]:
 | `_validate_image_dimensions(w, h)` | Checks > 0 (format-independent) |
 | `_validate_bbox(bbox, format)` | Format-aware bbox validation |
 | `_validate_segmentation_points(points, format)` | Format-aware polygon validation |
+| `_validate_keypoints(keypoints, format)` | Format-aware keypoint validation (visibility values, points/visibility length match) |
 | `_set_annotation_flags(dataset)` | Sets `is_det`/`is_seg` flags based on data |
 | `_validate_image_id_for_path(image_id)` | Validates image_id is safe for file path construction — rejects empty strings, null bytes, and path traversal characters (``/``, ``\``, ``..``). Called by `write_one()` methods as defense-in-depth. |
 
@@ -349,9 +378,11 @@ After reading, the handler sets introspection flags:
 |------|---------|
 | `is_det` | Dataset contains detection (bbox) annotations |
 | `is_seg` | Dataset contains segmentation (polygon/RLE) annotations |
+| `is_pose` | Dataset contains keypoint (pose) annotations |
 | `is_rle` | Dataset contains RLE-encoded segmentation (COCO specific) |
 
-Both `is_det` and `is_seg` can be `True` simultaneously (mixed dataset).
+All three of `is_det`/`is_seg`/`is_pose` can be `True` simultaneously (COCO
+person_keypoints carries bbox + segmentation + keypoints on one annotation).
 
 ## 4. Concrete Handlers
 
@@ -365,6 +396,7 @@ Both `is_det` and `is_seg` can be `True` simultaneously (mixed dataset).
 | `class_file` | Yes | Path to `classes.txt` |
 | `image_dir` | Conditional | Directory containing image files. Required in strict mode. In non-strict mode, missing directory or missing images are tolerated — labels are still parsed with placeholder dimensions (1, 1). |
 | `prediction` | No | If True, parse prediction format (with confidence). Default False (label format). |
+| `pose` | No | If True, parse pose format (5+3k label / 6+3k prediction tokens). Default False (det/seg format). Mutually exclusive semantics with det/seg rows — pose mode rejects det/seg row lengths and vice versa. |
 | `skip_image_loading` | No | If True, skip all image I/O and use placeholder (1, 1) dimensions. For read-only operations like stats that don't need real dimensions. Default False. |
 | `recursive` | No | If True, use `rglob` instead of `glob` for file discovery, traversing subdirectories recursively. Default False. |
 
@@ -375,6 +407,7 @@ Both `is_det` and `is_seg` can be `True` simultaneously (mixed dataset).
   changes any coordinate value.
 - `Segmentation.points`: `(x, y)` normalized [0,1]. Each point is similarly clamped
   to [0, 1] with a WARNING if modified.
+- `Keypoints`: From pose rows when `pose=True` — points `(x, y)` normalized [0,1] (clamped with the same rules as polygon points), visibility v ∈ {0,1,2} per point, v=0 coordinates normalized to (0, 0). k is inferred from the first valid row (`(n−5)/3` label, `(n−6)/3` prediction) and must be consistent across all rows — inconsistent k is an error in strict mode, a skip-with-warning in non-strict mode.
 - `ObjectAnnotation.confidence`: Set from the last token when `prediction=True`; defaults to `1.0` in label mode
 - No coordinate transformation — coordinates are stored as-is from YOLO text files
   (after clamping)
@@ -392,6 +425,12 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
   (the norm for COCO sources, where every annotation includes `bbox`), the segmentation
   (polygon) row wins — the 5-token detection row is written only when segmentation is
   absent. A `Segmentation` with an empty point list falls back to the bbox row.
+- **Pose rows (pose mode, `pose=True`)**: An object with `keypoints` writes a pose row
+  (`class_id cx cy w h px1 py1 pv1 ...`; prediction appends confidence). Pose rows cannot
+  carry segmentation — an object holding both writes the pose row and drops the
+  segmentation with a WARNING. Objects with keypoints but no bbox are skipped with a
+  WARNING. In non-pose mode, objects with keypoints are skipped with a WARNING — det/seg
+  rows cannot represent keypoints.
 - **Prediction write**: When `ObjectAnnotation.confidence < 1.0`, writes 6 tokens (detection) or appends confidence (segmentation)
 - Coordinates written with 6 decimal places (`.6f`); confidence written with 6 decimal places
 - Empty images produce empty `.txt` files
@@ -404,6 +443,18 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
 |------|-----------|-------------|---------|
 | Label (`prediction=False`) | `len == 5` | `len > 5 AND len % 2 == 1` | 6, 8, 10, ... |
 | Prediction (`prediction=True`) | `len == 6` | `len > 6 AND len % 2 == 0` | 5, 7, 9, ... |
+
+**Pose mode** (`pose=True`):
+
+| Mode | Pose row | Invalid |
+|------|----------|---------|
+| Label (`prediction=False`) | `len == 5 + 3k` for some k ≥ 1 | 5, 6, 8, 10, ... (det/seg row lengths) |
+| Prediction (`prediction=True`) | `len == 6 + 3k` for some k ≥ 1 | 6, 7, 8, 9, ... (det/seg row lengths) |
+
+Pose mode is **explicit** (`--pose`) — token-count auto-detection is impossible because
+pose row lengths collide with segmentation lengths whenever 3k is even (e.g., 11 tokens
+is both a 2-keypoint pose label row and a 3-point segmentation label row). Within a
+dataset, k is fixed: the first valid row sets k and rows with a different k are invalid.
 
 **Strict mode**: In prediction mode, confidence values outside [0, 1] raise errors. In label mode, any line not matching the label format raises errors.
 
@@ -430,6 +481,8 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
 - `Segmentation.points`: `(x, y)` in absolute pixels (from COCO segmentation polygons).
   Each point is similarly clamped to image boundaries.
 - `Segmentation.rle`: Preserved RLE data when segmentation is RLE-encoded
+- `Keypoints`: From the `keypoints` field (flat `[x1, y1, v1, ...]` triplets, absolute pixels) — v=0 coordinates are normalized to (0, 0); an empty `keypoints` list → `keypoints=None`. The source `num_keypoints` is **ignored on read** — it is recomputed via `count_labeled()` at write time.
+- Category pose metadata preserved: categories defining `keypoints` (names) and `skeleton` (edge index pairs) are stored in `dataset_info["categories_meta"]` (`{category_id: {"keypoints": [...], "skeleton": [[i, j], ...]}}`) so a read→write round-trip retains them.
 - No coordinate normalization — COCO native coordinates are absolute pixels
 
 **Multi-segment polygons and multi-contour RLE** (both `read()` and
@@ -471,6 +524,7 @@ the reader must reduce the input to **one merged outline**:
 **`write(annotations, output_file, output_rle=None)`**: Writes COCO JSON.
 - Crowd annotations (`iscrowd=1`) always use RLE format
 - Non-crowd annotations follow `output_rle` flag
+- **Keypoints**: An object with `Keypoints` writes `keypoints` as flat `[x1, y1, v1, ...]` triplets (absolute pixels) plus `num_keypoints` = `count_labeled()` (v > 0). Categories with `dataset_info["categories_meta"]` entries write their `keypoints`/`skeleton` arrays back.
 
 **Image id assignment** (`write()`): Each `images[].id` is resolved from the
 `ImageAnnotation.image_id` string (canonical implementation:
@@ -498,6 +552,7 @@ the reader must reduce the input to **one merged outline**:
 |-----------|----------|-------------|
 | `label_dir` | Yes | Directory containing `.json` label files |
 | `class_file` | No | Optional path to `classes.txt` |
+| `kpts_config` | No | Optional path to a keypoint-definition YAML (per-class name lists + optional skeleton/sigmas — see §4.4). Provides semantic keypoint ordering for pose read/write. |
 | `recursive` | No | If True, use `rglob` for file discovery, traversing subdirectories. Default False. |
 
 **`read()`**: Returns `DatasetAnnotations(format=LABELME)` with:
@@ -509,18 +564,49 @@ the reader must reduce the input to **one merged outline**:
 - `Segmentation.points`: `(x, y)` in absolute pixels from polygon shapes. Each point is
   similarly clamped to image boundaries with a WARNING if modified.
 - Shape types: `rectangle` → BoundingBox; `polygon` (≥ 3 points) → Segmentation
-- Other shape types (circle, line, point) → parse error
+- **Pose (point shapes with `group_id`)**: point shapes sharing a non-null `group_id` form one pose instance. The instance's class **and** bbox come from the `rectangle` with the same `group_id` — the rectangle is **required** (keypoint labels carry no class information), and a group without one is a parse error. With `kpts_config`, keypoints are ordered by the config's per-class name list and missing names become v=0 (0, 0) entries — keypoint count is always `k = len(names)`; point labels outside the name list are errors in strict mode, skipped with a warning otherwise. Without `kpts_config`, keypoint count and order follow the shapes' appearance order in the file, with a WARNING that ordering is file-order-based. A `point` shape **without** a `group_id` remains a parse error (unchanged), as do `circle`/`line`.
 
 **`iter_images()`**: Yields `ImageAnnotation` objects one at a time with format-native coordinates. Parses each `.json` file's shapes (rectangle → BoundingBox, polygon → Segmentation). In strict mode, raises `ValueError` on first parse error. In non-strict mode, logs warnings and skips invalid files/shapes. If `imagePath` is inaccessible but JSON contains valid `imageWidth`/`imageHeight`, the image is not needed — read succeeds silently. Categories are auto-extracted from `shape.label` if `class_file` not provided.
 
 **`write(annotations, output_dir)`**: Writes one `.json` per image.
 - `imageData` is always set to `None`
 - For rectangle annotations: writes as `shape_type="rectangle"` with two corner points `[[x1,y1],[x2,y2]]`
+- **Pose write**: An object with `Keypoints` writes one `shape_type="point"` shape per labeled keypoint (`label` = keypoint name from `kpts_config`, or `keypoint_N` placeholder + WARNING without config) plus a `rectangle` shape for the bbox, all sharing a generated per-instance `group_id`. v=0 keypoints are skipped.
 
 **`validate(annotation_file)`**: Validates a single `.json` file structure.
 
 **Category discovery**: If `class_file` is not provided, categories are auto-extracted
 from `shape.label` values during reading.
+
+### 4.4 Keypoint Definition File (YAML)
+
+Canonical loader: `load_kpts_config()` in `dataflow/label/utils.py`. The schema is a
+superset of the ecosystem configs (X-AnyLabeling `yolov8_pose.yaml`, ultralytics pose
+YAML) so existing files load unchanged:
+
+```yaml
+has_visible: true        # optional, informational (visibility is always preserved)
+keypoints:               # optional: global keypoint name list (default for all classes)
+  - nose
+  - left_eye
+  # ...
+classes:                 # optional: per-class name lists (X-AnyLabeling style) —
+  person:                #   overrides the global list for that class
+    - nose
+    # ...
+skeleton:                # optional: edge pairs as indices into the resolved name list
+  - [0, 1]
+  # ...
+sigmas:                  # optional: per-keypoint OKS sigmas (consumed by Evaluate in P4)
+  - 0.026
+  # ...
+```
+
+**Loader contract:**
+- Requires at least one of `keypoints` / `classes`; names must be unique per list and non-empty
+- `skeleton` indices must be within the resolved name list (validated; out-of-range → error)
+- `names_for(class_name) -> List[str]`: per-class resolution — `classes[class_name]` if present, else the global `keypoints` list; raises `ValueError` if neither defines the class
+- Loader raises `ValueError` on schema violations (unknown top-level keys are ignored for forward compatibility)
 
 ## 5. Strict Mode vs Non-Strict Mode Contract
 
@@ -534,6 +620,7 @@ from `shape.label` values during reading.
 | Invalid coordinate — YOLO (outside [0,1]) | **Clamp to [0, 1] + WARNING**, then validate. Abort only if clamp produces zero-area bbox | Same as strict (clamping is independent of strict_mode) |
 | Invalid coordinate — COCO/LabelMe (outside image boundary) | **Clamp to `[0, width] × [0, height]` + WARNING**, then validate. Abort only if clamp produces zero-area bbox | Same as strict (clamping is independent of strict_mode) |
 | Invalid bbox (zero area, NaN, overflow) | Abort immediately | Skip annotation, log warning, continue |
+| Invalid keypoints (visibility ∉ {0,1,2}, points/visibility length mismatch, non-finite, inconsistent k in YOLO pose mode) | Abort immediately | Skip annotation, log warning, continue |
 | Image file not found (YOLO) | Raise `ImageError` → skip with warning | Use placeholder dims (1,1), log debug, continue |
 | Image file not found (LabelMe) | JSON has `imageWidth`/`imageHeight` → read succeeds silently. JSON lacks dimensions → always skip with warning | JSON has `imageWidth`/`imageHeight` → read succeeds silently. JSON lacks dimensions → always skip with warning |
 | Image unreadable / corrupt | **Skip with warning** | YOLO: use placeholder dims (1,1), log warning, continue (image kept); LabelMe/COCO: **skip with warning** |
@@ -554,6 +641,7 @@ from `shape.label` values during reading.
 | Invalid coordinate — YOLO (outside [0,1]) | **Clamp to [0, 1] + WARNING**, then validate. Stop iteration only if clamp produces zero-area bbox | Same as strict (clamping is independent of strict_mode) |
 | Invalid coordinate — COCO/LabelMe (outside image boundary) | **Clamp to `[0, width] × [0, height]` + WARNING**, then validate. Stop iteration only if clamp produces zero-area bbox | Same as strict (clamping is independent of strict_mode) |
 | Invalid class_id / bbox (LabelMe) | Raise `ValueError` immediately, stop iteration | Skip shape, log warning, continue |
+| Invalid keypoints (per-line/shape — visibility, length mismatch, non-finite, inconsistent k) | Raise `ValueError` immediately, stop iteration | Skip line/shape, log warning, continue |
 | Invalid class_id / bbox (COCO) | Skip annotation, log warning, continue (per-annotation catch — never stops iteration) | Skip annotation, log warning, continue |
 | Image file not found (YOLO) | Raise `ImageError` → skip with warning, continue to next file (does not stop iteration) | Use placeholder dims (1,1), log debug, continue yielding |
 | Image file not found (LabelMe) | JSON has `imageWidth`/`imageHeight` → yield succeeds silently. JSON lacks dimensions → always skip with warning | JSON has `imageWidth`/`imageHeight` → yield succeeds silently. JSON lacks dimensions → always skip with warning |
@@ -610,6 +698,8 @@ A valid read operation must satisfy ALL of:
 8. Segmentation annotations have at least 3 polygon vertices
 9. COCO RLE annotations have valid `size` and `counts` fields
 10. Image dimensions are positive integers
+11. Keypoint annotations have at least 1 keypoint, equal-length `points`/`visibility`, and every visibility ∈ {0, 1, 2}
+12. COCO `keypoints` arrays have a length divisible by 3 (when present)
 
 ## 7. Utility Functions (`utils.py`)
 

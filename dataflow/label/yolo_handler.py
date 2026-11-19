@@ -17,6 +17,7 @@ from .models import (
     BoundingBox,
     DatasetAnnotations,
     ImageAnnotation,
+    Keypoints,
     ObjectAnnotation,
     Segmentation,
 )
@@ -31,6 +32,7 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
         class_file: str,
         image_dir: str,
         prediction: bool = False,
+        pose: bool = False,
         skip_image_loading: bool = False,
         recursive: bool = False,
         **kwargs,
@@ -44,6 +46,10 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
             image_dir: Directory containing image files (for getting image dimensions)
             prediction: If True, parse prediction format (with confidence scores).
                 Default False (label format).
+            pose: If True, parse pose format (5+3k label / 6+3k prediction
+                tokens). Default False (det/seg format). Pose mode is
+                explicit — det/seg row lengths are invalid in pose mode
+                and vice versa (contract: spec_yolo_format.md §2.3).
             skip_image_loading: If True, skip all image file I/O
                 (use placeholder dimensions).  Useful for read-only
                 operations like stats that don't need real dimensions.
@@ -56,8 +62,13 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
         self.class_file = Path(class_file)
         self.image_dir = Path(image_dir)
         self.prediction = prediction
+        self.pose = pose
         self.skip_image_loading = skip_image_loading
         self.recursive = recursive
+        # Dataset-level keypoint count (k) inferred from the first valid pose
+        # row — must be consistent across all rows (spec_yolo_format.md §2.3).
+        # Reset at the start of each read()/iter_images() pass.
+        self._pose_k: Optional[int] = None
         self.categories = self._load_categories()
 
     def _load_categories(self) -> Dict[int, str]:
@@ -79,31 +90,40 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
         return categories
 
-    def _detect_annotation_type(self, line_items: List) -> Tuple[bool, bool, bool]:
+    def _detect_annotation_type(self, line_items: List) -> Tuple[bool, bool, bool, bool]:
         """
         Detect annotation type from line data.
 
-        Format detection is mode-sensitive (label vs prediction).
-        Label mode: odd token count (class_id + pairs of coords).
-        Prediction mode: even token count (class_id + pairs of coords + confidence).
+        Format detection is mode-sensitive (label vs prediction, det/seg vs
+        pose). Pose mode is explicit — token-count auto-detection is
+        impossible because pose row lengths collide with segmentation
+        lengths whenever 3k is even (contract: spec_yolo_format.md §2.3).
 
         Args:
             line_items: Split line data items (first token is class_id str,
                 remaining tokens are already converted to float).
 
         Returns:
-            Tuple[is_detection, is_segmentation, has_confidence]
+            Tuple[is_detection, is_segmentation, has_confidence, is_pose]
 
         Raises:
             ValueError: If format is invalid for the current mode
         """
         n = len(line_items)
+        if self.pose:
+            base = 6 if self.prediction else 5
+            if n > base and (n - base) % 3 == 0:
+                return False, False, self.prediction, True
+            raise ValueError(
+                f"Invalid YOLO pose {'prediction' if self.prediction else 'label'} format: "
+                f"{n} tokens. Expected {base}+3k tokens (k >= 1 keypoints)."
+            )
         if not self.prediction:
             # Label mode: odd tokens (class_id + pairs)
             if n == 5:
-                return True, False, False
+                return True, False, False, False
             elif n > 5 and n % 2 == 1:
-                return False, True, False
+                return False, True, False, False
             else:
                 raise ValueError(
                     f"Invalid YOLO label format: {n} tokens. "
@@ -112,9 +132,9 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
         else:
             # Prediction mode: even tokens (class_id + pairs + confidence)
             if n == 6:
-                return True, False, True
+                return True, False, True, False
             elif n > 6 and n % 2 == 0:
-                return False, True, True
+                return False, True, True, False
             else:
                 raise ValueError(
                     f"Invalid YOLO prediction format: {n} tokens. "
@@ -211,6 +231,9 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                 result.add_error(f"No TXT files found in {self.label_dir}")
                 return result
 
+            # Reset the dataset-level pose keypoint count (k) for this pass
+            self._pose_k = None
+
             dataset = DatasetAnnotations(format=AnnotationFormat.YOLO)
             dataset.categories = self.categories.copy()
 
@@ -289,6 +312,9 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
         txt_files = self._list_txt_files()
         if not txt_files:
             raise ValueError(f"No TXT files found in {self.label_dir}")
+
+        # Reset the dataset-level pose keypoint count (k) for this pass
+        self._pose_k = None
 
         # --- Streaming iteration ---
         for txt_file in txt_files:
@@ -397,8 +423,8 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     # Convert numeric tokens to float
                     items = [items[0]] + [float(x) for x in items[1:]]
 
-                    is_detection, is_segmentation, has_confidence = self._detect_annotation_type(
-                        items
+                    is_detection, is_segmentation, has_confidence, is_pose = (
+                        self._detect_annotation_type(items)
                     )
                     class_id = self._parse_class_id(items[0])
 
@@ -448,6 +474,26 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     class_name = self.categories[class_id]
                     bbox = None
                     segmentation = None
+                    keypoints = None
+
+                    if is_pose:
+                        # k is fixed per dataset (spec_yolo_format.md §2.3):
+                        # the first valid pose row sets it, rows with a
+                        # different k are invalid.
+                        k = (len(items) - (6 if self.prediction else 5)) // 3
+                        if self._pose_k is None:
+                            self._pose_k = k
+                        elif self._pose_k != k:
+                            error_msg = (
+                                f"Inconsistent keypoint count in {txt_file}, line {line_num}: "
+                                f"{k} (dataset k={self._pose_k})"
+                            )
+                            if self.strict_mode:
+                                result.add_error(error_msg)
+                                return result
+                            else:
+                                self._log_warning(f"Skipping line {line_num}: {error_msg}")
+                                continue
 
                     if is_detection:
                         # Parse detection: class_id x_center y_center width height
@@ -574,12 +620,127 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                                 self._log_warning(f"Skipping line {line_num}: invalid segmentation")
                                 continue
 
+                    elif is_pose:
+                        # Pose row: class_id cx cy w h px1 py1 pv1 ... pxn pyn pvn
+                        # (prediction mode appends confidence, already parsed)
+                        x_center = float(items[1])
+                        y_center = float(items[2])
+                        width = float(items[3])
+                        height = float(items[4])
+
+                        # Clamp bbox edges to [0, 1] (tolerates FP imprecision)
+                        x_center, y_center, width, height = self._clamp_normalized_bbox(
+                            x_center, y_center, width, height
+                        )
+
+                        # Validate normalized coordinates
+                        coords_to_check = [
+                            ("x_center", x_center),
+                            ("y_center", y_center),
+                            ("width", width),
+                            ("height", height),
+                        ]
+                        skip_line = False
+                        for name, value in coords_to_check:
+                            if not self._validate_normalized_coordinate(value, name):
+                                result.add_error(
+                                    f"Invalid coordinate in {txt_file}, line {line_num}"
+                                )
+                                if self.strict_mode:
+                                    return result
+                                else:
+                                    self._log_warning(
+                                        f"Skipping line {line_num}: invalid coordinate"
+                                    )
+                                    skip_line = True
+                                    break
+                        if skip_line:
+                            continue
+
+                        bbox = BoundingBox(x=x_center, y=y_center, width=width, height=height)
+                        if not self._validate_bbox(bbox):
+                            result.add_error(f"Invalid bbox in {txt_file}, line {line_num}")
+                            if self.strict_mode:
+                                return result
+                            else:
+                                self._log_warning(f"Skipping line {line_num}: invalid bbox")
+                                continue
+
+                        # Keypoint triplets (px, py, pv) — coordinates are
+                        # clamped to [0, 1] and v=0 points are normalized to
+                        # (0, 0) (contract: spec_label.md §4.1)
+                        if has_confidence:
+                            kpt_tokens = items[5:-1]
+                        else:
+                            kpt_tokens = items[5:]
+                        raw_points = [
+                            (float(kpt_tokens[i]), float(kpt_tokens[i + 1]))
+                            for i in range(0, len(kpt_tokens), 3)
+                        ]
+                        points = self._clamp_normalized_points(raw_points)
+
+                        visibility: List[int] = []
+                        skip_line = False
+                        for i in range(2, len(kpt_tokens), 3):
+                            v_val = float(kpt_tokens[i])
+                            if not v_val.is_integer() or v_val < 0 or v_val > 2:
+                                result.add_error(
+                                    f"Invalid visibility {kpt_tokens[i]} in "
+                                    f"{txt_file}, line {line_num}"
+                                )
+                                if self.strict_mode:
+                                    return result
+                                else:
+                                    self._log_warning(
+                                        f"Skipping line {line_num}: invalid visibility {kpt_tokens[i]}"
+                                    )
+                                    skip_line = True
+                                    break
+                            visibility.append(int(v_val))
+                        if skip_line:
+                            continue
+
+                        # v=0 keypoints are conventionally stored at (0, 0)
+                        points = [(0.0, 0.0) if v == 0 else p for v, p in zip(visibility, points)]
+
+                        skip_line = False
+                        for i, (x, y) in enumerate(points):
+                            if not self._validate_normalized_coordinate(x, f"keypoint[{i}].x"):
+                                result.add_error(
+                                    f"Invalid keypoint x in {txt_file}, line {line_num}"
+                                )
+                                if self.strict_mode:
+                                    return result
+                                else:
+                                    self._log_warning(
+                                        f"Skipping line {line_num}: invalid keypoint x"
+                                    )
+                                    skip_line = True
+                                    break
+                            if not self._validate_normalized_coordinate(y, f"keypoint[{i}].y"):
+                                result.add_error(
+                                    f"Invalid keypoint y in {txt_file}, line {line_num}"
+                                )
+                                if self.strict_mode:
+                                    return result
+                                else:
+                                    self._log_warning(
+                                        f"Skipping line {line_num}: invalid keypoint y"
+                                    )
+                                    skip_line = True
+                                    break
+                        if skip_line:
+                            continue
+
+                        keypoints = Keypoints(points=points, visibility=visibility)
+
                     # Create object annotation
                     obj = ObjectAnnotation(
                         class_id=class_id,
                         class_name=class_name,
                         bbox=bbox,
                         segmentation=segmentation,
+                        keypoints=keypoints,
                         confidence=confidence,
                     )
                     objects.append(obj)
@@ -707,10 +868,52 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     return None
                 class_id = found_id
 
+            # Pose rows win over segmentation and bbox rows (spec_label.md
+            # §4.1). Pose rows cannot carry segmentation; det/seg rows cannot
+            # carry keypoints.
+            if obj.keypoints:
+                if not self.pose:
+                    self._log_warning(
+                        f"Object {obj.class_name} has keypoints but the handler is not in "
+                        f"pose mode — skipping (det/seg rows cannot represent keypoints)"
+                    )
+                    return None
+                if not obj.bbox:
+                    self._log_warning(
+                        f"Object {obj.class_name} has keypoints but no bbox — skipping "
+                        f"(pose rows require a bbox)"
+                    )
+                    return None
+                if obj.segmentation:
+                    self._log_warning(
+                        f"Object {obj.class_name} carries both keypoints and segmentation — "
+                        f"writing the pose row and dropping the segmentation"
+                    )
+                parts = [
+                    f"{obj.bbox.x:.6f}",
+                    f"{obj.bbox.y:.6f}",
+                    f"{obj.bbox.width:.6f}",
+                    f"{obj.bbox.height:.6f}",
+                ]
+                for (x, y), v in zip(obj.keypoints.points, obj.keypoints.visibility):
+                    parts.extend([f"{x:.6f}", f"{y:.6f}", str(v)])
+                row = f"{class_id} " + " ".join(parts)
+                if obj.confidence < 1.0:
+                    row += f" {obj.confidence:.6f}"
+                return row
+
+            # In pose mode, segmentation cannot be represented — the bbox row
+            # is written instead, with a warning.
+            if self.pose and obj.segmentation:
+                self._log_warning(
+                    f"Object {obj.class_name} carries segmentation but the handler is in "
+                    f"pose mode — dropping the segmentation"
+                )
+
             # Segmentation wins when both are present: COCO sources always carry
             # a bbox on every annotation, so checking bbox first would silently
             # drop polygon/RLE segmentation data (see spec_label.md §4.1).
-            if obj.segmentation and obj.segmentation.points:
+            if not self.pose and obj.segmentation and obj.segmentation.points:
                 # Instance segmentation format: class_id x1 y1 x2 y2 ... xn yn
                 points = obj.segmentation.points
                 coords = []
@@ -740,7 +943,10 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
                     return f"{class_id} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}"
 
             else:
-                self._log_warning(f"Object {obj.class_name} has neither bbox nor segmentation")
+                self._log_warning(
+                    f"Object {obj.class_name} has no representable annotation "
+                    f"(pose mode requires a bbox; det/seg mode requires bbox or segmentation)"
+                )
                 return None
 
         except (ValueError, KeyError, TypeError) as e:
@@ -768,7 +974,78 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
                 # Check format (mode-sensitive)
                 n = len(items)
-                if not self.prediction:
+                if self.pose:
+                    # Pose mode: 5+3k label / 6+3k prediction tokens.
+                    # Mirrors read(): clamp bbox/points to [0, 1] (tolerating
+                    # FP imprecision) then reject zero-area bboxes and
+                    # invalid visibility values.
+                    base = 6 if self.prediction else 5
+                    if n > base and (n - base) % 3 == 0:
+                        try:
+                            class_id = self._parse_class_id(items[0])
+                            if class_id not in self.categories:
+                                self.logger.error(f"Invalid class ID {class_id} in line {line_num}")
+                                return False
+
+                            coords = [float(x) for x in items[1:]]
+                            cx, cy, w, h = coords[0], coords[1], coords[2], coords[3]
+                            if not all(math.isfinite(v) for v in (cx, cy, w, h)):
+                                self.logger.error(f"Non-finite coordinate in line {line_num}")
+                                return False
+
+                            _, _, w_clamped, h_clamped = self._clamp_normalized_bbox(cx, cy, w, h)
+                            if w_clamped <= 0 or h_clamped <= 0:
+                                self.logger.error(
+                                    f"Zero-area bbox in line {line_num}: "
+                                    f"width={w_clamped}, height={h_clamped}"
+                                )
+                                return False
+
+                            if self.prediction:
+                                confidence = float(items[-1])
+                                if (
+                                    not math.isfinite(confidence)
+                                    or confidence < 0
+                                    or confidence > 1
+                                ):
+                                    self.logger.error(
+                                        f"confidence out of range [0,1] in line "
+                                        f"{line_num}: {confidence}"
+                                    )
+                                    return False
+                                kpt_coords = coords[4:-1]
+                            else:
+                                kpt_coords = coords[4:]
+
+                            if len(kpt_coords) % 3 != 0:
+                                self.logger.error(f"Invalid keypoint triplets in line {line_num}")
+                                return False
+
+                            for i in range(2, len(kpt_coords), 3):
+                                v_val = float(kpt_coords[i])
+                                if not v_val.is_integer() or v_val < 0 or v_val > 2:
+                                    self.logger.error(
+                                        f"Invalid visibility {kpt_coords[i]} in line {line_num}"
+                                    )
+                                    return False
+
+                            # Raises on non-finite keypoint coordinates
+                            raw_points = [
+                                (kpt_coords[i], kpt_coords[i + 1])
+                                for i in range(0, len(kpt_coords), 3)
+                            ]
+                            self._clamp_normalized_points(raw_points)
+
+                        except (ValueError, IndexError) as e:
+                            self.logger.error(f"Error parsing line {line_num}: {e}")
+                            return False
+                    else:
+                        self.logger.error(
+                            f"Invalid pose format in line {line_num}: {n} tokens. "
+                            f"Expected {base}+3k tokens."
+                        )
+                        return False
+                elif not self.prediction:
                     # Label mode: odd tokens
                     if n == 5:
                         # Detection format — mirror read(): clamp edges to
