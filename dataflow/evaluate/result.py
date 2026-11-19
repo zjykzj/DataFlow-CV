@@ -29,6 +29,7 @@ class EvaluationMetrics:
     ar_max_1: float = -1.0  # IoU=0.50:0.95, area=all,     maxDets=1
     ar_max_10: float = -1.0  # IoU=0.50:0.95, area=all,     maxDets=10
     ar_max_100: float = -1.0  # IoU=0.50:0.95, area=all,     maxDets=100
+    ar_max_20: float = -1.0  # IoU=0.50:0.95, area=all,     maxDets=20 (keypoints protocol)
     ar_small: float = -1.0  # IoU=0.50:0.95, area=small,   maxDets=100
     ar_medium: float = -1.0  # IoU=0.50:0.95, area=medium,  maxDets=100
     ar_large: float = -1.0  # IoU=0.50:0.95, area=large,   maxDets=100

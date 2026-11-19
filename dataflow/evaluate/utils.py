@@ -446,3 +446,116 @@ def _validate_segm_data(coco_gt: Any, coco_dt: Any) -> Tuple[List[str], List[str
         )
 
     return errors, warnings
+
+
+# ---------------------------------------------------------------------------
+# Keypoint (pose) evaluation helpers
+# ---------------------------------------------------------------------------
+
+# COCO official per-keypoint OKS sigmas for the 17-keypoint person skeleton
+# (pycocotools default `kpt_oks_sigmas`; contract: spec_evaluate.md §3.4).
+COCO_KPT_SIGMAS_17 = [
+    0.026,
+    0.025,
+    0.025,
+    0.035,
+    0.035,
+    0.079,
+    0.079,
+    0.072,
+    0.072,
+    0.062,
+    0.062,
+    0.107,
+    0.107,
+    0.087,
+    0.087,
+    0.089,
+    0.089,
+]
+
+
+def _validate_kpt_data(coco_gt: Any, coco_dt: Any) -> Tuple[List[str], List[str]]:
+    """Check keypoint data presence for OKS evaluation (spec_evaluate.md §5.3 rule 8).
+
+    Mirrors ``_validate_segm_data``: *errors* are hard failures (complete
+    absence of keypoint data — OKS on bbox-only data is meaningless);
+    *warnings* are advisory (mixed datasets — annotations without
+    keypoints are excluded by pycocotools).
+    """
+    errors: List[str] = []
+    warnings: List[str] = []
+
+    gt_total = 0
+    gt_with_kpt = 0
+    for ann in coco_gt.loadAnns(coco_gt.getAnnIds()):
+        gt_total += 1
+        if ann.get("keypoints"):
+            gt_with_kpt += 1
+
+    dt_total = 0
+    dt_with_kpt = 0
+    for ann in coco_dt.loadAnns(coco_dt.getAnnIds()):
+        dt_total += 1
+        if ann.get("keypoints"):
+            dt_with_kpt += 1
+
+    if gt_total > 0 and gt_with_kpt == 0:
+        errors.append(
+            "GT contains no keypoint data — cannot evaluate with iouType='keypoints'. "
+            "Ensure GT annotations contain keypoints."
+        )
+    if dt_total > 0 and dt_with_kpt == 0:
+        errors.append(
+            "DT contains no keypoint data — cannot evaluate with iouType='keypoints'. "
+            "Ensure DT annotations contain keypoints."
+        )
+
+    if gt_total > 0 and 0 < gt_with_kpt < gt_total:
+        warnings.append(
+            f"GT is a mixed dataset: {gt_total - gt_with_kpt}/{gt_total} "
+            "annotations lack keypoints and will be excluded from OKS evaluation."
+        )
+    if dt_total > 0 and 0 < dt_with_kpt < dt_total:
+        warnings.append(
+            f"DT is a mixed dataset: {dt_total - dt_with_kpt}/{dt_total} "
+            "annotations lack keypoints and will be excluded from OKS evaluation."
+        )
+
+    return errors, warnings
+
+
+def resolve_kpt_sigmas(k: int, sigmas: Union[List[float], None]) -> Tuple[Any, Union[str, None]]:
+    """Resolve per-keypoint OKS sigmas (contract: spec_evaluate.md §3.4).
+
+    Priority: explicit ``sigmas`` (length must equal k) → COCO official
+    17-keypoint sigmas when k == 17 → uniform 0.05 + warning otherwise.
+
+    Args:
+        k: Dataset keypoint count.
+        sigmas: Explicit per-keypoint sigmas or None.
+
+    Returns:
+        ``(sigmas_array, warning_msg_or_None)``.
+
+    Raises:
+        ValueError: If explicit sigmas length mismatches k.
+    """
+    if sigmas is not None:
+        if len(sigmas) != k:
+            raise ValueError(f"sigmas must have {k} values (one per keypoint), got {len(sigmas)}")
+        import numpy as np
+
+        return np.array(sigmas, dtype=float), None
+
+    if k == 17:
+        import numpy as np
+
+        return np.array(COCO_KPT_SIGMAS_17), None
+
+    import numpy as np
+
+    return np.full(k, 0.05), (
+        f"Uniform OKS sigmas (0.05) assumed for {k} keypoints — "
+        "pass explicit sigmas or a 17-keypoint dataset for COCO-standard values"
+    )

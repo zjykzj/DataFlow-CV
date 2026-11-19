@@ -1,13 +1,13 @@
 # Evaluate Module Specification
 
-> **Version:** v2.2 | **Last Updated:** 2026-10-10
+> **Version:** v2.3 | **Last Updated:** 2026-11-19
 > **Status:** Canonical
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager), pycocotools
 
 ## 1. Module Overview
 
-The Evaluate module (`dataflow/evaluate/`) computes detection and instance segmentation evaluation metrics using pycocotools. It depends **only** on the Label module — it does not import from Convert, Visualize, or CLI.
+The Evaluate module (`dataflow/evaluate/`) computes detection, instance segmentation, and pose (keypoint) evaluation metrics using pycocotools. It depends **only** on the Label module — it does not import from Convert, Visualize, or CLI.
 
 ### 1.1 Key Design: COCO-Eval Wrapper
 
@@ -17,6 +17,7 @@ The module wraps pycocotools' `COCO` and `COCOeval` classes to provide:
 - COCO-standard 12-metric output
 - Per-class detailed breakdowns
 - Single-threshold P/R/F1 computation (independent of full COCO eval)
+- Keypoint evaluation via OKS (`iouType='keypoints'`)
 - Verbose logging following the project's established contract
 
 ### 1.2 Module Contract
@@ -56,12 +57,21 @@ class EvaluationMetrics:
     ar_max_1: float        # IoU=0.50:0.95, area=all, maxDets=1
     ar_max_10: float       # IoU=0.50:0.95, area=all, maxDets=10
     ar_max_100: float      # IoU=0.50:0.95, area=all, maxDets=100
+    ar_max_20: float       # IoU=0.50:0.95, area=all, maxDets=20 (keypoints protocol only)
     ar_small: float        # IoU=0.50:0.95, area=small,  maxDets=100
     ar_medium: float       # IoU=0.50:0.95, area=medium, maxDets=100
     ar_large: float        # IoU=0.50:0.95, area=large,  maxDets=100
 ```
 
 All values are `float` in [0, 1] or `-1.0` if the metric is undefined (e.g., no GT for that scale).
+
+**Keypoints (OKS) mapping**: pycocotools yields 10 stats for `iouType='keypoints'`
+(AP / AP50 / AP75 / AP-medium / AP-large / AR@maxDets=20 / AR50 / AR75 /
+AR-medium / AR-large — no small-area scale). The 12-field model maps them as:
+`ap`→0, `ap50`→1, `ap75`→2, `ap_medium`→3, `ap_large`→4, `ar_max_20`→5,
+`ar_medium`→8, `ar_large`→9; `ap_small`/`ar_small`/`ar_max_1`/`ar_max_10`/
+`ar_max_100` stay `-1.0` (undefined in the keypoint protocol). AR50/AR75
+(stats 6/7) are not represented in the dataclass.
 
 ### 2.2 `PerClassMetrics`
 
@@ -216,11 +226,36 @@ class SegmentationEvaluator(BaseEvaluator):
         return COCOeval(gt_coco, dt_coco, iouType='segm')
 ```
 
-### 3.4 Constructor Parameters
+### 3.4 `KeypointEvaluator` (`evaluator.py`)
+
+```python
+class KeypointEvaluator(BaseEvaluator):
+    """Pose estimation evaluation using OKS (Object Keypoint Similarity).
+
+    Constructor: ``KeypointEvaluator(log_config=None, sigmas=None)``
+    """
+    def _create_cocoeval(self, gt_coco, dt_coco) -> COCOeval:
+        return COCOeval(gt_coco, dt_coco, iouType='keypoints')
+```
+
+**Sigmas resolution** (contract: roadmap O4) — applied before `evaluate()` runs:
+
+| Priority | Source | Result |
+|----------|--------|--------|
+| 1 | `sigmas` parameter (list of per-keypoint σ) | Used as-is (length must equal k, else `ValueError`) |
+| 2 | k == 17 (COCO person) | COCO official 17-keypoint sigmas (pycocotools default): `[0.026, 0.025, 0.025, 0.035, 0.035, 0.079, 0.079, 0.072, 0.072, 0.062, 0.062, 0.107, 0.107, 0.087, 0.087, 0.089, 0.089]` |
+| 3 | Any other k | Uniform 0.05 per keypoint + one WARNING |
+
+k is detected from the first GT annotation with a `keypoints` field
+(`len(keypoints) // 3`). The resolved sigmas are set on
+`coco_eval.params.kpt_oks_sigmas` before `evaluate()`.
+
+### 3.5 Constructor Parameters
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `log_config` | Optional[LogConfig] | No | None | Logging configuration. If None, a default `LogConfig(name="evaluate")` is created with `verbose=False`. Per-class metrics are computed only when the evaluator's stored log config has `verbose=True`. |
+| `sigmas` | Optional[List[float]] | No | None | Per-keypoint OKS sigmas (KeypointEvaluator only) — see §3.4 resolution |
 
 ## 4. Public API
 
@@ -272,6 +307,7 @@ def compute_pr_f1(
     confidence_threshold: float = 0.0,
     iou_type: str = "bbox",
     method: str = "macro",
+    kpt_sigmas: Optional[List[float]] = None,
     log_config: Optional[LogConfig] = None,
 ) -> PRF1Result:
 ```
@@ -281,6 +317,20 @@ def compute_pr_f1(
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `method` | str | ``"macro"`` | Aggregation method for overall P/R/F1: ``"macro"`` or ``"micro"`` |
+| `kpt_sigmas` | Optional[List[float]] | None | Per-keypoint OKS sigmas for `iou_type='keypoints'` — same resolution as `KeypointEvaluator` §3.4 |
+
+**Keypoint matching** (`iou_type='keypoints'`): the greedy matcher uses **OKS**
+instead of IoU — the `iou_threshold` becomes the OKS threshold (default 0.5,
+the COCO keypoint standard). The OKS matrix is computed with the standard
+COCO formula (pycocotools-equivalent):
+
+```
+OKS = Σᵢ exp(−eᵢ / (2 σᵢ² s²)) · [v_gᵢ > 0] / Σᵢ [v_gᵢ > 0]
+```
+where `eᵢ` is the squared pixel distance between DT and GT keypoint i,
+`σᵢ` the per-keypoint sigma, and `s² = (gt_area + ε) / 2` the area scale.
+GT keypoints with v=0 are excluded from both sums (pycocotools semantics);
+a GT with no labeled keypoints never matches (OKS = −1).
 
 **Algorithm:**
 
@@ -345,6 +395,11 @@ Additional fields for segmentation evaluation:
 - `annotations[].area`: float (mask area in px²)
 - `annotations[].iscrowd`: 0 or 1
 
+Additional fields for keypoint evaluation:
+- `annotations[].keypoints`: flat `[x1, y1, v1, ...]` triplets (absolute pixels, v ∈ {0,1,2}) — length divisible by 3, k consistent per dataset
+- `annotations[].area`: float (bbox area in px² — the OKS area scale)
+- `annotations[].num_keypoints`: count of v>0 (informational; OKS derives from `keypoints` directly)
+
 ### 5.2 DT COCO JSON Requirements
 
 DT can be provided in **either** of two formats:
@@ -398,6 +453,11 @@ The `validate_inputs()` method checks:
    - Error messages are collected with other validation errors; if any errors
      exist, all are logged and a ``ValueError`` is raised (evaluation aborts)
    - This check is skipped for `iouType='bbox'`
+8. If `iouType='keypoints'`, keypoint data is present on GT and DT annotations
+   - Mirrors the segm check (§5.3 rule 7): calls ``_validate_kpt_data()``
+     which errors when either side has no `keypoints` data at all (fatal —
+     OKS on bbox-only data is meaningless), and warns on mixed datasets
+     (some annotations lack keypoints — they are excluded by pycocotools)
 
 All validation errors are collected into a list first. Each is logged individually via ``self.logger.error()``; then ``ValueError`` is raised on the last one. This ensures all problems are visible in the log before the operation aborts.
 
@@ -616,7 +676,8 @@ When loading DT from `DatasetAnnotations`:
 |-----|----------|---------|
 | `DetectionEvaluator(log_config)` | `evaluator.py` | Detection evaluation (bbox IoU) |
 | `SegmentationEvaluator(log_config)` | `evaluator.py` | Segmentation evaluation (mask IoU) |
+| `KeypointEvaluator(log_config, sigmas=None)` | `evaluator.py` | Pose evaluation (OKS, `iouType='keypoints'`) |
 | `evaluator.evaluate(gt, dt) → EvaluationResult` | `base.py` | Run full COCO evaluation |
-| `compute_pr_f1(gt, dt, iou_thr, conf_thr, iou_type, log_config=...) → PRF1Result` | `metrics.py` | Single-threshold P/R/F1 |
+| `compute_pr_f1(gt, dt, iou_thr, conf_thr, iou_type, method, kpt_sigmas, log_config=...) → PRF1Result` | `metrics.py` | Single-threshold P/R/F1 (bbox / segm / keypoints) |
 
 

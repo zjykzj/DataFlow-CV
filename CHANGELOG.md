@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Pose (keypoint) evaluation with OKS**: new `KeypointEvaluator` (`evaluate keypoints`) computes COCO-standard keypoint AP/AR via OKS with configurable sigmas (COCO 17-keypoint official values by default, uniform fallback with a warning); `compute_pr_f1` gains `iou_type='keypoints'` for single-threshold OKS-based P/R/F1.
+
 ## [3.4.0] - 2026-11-19
 
 ### Added

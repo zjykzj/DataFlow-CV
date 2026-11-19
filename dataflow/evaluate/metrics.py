@@ -12,7 +12,14 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 
 from .result import PRF1Result, PRF1Values
-from .utils import _load_coco, _load_dt, _validate_coco_available, _validate_segm_data
+from .utils import (
+    _load_coco,
+    _load_dt,
+    _validate_coco_available,
+    _validate_kpt_data,
+    _validate_segm_data,
+    resolve_kpt_sigmas,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -27,6 +34,7 @@ def compute_pr_f1(
     confidence_threshold: float = 0.0,
     iou_type: str = "bbox",
     method: str = "macro",
+    kpt_sigmas: Optional[List[float]] = None,
     log_config: Optional[Any] = None,
 ) -> PRF1Result:
     """Compute Precision / Recall / F1-score at a single IoU threshold.
@@ -42,17 +50,22 @@ def compute_pr_f1(
             list of annotation dicts, or DatasetAnnotations).
             Annotations must include ``score``. List-format files
             (plain JSON array) are loaded via ``loadRes()``.
-        iou_threshold: IoU threshold for matching. Default 0.5.
+        iou_threshold: IoU threshold for matching. Default 0.5. For
+            ``iou_type='keypoints'`` this is the OKS threshold (the
+            COCO keypoint standard is 0.5).
         confidence_threshold: Minimum detection score. Default 0.0 (keep
             all). Detections below this are filtered out.
-        iou_type: ``'bbox'`` for detection, ``'segm'`` for segmentation.
-            Both are supported.  For ``'segm'``, mask IoU is computed
-            via pycocotools and crowd annotations are handled per
-            standard COCO behavior.
+        iou_type: ``'bbox'`` for detection, ``'segm'`` for segmentation,
+            ``'keypoints'`` for pose (OKS matching).  For ``'segm'``,
+            mask IoU is computed via pycocotools and crowd annotations
+            are handled per standard COCO behavior.
         method: Aggregation method for overall P/R/F1.
             ``"macro"`` (default) — mean of per-class P and R.
             ``"micro"`` — computed from summed TP/FP/FN across all
             categories.
+        kpt_sigmas: Optional per-keypoint OKS sigmas for
+            ``iou_type='keypoints'`` (same resolution as
+            ``KeypointEvaluator``, spec_evaluate.md §3.4).
         log_config: Optional ``LogConfig`` for logging configuration.
 
     Returns:
@@ -73,8 +86,10 @@ def compute_pr_f1(
         raise ValueError(f"Invalid `method` parameter: '{method}'. Expected 'macro' or 'micro'.")
 
     # Validate iou_type before any computation
-    if iou_type not in ("bbox", "segm"):
-        raise ValueError(f"Invalid `iou_type` parameter: '{iou_type}'. Expected 'bbox' or 'segm'.")
+    if iou_type not in ("bbox", "segm", "keypoints"):
+        raise ValueError(
+            f"Invalid `iou_type` parameter: '{iou_type}'. Expected 'bbox', 'segm', or 'keypoints'."
+        )
 
     # Wire up logging when a LogConfig is provided (previously a dead
     # parameter). Verbose mode records per-class computation details.
@@ -110,6 +125,27 @@ def compute_pr_f1(
                 result.add_warning(w)
             if seg_errors:
                 return result
+
+        # Keypoint data validation + sigma resolution (spec_evaluate.md §5.3
+        # rule 8 / §3.4): OKS on bbox-only data is meaningless.
+        kpt_sigma_arr = None
+        if iou_type == "keypoints":
+            kpt_errors, kpt_warnings = _validate_kpt_data(coco_gt, coco_dt)
+            for e in kpt_errors:
+                result.add_error(e)
+            for w in kpt_warnings:
+                result.add_warning(w)
+            if kpt_errors:
+                return result
+            k = 0
+            for ann in coco_gt.loadAnns(coco_gt.getAnnIds()):
+                kpts = ann.get("keypoints")
+                if kpts:
+                    k = len(kpts) // 3
+                    break
+            kpt_sigma_arr, sigma_warning = resolve_kpt_sigmas(k, kpt_sigmas)
+            if sigma_warning:
+                result.add_warning(sigma_warning)
 
         # Prepare category / image lookup
         cat_ids = coco_gt.getCatIds()
@@ -154,6 +190,7 @@ def compute_pr_f1(
                     iou_type,
                     img_h,
                     img_w,
+                    kpt_sigmas=kpt_sigma_arr,
                 )
 
                 per_class_tp[cat_id] += tp
@@ -337,6 +374,7 @@ def _greedy_match(
     iou_type: str = "bbox",
     img_h: int = 0,
     img_w: int = 0,
+    kpt_sigmas: Optional[Any] = None,
 ) -> Tuple[int, int, int]:
     """Run greedy one-to-one matching for a single (image, category).
 
@@ -350,10 +388,13 @@ def _greedy_match(
     Args:
         gt_anns: Ground truth annotations (all same image + category).
         dt_anns: Detection annotations, sorted by score descending.
-        iou_threshold: Minimum IoU for a match.
-        iou_type: ``'bbox'`` or ``'segm'``.
+        iou_threshold: Minimum IoU for a match. For
+            ``iou_type='keypoints'`` this is the OKS threshold.
+        iou_type: ``'bbox'``, ``'segm'``, or ``'keypoints'``.
         img_h: Image height in pixels (required for ``iou_type='segm'``).
         img_w: Image width in pixels (required for ``iou_type='segm'``).
+        kpt_sigmas: Per-keypoint OKS sigmas array (required for
+            ``iou_type='keypoints'``).
 
     Returns:
         Tuple of ``(tp, fp, fn)`` counts.
@@ -370,7 +411,8 @@ def _greedy_match(
         # No DT → only non-crowd GT count as FN
         return 0, 0, len(non_crowd_gts)
 
-    # Pre-compute IoU matrix for segm (avoids repeated RLE conversion)
+    # Pre-compute the similarity matrix for segm (mask IoU) and keypoints
+    # (OKS) — avoids repeated RLE conversion / keypoint arithmetic.
     iou_matrix = None
     crowd_iou_matrix = None
     if iou_type == "segm":
@@ -382,6 +424,10 @@ def _greedy_match(
                 img_h,
                 img_w,
             )
+    elif iou_type == "keypoints":
+        iou_matrix = _compute_oks_matrix(dt_anns, non_crowd_gts, kpt_sigmas)
+        if crowd_gts:
+            crowd_iou_matrix = _compute_oks_matrix(dt_anns, crowd_gts, kpt_sigmas)
 
     matched_gt: set = set()
     tp = 0
@@ -401,6 +447,8 @@ def _greedy_match(
                     dt.get("bbox", []),
                 )
             else:
+                # segm/keypoints always pre-compute the matrix when DTs exist
+                assert iou_matrix is not None
                 iou = iou_matrix[dt_idx][gt_idx]
 
             if iou > best_iou:
@@ -451,7 +499,7 @@ def _check_crowd_match(
     Returns:
         ``True`` if the DT matches at least one crowd GT.
     """
-    if iou_type == "segm" and crowd_iou_matrix is not None:
+    if iou_type in ("segm", "keypoints") and crowd_iou_matrix is not None:
         return any(
             crowd_iou_matrix[dt_idx][c_idx] >= iou_threshold for c_idx in range(len(crowd_gts))
         )
@@ -459,6 +507,66 @@ def _check_crowd_match(
         _compute_bbox_iou(crowd_gt.get("bbox", []), dt_bbox) >= iou_threshold
         for crowd_gt in crowd_gts
     )
+
+
+def _compute_oks_matrix(
+    dt_anns: List[Dict],
+    gt_anns: List[Dict],
+    sigmas: Optional[Any],
+) -> np.ndarray:
+    """Compute the OKS matrix between DT and GT keypoint annotations.
+
+    Standard COCO formula (pycocotools-equivalent; contract:
+    spec_evaluate.md §4.2):
+
+        OKS = Σᵢ exp(−eᵢ / (2 σᵢ² s)) · [v_gᵢ > 0] / Σᵢ [v_gᵢ > 0]
+
+    with `s = (gt_area + ε) / 2` and `eᵢ` the squared pixel distance.
+    GT keypoints with v=0 are excluded from both sums; a GT with no
+    labeled keypoints never matches (row stays 0.0).
+
+    Args:
+        dt_anns: Detection annotations (with ``keypoints`` field).
+        gt_anns: Ground truth annotations (with ``keypoints`` + ``area``).
+        sigmas: Per-keypoint OKS sigmas array (length k).
+
+    Returns:
+        ``np.ndarray`` of shape ``(len(dt), len(gt))`` with OKS values in
+        [0, 1]. All-zeros if either list is empty.
+    """
+    if not dt_anns or not gt_anns:
+        return np.zeros((len(dt_anns), len(gt_anns)))
+
+    if sigmas is None:
+        from .utils import COCO_KPT_SIGMAS_17
+
+        sigmas = np.array(COCO_KPT_SIGMAS_17)
+
+    matrix = np.zeros((len(dt_anns), len(gt_anns)))
+
+    for j, gt in enumerate(gt_anns):
+        gt_kpts = np.array(gt.get("keypoints", [])).reshape(-1, 3)
+        if gt_kpts.shape[0] == 0:
+            continue
+        vg = gt_kpts[:, 2] > 0
+        if not vg.any():
+            continue  # no labeled GT keypoints — never matches
+        s = (gt.get("area", 0.0) + np.spacing(1)) / 2
+        if len(sigmas) < gt_kpts.shape[0]:
+            continue
+
+        gt_x = gt_kpts[vg, 0]
+        gt_y = gt_kpts[vg, 1]
+        sig = np.array(sigmas)[vg]
+
+        for i, dt in enumerate(dt_anns):
+            dt_kpts = np.array(dt.get("keypoints", [])).reshape(-1, 3)
+            if dt_kpts.shape[0] != gt_kpts.shape[0]:
+                continue  # k mismatch — no match possible
+            e = (dt_kpts[vg, 0] - gt_x) ** 2 + (dt_kpts[vg, 1] - gt_y) ** 2
+            matrix[i, j] = float(np.exp(-e / (2.0 * sig**2 * s)).sum() / vg.sum())
+
+    return matrix
 
 
 def _compute_bbox_iou(bbox_a: List[float], bbox_b: List[float]) -> float:

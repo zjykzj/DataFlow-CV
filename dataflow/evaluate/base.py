@@ -33,6 +33,7 @@ from .utils import (
     _validate_common_categories,
     _validate_coco_available,
     _validate_dt_scores,
+    _validate_kpt_data,
     _validate_segm_data,
 )
 from dataflow.util.logging import LogConfig
@@ -266,6 +267,12 @@ class BaseEvaluator(ABC):
             errors.extend(segm_errors)
             warnings.extend(segm_warnings)
 
+        # Rule 8: Keypoint data check for keypoints IoU type
+        if self._iou_type() == "keypoints":
+            kpt_errors, kpt_warnings = _validate_kpt_data(coco_gt, coco_dt)
+            errors.extend(kpt_errors)
+            warnings.extend(kpt_warnings)
+
         if errors:
             # Log all validation errors individually, then raise with
             # the full error list so all problems are captured in
@@ -282,7 +289,13 @@ class BaseEvaluator(ABC):
 
     @staticmethod
     def _extract_metrics(coco_eval: Any) -> EvaluationMetrics:
-        """Extract the 12 COCO standard metrics from a completed COCOeval.
+        """Extract the COCO standard metrics from a completed COCOeval.
+
+        The bbox/segm protocol yields 12 stats; the keypoints (OKS)
+        protocol yields 10 (no small-area scale, maxDets=20). Keypoint
+        stats map onto the 12-field model with the undefined fields left
+        at -1.0 and AR carried in the dedicated ``ar_max_20`` field
+        (contract: spec_evaluate.md §2.1).
 
         Args:
             coco_eval: A COCOeval instance after ``summarize()``.
@@ -291,6 +304,17 @@ class BaseEvaluator(ABC):
             EvaluationMetrics populated from ``coco_eval.stats``.
         """
         stats = coco_eval.stats
+        if coco_eval.params.iouType == "keypoints":
+            return EvaluationMetrics(
+                ap=float(stats[0]),
+                ap50=float(stats[1]),
+                ap75=float(stats[2]),
+                ap_medium=float(stats[3]),
+                ap_large=float(stats[4]),
+                ar_max_20=float(stats[5]),
+                ar_medium=float(stats[8]),
+                ar_large=float(stats[9]),
+            )
         return EvaluationMetrics(
             ap=float(stats[0]),
             ap50=float(stats[1]),
@@ -339,6 +363,10 @@ class BaseEvaluator(ABC):
 
         per_class: Dict[int, PerClassMetrics] = {}
 
+        # The keypoints protocol has a single maxDets value (20), so its
+        # maxDets axis has size 1 — bbox/segm use index 2 (maxDets=100).
+        maxdets_idx = 0 if self._iou_type() == "keypoints" else 2
+
         for idx, cat_id in enumerate(cat_ids):
             m = PerClassMetrics(
                 class_id=cat_id,
@@ -348,8 +376,8 @@ class BaseEvaluator(ABC):
             )
 
             try:
-                # Precision for this class: [T, R, K=idx, A=0 (all), M=2 (maxDets=100)]
-                prec = coco_eval.eval["precision"][:, :, idx, 0, 2]
+                # Precision for this class: [T, R, K=idx, A=0 (all), M=maxdets_idx]
+                prec = coco_eval.eval["precision"][:, :, idx, 0, maxdets_idx]
 
                 # AP across all IoU thresholds (mean over T)
                 valid_prec = prec[prec > -1]

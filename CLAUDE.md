@@ -346,14 +346,15 @@ visualize()
 
 ### Evaluators (`dataflow/evaluate/`)
 
-Evaluation of object detection and instance segmentation results, wrapping pycocotools' `COCOeval`.
+Evaluation of object detection, instance segmentation, and pose (keypoint) results, wrapping pycocotools' `COCOeval`.
 
 - `DetectionEvaluator(log_config=None)`: Detection evaluation using bbox IoU (`iouType='bbox'`). Input: GT COCO JSON + DT COCO JSON (with `score` field).
 - `SegmentationEvaluator(log_config=None)`: Segmentation evaluation using mask IoU (`iouType='segm'`). Input: GT COCO JSON + DT COCO JSON (with `segmentation` and `score` fields).
-- `compute_pr_f1(gt, dt, iou_threshold, confidence_threshold, iou_type, method)`: Single-threshold P/R/F1 using manual greedy matching. Supports macro (default) and micro averaging for overall P/R/F1. Supports both bbox IoU and mask IoU (via pycocotools `mask` module). Independent of full COCOeval pipeline for speed.
-- `EvaluationResult`: Structured container with 12 COCO metrics, per-class breakdown (verbose mode), and stats.
+- `KeypointEvaluator(log_config=None, sigmas=None)`: Pose evaluation using OKS (`iouType='keypoints'`). Input: GT/DT with `keypoints` + `score`. Sigmas resolve: explicit → COCO 17-keypoint official (k=17) → uniform 0.05 + WARNING. **The keypoint protocol yields 10 stats** (no small scale, maxDets=20) — `EvaluationMetrics.ar_max_20` carries the AR; `ap_small`/`ar_small`/`ar_max_1/10/100` stay -1.0 (see `spec_evaluate.md` §2.1).
+- `compute_pr_f1(gt, dt, iou_threshold, confidence_threshold, iou_type, method, kpt_sigmas)`: Single-threshold P/R/F1 using manual greedy matching. Supports macro (default) and micro averaging for overall P/R/F1. Supports bbox IoU, mask IoU (via pycocotools `mask` module), and OKS (`iou_type='keypoints'` — the threshold is the OKS threshold). Independent of full COCOeval pipeline for speed.
+- `EvaluationResult`: Structured container with 12 COCO metrics (+`ar_max_20`), per-class breakdown (verbose mode), and stats.
 
-**Key data models**: `EvaluationMetrics` (12 standard metrics), `PerClassMetrics` (per-category TP/FP/FN/AP/P/R/F1), `PRF1Result` (single-threshold P/R/F1).
+**Key data models**: `EvaluationMetrics` (12 standard metrics + `ar_max_20`), `PerClassMetrics` (per-category TP/FP/FN/AP/P/R/F1), `PRF1Result` (single-threshold P/R/F1).
 
 **Verbose mode**: When `log_config.verbose=True`, computes per-class metrics and outputs a per-class breakdown table. Uses `LogManager` for file logging (same pattern as Convert and Visualize).
 

@@ -8,6 +8,7 @@ structured result containers.
 Key features:
 - Detection evaluation (bbox IoU) via DetectionEvaluator
 - Segmentation evaluation (mask IoU) via SegmentationEvaluator
+- Pose evaluation (OKS) via KeypointEvaluator
 - Single-threshold P/R/F1 via compute_pr_f1()
 - Per-class breakdown (verbose mode)
 - COCO-standard 12-metric output
@@ -25,7 +26,7 @@ Example usage:
 
 from . import utils
 from .base import BaseEvaluator
-from .evaluator import DetectionEvaluator, SegmentationEvaluator
+from .evaluator import DetectionEvaluator, KeypointEvaluator, SegmentationEvaluator
 from .metrics import compute_pr_f1
 from .result import (
     EvaluationMetrics,
@@ -38,6 +39,7 @@ from .result import (
 __all__ = [
     "BaseEvaluator",
     "DetectionEvaluator",
+    "KeypointEvaluator",
     "SegmentationEvaluator",
     "compute_pr_f1",
     "EvaluationResult",

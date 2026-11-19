@@ -1,6 +1,6 @@
 # CLI Module Specification
 
-> **Version:** 2.10 | **Last Updated:** 2026-11-19
+> **Version:** 2.11 | **Last Updated:** 2026-11-19
 > **Layer:** Modules
 > **Dependencies:** Convert module + Visualize module + Evaluate module (public APIs only) + Logging module (LogConfig only)
 
@@ -251,6 +251,23 @@ Evaluates instance segmentation results using mask IoU (`iouType='segm'`).
 |----------|------|-------------|
 | `GT_JSON` | Path (exists) | COCO format Ground Truth JSON file (annotations must include `segmentation`) |
 | `DT_JSON` | Path (exists) | COCO format Prediction JSON file (annotations must include `segmentation` + `score`) |
+
+#### `keypoints`
+
+```
+dataflow-cv evaluate keypoints [OPTIONS] GT_JSON DT_JSON
+```
+
+Evaluates pose estimation results using OKS (`iouType='keypoints'`).
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `GT_JSON` | Path (exists) | COCO format Ground Truth JSON file (annotations must include `keypoints`) |
+| `DT_JSON` | Path (exists) | COCO format Prediction JSON file (annotations must include `keypoints` + `score`) |
+
+| Option | Description |
+|--------|-------------|
+| `--kpts-config` PATH | Keypoint-definition YAML — reads the `sigmas` field as per-keypoint OKS sigmas (see `spec_evaluate.md` §3.4 for the fallback chain) |
 
 ### 4.3 Output
 

@@ -256,6 +256,107 @@ def segmentation(
 
 
 # ---------------------------------------------------------------------------
+# Keypoints subcommand
+# ---------------------------------------------------------------------------
+
+
+@evaluate_group.command(cls=FormattedCommand)
+@add_evaluate_options
+@click.argument(
+    "gt_json",
+    type=click.Path(exists=True, path_type=Path),
+)
+@click.argument(
+    "dt_json",
+    type=click.Path(exists=True, path_type=Path),
+)
+@click.option(
+    "--kpts-config",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="Keypoint-definition YAML — reads the 'sigmas' field as per-keypoint "
+    "OKS sigmas (fallback: COCO 17-keypoint sigmas, then uniform 0.05)",
+)
+def keypoints(
+    ctx,
+    gt_json,
+    dt_json,
+    verbose,
+    log_dir,
+    prf1,
+    prf1_iou,
+    prf1_conf,
+    prf1_method,
+    output,
+    kpts_config,
+):
+    """Evaluate pose estimation results (OKS).
+
+    GT_JSON: COCO format Ground Truth JSON file (annotations must include 'keypoints').
+
+    DT_JSON: COCO format Prediction JSON file (annotations must include 'keypoints' + 'score').
+    """
+    from dataflow.evaluate import KeypointEvaluator, compute_pr_f1
+    from dataflow.label.utils import load_kpts_config
+
+    # Build log config
+    log_config = LogConfig(
+        name="evaluate.keypoints",
+        verbose=verbose,
+        log_dir=log_dir,
+    )
+
+    # Validate inputs
+    validate_path_exists(gt_json, "GT JSON")
+    validate_path_exists(dt_json, "DT JSON")
+
+    # Sigmas from the keypoint-definition YAML (spec_evaluate.md §3.4)
+    sigmas = None
+    if kpts_config:
+        sigmas = load_kpts_config(kpts_config).sigmas
+
+    if prf1:
+        # Path B: P/R/F1 only — skip COCOeval entirely
+        from dataflow.evaluate.utils import format_prf1_output
+
+        prf1_result = compute_pr_f1(
+            str(gt_json),
+            str(dt_json),
+            iou_threshold=prf1_iou,
+            confidence_threshold=prf1_conf,
+            iou_type="keypoints",
+            method=prf1_method,
+            kpt_sigmas=sigmas,
+            log_config=log_config,
+        )
+        if prf1_result.success:
+            click.echo()
+            click.echo(format_prf1_output(prf1_result))
+
+            if output:
+                _save_result_json(prf1_result, output)
+                click.echo(f"P/R/F1 result saved to: {output}")
+        else:
+            error_msg = prf1_result.errors[0] if prf1_result.errors else "P/R/F1 computation failed"
+            click.echo(f"P/R/F1 failed: {error_msg}", err=True)
+            raise RuntimeCLIError(f"P/R/F1 failed: {error_msg}")
+    else:
+        # Path A: mAP via COCOeval — all log output is produced by the
+        # evaluator module (spec_evaluate.md §6).
+        evaluator = KeypointEvaluator(log_config=log_config, sigmas=sigmas)
+        result = evaluator.evaluate(str(gt_json), str(dt_json))
+
+        if result.success and result.metrics is not None:
+            if output:
+                _save_result_json(result, output)
+                click.echo(f"Evaluation result saved to: {output}")
+        else:
+            error_msg = result.errors[0] if result.errors else "Evaluation failed"
+            click.echo(f"Evaluation failed: {error_msg}", err=True)
+            raise RuntimeCLIError(f"Evaluation failed: {error_msg}")
+
+
+# ---------------------------------------------------------------------------
 # Output helpers
 # ---------------------------------------------------------------------------
 
