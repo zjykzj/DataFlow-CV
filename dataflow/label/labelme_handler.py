@@ -22,7 +22,7 @@ from .models import (
     ObjectAnnotation,
     Segmentation,
 )
-from .utils import load_kpts_config
+from .utils import KptsConfig, load_kpts_config
 
 
 class LabelMeAnnotationHandler(BaseAnnotationHandler):
@@ -53,13 +53,17 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
         super().__init__(**kwargs)
         self.label_dir = Path(label_dir)
         self.class_file = Path(class_file) if class_file else None
-        self.kpts_config = None
-        if kpts_config:
-            try:
-                self.kpts_config = load_kpts_config(Path(kpts_config))
-                self._log_info(f"Loaded keypoint definition from {kpts_config}")
-            except (ValueError, ImportError) as e:
-                self._log_error(f"Failed to load keypoint definition: {e}")
+        self.kpts_config: Optional[KptsConfig] = None
+        if kpts_config is not None:
+            if isinstance(kpts_config, KptsConfig):
+                self.kpts_config = kpts_config
+                self._log_info("Using in-memory keypoint definition")
+            else:
+                try:
+                    self.kpts_config = load_kpts_config(Path(kpts_config))
+                    self._log_info(f"Loaded keypoint definition from {kpts_config}")
+                except (ValueError, ImportError) as e:
+                    self._log_error(f"Failed to load keypoint definition: {e}")
         self.recursive = recursive
         # One-shot WARNINGs per read/write pass (avoids per-instance noise)
         self._kpts_order_warned = False

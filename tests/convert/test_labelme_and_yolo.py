@@ -140,6 +140,7 @@ class TestLabelMeAndYoloConverter:
         mock_handler_class.assert_called_once_with(
             label_dir=source_path,
             class_file=kwargs["class_file"],
+            kpts_config=None,
             strict_mode=True,
             logger=converter.logger,
         )
@@ -163,6 +164,7 @@ class TestLabelMeAndYoloConverter:
             label_dir=source_path,
             class_file=kwargs["class_file"],
             image_dir=kwargs["image_dir"],
+            pose=False,
             strict_mode=True,
             logger=converter.logger,
         )
@@ -206,6 +208,7 @@ class TestLabelMeAndYoloConverter:
             mock_handler_class.assert_called_once_with(
                 label_dir=target_path,
                 class_file=kwargs["class_file"],
+                kpts_config=None,
                 strict_mode=True,
                 logger=converter.logger,
             )

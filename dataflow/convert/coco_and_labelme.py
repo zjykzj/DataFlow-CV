@@ -16,6 +16,7 @@ from ..label.models import (
     BoundingBox,
     DatasetAnnotations,
     ImageAnnotation,
+    Keypoints,
     ObjectAnnotation,
     Segmentation,
 )
@@ -126,6 +127,7 @@ class CocoAndLabelMeConverter(BaseConverter):
             handler = LabelMeAnnotationHandler(
                 label_dir=source_path,
                 class_file=class_file,
+                kpts_config=kwargs.get("kpts_config"),
                 strict_mode=self.strict_mode,
                 logger=self.logger,
             )
@@ -177,9 +179,61 @@ class CocoAndLabelMeConverter(BaseConverter):
                         f"No categories available to generate class file: {class_file_path}"
                     )
 
+            # Pose: build an in-memory keypoint definition from the COCO
+            # categories so the LabelMe writer can name the point shapes;
+            # also support the --save-kpts-config sidecar
+            # (contract: spec_conversion.md §3.7.2).
+            kpts_config_for_target = kwargs.get("kpts_config")
+            save_kpts_config = kwargs.get("save_kpts_config")
+            if self._source_path and (
+                (not kpts_config_for_target and kwargs.get("pose", False)) or save_kpts_config
+            ):
+                from ..label.utils import KptsConfig
+
+                from .utils import read_coco_categories_meta, write_kpts_config_sidecar
+
+                source_cats = {}
+                if self._source_annotations_for_target is not None:
+                    source_cats = self._source_annotations_for_target.categories
+                meta = read_coco_categories_meta(self._source_path)
+
+                if save_kpts_config:
+                    ok, dropped = write_kpts_config_sidecar(
+                        source_cats, meta, str(save_kpts_config)
+                    )
+                    if ok and dropped:
+                        self.logger.warning(
+                            f"Generated keypoint definition: {save_kpts_config} "
+                            f"({dropped} out-of-range skeleton edge(s) dropped)"
+                        )
+                    elif ok:
+                        self.logger.info(f"Generated keypoint definition: {save_kpts_config}")
+                    else:
+                        self.logger.warning(
+                            "No keypoint metadata in COCO categories — sidecar not written"
+                        )
+
+                if not kpts_config_for_target and kwargs.get("pose", False) and meta:
+                    classes = {}
+                    skeletons = set()
+                    for cat_id, entry in meta.items():
+                        name = source_cats.get(cat_id)
+                        if name and entry.get("keypoints"):
+                            classes[name] = list(entry["keypoints"])
+                            if entry.get("skeleton"):
+                                skeletons.add(tuple(tuple(e) for e in entry["skeleton"]))
+                    skeleton = list(skeletons.pop()) if len(skeletons) == 1 else None
+                    kpts_config_for_target = KptsConfig(
+                        keypoints=None,
+                        classes=classes or None,
+                        skeleton=skeleton,
+                        sigmas=None,
+                    )
+
             handler = LabelMeAnnotationHandler(
                 label_dir=target_path,
                 class_file=class_file,
+                kpts_config=kpts_config_for_target,
                 strict_mode=self.strict_mode,
                 logger=self.logger,
             )
@@ -251,8 +305,17 @@ class CocoAndLabelMeConverter(BaseConverter):
 
             new_image_id = coco_file_name_to_image_id(image_ann.image_path, image_ann.image_id)
 
+        from .utils import enforce_pose_k
+
+        pose = kwargs.get("pose", False)
         new_objects = []
+        dropped_kpts = 0
+        skipped_no_kpts = 0
+        degraded_v1 = 0
         for obj in image_ann.objects:
+            if pose and obj.keypoints is None:
+                skipped_no_kpts += 1
+                continue
             new_bbox = None
             new_seg = None
 
@@ -270,15 +333,49 @@ class CocoAndLabelMeConverter(BaseConverter):
                     rle=obj.segmentation.rle,
                 )
 
+            # Keypoints pass through unchanged — both formats use absolute
+            # pixels (contract: spec_conversion.md §3.7).
+            new_kpts = None
+            if obj.keypoints is not None:
+                if pose:
+                    if not enforce_pose_k(self, len(obj.keypoints.points)):
+                        continue
+                    new_kpts = Keypoints(
+                        points=list(obj.keypoints.points),
+                        visibility=list(obj.keypoints.visibility),
+                    )
+                    if self.source_format == "coco":
+                        # O2: v=1 is not representable in LabelMe — the
+                        # writer emits such points as ordinary (v=2) shapes.
+                        degraded_v1 += sum(1 for v in obj.keypoints.visibility if v == 1)
+                else:
+                    dropped_kpts += 1
             new_objects.append(
                 ObjectAnnotation(
                     class_id=obj.class_id,
                     class_name=obj.class_name,
                     bbox=new_bbox,
                     segmentation=new_seg,
+                    keypoints=new_kpts,
                     confidence=obj.confidence,
                     is_crowd=obj.is_crowd,
                 )
+            )
+
+        if dropped_kpts:
+            self._log_warning(
+                f"Dropped keypoints from {dropped_kpts} object(s) in image "
+                f"'{image_ann.image_id}' (pass pose=True to convert them)"
+            )
+        if skipped_no_kpts:
+            self._log_warning(
+                f"Skipped {skipped_no_kpts} object(s) without keypoints in image "
+                f"'{image_ann.image_id}' (pose mode)"
+            )
+        if degraded_v1:
+            self._log_warning(
+                f"Degraded {degraded_v1} occluded (v=1) keypoint(s) to v=2 in image "
+                f"'{image_ann.image_id}' (LabelMe cannot represent v=1)"
             )
 
         return ImageAnnotation(
@@ -305,5 +402,21 @@ class CocoAndLabelMeConverter(BaseConverter):
 
         for img in source_annotations.images:
             target.add_image(self._convert_single_image(img, **kwargs))
+
+        # Pose metadata for COCO categories: keypoint names + skeleton from
+        # the kpts_config (or placeholders) (contract: spec_conversion.md
+        # §3.7.2).
+        if self.target_format == "coco" and kwargs.get("pose", False):
+            from ..label.utils import load_kpts_config
+
+            from .utils import build_categories_meta
+
+            kpts_config = None
+            cfg_path = kwargs.get("kpts_config")
+            if cfg_path:
+                kpts_config = load_kpts_config(Path(cfg_path))
+            target.dataset_info["categories_meta"] = build_categories_meta(
+                kpts_config, target.categories, self._pose_k or 0
+            )
 
         return target

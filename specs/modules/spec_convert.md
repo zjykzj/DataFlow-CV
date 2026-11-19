@@ -1,6 +1,6 @@
 # Convert Module Specification
 
-> **Version:** v7.1 | **Last Updated:** 2026-11-19
+> **Version:** v8.0 | **Last Updated:** 2026-11-19
 > **Status:** Draft — unified logging via `LogManager`
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
@@ -94,21 +94,25 @@ validate_inputs()
 - Categories must be extractable upfront (via `handler.categories` or source metadata)
   before iteration begins, so the target handler can be configured correctly
 
-#### 2.1.3 Pose Data Guard (Temporary — removed when pose conversion ships, v3.4.0)
+#### 2.1.3 Pose Conversion (v3.4.0)
 
-Until pose conversion is implemented, all six converters **reject keypoint data
-explicitly** — silent loss of an unconverted field is never acceptable:
+Replaces the temporary pose guard that shipped in v3.3.0 (which raised on any
+keypoint data). Pose conversion is opt-in via the `pose=True` kwarg (CLI
+`--pose`):
 
-- **Batch pipeline**: after `handler.read()`, if any object carries `keypoints`
-  (see `spec_label.md` §2.6), `convert()` raises `ValueError` with a message naming
-  the pose-supporting version ("pose conversion is not yet supported; coming in v3.4.0").
-- **Streaming pipeline**: `_convert_single_image()` raises the same error when an image
-  contains keypoints.
-- The guard applies in **both strict and non-strict modes** — it is a capability
-  boundary, not a data-quality issue.
-- Detection/segmentation-only datasets are unaffected; the guard triggers only on
-  keypoint data.
-- Removal: this subsection is deleted when P3 (v3.4.0) implements pose conversion.
+- **Pose mode**: keypoint coordinates are transformed per
+  `spec_conversion.md` §3.7 via the shared utilities in `convert/utils.py`
+  (§2.6). Objects without keypoints are skipped with one WARNING per image
+  (O3); segmentation is dropped for a YOLO target with a WARNING (pose rows
+  cannot carry it). k consistency across the dataset is enforced by the
+  converter (§3.7.3): the first converted object sets k; mismatches are
+  errors in strict mode, skipped with a WARNING in non-strict mode.
+- **Non-pose mode** (default): keypoint data is dropped with one WARNING per
+  image naming the affected count — bbox/segmentation conversion proceeds as
+  usual (the v3.3.0 hard error is removed).
+- Source handlers are created with pose parsing where required (YOLO
+  `pose=True`); `kpts_config`/`save_kpts_config` kwargs flow through
+  `convert()` to the converters (§3.7.2).
 
 ### 2.2 `BaseConverter` Abstract Class
 
@@ -205,6 +209,10 @@ Every implementation MUST:
    the image and the skipped count; `save_crowd=True` (a `convert()` kwarg)
    preserves them as ordinary annotations (see spec_conversion.md §7.1).
 5. Document the precision characteristics of the transform (lossless or lossy, see §9)
+6. Pose mode (`pose=True`): transform `keypoints` via the shared utilities and
+   apply the mode rules of `spec_conversion.md` §3.7.1 (skip objects without
+   keypoints, drop segmentation for YOLO targets, enforce k consistency).
+   Non-pose mode: drop keypoints with one WARNING per image.
 
 **Implementation pattern**: The canonical batch `convert_annotations()` delegates to
 `_convert_single_image()` per image. This ensures the batch and streaming paths
@@ -238,6 +246,10 @@ Every implementation MUST:
    preserves them as ordinary annotations (see spec_conversion.md §7.1).
 5. Be stateless — each call is independent
 6. Match the precision characteristics of `convert_annotations()` for the same direction
+7. Pose mode (`pose=True`): transform `keypoints` via the shared utilities and
+   apply the mode rules of `spec_conversion.md` §3.7.1 (skip objects without
+   keypoints, drop segmentation for YOLO targets). Non-pose mode: drop
+   keypoints with one WARNING per image.
 
 ### 2.4 `ConversionResult`
 
@@ -301,6 +313,8 @@ the same `try/finally` pattern used in the batch path — no stale state leak.
 | YOLO → LabelMe | Normalized → Absolute pixels | **Lossy** (±1 px) | `_convert_single_image()` → shared `utils.yolo_to_absolute_pixel()` |
 | COCO → LabelMe | Absolute → Absolute (no normalize) | **Near-lossless** | `_convert_single_image()` — direct passthrough (no transform needed) |
 | LabelMe → COCO | Absolute → Absolute (no normalize) | **Near-lossless** | `_convert_single_image()` — direct passthrough (no transform needed) |
+| YOLO → COCO / LabelMe (pose) | Normalized → Absolute pixels (keypoints, v passthrough) | **Lossy** (±1 px) | `_convert_single_image()` → shared `utils.keypoints_normalized_to_absolute()` |
+| COCO / LabelMe → YOLO (pose) | Absolute pixels → Normalized (keypoints, v passthrough) | **Lossy** (±1 px) | `_convert_single_image()` → shared `utils.keypoints_absolute_to_normalized()` |
 
 **Shared coordinate transform utilities** (`convert/utils.py`):
 
@@ -369,7 +383,20 @@ def coco_file_name_to_image_id(file_name, fallback_id) -> str:
 def ensure_coco_categories_for_streaming(converter, handler, source_path) -> None:
     """Pre-load categories before streaming iteration (shared by the two
     COCO-source converters)."""
+
+def keypoints_normalized_to_absolute(keypoints, img_width, img_height) -> Keypoints:
+    """Convert YOLO normalized keypoints → absolute pixel keypoints.
+    Visibility passes through unchanged (identity); v=0 points stay at (0, 0)."""
+
+def keypoints_absolute_to_normalized(keypoints, img_width, img_height) -> Keypoints:
+    """Convert absolute pixel keypoints → YOLO normalized keypoints.
+    Visibility passes through unchanged (identity); v=0 points stay at (0, 0)."""
 ```
+
+The keypoint transforms mirror the bbox/segmentation utilities: pure functions,
+stateless, operating on a single `Keypoints` object; callers remain responsible
+for class/confidence/is_crowd preservation and the pose mode rules of
+`spec_conversion.md` §3.7.1.
 
 ### 2.7 Streaming Category Pre-Loading
 

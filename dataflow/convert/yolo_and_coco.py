@@ -136,6 +136,7 @@ class YoloAndCocoConverter(BaseConverter):
                 class_file=class_file,
                 image_dir=image_dir,
                 prediction=self.prediction,
+                pose=kwargs.get("pose", False),
                 strict_mode=self.strict_mode,
                 logger=self.logger,
             )
@@ -222,10 +223,35 @@ class YoloAndCocoConverter(BaseConverter):
                 # If no image_dir provided, use the images directory we created
                 image_dir = str(images_dir)
 
+            # Pose sidecar (--save-kpts-config): generate a keypoint-
+            # definition YAML from the COCO categories before iteration
+            # (contract: spec_conversion.md §3.7.2)
+            save_kpts_config = kwargs.get("save_kpts_config")
+            if save_kpts_config and self._source_path:
+                from .utils import read_coco_categories_meta, write_kpts_config_sidecar
+
+                source_cats = {}
+                if self._source_annotations_for_target is not None:
+                    source_cats = self._source_annotations_for_target.categories
+                meta = read_coco_categories_meta(self._source_path)
+                ok, dropped = write_kpts_config_sidecar(source_cats, meta, str(save_kpts_config))
+                if ok and dropped:
+                    self.logger.warning(
+                        f"Generated keypoint definition: {save_kpts_config} "
+                        f"({dropped} out-of-range skeleton edge(s) dropped)"
+                    )
+                elif ok:
+                    self.logger.info(f"Generated keypoint definition: {save_kpts_config}")
+                else:
+                    self.logger.warning(
+                        "No keypoint metadata in COCO categories — sidecar not written"
+                    )
+
             handler = YoloAnnotationHandler(
                 label_dir=str(labels_dir),
                 class_file=class_file,
                 image_dir=image_dir,
+                pose=kwargs.get("pose", False),
                 strict_mode=self.strict_mode,
                 logger=self.logger,
             )
@@ -254,28 +280,68 @@ class YoloAndCocoConverter(BaseConverter):
         on ``self.source_format``.
         """
         if self.source_format == "yolo":
-            return self._yolo_to_coco_one(image_ann)
+            return self._yolo_to_coco_one(image_ann, pose=kwargs.get("pose", False))
         else:
-            return self._coco_to_yolo_one(image_ann, save_crowd=kwargs.get("save_crowd", False))
+            return self._coco_to_yolo_one(
+                image_ann,
+                save_crowd=kwargs.get("save_crowd", False),
+                pose=kwargs.get("pose", False),
+            )
 
-    def _yolo_to_coco_one(self, img: ImageAnnotation) -> ImageAnnotation:
-        """Convert single image: YOLO normalized center → COCO absolute px."""
-        from .utils import yolo_to_absolute_pixel
+    def _yolo_to_coco_one(self, img: ImageAnnotation, pose: bool = False) -> ImageAnnotation:
+        """Convert single image: YOLO normalized center → COCO absolute px.
+
+        Pose mode (contract: spec_conversion.md §3.7.1): keypoints are
+        transformed to absolute pixels; objects without keypoints are
+        skipped. Non-pose mode drops keypoints with a WARNING.
+        """
+        from .utils import (
+            enforce_pose_k,
+            keypoints_normalized_to_absolute,
+            yolo_to_absolute_pixel,
+        )
 
         new_objects = []
+        dropped_kpts = 0
+        skipped_no_kpts = 0
         for obj in img.objects:
+            if pose and obj.keypoints is None:
+                skipped_no_kpts += 1
+                continue
             new_bbox, new_seg = yolo_to_absolute_pixel(
                 obj.bbox, obj.segmentation, img.width, img.height
             )
+            new_kpts = None
+            if obj.keypoints is not None:
+                if pose:
+                    if not enforce_pose_k(self, len(obj.keypoints.points)):
+                        continue
+                    new_kpts = keypoints_normalized_to_absolute(
+                        obj.keypoints, img.width, img.height
+                    )
+                else:
+                    dropped_kpts += 1
             new_objects.append(
                 ObjectAnnotation(
                     class_id=obj.class_id,
                     class_name=obj.class_name,
                     bbox=new_bbox,
                     segmentation=new_seg,
+                    keypoints=new_kpts,
                     confidence=obj.confidence,
                     is_crowd=obj.is_crowd,
                 )
+            )
+
+        if dropped_kpts:
+            self._log_warning(
+                f"Dropped keypoints from {dropped_kpts} object(s) in image "
+                f"'{img.image_id}' (pass pose=True to convert them)"
+            )
+        if skipped_no_kpts:
+            self._log_warning(
+                f"Skipped {skipped_no_kpts} object(s) without keypoints in image "
+                f"'{img.image_id}' (pose mode)"
             )
 
         return ImageAnnotation(
@@ -286,30 +352,62 @@ class YoloAndCocoConverter(BaseConverter):
             objects=new_objects,
         )
 
-    def _coco_to_yolo_one(self, img: ImageAnnotation, save_crowd: bool = False) -> ImageAnnotation:
+    def _coco_to_yolo_one(
+        self, img: ImageAnnotation, save_crowd: bool = False, pose: bool = False
+    ) -> ImageAnnotation:
         """Convert single image: COCO absolute px → YOLO normalized center.
 
         YOLO has no crowd representation, so ``is_crowd=True`` objects are
         skipped by default (contract: spec_conversion.md §7.1);
         ``save_crowd=True`` writes them as ordinary rows.
+
+        Pose mode (contract: spec_conversion.md §3.7.1): keypoints are
+        transformed to normalized coordinates and segmentation is dropped
+        (pose rows cannot carry it); objects without keypoints are skipped.
+        Non-pose mode drops keypoints with a WARNING.
         """
-        from .utils import absolute_pixel_to_yolo, coco_file_name_to_image_id
+        from .utils import (
+            absolute_pixel_to_yolo,
+            coco_file_name_to_image_id,
+            enforce_pose_k,
+            keypoints_absolute_to_normalized,
+        )
 
         new_objects = []
         skipped_crowd = 0
+        skipped_no_kpts = 0
+        dropped_kpts = 0
+        dropped_seg = 0
         for obj in img.objects:
             if obj.is_crowd and not save_crowd:
                 skipped_crowd += 1
                 continue
+            if pose and obj.keypoints is None:
+                skipped_no_kpts += 1
+                continue
             new_bbox, new_seg = absolute_pixel_to_yolo(
                 obj.bbox, obj.segmentation, img.width, img.height
             )
+            new_kpts = None
+            if obj.keypoints is not None:
+                if pose:
+                    if not enforce_pose_k(self, len(obj.keypoints.points)):
+                        continue
+                    new_kpts = keypoints_absolute_to_normalized(
+                        obj.keypoints, img.width, img.height
+                    )
+                    if new_seg is not None:
+                        dropped_seg += 1
+                        new_seg = None
+                else:
+                    dropped_kpts += 1
             new_objects.append(
                 ObjectAnnotation(
                     class_id=obj.class_id,
                     class_name=obj.class_name,
                     bbox=new_bbox,
                     segmentation=new_seg,
+                    keypoints=new_kpts,
                     confidence=obj.confidence,
                     is_crowd=obj.is_crowd,
                 )
@@ -320,6 +418,21 @@ class YoloAndCocoConverter(BaseConverter):
                 f"Skipped {skipped_crowd} crowd annotation(s) in image "
                 f"'{img.image_id}' (pass save_crowd=True to preserve them "
                 "as ordinary rows)"
+            )
+        if skipped_no_kpts:
+            self._log_warning(
+                f"Skipped {skipped_no_kpts} object(s) without keypoints in image "
+                f"'{img.image_id}' (pose mode)"
+            )
+        if dropped_kpts:
+            self._log_warning(
+                f"Dropped keypoints from {dropped_kpts} object(s) in image "
+                f"'{img.image_id}' (pass pose=True to convert them)"
+            )
+        if dropped_seg:
+            self._log_warning(
+                f"Dropped segmentation from {dropped_seg} object(s) in image "
+                f"'{img.image_id}' (pose rows cannot carry it)"
             )
 
         # YOLO format requires label files to share the stem with the image
@@ -348,5 +461,22 @@ class YoloAndCocoConverter(BaseConverter):
 
         for img in source_annotations.images:
             target.add_image(self._convert_single_image(img, **kwargs))
+
+        # Pose metadata for COCO categories: keypoint names + skeleton from
+        # the kpts_config (or placeholders) (contract: spec_conversion.md
+        # §3.7.2). The COCO handler merges dataset_info["categories_meta"]
+        # back into the output categories on write.
+        if self.target_format == "coco" and kwargs.get("pose", False):
+            from ..label.utils import load_kpts_config
+
+            from .utils import build_categories_meta
+
+            kpts_config = None
+            cfg_path = kwargs.get("kpts_config")
+            if cfg_path:
+                kpts_config = load_kpts_config(Path(cfg_path))
+            target.dataset_info["categories_meta"] = build_categories_meta(
+                kpts_config, target.categories, self._pose_k or 0
+            )
 
         return target

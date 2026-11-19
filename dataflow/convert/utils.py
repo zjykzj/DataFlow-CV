@@ -11,7 +11,7 @@ import math
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..label.models import BoundingBox, DatasetAnnotations, Segmentation
+from ..label.models import BoundingBox, DatasetAnnotations, Keypoints, Segmentation
 
 
 # ---------------------------------------------------------------------------
@@ -123,6 +123,215 @@ def absolute_pixel_to_yolo(
         new_seg = Segmentation(points=new_points, rle=seg.rle)
 
     return new_bbox, new_seg
+
+
+# ---------------------------------------------------------------------------
+# Keypoint (pose) coordinate transforms
+# ---------------------------------------------------------------------------
+
+
+def keypoints_normalized_to_absolute(
+    keypoints: Optional[Keypoints],
+    img_width: int,
+    img_height: int,
+) -> Optional[Keypoints]:
+    """Convert YOLO normalized keypoints → absolute pixel keypoints.
+
+    Visibility passes through unchanged (identity mapping); v=0 points stay
+    at (0, 0). Pure function — stateless, no side effects
+    (contract: spec_conversion.md §3.7).
+
+    Used by:
+        - YoloAndCocoConverter (YOLO → COCO, pose mode)
+        - LabelMeAndYoloConverter (YOLO → LabelMe, pose mode)
+    """
+    if keypoints is None:
+        return None
+    if img_width <= 0 or img_height <= 0:
+        raise ValueError(f"Image dimensions must be positive, got {img_width}x{img_height}")
+
+    new_points = [(x * img_width, y * img_height) for x, y in keypoints.points]
+    for i, (x, y) in enumerate(new_points):
+        if not math.isfinite(x) or not math.isfinite(y):
+            raise ValueError(f"keypoint[{i}] must be finite, got: ({x!r}, {y!r})")
+
+    return Keypoints(points=new_points, visibility=list(keypoints.visibility))
+
+
+def keypoints_absolute_to_normalized(
+    keypoints: Optional[Keypoints],
+    img_width: int,
+    img_height: int,
+) -> Optional[Keypoints]:
+    """Convert absolute pixel keypoints → YOLO normalized keypoints.
+
+    Visibility passes through unchanged (identity mapping); v=0 points stay
+    at (0, 0). Pure function — stateless, no side effects
+    (contract: spec_conversion.md §3.7).
+
+    Used by:
+        - YoloAndCocoConverter (COCO → YOLO, pose mode)
+        - LabelMeAndYoloConverter (LabelMe → YOLO, pose mode)
+    """
+    if keypoints is None:
+        return None
+    if img_width <= 0 or img_height <= 0:
+        raise ValueError(f"Image dimensions must be positive, got {img_width}x{img_height}")
+
+    new_points = [(x / img_width, y / img_height) for x, y in keypoints.points]
+    for i, (x, y) in enumerate(new_points):
+        if not math.isfinite(x) or not math.isfinite(y):
+            raise ValueError(f"keypoint[{i}] must be finite, got: ({x!r}, {y!r})")
+
+    return Keypoints(points=new_points, visibility=list(keypoints.visibility))
+
+
+def enforce_pose_k(converter: Any, k: int) -> bool:
+    """Pose-mode keypoint-count consistency (spec_conversion.md §3.7.3).
+
+    The first converted object sets ``converter._pose_k``; a mismatch is an
+    error in strict mode (raises ``ValueError``) and a skip in non-strict
+    mode (returns False after logging).
+
+    Args:
+        converter: The ``BaseConverter`` instance (``_pose_k`` is reset per
+            pipeline run by the base class).
+        k: The object's keypoint count.
+
+    Returns:
+        True if the object passes (count set or matches), False to skip it.
+    """
+    if converter._pose_k is None:
+        converter._pose_k = k
+        return True
+    if converter._pose_k == k:
+        return True
+    msg = f"Inconsistent keypoint count {k} (dataset k={converter._pose_k})"
+    if converter.strict_mode:
+        raise ValueError(msg)
+    converter._log_warning(f"Skipping object: {msg}")
+    return False
+
+
+def build_categories_meta(kpts_config: Any, categories: Dict[int, str], k: int) -> Dict[int, Dict]:
+    """Build COCO ``categories_meta`` (keypoint names + skeleton) per category.
+
+    With a keypoint-definition config, names resolve per class
+    (``names_for()``) and the config's skeleton is attached. Without one,
+    placeholder names ``keypoint_0..k-1`` are synthesized with no skeleton —
+    valid COCO, degraded semantics (contract: spec_conversion.md §3.7.2).
+
+    Args:
+        kpts_config: ``KptsConfig`` or None.
+        categories: Category mapping ``{cat_id: cat_name}``.
+        k: Dataset keypoint count (converter-tracked pose k).
+
+    Returns:
+        ``{category_id: {"keypoints": [...], "skeleton": [...]}}``.
+    """
+    meta: Dict[int, Dict] = {}
+    placeholders = [f"keypoint_{i}" for i in range(k)] if k > 0 else []
+
+    for cat_id, cat_name in categories.items():
+        entry: Dict = {}
+        if kpts_config is not None:
+            try:
+                entry["keypoints"] = kpts_config.names_for(cat_name)
+            except ValueError:
+                entry["keypoints"] = list(placeholders)
+        elif placeholders:
+            entry["keypoints"] = list(placeholders)
+        if entry and kpts_config is not None and kpts_config.skeleton:
+            entry["skeleton"] = kpts_config.skeleton
+        if entry:
+            meta[cat_id] = entry
+
+    return meta
+
+
+def read_coco_categories_meta(json_path: str) -> Dict[int, Dict]:
+    """Read pose metadata (keypoints names + skeleton) from a COCO JSON file.
+
+    Only parses the ``"categories"`` array — does not load images or
+    annotations. Returns an empty dict on any error.
+
+    Args:
+        json_path: Path to a COCO JSON annotation file.
+
+    Returns:
+        ``{category_id: {"keypoints": [...], "skeleton": [...]}}``.
+    """
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            coco_data = json.load(f)
+        meta: Dict[int, Dict] = {}
+        for cat in coco_data.get("categories", []):
+            cat_id = cat.get("id")
+            if cat_id is None:
+                continue
+            entry = {}
+            if cat.get("keypoints"):
+                entry["keypoints"] = cat["keypoints"]
+            if cat.get("skeleton"):
+                entry["skeleton"] = cat["skeleton"]
+            if entry:
+                meta[cat_id] = entry
+        return meta
+    except (json.JSONDecodeError, OSError, KeyError, TypeError):
+        return {}
+
+
+def write_kpts_config_sidecar(
+    categories: Dict[int, str],
+    categories_meta: Dict[int, Dict],
+    output_path: str,
+) -> Tuple[bool, int]:
+    """Write a keypoint-definition YAML sidecar generated from COCO categories.
+
+    Schema (contract: spec_conversion.md §3.7.2): per-class ``classes`` map;
+    ``skeleton`` is written only when uniform across all pose categories
+    (else omitted — the schema has no per-class skeleton).
+
+    Out-of-range skeleton edges are dropped (the official COCO person
+    skeleton contains index 17 for a 17-keypoint list — no consumer can
+    draw it; the generated config must satisfy the strict loader,
+    `spec_label.md` §4.4).
+
+    Returns:
+        ``(success, dropped_edges)`` — dropped_edges counts the
+        out-of-range edges filtered out.
+    """
+    try:
+        import yaml  # type: ignore[import-untyped]
+
+        classes: Dict[str, List[str]] = {}
+        skeletons = []
+        dropped_edges = 0
+        for cat_id, cat_name in sorted(categories.items()):
+            meta = categories_meta.get(cat_id, {})
+            if meta.get("keypoints"):
+                classes[cat_name] = list(meta["keypoints"])
+                if meta.get("skeleton"):
+                    k = len(meta["keypoints"])
+                    edges = [
+                        edge for edge in meta["skeleton"] if 0 <= edge[0] < k and 0 <= edge[1] < k
+                    ]
+                    dropped_edges += len(meta["skeleton"]) - len(edges)
+                    skeletons.append(tuple(tuple(edge) for edge in edges))
+
+        if not classes:
+            return False, 0
+
+        data: Dict[str, Any] = {"has_visible": True, "classes": classes}
+        unique_skeletons = set(skeletons)
+        if skeletons and len(unique_skeletons) == 1:
+            data["skeleton"] = [list(edge) for edge in skeletons[0]]
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(data, f, sort_keys=False, allow_unicode=True)
+        return True, dropped_edges
+    except (OSError, ImportError, ValueError):
+        return False, 0
 
 
 # ---------------------------------------------------------------------------

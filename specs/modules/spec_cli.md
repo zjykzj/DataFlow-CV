@@ -1,6 +1,6 @@
 # CLI Module Specification
 
-> **Version:** 2.9 | **Last Updated:** 2026-11-19
+> **Version:** 2.10 | **Last Updated:** 2026-11-19
 > **Layer:** Modules
 > **Dependencies:** Convert module + Visualize module + Evaluate module (public APIs only) + Logging module (LogConfig only)
 
@@ -48,6 +48,8 @@ dataflow-cv convert yolo2coco [OPTIONS] IMAGE_DIR LABEL_DIR CLASS_FILE OUTPUT_FI
 |--------|-------------|
 | `--do-rle` | Use RLE encoding for COCO segmentation |
 | `--prediction` | Treat input as prediction format (with confidence). Output includes `score` fields. |
+| `--pose` | Enable pose conversion (parse 5+3k pose rows; keypoint data is dropped with a warning otherwise) |
+| `--kpts-config` PATH | Keypoint-definition YAML — keypoint names + skeleton for the COCO categories |
 
 **Validates:** `class_file` and `image_dir` are required. `pycocotools` must be installed if `--do-rle` is set.
 
@@ -64,6 +66,11 @@ dataflow-cv convert yolo2labelme [OPTIONS] IMAGE_DIR LABEL_DIR CLASS_FILE OUTPUT
 | `CLASS_FILE` | Path (exists) | Class file |
 | `OUTPUT_DIR` | Path | Output LabelMe directory |
 
+| Option | Description |
+|--------|-------------|
+| `--pose` | Enable pose conversion (parse 5+3k pose rows, write point shapes + rectangle) |
+| `--kpts-config` PATH | Keypoint-definition YAML — point-shape labels (fallback: `keypoint_N` placeholders) |
+
 #### `coco2yolo`
 
 ```
@@ -78,6 +85,8 @@ dataflow-cv convert coco2yolo [OPTIONS] COCO_FILE OUTPUT_DIR
 | Option | Description |
 |--------|-------------|
 | `--save-crowd` | Write `iscrowd=1` annotations as ordinary rows (default: skip them) |
+| `--pose` | Enable pose conversion (write 5+3k pose rows; keypoint data is dropped with a warning otherwise) |
+| `--save-kpts-config` PATH | Write a keypoint-definition YAML sidecar generated from COCO categories |
 
 #### `coco2labelme`
 
@@ -93,6 +102,8 @@ dataflow-cv convert coco2labelme [OPTIONS] COCO_FILE OUTPUT_DIR
 | Option | Description |
 |--------|-------------|
 | `--save-crowd` | Write `iscrowd=1` annotations as ordinary shapes (default: skip them) |
+| `--pose` | Enable pose conversion (write point shapes + rectangle; v=1 degrades to v=2 with a warning) |
+| `--save-kpts-config` PATH | Write a keypoint-definition YAML sidecar generated from COCO categories |
 
 #### `labelme2yolo`
 
@@ -105,6 +116,11 @@ dataflow-cv convert labelme2yolo [OPTIONS] LABELME_DIR CLASS_FILE OUTPUT_DIR
 | `LABELME_DIR` | Path (exists) | LabelMe annotation directory |
 | `CLASS_FILE` | Path (exists) | Class file |
 | `OUTPUT_DIR` | Path | Output directory |
+
+| Option | Description |
+|--------|-------------|
+| `--pose` | Enable pose conversion (write 5+3k pose rows) |
+| `--kpts-config` PATH | Keypoint-definition YAML — keypoint ordering (fallback: file order with a warning) |
 
 #### `labelme2coco`
 
@@ -121,6 +137,8 @@ dataflow-cv convert labelme2coco [OPTIONS] LABELME_DIR CLASS_FILE OUTPUT_FILE
 | Option | Description |
 |--------|-------------|
 | `--do-rle` | Use RLE encoding for COCO segmentation |
+| `--pose` | Enable pose conversion (write `keypoints` + `num_keypoints`) |
+| `--kpts-config` PATH | Keypoint-definition YAML — keypoint ordering + COCO category names/skeleton |
 
 ## 3. Visualize Subcommands
 

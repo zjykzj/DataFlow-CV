@@ -2,6 +2,7 @@
 
 import click
 from pathlib import Path
+from typing import Optional
 
 from dataflow.cli.commands.utils import (
     validate_convert_params,
@@ -36,6 +37,18 @@ def convert_group():
     "even tokens for segmentation). Output COCO as plain JSON list of "
     "annotation dicts (prediction format, Variant B).",
 )
+@click.option(
+    "--pose",
+    is_flag=True,
+    help="Enable pose conversion (parse 5+3k pose rows; write COCO keypoints). "
+    "Without it, keypoint data is dropped with a warning.",
+)
+@click.option(
+    "--kpts-config",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="Keypoint-definition YAML (keypoint names + skeleton for COCO categories)",
+)
 def yolo2coco(
     ctx,
     image_dir: Path,
@@ -44,6 +57,8 @@ def yolo2coco(
     output_file: Path,
     do_rle: bool,
     prediction: bool,
+    pose: bool,
+    kpts_config: Optional[Path],
 ):
     """Convert YOLO format to COCO format"""
     from dataflow.convert import YoloAndCocoConverter
@@ -68,6 +83,8 @@ def yolo2coco(
         class_file=str(class_file),
         image_dir=str(image_dir),
         do_rle=do_rle,
+        pose=pose,
+        kpts_config=kpts_config,
         category_mapping=None,
     )
 
@@ -90,12 +107,25 @@ def yolo2coco(
 @click.argument("label_dir", type=click.Path(exists=True, path_type=Path), metavar="LABEL_DIR")
 @click.argument("class_file", type=click.Path(exists=True, path_type=Path), metavar="CLASS_FILE")
 @click.argument("output_dir", type=click.Path(path_type=Path), metavar="OUTPUT_DIR")
+@click.option(
+    "--pose",
+    is_flag=True,
+    help="Enable pose conversion (parse 5+3k pose rows; write point shapes + rectangle)",
+)
+@click.option(
+    "--kpts-config",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="Keypoint-definition YAML (point-shape labels; fallback: keypoint_N placeholders)",
+)
 def yolo2labelme(
     ctx,
     image_dir: Path,
     label_dir: Path,
     class_file: Path,
     output_dir: Path,
+    pose: bool,
+    kpts_config: Optional[Path],
 ):
     """Convert YOLO format to LabelMe format"""
     from dataflow.convert import LabelMeAndYoloConverter
@@ -119,6 +149,8 @@ def yolo2labelme(
         target_path=str(output_dir),
         class_file=str(class_file),
         image_dir=str(image_dir),
+        pose=pose,
+        kpts_config=kpts_config,
         category_mapping=None,
     )
 
@@ -139,11 +171,24 @@ def yolo2labelme(
 @click.argument("labelme_dir", type=click.Path(exists=True, path_type=Path), metavar="LABELME_DIR")
 @click.argument("class_file", type=click.Path(exists=True, path_type=Path), metavar="CLASS_FILE")
 @click.argument("output_dir", type=click.Path(path_type=Path), metavar="OUTPUT_DIR")
+@click.option(
+    "--pose",
+    is_flag=True,
+    help="Enable pose conversion (write 5+3k pose rows)",
+)
+@click.option(
+    "--kpts-config",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="Keypoint-definition YAML (keypoint ordering; fallback: file order with a warning)",
+)
 def labelme2yolo(
     ctx,
     labelme_dir: Path,
     class_file: Path,
     output_dir: Path,
+    pose: bool,
+    kpts_config: Optional[Path],
 ):
     """Convert LabelMe format to YOLO format"""
     from dataflow.convert import LabelMeAndYoloConverter
@@ -167,6 +212,8 @@ def labelme2yolo(
         target_path=str(output_dir),
         class_file=str(class_file),
         image_dir=None,
+        pose=pose,
+        kpts_config=kpts_config,
         category_mapping=None,
     )
 
@@ -192,12 +239,25 @@ def labelme2yolo(
     is_flag=True,
     help="Use RLE encoding for COCO format",
 )
+@click.option(
+    "--pose",
+    is_flag=True,
+    help="Enable pose conversion (write COCO keypoints + num_keypoints)",
+)
+@click.option(
+    "--kpts-config",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="Keypoint-definition YAML (keypoint ordering + COCO category names/skeleton)",
+)
 def labelme2coco(
     ctx,
     labelme_dir: Path,
     class_file: Path,
     output_file: Path,
     do_rle: bool,
+    pose: bool,
+    kpts_config: Optional[Path],
 ):
     """Convert LabelMe format to COCO format"""
     from dataflow.convert import CocoAndLabelMeConverter
@@ -223,6 +283,8 @@ def labelme2coco(
         image_dir=None,
         category_mapping=None,
         do_rle=do_rle,
+        pose=pose,
+        kpts_config=kpts_config,
     )
 
     # Print terminal output
@@ -245,6 +307,18 @@ def labelme2coco(
     default=False,
     help="Write iscrowd=1 annotations as ordinary rows (default: skip them)",
 )
+@click.option(
+    "--pose",
+    is_flag=True,
+    help="Enable pose conversion (write 5+3k pose rows; segmentation is dropped "
+    "with a warning). Without it, keypoint data is dropped with a warning.",
+)
+@click.option(
+    "--save-kpts-config",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Write a keypoint-definition YAML sidecar generated from COCO categories",
+)
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path), metavar="COCO_FILE")
 @click.argument("output_path", type=click.Path(path_type=Path), metavar="OUTPUT_DIR")
 def coco2yolo(
@@ -252,6 +326,8 @@ def coco2yolo(
     input_path: Path,
     output_path: Path,
     save_crowd: bool,
+    pose: bool,
+    save_kpts_config: Optional[Path],
 ):
     """Convert COCO format to YOLO format"""
     from dataflow.convert import YoloAndCocoConverter
@@ -277,6 +353,8 @@ def coco2yolo(
         image_dir=None,
         category_mapping=None,
         save_crowd=save_crowd,
+        pose=pose,
+        save_kpts_config=save_kpts_config,
     )
 
     # Print terminal output
@@ -299,6 +377,18 @@ def coco2yolo(
     default=False,
     help="Write iscrowd=1 annotations as ordinary shapes (default: skip them)",
 )
+@click.option(
+    "--pose",
+    is_flag=True,
+    help="Enable pose conversion (write point shapes + rectangle; v=1 degrades "
+    "to v=2 with a warning). Without it, keypoint data is dropped with a warning.",
+)
+@click.option(
+    "--save-kpts-config",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Write a keypoint-definition YAML sidecar generated from COCO categories",
+)
 @click.argument("input_path", type=click.Path(exists=True, path_type=Path), metavar="COCO_FILE")
 @click.argument("output_path", type=click.Path(path_type=Path), metavar="OUTPUT_DIR")
 def coco2labelme(
@@ -306,6 +396,8 @@ def coco2labelme(
     input_path: Path,
     output_path: Path,
     save_crowd: bool,
+    pose: bool,
+    save_kpts_config: Optional[Path],
 ):
     """Convert COCO format to LabelMe format"""
     from dataflow.convert import CocoAndLabelMeConverter
@@ -331,6 +423,8 @@ def coco2labelme(
         image_dir=None,
         category_mapping=None,
         save_crowd=save_crowd,
+        pose=pose,
+        save_kpts_config=save_kpts_config,
     )
 
     # Print terminal output

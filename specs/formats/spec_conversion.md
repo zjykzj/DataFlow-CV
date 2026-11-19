@@ -1,6 +1,6 @@
 # Annotation Format Conversion Specification
 
-> **Version:** v4.0 | **Last Updated:** 2026-11-17
+> **Version:** v5.0 | **Last Updated:** 2026-11-19
 > **Status:** Draft — updated to reflect native-coordinate architecture
 
 ## 1. Conversion Architecture
@@ -24,11 +24,11 @@ Source Format → Handler.read() → DatasetAnnotations (native coords)
 
 `DatasetAnnotations.format` field defines how to interpret all coordinates:
 
-| Format | Bounding Box | Segmentation | Type |
-|--------|-------------|-------------|------|
-| YOLO | `(cx, cy, w, h)` normalized [0,1], center-based | `(x, y)` normalized [0,1] | Normalized |
-| COCO | `(x_tl, y_tl, w_abs, h_abs)` absolute pixels | `(x, y)` absolute pixels | Absolute |
-| LabelMe | `(x_tl, y_tl, w_abs, h_abs)` absolute pixels | `(x, y)` absolute pixels | Absolute |
+| Format | Bounding Box | Segmentation | Keypoints | Type |
+|--------|-------------|-------------|-----------|------|
+| YOLO | `(cx, cy, w, h)` normalized [0,1], center-based | `(x, y)` normalized [0,1] | `(x, y)` normalized [0,1] + v flags | Normalized |
+| COCO | `(x_tl, y_tl, w_abs, h_abs)` absolute pixels | `(x, y)` absolute pixels | `(x, y)` absolute pixels + v flags | Absolute |
+| LabelMe | `(x_tl, y_tl, w_abs, h_abs)` absolute pixels | `(x, y)` absolute pixels | `(x, y)` absolute pixels + v flags | Absolute |
 
 ### 1.3 Converter State Management
 
@@ -205,6 +205,56 @@ After conversion, the converter **must** set `DatasetAnnotations.format` to the 
 before passing data to `TargetHandler.write()`. This ensures the target handler interprets
 coordinates correctly.
 
+### 3.7 Pose (Keypoints) Transformation Rules
+
+Keypoint coordinates follow the same normalization rules as segmentation points;
+the visibility flag passes through unchanged (identity mapping v → v, both
+directions). v=0 keypoints stay at (0, 0).
+
+```
+YOLO → COCO / LabelMe:  abs_x = x_norm * img_width;   abs_y = y_norm * img_height
+COCO / LabelMe → YOLO:  norm_x = x_abs / img_width;    norm_y = y_abs / img_height
+```
+
+**Lossy** (normalized ↔ absolute pixel round-trip) — see §9.3. COCO `num_keypoints`
+is recomputed on write from the v>0 count — source values are ignored.
+
+#### 3.7.1 Pose Mode (Explicit)
+
+Pose conversion is opt-in via `pose=True` (converter kwarg, CLI `--pose`):
+
+| Mode | Objects WITH keypoints | Objects WITHOUT keypoints |
+|------|------------------------|---------------------------|
+| Non-pose (default) | Keypoints **dropped**; bbox/segmentation converted as usual; one WARNING per image with the affected count | Converted as usual |
+| Pose (`pose=True`) | Keypoints converted; segmentation dropped for a YOLO target with a WARNING (pose rows cannot carry it) | **Skipped** with one WARNING per image naming the count (O3) |
+
+For YOLO **sources**, pose rows are unparseable in det/seg mode
+(`spec_yolo_format.md` §2.3) — `--pose` is effectively required for pose
+datasets; the non-pose drop rule applies to COCO/LabelMe sources.
+
+#### 3.7.2 Keypoint Metadata Propagation
+
+| Direction | Names / skeleton source | Fallback |
+|-----------|------------------------|----------|
+| COCO → YOLO / LabelMe | COCO categories (`keypoints`/`skeleton`); `save_kpts_config=path` writes a definition-YAML sidecar (per-class `classes` map; `skeleton` only when uniform across categories, else omitted + WARNING) | — |
+| YOLO / LabelMe → COCO | `kpts_config` YAML → COCO category `keypoints`/`skeleton` | `keypoint_0..k-1` placeholder names + empty skeleton + WARNING |
+| YOLO → LabelMe | `kpts_config` names → point-shape labels | `keypoint_N` placeholders + WARNING |
+| LabelMe → YOLO | `kpts_config` names order the keypoints (handler read) | File appearance order + WARNING |
+
+#### 3.7.3 Keypoint Count (k) Consistency
+
+For YOLO pose rows, k must be fixed per dataset (`spec_yolo_format.md` §2.3).
+The converter enforces this in pose mode: the first converted object sets k;
+objects with a different k are an error in strict mode, skipped with a WARNING
+in non-strict mode. (For YOLO sources the handler already enforces k at parse
+time — the converter check covers COCO/LabelMe sources.)
+
+#### 3.7.4 Visibility Degradation (O2)
+
+COCO → LabelMe pose: v=1 (labeled but not visible) is **not representable** in
+LabelMe — such points are written as ordinary point shapes (v=2 semantics) with
+one WARNING per image naming the count. Read-back therefore yields v=2.
+
 ## 4. Category Mapping Rules
 
 ### 4.1 YOLO Category Model
@@ -361,14 +411,14 @@ of the binary mask, which is already an approximation of the original polygon.
 
 **Cross-format round-trips** (A→B→A) are lossy — the matrix shows expected fidelity:
 
-| Round-Trip | Detection | Segmentation (Polygon) | Segmentation (RLE) |
-|------------|-----------|----------------------|-------------------|
-| YOLO → COCO → YOLO | **Lossy** (±1 px) | **Lossy** (±1 px per vertex) | N/A |
-| COCO → YOLO → COCO | **Lossy** (±1 px) | **Lossy** (±1 px per vertex) | **Lossy** (rasterization loss) |
-| YOLO → LabelMe → YOLO | **Lossy** (±1 px) | **Lossy** (±1 px per vertex) | N/A |
-| LabelMe → YOLO → LabelMe | **Lossy** (±1 px) | **Lossy** (±1 px per vertex) | N/A |
-| COCO → LabelMe → COCO | **Near-lossless** (< 1 px) | **Near-lossless** (< 1 px) | **Lossy** (rasterization loss) |
-| LabelMe → COCO → LabelMe | **Near-lossless** (< 1 px) | **Near-lossless** (< 1 px) | N/A |
+| Round-Trip | Detection | Segmentation (Polygon) | Segmentation (RLE) | Pose (Keypoints) |
+|------------|-----------|----------------------|-------------------|-------------------|
+| YOLO → COCO → YOLO | **Lossy** (±1 px) | **Lossy** (±1 px per vertex) | N/A | **Lossy** (±1 px per keypoint) |
+| COCO → YOLO → COCO | **Lossy** (±1 px) | **Lossy** (±1 px per vertex) | **Lossy** (rasterization loss) | **Lossy** (±1 px per keypoint) |
+| YOLO → LabelMe → YOLO | **Lossy** (±1 px) | **Lossy** (±1 px per vertex) | N/A | **Lossy** (±1 px per keypoint) |
+| LabelMe → YOLO → LabelMe | **Lossy** (±1 px) | **Lossy** (±1 px per vertex) | N/A | **Lossy** (±1 px per keypoint) |
+| COCO → LabelMe → COCO | **Near-lossless** (< 1 px) | **Near-lossless** (< 1 px) | **Lossy** (rasterization loss) | **Near-lossless** (< 1 px; v=1 degrades to v=2, §3.7.4) |
+| LabelMe → COCO → LabelMe | **Near-lossless** (< 1 px) | **Near-lossless** (< 1 px) | N/A | **Near-lossless** (< 1 px; v=1 degrades to v=2, §3.7.4) |
 
 **Notes:**
 - "±1 px" means individual coordinate values may differ by up to 1 pixel from the original
@@ -443,4 +493,7 @@ files never halt batch processing, even in strict mode.
 | `class_file` | YOLO→COCO, LabelMe→YOLO, YOLO→LabelMe, LabelMe→COCO | Path to `classes.txt` |
 | `image_dir` | YOLO→COCO, YOLO→LabelMe | Directory containing image files |
 | `do_rle` | YOLO→COCO, LabelMe→COCO (optional) | Enable RLE encoding for segmentation |
+| `pose` | All 6 directions (optional) | Enable pose conversion (CLI `--pose`) — see §3.7.1 |
+| `kpts_config` | YOLO→COCO, LabelMe→COCO, YOLO→LabelMe, LabelMe→YOLO (optional) | Keypoint-definition YAML (names, skeleton, ordering) — see §3.7.2 |
+| `save_kpts_config` | COCO→YOLO, COCO→LabelMe (optional) | Write a keypoint-definition YAML sidecar generated from COCO categories (CLI `--save-kpts-config`) |
 | `strict_mode` | All (optional, default=True) | Enable strict validation |

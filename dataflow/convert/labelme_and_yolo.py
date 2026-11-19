@@ -102,6 +102,7 @@ class LabelMeAndYoloConverter(BaseConverter):
             handler = LabelMeAnnotationHandler(
                 label_dir=source_path,
                 class_file=class_file,
+                kpts_config=kwargs.get("kpts_config"),
                 strict_mode=self.strict_mode,
                 logger=self.logger,
             )
@@ -114,6 +115,7 @@ class LabelMeAndYoloConverter(BaseConverter):
                 label_dir=source_path,
                 class_file=class_file,
                 image_dir=image_dir,
+                pose=kwargs.get("pose", False),
                 strict_mode=self.strict_mode,
                 logger=self.logger,
             )
@@ -170,6 +172,7 @@ class LabelMeAndYoloConverter(BaseConverter):
                 label_dir=str(labels_dir),
                 class_file=class_file,
                 image_dir=image_dir,
+                pose=kwargs.get("pose", False),
                 strict_mode=self.strict_mode,
                 logger=self.logger,
             )
@@ -181,6 +184,7 @@ class LabelMeAndYoloConverter(BaseConverter):
             handler = LabelMeAnnotationHandler(
                 label_dir=target_path,
                 class_file=class_file,
+                kpts_config=kwargs.get("kpts_config"),
                 strict_mode=self.strict_mode,
                 logger=self.logger,
             )
@@ -253,28 +257,66 @@ class LabelMeAndYoloConverter(BaseConverter):
         Dispatches based on source format.
         """
         if self.source_format == "labelme":
-            return self._absolute_to_normalized_one(image_ann)
+            return self._absolute_to_normalized_one(image_ann, pose=kwargs.get("pose", False))
         else:
-            return self._normalized_to_absolute_one(image_ann)
+            return self._normalized_to_absolute_one(image_ann, pose=kwargs.get("pose", False))
 
-    def _absolute_to_normalized_one(self, img: ImageAnnotation) -> ImageAnnotation:
-        """Convert single image: LabelMe absolute px → YOLO normalized center."""
-        from .utils import absolute_pixel_to_yolo
+    def _absolute_to_normalized_one(
+        self, img: ImageAnnotation, pose: bool = False
+    ) -> ImageAnnotation:
+        """Convert single image: LabelMe absolute px → YOLO normalized center.
+
+        Pose mode (contract: spec_conversion.md §3.7.1): keypoints are
+        transformed to normalized coordinates; objects without keypoints
+        are skipped. Non-pose mode drops keypoints with a WARNING.
+        """
+        from .utils import (
+            absolute_pixel_to_yolo,
+            enforce_pose_k,
+            keypoints_absolute_to_normalized,
+        )
 
         new_objects = []
+        dropped_kpts = 0
+        skipped_no_kpts = 0
         for obj in img.objects:
+            if pose and obj.keypoints is None:
+                skipped_no_kpts += 1
+                continue
             new_bbox, new_seg = absolute_pixel_to_yolo(
                 obj.bbox, obj.segmentation, img.width, img.height
             )
+            new_kpts = None
+            if obj.keypoints is not None:
+                if pose:
+                    if not enforce_pose_k(self, len(obj.keypoints.points)):
+                        continue
+                    new_kpts = keypoints_absolute_to_normalized(
+                        obj.keypoints, img.width, img.height
+                    )
+                else:
+                    dropped_kpts += 1
             new_objects.append(
                 ObjectAnnotation(
                     class_id=obj.class_id,
                     class_name=obj.class_name,
                     bbox=new_bbox,
                     segmentation=new_seg,
+                    keypoints=new_kpts,
                     confidence=obj.confidence,
                     is_crowd=obj.is_crowd,
                 )
+            )
+
+        if dropped_kpts:
+            self._log_warning(
+                f"Dropped keypoints from {dropped_kpts} object(s) in image "
+                f"'{img.image_id}' (pass pose=True to convert them)"
+            )
+        if skipped_no_kpts:
+            self._log_warning(
+                f"Skipped {skipped_no_kpts} object(s) without keypoints in image "
+                f"'{img.image_id}' (pose mode)"
             )
 
         return ImageAnnotation(
@@ -285,24 +327,72 @@ class LabelMeAndYoloConverter(BaseConverter):
             objects=new_objects,
         )
 
-    def _normalized_to_absolute_one(self, img: ImageAnnotation) -> ImageAnnotation:
-        """Convert single image: YOLO normalized center → LabelMe absolute px."""
-        from .utils import yolo_to_absolute_pixel
+    def _normalized_to_absolute_one(
+        self, img: ImageAnnotation, pose: bool = False
+    ) -> ImageAnnotation:
+        """Convert single image: YOLO normalized center → LabelMe absolute px.
+
+        Pose mode (contract: spec_conversion.md §3.7.1): keypoints are
+        transformed to absolute pixels and segmentation is dropped (a pose
+        instance is rectangle + points); objects without keypoints are
+        skipped. Non-pose mode drops keypoints with a WARNING.
+        """
+        from .utils import (
+            enforce_pose_k,
+            keypoints_normalized_to_absolute,
+            yolo_to_absolute_pixel,
+        )
 
         new_objects = []
+        dropped_kpts = 0
+        skipped_no_kpts = 0
+        dropped_seg = 0
         for obj in img.objects:
+            if pose and obj.keypoints is None:
+                skipped_no_kpts += 1
+                continue
             new_bbox, new_seg = yolo_to_absolute_pixel(
                 obj.bbox, obj.segmentation, img.width, img.height
             )
+            new_kpts = None
+            if obj.keypoints is not None:
+                if pose:
+                    if not enforce_pose_k(self, len(obj.keypoints.points)):
+                        continue
+                    new_kpts = keypoints_normalized_to_absolute(
+                        obj.keypoints, img.width, img.height
+                    )
+                    if new_seg is not None:
+                        dropped_seg += 1
+                        new_seg = None
+                else:
+                    dropped_kpts += 1
             new_objects.append(
                 ObjectAnnotation(
                     class_id=obj.class_id,
                     class_name=obj.class_name,
                     bbox=new_bbox,
                     segmentation=new_seg,
+                    keypoints=new_kpts,
                     confidence=obj.confidence,
                     is_crowd=obj.is_crowd,
                 )
+            )
+
+        if dropped_kpts:
+            self._log_warning(
+                f"Dropped keypoints from {dropped_kpts} object(s) in image "
+                f"'{img.image_id}' (pass pose=True to convert them)"
+            )
+        if skipped_no_kpts:
+            self._log_warning(
+                f"Skipped {skipped_no_kpts} object(s) without keypoints in image "
+                f"'{img.image_id}' (pose mode)"
+            )
+        if dropped_seg:
+            self._log_warning(
+                f"Dropped segmentation from {dropped_seg} object(s) in image "
+                f"'{img.image_id}' (pose mode writes rectangle + points)"
             )
 
         return ImageAnnotation(

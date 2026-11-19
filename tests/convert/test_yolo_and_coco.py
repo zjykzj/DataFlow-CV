@@ -143,6 +143,7 @@ class TestYoloAndCocoConverter:
             class_file=kwargs["class_file"],
             image_dir=kwargs["image_dir"],
             prediction=False,
+            pose=False,
             strict_mode=True,
             logger=converter.logger,
         )

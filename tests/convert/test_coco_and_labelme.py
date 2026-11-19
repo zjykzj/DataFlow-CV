@@ -123,6 +123,7 @@ class TestCocoAndLabelMeConverter:
         mock_handler_class.assert_called_once_with(
             label_dir=source_path,
             class_file=kwargs["class_file"],
+            kpts_config=None,
             strict_mode=True,
             logger=converter.logger,
         )
@@ -146,6 +147,7 @@ class TestCocoAndLabelMeConverter:
             mock_handler_class.assert_called_once_with(
                 label_dir=target_path,
                 class_file=str(Path(target_path) / "classes.txt"),  # Default class file
+                kpts_config=None,
                 strict_mode=True,
                 logger=converter.logger,
             )

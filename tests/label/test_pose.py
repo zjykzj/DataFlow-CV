@@ -598,8 +598,8 @@ class TestCocoPose:
         assert handler.validate() is False
 
 
-class TestPoseGuard:
-    """D8: converters reject keypoint data explicitly (spec_convert.md §2.1.3)."""
+class TestNonPoseKeypointDrop:
+    """Non-pose mode drops keypoints with a warning (spec_conversion.md §3.7.1)."""
 
     @pytest.fixture
     def temp_dir(self):
@@ -630,7 +630,11 @@ class TestPoseGuard:
         coco_file.write_text(json.dumps(data), encoding="utf-8")
         return coco_file
 
-    def test_streaming_coco_to_yolo_rejects_pose(self, sample_coco_pose, temp_dir):
+    def test_streaming_coco_to_yolo_drops_keypoints_in_non_pose_mode(
+        self, sample_coco_pose, temp_dir, capsys
+    ):
+        """v3.4.0: without pose=True, keypoints are dropped with a warning —
+        the conversion proceeds (spec_conversion.md §3.7.1)."""
         from dataflow.convert import YoloAndCocoConverter
 
         class_file = temp_dir / "classes.txt"
@@ -645,10 +649,16 @@ class TestPoseGuard:
             class_file=str(class_file),
             image_dir=str(image_dir),
         )
-        assert result.success is False
-        assert "not yet supported" in result.errors[0]
+        assert result.success is True
+        captured = capsys.readouterr()
+        assert "Dropped keypoints" in captured.out + captured.err
+        # The output row is a plain detection row (5 tokens, no keypoints)
+        line = (temp_dir / "out" / "labels" / "test.txt").read_text(encoding="utf-8")
+        assert len(line.split()) == 5
 
-    def test_batch_labelme_to_coco_rejects_pose(self, temp_dir):
+    def test_batch_labelme_to_coco_drops_keypoints_in_non_pose_mode(self, temp_dir, capsys):
+        """v3.4.0: without pose=True, keypoints are dropped with a warning —
+        the conversion proceeds (spec_conversion.md §3.7.1)."""
         from dataflow.convert import CocoAndLabelMeConverter
 
         label_dir = temp_dir / "labels"
@@ -687,5 +697,8 @@ class TestPoseGuard:
         result = converter.convert(
             str(label_dir), str(temp_dir / "out.json"), class_file=str(class_file)
         )
-        assert result.success is False
-        assert "not yet supported" in result.errors[0]
+        assert result.success is True
+        captured = capsys.readouterr()
+        assert "Dropped keypoints" in captured.out + captured.err
+        written = json.loads((temp_dir / "out.json").read_text(encoding="utf-8"))
+        assert "keypoints" not in written["annotations"][0]
