@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-11-19
+
 ### Added
 
 - **Keypoint statistics in `analyse stats`**: pose datasets now report per-class keypoint tallies (instances, k, labeled/visible ratios, occluded/missing counts) plus per-keypoint labeling rates with names from COCO categories or `--kpts-config`; for YOLO sources the flag also enables pose-row parsing.
