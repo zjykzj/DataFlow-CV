@@ -35,6 +35,7 @@ class COCOVisualizer(BaseVisualizer):
         """
         super().__init__(annotation_file, image_dir, log_config=log_config, **kwargs)
         self.annotation_file = Path(annotation_file)
+        self._kpts_skeleton_warned = False
 
         self.logger.debug(
             f"COCO visualizer initialization complete, annotation file: {annotation_file}"
@@ -78,9 +79,33 @@ class COCOVisualizer(BaseVisualizer):
                     # Polygon points are already in absolute pixels
                     render_ann.polygon = [(int(x), int(y)) for x, y in obj.segmentation.points]
 
+            if obj.keypoints:
+                # Absolute pixel points as-is, v as-is
+                render_ann.keypoints = [
+                    (int(x), int(y), v)
+                    for (x, y), v in zip(obj.keypoints.points, obj.keypoints.visibility)
+                ]
+                # Skeleton from the COCO categories metadata (the handler
+                # is stored on the visualizer during visualize()).
+                meta = {}
+                if self._handler is not None:
+                    meta = getattr(self._handler, "categories_meta", {}).get(obj.class_id, {})
+                if meta.get("skeleton"):
+                    render_ann.skeleton = [(int(i), int(j)) for i, j in meta["skeleton"]]
+                elif not self._kpts_skeleton_warned:
+                    self.logger.warning(
+                        "No skeleton metadata for keypoint objects — keypoints are "
+                        "drawn without skeleton lines"
+                    )
+                    self._kpts_skeleton_warned = True
+
             # Bbox from polygon fallback: compute axis-aligned bounds
             if render_ann.bbox is None and render_ann.polygon:
                 render_ann.bbox = self._compute_bbox_from_polygon(render_ann.polygon)
+            # Bbox from keypoints fallback: labeled (v>0) point extent
+            elif render_ann.bbox is None and render_ann.keypoints:
+                if any(v > 0 for _, _, v in render_ann.keypoints):
+                    render_ann.bbox = self._compute_bbox_from_keypoints(render_ann.keypoints)
 
             render_annotations.append(render_ann)
 

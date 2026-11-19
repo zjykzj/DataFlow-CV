@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from dataflow.label.labelme_handler import LabelMeAnnotationHandler
 from dataflow.label.models import ImageAnnotation
+from dataflow.label.utils import KptsConfig, load_kpts_config
 
 from .base import BaseVisualizer, RenderAnnotation, RenderData
 
@@ -21,6 +22,7 @@ class LabelMeVisualizer(BaseVisualizer):
         label_dir: Union[str, Path],
         image_dir: Union[str, Path],
         class_file: Optional[Union[str, Path]] = None,
+        kpts_config: Optional[Union[str, Path]] = None,
         log_config=None,
         **kwargs,
     ):
@@ -31,11 +33,20 @@ class LabelMeVisualizer(BaseVisualizer):
             label_dir: LabelMe label directory (contains JSON files)
             image_dir: Image directory
             class_file: Optional class file path
+            kpts_config: Optional keypoint-definition YAML — passed to the
+                handler (keypoint ordering) and the skeleton source for
+                pose visualization.
             log_config: Optional ``LogConfig`` instance for logging configuration.
             **kwargs: Additional arguments for BaseVisualizer
         """
         super().__init__(label_dir, image_dir, log_config=log_config, **kwargs)
         self.class_file = Path(class_file) if class_file else None
+        self.kpts_config = Path(kpts_config) if kpts_config else None
+        self._kpts_config: Optional[KptsConfig] = None
+        if self.kpts_config:
+            self._kpts_config = load_kpts_config(self.kpts_config)
+            self.logger.debug(f"Loaded keypoint definition from {kpts_config}")
+        self._kpts_skeleton_warned = False
 
     def _create_handler(self) -> LabelMeAnnotationHandler:
         """Create a LabelMe handler for streaming iteration."""
@@ -45,6 +56,8 @@ class LabelMeVisualizer(BaseVisualizer):
         )
         if self.class_file:
             kwargs["class_file"] = str(self.class_file)
+        if self._kpts_config is not None:
+            kwargs["kpts_config"] = str(self.kpts_config)
         return LabelMeAnnotationHandler(
             label_dir=str(self.label_dir),
             **kwargs,
@@ -77,9 +90,28 @@ class LabelMeVisualizer(BaseVisualizer):
                 # Points are already in absolute pixels
                 render_ann.polygon = [(int(x), int(y)) for x, y in obj.segmentation.points]
 
+            if obj.keypoints:
+                # Absolute pixel points as-is, v as-is
+                render_ann.keypoints = [
+                    (int(x), int(y), v)
+                    for (x, y), v in zip(obj.keypoints.points, obj.keypoints.visibility)
+                ]
+                # Skeleton from the keypoint-definition YAML (spec_visualize.md §2.3)
+                if self._kpts_config is not None and self._kpts_config.skeleton:
+                    render_ann.skeleton = [(int(i), int(j)) for i, j in self._kpts_config.skeleton]
+                elif not self._kpts_skeleton_warned:
+                    self.logger.warning(
+                        "No kpts_config provided — keypoints are drawn without skeleton lines"
+                    )
+                    self._kpts_skeleton_warned = True
+
             # Bbox from polygon fallback: compute axis-aligned bounds
             if render_ann.bbox is None and render_ann.polygon:
                 render_ann.bbox = self._compute_bbox_from_polygon(render_ann.polygon)
+            # Bbox from keypoints fallback: labeled (v>0) point extent
+            elif render_ann.bbox is None and render_ann.keypoints:
+                if any(v > 0 for _, _, v in render_ann.keypoints):
+                    render_ann.bbox = self._compute_bbox_from_keypoints(render_ann.keypoints)
 
             render_annotations.append(render_ann)
 

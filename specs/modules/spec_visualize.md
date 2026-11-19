@@ -1,7 +1,7 @@
 # Visualize Module Specification
 
-> **Version:** v4.8 | **Last Updated:** 2026-11-16
-> **Status:** Draft — bidirectional nav; buffer limit; save dedup; h hints; s snapshot
+> **Version:** v4.9 | **Last Updated:** 2026-11-19
+> **Status:** Draft — bidirectional nav; buffer limit; save dedup; h hints; s snapshot; keypoints & skeleton
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
 
@@ -57,6 +57,15 @@ class RenderAnnotation:
     
     # RLE mask data (COCO only, preserved as-is)
     rle: Optional[Dict]
+
+    # Pose keypoints in absolute pixel coordinates [(x, y, v), ...]
+    # v = visibility: 0 = not labeled (skipped), 1 = labeled but not
+    # visible (occluded), 2 = labeled and visible
+    keypoints: Optional[List[Tuple[int, int, int]]]
+
+    # Skeleton edges as index pairs into `keypoints` [(i, j), ...]
+    # (pose only; from COCO categories or a keypoint-definition YAML)
+    skeleton: Optional[List[Tuple[int, int]]]
 ```
 
 ### 2.2 `RenderData`
@@ -74,11 +83,18 @@ not stored in ``RenderData``.
 
 The conversion from `ImageAnnotation` (format-native coords) → `RenderData`:
 
-| Source Format | Bounding Box Conversion | Polygon Conversion |
-|---------------|------------------------|-------------------|
-| YOLO | `cx_norm→cx_abs, cy_norm→cy_abs` → `int(cx-w/2), int(cy-h/2), int(cx+w/2), int(cy+h/2)` | `int(x*W), int(y*H)` per point |
-| COCO | `x_tl, y_tl, w, h` → `x_tl, y_tl, x_tl+w, y_tl+h` | Use absolute pixel points as-is |
-| LabelMe | `x_tl, y_tl, w, h` → `x_tl, y_tl, x_tl+w, y_tl+h` | Use absolute pixel points as-is |
+| Source Format | Bounding Box Conversion | Polygon Conversion | Keypoints Conversion |
+|---------------|------------------------|-------------------|----------------------|
+| YOLO | `cx_norm→cx_abs, cy_norm→cy_abs` → `int(cx-w/2), int(cy-h/2), int(cx+w/2), int(cy+h/2)` | `int(x*W), int(y*H)` per point | `int(x*W), int(y*H)` per point, v as-is |
+| COCO | `x_tl, y_tl, w, h` → `x_tl, y_tl, x_tl+w, y_tl+h` | Use absolute pixel points as-is | Use absolute pixel points as-is, v as-is |
+| LabelMe | `x_tl, y_tl, w, h` → `x_tl, y_tl, x_tl+w, y_tl+h` | Use absolute pixel points as-is | Use absolute pixel points as-is, v as-is |
+
+**Skeleton source**: edges are per-class metadata, carried outside the annotation objects:
+
+| Source Format | Skeleton Source | When Missing |
+|---------------|-----------------|--------------|
+| COCO | `CocoAnnotationHandler.categories_meta` (`{category_id: {"keypoints", "skeleton"}}`) | Keypoints drawn without lines |
+| YOLO / LabelMe | Keypoint-definition YAML (`kpts_config` parameter, see `spec_label.md` §4.4) | Keypoints drawn without lines + one WARNING per visualize run |
 
 **All coordinates are truncated to integers via `int()` for OpenCV drawing compatibility.**
 
@@ -177,6 +193,10 @@ Abstract base class implementing the template method pattern.
 | `text_scale` | 0.5 | Font scale factor |
 | `text_padding` | 5 | Text offset from bbox top |
 | `font` | `FONT_HERSHEY_SIMPLEX` | OpenCV font |
+| `kpt_radius` | 3 | Keypoint circle radius |
+| `kpt_visible_color` | `(0, 255, 0)` | BGR color for visible keypoints (v=2, filled) |
+| `kpt_occluded_color` | `(0, 165, 255)` | BGR color for occluded keypoints (v=1, hollow) |
+| `skeleton_thickness` | 1 | Skeleton line width |
 
 ## 4. Visualization Pipeline
 
@@ -196,7 +216,8 @@ visualize()
 │   │   ├── For each RenderAnnotation:
 │   │   │   ├── _draw_bbox()       # If bbox exists
 │   │   │   ├── _draw_polygon()    # If polygon exists
-│   │   │   └── _draw_rle_mask()   # If RLE exists
+│   │   │   ├── _draw_rle_mask()   # If RLE exists
+│   │   │   └── _draw_keypoints()  # If keypoints exist (points + skeleton)
 │   │   ├── Display (cv2.imshow + cv2.waitKeyEx)
 │   │   ├── Dispatch key:
 │   │   │   ├── q/ESC → quit (return to step 5)
@@ -325,7 +346,12 @@ For each `RenderAnnotation`, drawing proceeds in this order:
 4. Draw RLE mask (if present):
    └── Decode mask → semi-transparent overlay
 
-5. Draw label (if position determined):
+5. Draw keypoints + skeleton (if keypoints present) — on top of bbox/mask:
+   ├── Skeleton lines first (class color), then points on top
+   └── v=2 → filled circle (kpt_visible_color); v=1 → hollow circle
+       (kpt_occluded_color); v=0 → skipped
+
+6. Draw label (if position determined):
    └── Class-color background rectangle (matches bbox/polygon color)
        White text, top-left aligned with bbox
        Edge case: if label would extend above image top → flip inside bbox
@@ -370,6 +396,21 @@ first point.
 3. Semi-transparent overlay with `cv2.addWeighted()` + `np.copyto()`
 
 Requires pycocotools — logs error and returns without drawing if unavailable.
+
+#### `_draw_keypoints(image, keypoints, skeleton, color)`
+
+1. **Skeleton lines first**: For each edge `(i, j)` in `skeleton` with both
+   endpoints v > 0 and in range, draw a line with `cv2.line()` in the class
+   color (`skeleton_thickness`). Out-of-range edge indices are skipped
+   silently — the metadata and the annotation may disagree on k.
+2. **Points on top**: For each `(x, y, v)`:
+   - v=2 → filled circle, `kpt_visible_color` (default green `(0, 255, 0)`)
+   - v=1 → hollow circle, `kpt_occluded_color` (default orange `(0, 165, 255)`)
+   - v=0 → skipped (not labeled)
+   Radius from `kpt_radius` (default 3).
+
+Keypoints use fixed visibility colors, **not** the class color — class
+association comes from the skeleton lines and the surrounding bbox.
 
 #### `_draw_text(image, text, position, color, bbox)`
 
@@ -479,10 +520,12 @@ display both count and percentage.
 
 ### 5.1 `YOLOVisualizer`
 
-**Constructor:** `YOLOVisualizer(label_dir, image_dir, class_file, log_config=None, **kwargs)`
+**Constructor:** `YOLOVisualizer(label_dir, image_dir, class_file, pose=False, kpts_config=None, log_config=None, **kwargs)`
 
 - Creates `YoloAnnotationHandler` internally via `_create_handler()`
 - `class_file` is required (passed to handler)
+- `pose=True` selects pose row parsing (explicit — see `spec_yolo_format.md` §2.3)
+- `kpts_config` (optional YAML path) is the skeleton source for pose data
 
 **`_create_handler()`:**
 ```python
@@ -491,6 +534,7 @@ def _create_handler(self) -> YoloAnnotationHandler:
         label_dir=str(self.label_dir),
         class_file=str(self.class_file),
         image_dir=str(self.image_dir),
+        pose=self.pose,
         strict_mode=False,
         logger=self.logger,
     )
@@ -508,9 +552,14 @@ For each `ObjectAnnotation` in `image_ann.objects`:
    - `x2 = int(cx_abs + half_w)`, `y2 = int(cy_abs + half_h)`
 2. If `obj.segmentation`: convert each normalized point `(x, y)` to
    absolute pixel `(int(x * width), int(y * height))`
-3. **Bbox from polygon fallback**: If polygon exists but bbox is None, compute
-   bbox from polygon's axis-aligned bounds: `(min(xs), min(ys), max(xs), max(ys))`
-4. Return `RenderData(annotations=[...])`
+3. If `obj.keypoints`: convert each normalized point `(x, y)` to absolute
+   pixel `(int(x * width), int(y * height), v)`
+4. **Skeleton**: from `kpts_config` (`KptsConfig.skeleton`); without a config,
+   skeleton is `None` (points drawn without lines, one WARNING per run)
+5. **Bbox from polygon/keypoints fallback**: If polygon exists but bbox is None,
+   compute bbox from polygon's axis-aligned bounds; if keypoints exist but bbox
+   is None, compute bbox from the labeled (v>0) keypoint extent
+6. Return `RenderData(annotations=[...])`
 
 ### 5.2 `COCOVisualizer`
 
@@ -537,16 +586,24 @@ For each `ObjectAnnotation` in `image_ann.objects`:
    - `x2 = int(x + w)`, `y2 = int(y + h)`
 2. If `obj.segmentation`: use absolute pixel polygon points as-is, truncate to int
 3. If `obj.segmentation.rle`: preserve RLE dict as-is in `RenderAnnotation.rle`
-4. **Bbox from polygon fallback**: If polygon exists but bbox is None, compute
-   bbox from polygon's axis-aligned bounds: `(min(xs), min(ys), max(xs), max(ys))`
-5. Return `RenderData(annotations=[...])`
+4. If `obj.keypoints`: use absolute pixel points as-is → `(int(x), int(y), v)`
+5. **Skeleton**: from `CocoAnnotationHandler.categories_meta` for the object's
+   `class_id` (the handler is stored on the visualizer during `visualize()`;
+   `_convert_to_render_data` reads `self._handler.categories_meta`). Missing
+   metadata → skeleton `None` (points drawn without lines)
+6. **Bbox from polygon/keypoints fallback**: If polygon exists but bbox is None,
+   compute bbox from polygon's axis-aligned bounds; if keypoints exist but bbox
+   is None, compute bbox from the labeled (v>0) keypoint extent
+7. Return `RenderData(annotations=[...])`
 
 ### 5.3 `LabelMeVisualizer`
 
-**Constructor:** `LabelMeVisualizer(label_dir, image_dir, class_file=None, log_config=None, **kwargs)`
+**Constructor:** `LabelMeVisualizer(label_dir, image_dir, class_file=None, kpts_config=None, log_config=None, **kwargs)`
 
 - Creates `LabelMeAnnotationHandler` internally via `_create_handler()`
 - `class_file` is optional
+- `kpts_config` (optional YAML path) is passed to the handler (keypoint
+  ordering) and is the skeleton source for pose data
 
 **`_create_handler()`:**
 ```python
@@ -554,6 +611,8 @@ def _create_handler(self) -> LabelMeAnnotationHandler:
     kwargs = dict(strict_mode=False, logger=self.logger)
     if self.class_file:
         kwargs["class_file"] = str(self.class_file)
+    if self.kpts_config:
+        kwargs["kpts_config"] = str(self.kpts_config)
     return LabelMeAnnotationHandler(
         label_dir=str(self.label_dir),
         **kwargs,
@@ -565,9 +624,13 @@ For each `ObjectAnnotation` in `image_ann.objects`:
 1. If `obj.bbox`: LabelMe-native (absolute pixel top-left `[x,y,w,h]`) →
    `x1 = int(x)`, `y1 = int(y)`, `x2 = int(x + w)`, `y2 = int(y + h)`
 2. If `obj.segmentation`: use absolute pixel polygon points as-is, truncate to int
-3. **Bbox from polygon fallback**: If polygon exists but bbox is None, compute
-   bbox from polygon's axis-aligned bounds: `(min(xs), min(ys), max(xs), max(ys))`
-4. Return `RenderData(annotations=[...])`
+3. If `obj.keypoints`: use absolute pixel points as-is → `(int(x), int(y), v)`
+4. **Skeleton**: from `kpts_config` (`KptsConfig.skeleton`); without a config,
+   skeleton is `None` (points drawn without lines, one WARNING per run)
+5. **Bbox from polygon/keypoints fallback**: If polygon exists but bbox is None,
+   compute bbox from polygon's axis-aligned bounds; if keypoints exist but bbox
+   is None, compute bbox from the labeled (v>0) keypoint extent
+6. Return `RenderData(annotations=[...])`
 
 ## 6. Dependency Contract
 

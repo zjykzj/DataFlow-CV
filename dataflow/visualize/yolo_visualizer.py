@@ -6,9 +6,10 @@ Supports both object detection and instance segmentation formats.
 """
 
 from pathlib import Path
-from typing import List, Union
+from typing import List, Optional, Union
 
 from dataflow.label.models import ImageAnnotation
+from dataflow.label.utils import KptsConfig, load_kpts_config
 from dataflow.label.yolo_handler import YoloAnnotationHandler
 
 from .base import BaseVisualizer, RenderAnnotation, RenderData
@@ -22,6 +23,8 @@ class YOLOVisualizer(BaseVisualizer):
         label_dir: Union[str, Path],
         image_dir: Union[str, Path],
         class_file: Union[str, Path],
+        pose: bool = False,
+        kpts_config: Optional[Union[str, Path]] = None,
         log_config=None,
         **kwargs,
     ):
@@ -32,11 +35,21 @@ class YOLOVisualizer(BaseVisualizer):
             label_dir: YOLO label directory (contains TXT files)
             image_dir: Image directory
             class_file: Class file path (required)
+            pose: If True, parse YOLO pose rows (explicit — see
+                spec_yolo_format.md §2.3). Default False.
+            kpts_config: Optional keypoint-definition YAML — the skeleton
+                source for pose visualization.
             log_config: Optional ``LogConfig`` instance for logging configuration.
             **kwargs: Additional arguments for BaseVisualizer
         """
         super().__init__(label_dir, image_dir, log_config=log_config, **kwargs)
         self.class_file = Path(class_file)
+        self.pose = pose
+        self._kpts_config: Optional[KptsConfig] = None
+        if kpts_config:
+            self._kpts_config = load_kpts_config(Path(kpts_config))
+            self.logger.debug(f"Loaded keypoint definition from {kpts_config}")
+        self._kpts_skeleton_warned = False
 
         self.logger.debug(f"YOLO visualizer initialization complete, class file: {class_file}")
 
@@ -46,6 +59,7 @@ class YOLOVisualizer(BaseVisualizer):
             label_dir=str(self.label_dir),
             class_file=str(self.class_file),
             image_dir=str(self.image_dir),
+            pose=self.pose,
             strict_mode=False,
             logger=self.logger,
         )
@@ -82,9 +96,28 @@ class YOLOVisualizer(BaseVisualizer):
                 # YOLO normalized points → absolute pixel points
                 render_ann.polygon = [(int(x * w), int(y * h)) for x, y in obj.segmentation.points]
 
+            if obj.keypoints:
+                # YOLO normalized points → absolute pixel points, v as-is
+                render_ann.keypoints = [
+                    (int(x * w), int(y * h), v)
+                    for (x, y), v in zip(obj.keypoints.points, obj.keypoints.visibility)
+                ]
+                # Skeleton from the keypoint-definition YAML (spec_visualize.md §2.3)
+                if self._kpts_config is not None and self._kpts_config.skeleton:
+                    render_ann.skeleton = [(int(i), int(j)) for i, j in self._kpts_config.skeleton]
+                elif not self._kpts_skeleton_warned:
+                    self.logger.warning(
+                        "No kpts_config provided — keypoints are drawn without skeleton lines"
+                    )
+                    self._kpts_skeleton_warned = True
+
             # Bbox from polygon fallback: compute axis-aligned bounds
             if render_ann.bbox is None and render_ann.polygon:
                 render_ann.bbox = self._compute_bbox_from_polygon(render_ann.polygon)
+            # Bbox from keypoints fallback: labeled (v>0) point extent
+            elif render_ann.bbox is None and render_ann.keypoints:
+                if any(v > 0 for _, _, v in render_ann.keypoints):
+                    render_ann.bbox = self._compute_bbox_from_keypoints(render_ann.keypoints)
 
             render_annotations.append(render_ann)
 

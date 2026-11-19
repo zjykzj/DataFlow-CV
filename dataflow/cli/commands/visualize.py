@@ -60,12 +60,25 @@ def visualize_group():
     type=click.Path(path_type=Path),
     help="Directory to save visualization results",
 )
+@click.option(
+    "--pose",
+    is_flag=True,
+    help="Parse YOLO pose rows (5+3k tokens)",
+)
+@click.option(
+    "--kpts-config",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="Keypoint-definition YAML (skeleton source for pose visualization)",
+)
 def yolo(
     ctx,
     image_dir: Path,
     label_dir: Path,
     class_file: Path,
     save: Optional[Path],
+    pose: bool,
+    kpts_config: Optional[Path],
 ):
     """Visualize YOLO format labels"""
     from dataflow.visualize import YOLOVisualizer
@@ -85,6 +98,8 @@ def yolo(
         label_dir=label_dir,
         image_dir=image_dir,
         class_file=class_file,
+        pose=pose,
+        kpts_config=kpts_config,
         output_dir=save,
         is_show=ctx.obj["is_show"],
         is_save=save is not None,
@@ -119,11 +134,18 @@ def yolo(
     type=click.Path(path_type=Path),
     help="Directory to save visualization results",
 )
+@click.option(
+    "--kpts-config",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="Keypoint-definition YAML (keypoint ordering + skeleton source for pose visualization)",
+)
 def labelme(
     ctx,
     image_dir: Path,
     label_dir: Path,
     save: Optional[Path],
+    kpts_config: Optional[Path],
 ):
     """Visualize LabelMe format labels"""
     from dataflow.visualize import LabelMeVisualizer
@@ -142,6 +164,7 @@ def labelme(
     visualizer = LabelMeVisualizer(
         label_dir=label_dir,
         image_dir=image_dir,
+        kpts_config=kpts_config,
         output_dir=save,
         is_show=ctx.obj["is_show"],
         is_save=save is not None,

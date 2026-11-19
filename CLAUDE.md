@@ -295,11 +295,11 @@ Handles polygon-to-RLE and RLE-to-polygon conversion using pycocotools. **Critic
 
 ### Visualizers (`dataflow/visualize/`)
 
-- `YOLOVisualizer(label_dir, image_dir, class_file, **kwargs)`: YOLO annotation visualization
-- `LabelMeVisualizer(label_dir, image_dir, class_file=None, **kwargs)`: LabelMe annotation visualization
-- `COCOVisualizer(annotation_file, image_dir, **kwargs)`: COCO annotation visualization
+- `YOLOVisualizer(label_dir, image_dir, class_file, pose=False, kpts_config=None, **kwargs)`: YOLO annotation visualization (pose mode renders keypoints + skeleton)
+- `LabelMeVisualizer(label_dir, image_dir, class_file=None, kpts_config=None, **kwargs)`: LabelMe annotation visualization (pose convention per gotcha #49)
+- `COCOVisualizer(annotation_file, image_dir, **kwargs)`: COCO annotation visualization (skeleton comes from COCO categories)
 
-All extend `BaseVisualizer` which provides `ColorManager` (HSV-based palette, max 1000 colors), image loading/drawing, and both display (`is_show`) and save (`is_save`) modes.
+All extend `BaseVisualizer` which provides `ColorManager` (HSV-based palette, max 1000 colors), image loading/drawing, and both display (`is_show`) and save (`is_save`) modes. Keypoints render as v=2 filled green / v=1 hollow orange circles plus class-color skeleton lines (config keys `kpt_*` / `skeleton_thickness`); the skeleton source is `kpts_config` (YOLO/LabelMe) or `handler.categories_meta` (COCO, handler stored on `self._handler` during `visualize()`).
 
 **Two pipelines**, auto-selected by `BaseVisualizer.visualize()` based on `is_show`:
 
@@ -425,6 +425,8 @@ Never use UTF-8 for RLE counts — it cannot represent all 256 byte values and w
 ### Visualizer Rendering Pipeline
 
 Visualizers convert annotations per-image to `RenderAnnotation` (absolute pixel integers) during `_convert_to_render_data()`. Drawing methods receive pre-computed absolute pixel coordinates — no coordinate math happens in the draw path. The first image appears as soon as the first annotation file is parsed (primed into the buffer in interactive mode; streamed in batch mode).
+
+**Pose rendering**: `RenderAnnotation.keypoints` (abs-px `(x, y, v)` triplets) + `skeleton` (edge index pairs) draw after bbox/polygon/RLE and before the label. Skeleton edges with an out-of-range index are skipped silently. When bbox is absent, it falls back to the labeled (v>0) keypoint extent (same rule as the polygon fallback). Contract: `spec_visualize.md` §4.3.
 
 > **Related gotchas**: [Visualizer Behavior](#visualizer-behavior)
 

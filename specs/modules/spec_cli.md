@@ -1,6 +1,6 @@
 # CLI Module Specification
 
-> **Version:** 2.8 | **Last Updated:** 2026-11-17
+> **Version:** 2.9 | **Last Updated:** 2026-11-19
 > **Layer:** Modules
 > **Dependencies:** Convert module + Visualize module + Evaluate module (public APIs only) + Logging module (LogConfig only)
 
@@ -153,6 +153,8 @@ dataflow-cv visualize yolo [OPTIONS] IMAGE_DIR LABEL_DIR CLASS_FILE
 | Option | Description |
 |--------|-------------|
 | `--save`, `-s` PATH | Save rendered images to directory |
+| `--pose` | Parse YOLO pose rows (explicit mode — see `spec_yolo_format.md` §2.3) |
+| `--kpts-config` PATH | Keypoint-definition YAML — skeleton source for pose visualization (see `spec_label.md` §4.4) |
 
 #### `coco`
 
@@ -169,6 +171,9 @@ dataflow-cv visualize coco [OPTIONS] IMAGE_DIR COCO_FILE
 |--------|-------------|
 | `--save`, `-s` PATH | Save rendered images to directory |
 
+> COCO needs no `--kpts-config` — the skeleton comes from the COCO
+> categories (`keypoints`/`skeleton` arrays).
+
 #### `labelme`
 
 ```
@@ -183,6 +188,7 @@ dataflow-cv visualize labelme [OPTIONS] IMAGE_DIR LABEL_DIR
 | Option | Description |
 |--------|-------------|
 | `--save`, `-s` PATH | Save rendered images to directory |
+| `--kpts-config` PATH | Keypoint-definition YAML — keypoint ordering (handler) + skeleton source for pose visualization |
 
 ## 4. Evaluate Subcommands
 

@@ -10,7 +10,7 @@ import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
 
 import cv2
 import numpy as np
@@ -40,6 +40,8 @@ class RenderAnnotation:
     bbox: Optional[Tuple[int, int, int, int]] = None  # [x1, y1, x2, y2] absolute px
     polygon: Optional[List[Tuple[int, int]]] = None  # [(x, y), ...] absolute px
     rle: Optional[Dict] = None  # RLE mask data (COCO specific)
+    keypoints: Optional[List[Tuple[int, int, int]]] = None  # [(x, y, v), ...] absolute px
+    skeleton: Optional[List[Tuple[int, int]]] = None  # Edge index pairs into keypoints
 
 
 @dataclass
@@ -182,6 +184,9 @@ class BaseVisualizer(ABC):
         self.is_save = is_save
         self.max_buffer_size = max_buffer_size  # None = unlimited
         self._saved_stems: Set[str] = set()  # deduplicate saves across navigations
+        # Set in visualize() — subclasses read skeleton metadata from the
+        # handler (e.g., COCO categories_meta) inside _convert_to_render_data()
+        self._handler: Optional[BaseAnnotationHandler] = None
 
         # Configure logger via unified LogManager
         from dataflow.util.logging import LogConfig, LogManager
@@ -199,6 +204,10 @@ class BaseVisualizer(ABC):
             "text_scale": 0.5,
             "text_padding": 5,
             "font": cv2.FONT_HERSHEY_SIMPLEX,
+            "kpt_radius": 3,
+            "kpt_visible_color": (0, 255, 0),
+            "kpt_occluded_color": (0, 165, 255),
+            "skeleton_thickness": 1,
         }
 
         self.color_manager = ColorManager(debug=log_config.verbose if log_config else False)
@@ -277,6 +286,9 @@ class BaseVisualizer(ABC):
 
             # 2. Create handler and obtain streaming iterator
             handler = self._create_handler()
+            # Subclasses read skeleton metadata from the handler (e.g., COCO
+            # categories_meta) inside _convert_to_render_data()
+            self._handler = handler
             image_iter = handler.iter_images()
 
             # 2a. Log header with format and path info
@@ -653,6 +665,9 @@ class BaseVisualizer(ABC):
         if render_ann.rle is not None:
             self._draw_rle_mask(image, render_ann.rle, color)
 
+        if render_ann.keypoints is not None:
+            self._draw_keypoints(image, render_ann.keypoints, render_ann.skeleton, color)
+
         if label_pos is not None:
             self._draw_text(image, render_ann.class_name, label_pos, color, bbox=label_bbox)
 
@@ -805,6 +820,48 @@ class BaseVisualizer(ABC):
         xs = [p[0] for p in polygon]
         ys = [p[1] for p in polygon]
         return (min(xs), min(ys), max(xs), max(ys))
+
+    @staticmethod
+    def _compute_bbox_from_keypoints(
+        keypoints: List[Tuple[int, int, int]],
+    ) -> Tuple[int, int, int, int]:
+        """Compute bbox [x1, y1, x2, y2] from labeled (v>0) keypoint extent."""
+        xs = [p[0] for p in keypoints if p[2] > 0]
+        ys = [p[1] for p in keypoints if p[2] > 0]
+        return (min(xs), min(ys), max(xs), max(ys))
+
+    def _draw_keypoints(
+        self,
+        image: np.ndarray,
+        keypoints: List[Tuple[int, int, int]],
+        skeleton: Optional[List[Tuple[int, int]]],
+        color: Tuple[int, int, int],
+    ) -> None:
+        """Draw pose keypoints (points + skeleton lines).
+
+        Skeleton lines first (class color), then points on top. v=2 filled
+        circle (kpt_visible_color), v=1 hollow circle (kpt_occluded_color),
+        v=0 skipped (contract: spec_visualize.md §4.3). Out-of-range edge
+        indices are skipped silently — the metadata and the annotation may
+        disagree on k.
+        """
+        radius = cast(int, self.config["kpt_radius"])
+        skeleton_thickness = cast(int, self.config["skeleton_thickness"])
+        kpt_visible_color = cast(Tuple[int, int, int], self.config["kpt_visible_color"])
+        kpt_occluded_color = cast(Tuple[int, int, int], self.config["kpt_occluded_color"])
+
+        if skeleton:
+            for i, j in skeleton:
+                if 0 <= i < len(keypoints) and 0 <= j < len(keypoints):
+                    (x1, y1, v1), (x2, y2, v2) = keypoints[i], keypoints[j]
+                    if v1 > 0 and v2 > 0:
+                        cv2.line(image, (x1, y1), (x2, y2), color, skeleton_thickness)
+
+        for x, y, v in keypoints:
+            if v == 2:
+                cv2.circle(image, (x, y), radius, kpt_visible_color, -1)
+            elif v == 1:
+                cv2.circle(image, (x, y), radius, kpt_occluded_color, 2)
 
     def _log_info(self, message: str) -> None:
         """Log info message."""
