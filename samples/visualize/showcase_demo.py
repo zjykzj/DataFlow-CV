@@ -22,27 +22,23 @@ labeled (17/17) person.  Override with ``--ids`` / ``--pose-ids``.
 
 import argparse
 import json
+import shutil
 import tempfile
 from pathlib import Path
-
-import cv2
-import numpy as np
 
 from dataflow.visualize import COCOVisualizer
 from dataflow.util import LogConfig
 
-# Default showcase images (COCO val2017) — clean scenes with few
-# medium-sized objects, selected for sharp/colorful imagery.
-SEG_IDS = [357459]  # one diverse scene (seg_demo_2.jpg)
-POSE_IDS = [368212]  # single person, 17/17 keypoints (pose_demo.jpg)
+# Default showcase images (COCO val2017) — landscape scenes with similar
+# aspect ratios so they display side-by-side at matching heights without
+# letterboxing; chosen for category diversity and medium-sized objects
+# (good mask visibility). The pose image has a fully labeled (17/17) person.
+SEG_IDS = [76417]  # one diverse landscape scene (seg_demo.jpg)
+POSE_IDS = [229553]  # single person, 17/17 keypoints (pose_demo.jpg)
 
-# The README showcases seg_demo_2.jpg — seg_demo_1.jpg was retired, so
-# renders continue the numbering from 2.
-SEG_INDEX_START = 2
-
-# Common display size for the README showcase (4:3) — renders are
-# letterboxed to it so side-by-side images have identical dimensions.
-SHOWCASE_SIZE = (640, 480)
+# The README showcases a single segmentation demo — rendered as
+# seg_demo.jpg (further ids continue the numbering from 2).
+SEG_INDEX_START = 1
 
 
 def filter_coco_json(coco_path: Path, ids: list[int], out_path: Path) -> None:
@@ -85,19 +81,6 @@ def render(annotation_file: Path, image_dir: Path, out: Path) -> list[Path]:
     if not new:
         raise SystemExit(f"No renders produced for {annotation_file}")
     return new
-
-
-def letterbox(img_path: Path, size: tuple[int, int]) -> np.ndarray:
-    """Scale *img_path* to fit *size* and pad with black to exactly *size*."""
-    img = cv2.imread(str(img_path))
-    h, w = img.shape[:2]
-    scale = min(size[0] / w, size[1] / h)
-    resized = cv2.resize(img, (int(w * scale), int(h * scale)))
-    canvas = np.zeros((size[1], size[0], 3), dtype=np.uint8)
-    x = (size[0] - resized.shape[1]) // 2
-    y = (size[1] - resized.shape[0]) // 2
-    canvas[y : y + resized.shape[0], x : x + resized.shape[1]] = resized
-    return canvas
 
 
 def main() -> None:
@@ -149,17 +132,13 @@ def main() -> None:
         stale.unlink()  # idempotent reruns on the same output dir
     renders: dict[str, Path] = {}
 
-    # Segmentation demos (rendered in one pass).
+    # Segmentation demos (rendered in one pass; the first is seg_demo.jpg,
+    # any further ids continue from seg_demo_2.jpg).
     seg_filtered = args.out / "_showcase_seg.json"
     filter_coco_json(args.coco_json, args.ids, seg_filtered)
-    renders.update(
-        {
-            f"seg_demo_{i}": p
-            for i, p in enumerate(
-                render(seg_filtered, args.image_dir, args.out), start=SEG_INDEX_START
-            )
-        }
-    )
+    seg_renders = render(seg_filtered, args.image_dir, args.out)
+    for i, p in enumerate(seg_renders, start=SEG_INDEX_START):
+        renders["seg_demo" if i == 1 else f"seg_demo_{i}"] = p
 
     # Pose demo — from the keypoints JSON (skeleton comes from categories).
     if args.keypoints_json is not None:
@@ -170,7 +149,7 @@ def main() -> None:
     if args.write_showcase:
         showcase_dir = Path(__file__).parent.parent.parent / "assets" / "showcase"
         for name, render_path in renders.items():
-            cv2.imwrite(str(showcase_dir / f"{name}.jpg"), letterbox(render_path, SHOWCASE_SIZE))
+            shutil.copy2(render_path, showcase_dir / f"{name}.jpg")
         print(f"Copied {len(renders)} renders to {showcase_dir}: {sorted(renders)}")
 
 

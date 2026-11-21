@@ -138,7 +138,7 @@ dataflow-cv visualize coco images/ coco_pose.json --save visualized/   # skeleto
 
 <p align="center">
   <img src="assets/showcase/pose_demo.jpg" width="45%" alt="Pose visualization demo">
-  <img src="assets/showcase/seg_demo_2.jpg" width="45%" alt="Segmentation visualization demo">
+  <img src="assets/showcase/seg_demo.jpg" width="45%" alt="Segmentation visualization demo">
 </p>
 
 #### 📊 Evaluation
