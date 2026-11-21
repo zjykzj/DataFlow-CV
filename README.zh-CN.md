@@ -53,6 +53,18 @@ cd DataFlow-CV && pip install .
 
 所有必需参数(图像目录、标签目录、类别文件、输出路径)均为位置参数,使用更便捷。在任意子命令后使用 `--help` 查看详细用法。
 
+#### 📐 格式支持
+
+| 模块 | YOLO | LabelMe | COCO |
+|--------|------|---------|------|
+| 🔍 分析 —— 统计 / 类别过滤 | ✓ | ✓ | ✓ |
+| 🔍 分析 —— 划分 / 分区 / 抽样 | ✓ | ✓ | — |
+| 🔄 转换(6 个方向) | ✓ | ✓ | ✓ |
+| 🎨 可视化 | ✓ | ✓ | ✓ |
+| 📊 评估 | — ¹ | — ¹ | ✓ |
+
+¹ 评估始终消费 COCO 格式的 GT/DT JSON —— 其他格式请先转换(`yolo2coco`、`labelme2coco`)。
+
 #### 📂 数据布局与 classes.txt
 
 输入数据需符合各格式的原生布局 —— dataflow-cv 会根据你传入的内容自动检测格式:
@@ -224,6 +236,8 @@ dataflow-cv visualize yolo --verbose --no-display images/ yolo_labels/ classes.t
 ```
 
 <p align="center">
+  <img src="assets/showcase/det_demo.jpg" width="45%" alt="Detection visualization demo">
+  <img src="assets/showcase/pose_demo.jpg" width="45%" alt="Pose visualization demo">
   <img src="assets/showcase/seg_demo_1.jpg" width="45%" alt="Segmentation visualization demo 1">
   <img src="assets/showcase/seg_demo_2.jpg" width="45%" alt="Segmentation visualization demo 2">
 </p>
@@ -322,135 +336,22 @@ dataflow-cv visualize yolo --no-display data/split/val/images/ data/split/val/la
 
 ### 🐍 Python API
 
+每个 CLI 能力都有对应的 Python API —— 完整参考见手册:**[docs/zh/api.md](docs/zh/api.md)** (English manual: **[docs/en/api.md](docs/en/api.md)**)。
+
 ```python
-from dataflow.util.logging import LogConfig
-from dataflow.analyse import (
-    StatsAnalyser,
-    SplitAnalyser,
-    FilterAnalyser,
-    PartitionAnalyser,
-    SampleAnalyser,
-)
+from dataflow.analyse import StatsAnalyser
 from dataflow.convert import YoloAndCocoConverter
-from dataflow.visualize import YOLOVisualizer
-from dataflow.evaluate import DetectionEvaluator, compute_pr_f1
 
-# ── 分析 ─────────────────────────────────────────
-log_cfg = LogConfig(name="analyse", verbose=True)
+stats = StatsAnalyser().analyse("yolo_labels/", class_file="classes.txt")
+print(f"{stats.data.total_files} images, {stats.data.total_annotations} objects")
 
-# 数据集统计
-analyser = StatsAnalyser(log_config=log_cfg)
-result = analyser.analyse("yolo_labels/", class_file="classes.txt")
-print(f"{result.data.total_files} images, {result.data.total_annotations} objects")
-
-# 训练/测试集划分(YOLO / LabelMe)
-splitter = SplitAnalyser(log_config=log_cfg)
-result = splitter.analyse(
-    output_dir="output/",
-    ratio=0.8,
-    seed=42,
-    label_dir="yolo_labels/",
-    class_file="classes.txt",
+YoloAndCocoConverter(source_to_target=True).convert(
+    source_path="yolo_labels/", target_path="anno.json",
+    class_file="classes.txt", image_dir="images/",
 )
-print(f"Train: {result.data.train_count}, Val: {result.data.val_count}")
-
-# 带图像的划分(两者模式 —— 标签主导,图像按文件名主干跟随)
-result = splitter.analyse(
-    output_dir="output/",
-    ratio=0.8,
-    seed=42,
-    label_dir="yolo_labels/",
-    image_dir="images/",
-    class_file="classes.txt",
-)
-
-# 类别过滤(按新的 classes.txt 保留 / 重映射类别)
-filterer = FilterAnalyser(log_config=log_cfg)
-result = filterer.analyse(
-    "yolo_labels/",
-    original_class_file="classes.txt",
-    new_class_file="classes_new.txt",
-    output_dir="filtered/",
-)
-
-# N 路分区(YOLO / LabelMe 标签;图像按文件名主干跟随)
-partitioner = PartitionAnalyser(log_config=log_cfg)
-result = partitioner.analyse(
-    output_dir="parts/",
-    num=4,
-    label_dir="yolo_labels/",
-    image_dir="images/",
-)
-
-# 文件抽样(标签、图像或两者 —— 随机或顺序)
-sampler = SampleAnalyser(log_config=log_cfg)
-result = sampler.analyse(
-    output_dir="sampled/",
-    count=10,
-    label_dir="yolo_labels/",
-    shuffle=True,
-    seed=42,
-)
-
-# ── 转换 ──────────────────────────────────────────
-# YOLO 标注 → COCO(标注模式)
-log_cfg = LogConfig(name="convert", verbose=True)
-converter = YoloAndCocoConverter(source_to_target=True, log_config=log_cfg, strict_mode=True)
-result = converter.convert(
-    source_path="yolo_labels/",
-    target_path="anno.json",
-    class_file="classes.txt",
-    image_dir="images/",
-)
-
-# YOLO 预测 → COCO(预测模式)
-converter = YoloAndCocoConverter(source_to_target=True, prediction=True)
-result = converter.convert(
-    source_path="yolo_preds/",
-    target_path="pred.json",
-    class_file="classes.txt",
-    image_dir="images/",
-)
-
-# ── 可视化 ────────────────────────────────────────
-visualizer = YOLOVisualizer(
-    label_dir="yolo_labels/",
-    image_dir="images/",
-    class_file="classes.txt",
-    is_show=True,
-    is_save=True,
-    output_dir="visualized/",
-    log_config=log_cfg,
-)
-result = visualizer.visualize()
-
-# ── 评估 ─────────────────────────────────────────
-evaluator = DetectionEvaluator(log_config=LogConfig(name="eval", verbose=True))
-result = evaluator.evaluate("anno.json", "pred.json")
-print(f"AP: {result.metrics.ap:.3f}, AP50: {result.metrics.ap50:.3f}")
-
-# 快速 P/R/F1(IoU=0.5,默认:macro 平均、bbox IoU)
-prf1 = compute_pr_f1("anno.json", "pred.json", iou_threshold=0.5)
-print(f"Macro F1: {prf1.overall.f1_score:.3f}")
-
-# Micro 平均 P/R/F1(样本等权)
-prf1 = compute_pr_f1("anno.json", "pred.json", method="micro")
-print(f"Micro F1: {prf1.overall.f1_score:.3f}")
-
-# 分割 P/R/F1(mask IoU)
-prf1 = compute_pr_f1("anno_segm.json", "pred_segm.json", iou_type="segm")
-print(f"Segm F1: {prf1.overall.f1_score:.3f}")
-
-# Pose:OKS 评估 + 基于 OKS 的 P/R/F1(阈值为 OKS 阈值)
-from dataflow.evaluate import KeypointEvaluator
-kpt_eval = KeypointEvaluator(log_config=LogConfig(name="eval", verbose=True))
-result = kpt_eval.evaluate("anno_pose.json", "pred_pose.json")
-print(f"AP: {result.metrics.ap:.3f}")
-prf1 = compute_pr_f1("anno_pose.json", "pred_pose.json", iou_type="keypoints")
-print(f"OKS F1: {prf1.overall.f1_score:.3f}")
 ```
 
-> 📂 完整示例见 `samples/` 目录:`samples/analyse/`(统计与划分)、`samples/convert/`(6 个转换方向)、`samples/visualize/`(YOLO、LabelMe、COCO)、`samples/evaluate/`(检测与分割)、`samples/cli/`(CLI 工作流)。
+> 📂 完整示例见 `samples/` 目录:`samples/analyse/`、`samples/convert/`(6 个方向)、`samples/visualize/`(YOLO、LabelMe、COCO)、`samples/evaluate/`(检测、分割与关键点)、`samples/cli/`(CLI 工作流)。
 
 ### 🤖 AI 助手技能
 
@@ -476,6 +377,9 @@ claude plugin install dataflow@claude-skills
 |----------|-------------|
 | **[CLAUDE.md](CLAUDE.md)** | 架构概述、开发指南与已知坑点 |
 | **[CHANGELOG.md](CHANGELOG.md)** | 版本历史与破坏性变更 |
+| **[CONTRIBUTING.md](CONTRIBUTING.md)** | 贡献流程、规范优先规则、质量门禁 |
+| **[docs/en/](docs/en/)** | 英文用户手册 —— Python API 参考与 FAQ |
+| **[docs/zh/](docs/zh/)** | 中文用户手册 —— Python API 参考与 FAQ |
 | **[specs/evaluate/](specs/evaluate/)** | 评估指标契约 —— IoU、匹配、AP/mAP/AR |
 | **[specs/formats/](specs/formats/)** | 外部格式契约 —— YOLO、LabelMe、COCO、转换规则 |
 | **[specs/modules/](specs/modules/)** | 内部模块架构、接口契约、依赖约束 |
@@ -499,7 +403,7 @@ claude plugin install dataflow@claude-skills
 
 ### 🧪 测试
 
-**755 个测试,81% 代码覆盖率(6784 条语句)。**
+**757 个测试,81% 代码覆盖率(6784 条语句)。**
 
 ```bash
 pytest                                    # 全部测试
@@ -555,7 +459,7 @@ dataflow/
 ├── evaluate/        # 基于 pycocotools 的指标计算、日志模板
 ├── util/            # 统一日志(LogManager + 格式化辅助)
 └── cli/             # CLI 入口、命令、校验
-tests/               # 单元与集成测试(755 个测试、conftest 夹具)
+tests/               # 单元与集成测试(757 个测试、conftest 夹具)
 samples/             # Python API 使用示例(analyse、convert、visualize、evaluate、cli)
 assets/              # 测试数据(按格式分类的 det/seg)
 specs/               # 权威规范(evaluate/ + formats/ + modules/)
@@ -565,14 +469,7 @@ specs/               # 权威规范(evaluate/ + formats/ + modules/)
 
 ## 🤝 贡献
 
-欢迎贡献!请在贡献前阅读 [CLAUDE.md](CLAUDE.md),了解架构和开发模式。
-
-1. 🍴 Fork 本仓库
-2. 🌿 创建功能分支
-3. ✏️ 进行修改 —— **规范优先**:如果修改影响了 [specs/](specs/) 中的契约,请先更新规范再改代码(SDD,见 `/maestro:spec` 技能)
-4. 🧪 按需添加或更新测试
-5. ✅ 确保代码通过格式化和代码检查
-6. 📬 提交 Pull Request
+欢迎贡献!贡献流程、规范优先规则、质量门禁与约定见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ---
 

@@ -53,6 +53,18 @@ cd DataFlow-CV && pip install .
 
 All required parameters (image directories, label directories, class files, output paths) are positional arguments for better usability. Use `--help` on any subcommand for detailed usage.
 
+#### 📐 Format Support
+
+| Module | YOLO | LabelMe | COCO |
+|--------|------|---------|------|
+| 🔍 Analyse — stats / filter | ✓ | ✓ | ✓ |
+| 🔍 Analyse — split / partition / sample | ✓ | ✓ | — |
+| 🔄 Convert (6 directions) | ✓ | ✓ | ✓ |
+| 🎨 Visualize | ✓ | ✓ | ✓ |
+| 📊 Evaluate | — ¹ | — ¹ | ✓ |
+
+¹ Evaluate always consumes COCO-format GT/DT JSON — convert other formats first (`yolo2coco`, `labelme2coco`).
+
 #### 📂 Data Layout & classes.txt
 
 Input data must follow each format's native layout — dataflow-cv detects the format automatically from what you point it at:
@@ -230,6 +242,8 @@ dataflow-cv visualize yolo --verbose --no-display images/ yolo_labels/ classes.t
 ```
 
 <p align="center">
+  <img src="assets/showcase/det_demo.jpg" width="45%" alt="Detection visualization demo">
+  <img src="assets/showcase/pose_demo.jpg" width="45%" alt="Pose visualization demo">
   <img src="assets/showcase/seg_demo_1.jpg" width="45%" alt="Segmentation visualization demo 1">
   <img src="assets/showcase/seg_demo_2.jpg" width="45%" alt="Segmentation visualization demo 2">
 </p>
@@ -329,135 +343,22 @@ dataflow-cv visualize yolo --no-display data/split/val/images/ data/split/val/la
 
 ### 🐍 Python API
 
+Every CLI capability is also available as a Python API — see the full reference in the manual: **[docs/en/api.md](docs/en/api.md)** (中文手册: **[docs/zh/api.md](docs/zh/api.md)**).
+
 ```python
-from dataflow.util.logging import LogConfig
-from dataflow.analyse import (
-    StatsAnalyser,
-    SplitAnalyser,
-    FilterAnalyser,
-    PartitionAnalyser,
-    SampleAnalyser,
-)
+from dataflow.analyse import StatsAnalyser
 from dataflow.convert import YoloAndCocoConverter
-from dataflow.visualize import YOLOVisualizer
-from dataflow.evaluate import DetectionEvaluator, compute_pr_f1
 
-# ── Analyse ─────────────────────────────────────────
-log_cfg = LogConfig(name="analyse", verbose=True)
+stats = StatsAnalyser().analyse("yolo_labels/", class_file="classes.txt")
+print(f"{stats.data.total_files} images, {stats.data.total_annotations} objects")
 
-# Dataset statistics
-analyser = StatsAnalyser(log_config=log_cfg)
-result = analyser.analyse("yolo_labels/", class_file="classes.txt")
-print(f"{result.data.total_files} images, {result.data.total_annotations} objects")
-
-# Train/test split (YOLO / LabelMe)
-splitter = SplitAnalyser(log_config=log_cfg)
-result = splitter.analyse(
-    output_dir="output/",
-    ratio=0.8,
-    seed=42,
-    label_dir="yolo_labels/",
-    class_file="classes.txt",
+YoloAndCocoConverter(source_to_target=True).convert(
+    source_path="yolo_labels/", target_path="anno.json",
+    class_file="classes.txt", image_dir="images/",
 )
-print(f"Train: {result.data.train_count}, Val: {result.data.val_count}")
-
-# Split with images (both mode — labels drive, images follow by stem)
-result = splitter.analyse(
-    output_dir="output/",
-    ratio=0.8,
-    seed=42,
-    label_dir="yolo_labels/",
-    image_dir="images/",
-    class_file="classes.txt",
-)
-
-# Category filter (keep / remap categories per new classes.txt)
-filterer = FilterAnalyser(log_config=log_cfg)
-result = filterer.analyse(
-    "yolo_labels/",
-    original_class_file="classes.txt",
-    new_class_file="classes_new.txt",
-    output_dir="filtered/",
-)
-
-# N-way partition (YOLO / LabelMe labels; images follow by stem)
-partitioner = PartitionAnalyser(log_config=log_cfg)
-result = partitioner.analyse(
-    output_dir="parts/",
-    num=4,
-    label_dir="yolo_labels/",
-    image_dir="images/",
-)
-
-# File sampling (labels, images, or both — random or sequential)
-sampler = SampleAnalyser(log_config=log_cfg)
-result = sampler.analyse(
-    output_dir="sampled/",
-    count=10,
-    label_dir="yolo_labels/",
-    shuffle=True,
-    seed=42,
-)
-
-# ── Convert ──────────────────────────────────────────
-# YOLO labels → COCO (label mode)
-log_cfg = LogConfig(name="convert", verbose=True)
-converter = YoloAndCocoConverter(source_to_target=True, log_config=log_cfg, strict_mode=True)
-result = converter.convert(
-    source_path="yolo_labels/",
-    target_path="anno.json",
-    class_file="classes.txt",
-    image_dir="images/",
-)
-
-# YOLO predictions → COCO (prediction mode)
-converter = YoloAndCocoConverter(source_to_target=True, prediction=True)
-result = converter.convert(
-    source_path="yolo_preds/",
-    target_path="pred.json",
-    class_file="classes.txt",
-    image_dir="images/",
-)
-
-# ── Visualize ────────────────────────────────────────
-visualizer = YOLOVisualizer(
-    label_dir="yolo_labels/",
-    image_dir="images/",
-    class_file="classes.txt",
-    is_show=True,
-    is_save=True,
-    output_dir="visualized/",
-    log_config=log_cfg,
-)
-result = visualizer.visualize()
-
-# ── Evaluate ─────────────────────────────────────────
-evaluator = DetectionEvaluator(log_config=LogConfig(name="eval", verbose=True))
-result = evaluator.evaluate("anno.json", "pred.json")
-print(f"AP: {result.metrics.ap:.3f}, AP50: {result.metrics.ap50:.3f}")
-
-# Quick P/R/F1 at IoU=0.5 (default: macro averaging, bbox IoU)
-prf1 = compute_pr_f1("anno.json", "pred.json", iou_threshold=0.5)
-print(f"Macro F1: {prf1.overall.f1_score:.3f}")
-
-# Micro averaging P/R/F1 (samples weighted equally)
-prf1 = compute_pr_f1("anno.json", "pred.json", method="micro")
-print(f"Micro F1: {prf1.overall.f1_score:.3f}")
-
-# Segmentation P/R/F1 (mask IoU)
-prf1 = compute_pr_f1("anno_segm.json", "pred_segm.json", iou_type="segm")
-print(f"Segm F1: {prf1.overall.f1_score:.3f}")
-
-# Pose: OKS evaluation + OKS-based P/R/F1 (threshold = OKS threshold)
-from dataflow.evaluate import KeypointEvaluator
-kpt_eval = KeypointEvaluator(log_config=LogConfig(name="eval", verbose=True))
-result = kpt_eval.evaluate("anno_pose.json", "pred_pose.json")
-print(f"AP: {result.metrics.ap:.3f}")
-prf1 = compute_pr_f1("anno_pose.json", "pred_pose.json", iou_type="keypoints")
-print(f"OKS F1: {prf1.overall.f1_score:.3f}")
 ```
 
-> 📂 See the `samples/` directory for complete examples: `samples/analyse/` (statistics & split), `samples/convert/` (6 conversion directions), `samples/visualize/` (YOLO, LabelMe, COCO), `samples/evaluate/` (detection & segmentation), `samples/cli/` (CLI workflows).
+> 📂 Complete examples: the `samples/` directory — `samples/analyse/`, `samples/convert/` (6 directions), `samples/visualize/` (YOLO, LabelMe, COCO), `samples/evaluate/` (detection, segmentation & keypoints), `samples/cli/` (CLI workflows).
 
 ### 🤖 AI Assistant Skills
 
@@ -483,6 +384,9 @@ Once installed, AI assistants load the skill on demand when working on dataset c
 |----------|-------------|
 | **[CLAUDE.md](CLAUDE.md)** | Architecture overview, development guide, and known gotchas |
 | **[CHANGELOG.md](CHANGELOG.md)** | Version history and breaking changes |
+| **[CONTRIBUTING.md](CONTRIBUTING.md)** | Contribution workflow, spec-first rules, quality gates |
+| **[docs/en/](docs/en/)** | English user manual — Python API reference & FAQ |
+| **[docs/zh/](docs/zh/)** | 中文用户手册 — Python API 参考与 FAQ |
 | **[specs/evaluate/](specs/evaluate/)** | Evaluation metric contracts — IoU, matching, AP/mAP/AR |
 | **[specs/formats/](specs/formats/)** | External format contracts — YOLO, LabelMe, COCO, conversion rules |
 | **[specs/modules/](specs/modules/)** | Internal module architecture, interface contracts, dependency constraints |
@@ -506,7 +410,7 @@ For detailed developer guidance including advanced test commands, debugging, and
 
 ### 🧪 Testing
 
-**755 tests, 81% code coverage (6784 statements).**
+**757 tests, 81% code coverage (6784 statements).**
 
 ```bash
 pytest                                    # All tests
@@ -562,7 +466,7 @@ dataflow/
 ├── evaluate/        # pycocotools-based metrics, log templates
 ├── util/            # Unified logging (LogManager + format helpers)
 └── cli/             # CLI entry point, commands, validation
-tests/               # Unit & integration tests (755 tests, conftest fixtures)
+tests/               # Unit & integration tests (757 tests, conftest fixtures)
 samples/             # Python API usage examples (analyse, convert, visualize, evaluate, cli)
 assets/              # Test data (det/seg by format)
 specs/               # Canonical specifications (evaluate/ + formats/ + modules/)
@@ -572,14 +476,7 @@ specs/               # Canonical specifications (evaluate/ + formats/ + modules/
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please review [CLAUDE.md](CLAUDE.md) for architecture and development patterns before contributing.
-
-1. 🍴 Fork the repository
-2. 🌿 Create a feature branch
-3. ✏️ Make your changes — **spec-first**: if a change affects a contract in [specs/](specs/), update the spec before the code (SDD, see the `/maestro:spec` skill)
-4. 🧪 Add or update tests as needed
-5. ✅ Ensure code passes formatting and linting checks
-6. 📬 Submit a pull request
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow, spec-first rules, quality gates, and conventions.
 
 ---
 
