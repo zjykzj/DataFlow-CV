@@ -85,7 +85,7 @@ def format_eval_result(
     """
     status = "✓ Success" if success else "✗ Failed"
     items: Dict[str, Any] = {
-        "Type": "bbox" if iou_type == "bbox" else "segm",
+        "Type": iou_type,
         "Duration": f"{duration_sec:.2f}s",
     }
     return format_result_block(status, items, log_path=log_path)
