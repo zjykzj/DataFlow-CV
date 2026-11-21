@@ -147,6 +147,12 @@ class TestKptsConfigLoader:
         with pytest.raises(ValueError, match="does not exist"):
             load_kpts_config(tmp_path / "nope.yaml")
 
+    def test_str_path_accepted(self, tmp_path):
+        """str config paths are coerced to Path (spec_label.md v5.3)."""
+        config = _make_kpts_config(tmp_path)
+        cfg = load_kpts_config(str(config))
+        assert cfg.names_for("person") == KPT_NAMES
+
 
 class TestYoloPose:
     """YOLO pose row read/write (spec_yolo_format.md §2.6)."""

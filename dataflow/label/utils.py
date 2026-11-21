@@ -4,7 +4,7 @@ Utility functions for the label module.
 
 import hashlib
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 
 
 def resolve_coco_image_ids(image_ids: Iterable[str]) -> Dict[str, int]:
@@ -298,7 +298,7 @@ class KptsConfig:
         raise ValueError(f"No keypoint names defined for class '{class_name}' in the kpts config")
 
 
-def load_kpts_config(config_path: Path) -> KptsConfig:
+def load_kpts_config(config_path: Union[str, Path]) -> KptsConfig:
     """Load and validate a keypoint-definition YAML file.
 
     Raises:
@@ -307,6 +307,7 @@ def load_kpts_config(config_path: Path) -> KptsConfig:
             schema (no ``keypoints``/``classes``, non-unique names,
             out-of-range skeleton indices, mismatched sigmas length).
     """
+    config_path = Path(config_path)
     try:
         import yaml  # type: ignore[import-untyped]
     except ImportError as e:

@@ -1,6 +1,6 @@
 # Label Module Specification
 
-> **Version:** v5.2 | **Last Updated:** 2026-11-21
+> **Version:** v5.3 | **Last Updated:** 2026-11-21
 > **Status:** Draft — logger receives from caller's LogManager via `logger=` parameter
 > **Layer:** Modules
 > **Dependencies:** None (foundation module; logging via stdlib `logging.Logger` only)
@@ -605,6 +605,7 @@ sigmas:                  # optional: per-keypoint OKS sigmas (consumed by Evalua
 ```
 
 **Loader contract:**
+- `load_kpts_config(config_path)` accepts `str` or `Path` (coerced to `Path` at entry)
 - Requires at least one of `keypoints` / `classes`; names must be unique per list and non-empty
 - `skeleton` indices must be within the resolved name list (validated; out-of-range → error)
 - `names_for(class_name) -> List[str]`: per-class resolution — `classes[class_name]` if present, else the global `keypoints` list; raises `ValueError` if neither defines the class
