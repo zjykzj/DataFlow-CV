@@ -1,6 +1,6 @@
 # Annotation Format Conversion Specification
 
-> **Version:** v5.1 | **Last Updated:** 2026-11-21
+> **Version:** v5.2 | **Last Updated:** 2026-11-21
 > **Status:** Draft — updated to reflect native-coordinate architecture
 
 ## 1. Conversion Architecture
@@ -250,11 +250,12 @@ objects with a different k are an error in strict mode, skipped with a WARNING
 in non-strict mode. (For YOLO sources the handler already enforces k at parse
 time — the converter check covers COCO/LabelMe sources.)
 
-#### 3.7.4 Visibility Degradation (O2)
+#### 3.7.4 Visibility Representation (O2)
 
-COCO → LabelMe pose: v=1 (labeled but not visible) is **not representable** in
-LabelMe — such points are written as ordinary point shapes (v=2 semantics) with
-one WARNING per image naming the count. Read-back therefore yields v=2.
+COCO → LabelMe pose: v=1 (labeled but occluded) is written X-AnyLabeling-style
+as a point shape with `"difficult": true`, and read back as v=1 — no
+information loss. Consumers without the difficult convention (plain labelme)
+treat the point as ordinary (v=2 semantics).
 
 ## 4. Category Mapping Rules
 
@@ -278,7 +279,7 @@ one WARNING per image naming the count. Read-back therefore yields v=2.
 | Conversion | Category Handling |
 |------------|-------------------|
 | YOLO → COCO | Map class_id → COCO category_id (preserve original IDs if available, otherwise use class_id as category_id) |
-| COCO → YOLO | Map COCO category_id → 0-based index. Generate `classes.txt` from COCO `categories[].name` sorted by ID |
+| COCO → YOLO | Category ids pass through verbatim; the 0-based remap happens at YOLO write time via a by-name lookup into `classes.txt` (generated from COCO `categories[].name` in id order, contiguous lines). Duplicate category names mis-map — names must be unique |
 | LabelMe → YOLO | Map label string → class_id via `classes.txt`. New labels get `len(categories)` as ID |
 | YOLO → LabelMe | Map class_id → label string via `classes.txt` |
 | LabelMe → COCO | Map label string → COCO category_id via `classes.txt` ordering |
@@ -418,8 +419,8 @@ of the binary mask, which is already an approximation of the original polygon.
 | COCO → YOLO → COCO | **Lossy** (±1 px) | **Lossy** (±1 px per vertex) | **Lossy** (rasterization loss) | **Lossy** (±1 px per keypoint) |
 | YOLO → LabelMe → YOLO | **Lossy** (±1 px) | **Lossy** (±1 px per vertex) | N/A | **Lossy** (±1 px per keypoint) |
 | LabelMe → YOLO → LabelMe | **Lossy** (±1 px) | **Lossy** (±1 px per vertex) | N/A | **Lossy** (±1 px per keypoint) |
-| COCO → LabelMe → COCO | **Near-lossless** (< 1 px) | **Near-lossless** (< 1 px) | **Lossy** (rasterization loss) | **Near-lossless** (< 1 px; v=1 degrades to v=2, §3.7.4) |
-| LabelMe → COCO → LabelMe | **Near-lossless** (< 1 px) | **Near-lossless** (< 1 px) | N/A | **Near-lossless** (< 1 px; v=1 degrades to v=2, §3.7.4) |
+| COCO → LabelMe → COCO | **Near-lossless** (< 1 px) | **Near-lossless** (< 1 px) | **Lossy** (rasterization loss) | **Near-lossless** (< 1 px; v=1 round-trips via `difficult: true`, §3.7.4) |
+| LabelMe → COCO → LabelMe | **Near-lossless** (< 1 px) | **Near-lossless** (< 1 px) | N/A | **Near-lossless** (< 1 px; v=1 round-trips via `difficult: true`, §3.7.4) |
 
 **Notes:**
 - "±1 px" means individual coordinate values may differ by up to 1 pixel from the original

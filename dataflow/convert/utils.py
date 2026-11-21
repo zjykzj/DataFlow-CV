@@ -9,7 +9,7 @@ import json
 import logging
 import math
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ..label.models import BoundingBox, DatasetAnnotations, Keypoints, Segmentation
 
@@ -213,24 +213,29 @@ def enforce_pose_k(converter: Any, k: int) -> bool:
     return False
 
 
-def build_categories_meta(kpts_config: Any, categories: Dict[int, str], k: int) -> Dict[int, Dict]:
+def build_categories_meta(
+    kpts_config: Any, categories: Dict[int, str], k: int, logger: Optional[Any] = None
+) -> Dict[int, Dict]:
     """Build COCO ``categories_meta`` (keypoint names + skeleton) per category.
 
     With a keypoint-definition config, names resolve per class
     (``names_for()``) and the config's skeleton is attached. Without one,
     placeholder names ``keypoint_0..k-1`` are synthesized with no skeleton —
-    valid COCO, degraded semantics (contract: spec_conversion.md §3.7.2).
+    valid COCO, degraded semantics + WARNING (contract:
+    spec_conversion.md §3.7.2).
 
     Args:
         kpts_config: ``KptsConfig`` or None.
         categories: Category mapping ``{cat_id: cat_name}``.
         k: Dataset keypoint count (converter-tracked pose k).
+        logger: Optional logger for the placeholder WARNING.
 
     Returns:
         ``{category_id: {"keypoints": [...], "skeleton": [...]}}``.
     """
     meta: Dict[int, Dict] = {}
     placeholders = [f"keypoint_{i}" for i in range(k)] if k > 0 else []
+    used_placeholders = False
 
     for cat_id, cat_name in categories.items():
         entry: Dict = {}
@@ -239,12 +244,21 @@ def build_categories_meta(kpts_config: Any, categories: Dict[int, str], k: int) 
                 entry["keypoints"] = kpts_config.names_for(cat_name)
             except ValueError:
                 entry["keypoints"] = list(placeholders)
+                used_placeholders = True
         elif placeholders:
             entry["keypoints"] = list(placeholders)
+            used_placeholders = True
         if entry and kpts_config is not None and kpts_config.skeleton:
             entry["skeleton"] = kpts_config.skeleton
         if entry:
             meta[cat_id] = entry
+
+    if used_placeholders and logger is not None:
+        logger.warning(
+            "Using placeholder keypoint names (keypoint_0..k-1) with empty "
+            "skeleton — pass kpts_config for real names/skeleton "
+            "(contract: spec_conversion.md §3.7.2)"
+        )
 
     return meta
 
@@ -285,12 +299,13 @@ def write_kpts_config_sidecar(
     categories: Dict[int, str],
     categories_meta: Dict[int, Dict],
     output_path: str,
+    logger: Optional[Any] = None,
 ) -> Tuple[bool, int]:
     """Write a keypoint-definition YAML sidecar generated from COCO categories.
 
     Schema (contract: spec_conversion.md §3.7.2): per-class ``classes`` map;
     ``skeleton`` is written only when uniform across all pose categories
-    (else omitted — the schema has no per-class skeleton).
+    (else omitted + WARNING — the schema has no per-class skeleton).
 
     Out-of-range skeleton edges are dropped (the official COCO person
     skeleton contains index 17 for a 17-keypoint list — no consumer can
@@ -326,6 +341,12 @@ def write_kpts_config_sidecar(
         unique_skeletons = set(skeletons)
         if skeletons and len(unique_skeletons) == 1:
             data["skeleton"] = [list(edge) for edge in skeletons[0]]
+        elif len(unique_skeletons) > 1 and logger is not None:
+            logger.warning(
+                "Skeleton differs across pose categories — omitted from the "
+                "generated sidecar (schema has no per-class skeleton; "
+                "contract: spec_conversion.md §3.7.2)"
+            )
 
         with open(output_path, "w", encoding="utf-8") as f:
             yaml.safe_dump(data, f, sort_keys=False, allow_unicode=True)
@@ -624,7 +645,7 @@ def create_conversion_chain(chain: List[str]) -> List[Tuple[str, str]]:
 
 
 def resolve_image_paths(
-    annotations: DatasetAnnotations, source_dir: Path, target_dir: Path
+    annotations: DatasetAnnotations, source_dir: Union[str, Path], target_dir: Union[str, Path]
 ) -> DatasetAnnotations:
     """
     Resolve and normalize image paths.
@@ -637,6 +658,8 @@ def resolve_image_paths(
     Returns:
         Updated annotations with resolved image paths
     """
+    source_dir = Path(source_dir)
+    target_dir = Path(target_dir)
     updated_images = []
     for image_ann in annotations.images:
         # Resolve source path

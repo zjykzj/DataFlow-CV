@@ -313,6 +313,7 @@ class BaseConverter(ABC):
 
             duration = _time.time() - start_time
             result.add_metadata("duration_seconds", f"{duration:.2f}")
+            self._add_precision_metadata(result)
             self._log_info(
                 f"Converted {num_images} images, {num_objects} objects in {duration:.1f}s"
             )
@@ -664,7 +665,24 @@ class BaseConverter(ABC):
             for error in write_result.errors:
                 result.add_error(error)
 
+        self._add_precision_metadata(result)
+
         return result
+
+    def _add_precision_metadata(self, result: ConversionResult) -> None:
+        """Document the precision characteristics of the transform.
+
+        Conversions involving YOLO round-trip between normalized [0,1]
+        and absolute-pixel coordinates, which is inherently lossy
+        (±1 px) — recorded in ``result.metadata["precision"]``
+        (contract: spec_convert.md §2.3 rule 5 / §2.4).
+        """
+        if self.source_format == "yolo" or self.target_format == "yolo":
+            result.add_metadata(
+                "precision",
+                "Normalized ↔ absolute-pixel transforms are inherently "
+                "lossy (±1 px); see spec_conversion.md §9.3",
+            )
 
     def _log_info(self, message: str):
         """Log info message."""

@@ -1,6 +1,6 @@
 # LabelMe Annotation Format Specification
 
-> **Version:** v1.2 | **Last Updated:** 2026-11-19
+> **Version:** v1.3 | **Last Updated:** 2026-11-21
 > **Status:** Canonical — this document defines the authoritative LabelMe format contract for DataFlow-CV.
 
 ## 1. File Organization
@@ -68,6 +68,10 @@ Each shape object represents one annotation:
 | `points` | [[float, float], ...] | **Yes** | List of `[x, y]` coordinate pairs in absolute pixels |
 | `group_id` | int\|null | No | Group identifier for related shapes (nullable) |
 | `flags` | object | No | Shape-level flags (typically empty `{}`) |
+| `difficult` | bool | No | X-AnyLabeling extension on point shapes — marks an occluded keypoint (reads as v=1, §3.5). Written for v=1 on export |
+
+> Other ecosystem extras (`score`, `attributes`, `description` on shapes) are
+> ignored on read and not written on export.
 
 ### 3.1 Rectangle Shape
 
@@ -103,7 +107,9 @@ The following LabelMe shape types are **not supported** by DataFlow-CV and will 
 - `group_id`: **Required** (non-null) — groups the keypoints of one pose instance
 - `label`: The **keypoint name** (e.g., `"nose"`, `"left_eye"`) — not the class name
 
-This is the de-facto ecosystem convention (official labelme2coco workflow, X-AnyLabeling:
+This is the de-facto ecosystem convention (X-AnyLabeling and third-party pose
+converters — the official labelme `labelme2coco` example script handles only
+segmentation shapes and has no pose support. X-AnyLabeling:
 "group_id 用于关联同一组内的多个对象 (e.g., pose keypoints)"). LabelMe has no native
 keypoint shape type; keypoint annotation is performed as per-keypoint point shapes.
 
@@ -116,7 +122,7 @@ shape with the same `group_id`:
 |---------|-------|------|
 | Class + bbox | `rectangle` (same `group_id`) | `label` = class name; provides the instance bbox. **Required** — keypoint labels carry no class information, so a point group without a rectangle is invalid |
 | Keypoints | `point` shapes (same `group_id`) | `label` = keypoint name, `points` = one `[x, y]` pair |
-| Visibility | Implicit | A point shape present = labeled and visible (v=2); a keypoint absent from the file = not labeled (v=0). v=1 (labeled but occluded) is **not representable** — LabelMe has no visibility field |
+| Visibility | Implicit | A point shape present = labeled and visible (v=2); a keypoint absent from the file = not labeled (v=0). v=1 (labeled but occluded) is represented X-AnyLabeling-style via `"difficult": true` on the point shape — written for v=1 on export, read back as v=1. Point shapes without `difficult` read as v=2 |
 
 **Keypoint ordering**: DataFlow-CV orders keypoints by the keypoint-definition file
 (`kpts_config`, see `spec_label.md` §4.4): each instance produces exactly `k = len(names)`

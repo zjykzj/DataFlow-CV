@@ -131,6 +131,9 @@ class TestIntegrationConversions:
         assert result.source_format == "yolo"
         assert result.target_format == "coco"
         assert result.num_images_converted > 0
+        # YOLO-involved transforms document their precision characteristics
+        # (contract: spec_convert.md §2.3 rule 5)
+        assert "precision" in result.metadata
 
         # Verify output file exists and is valid JSON
         assert output_file.exists(), f"Output file does not exist: {output_file}"
@@ -253,6 +256,8 @@ class TestIntegrationConversions:
         assert result.source_format == "labelme"
         assert result.target_format == "coco"
         assert result.num_images_converted > 0
+        # Absolute-pixel ↔ absolute-pixel transforms are not lossy
+        assert "precision" not in result.metadata
 
         # Verify output file exists and is valid JSON
         assert output_file.exists(), f"Output file does not exist: {output_file}"

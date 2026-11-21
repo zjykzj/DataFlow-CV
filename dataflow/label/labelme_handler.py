@@ -9,7 +9,7 @@ Coordinates are stored in native LabelMe representation:
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Set, Union
 
 
 from .base import AnnotationResult, BaseAnnotationHandler, ImageError
@@ -513,6 +513,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
 
             # Collect point shapes by keypoint label
             by_name: Dict[str, tuple] = {}
+            difficult_names: Set[str] = set()
             for shape in group_shapes:
                 kpt_label = str(shape.get("label", "")).strip()
                 if not kpt_label:
@@ -545,6 +546,10 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                         )
                         continue
                 by_name[kpt_label] = (float(pts[0][0]), float(pts[0][1]))
+                if shape.get("difficult"):
+                    # X-AnyLabeling convention: occluded keypoints are marked
+                    # difficult → v=1 (spec_labelme_format.md §3.5)
+                    difficult_names.add(kpt_label)
 
             if self.kpts_config is not None:
                 try:
@@ -568,7 +573,10 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                         for name in unknown:
                             by_name.pop(name)
                 points = [by_name.get(name, (0.0, 0.0)) for name in names]
-                visibility = [2 if name in by_name else 0 for name in names]
+                visibility = [
+                    1 if name in difficult_names else (2 if name in by_name else 0)
+                    for name in names
+                ]
             else:
                 if not self._kpts_order_warned:
                     self._log_warning(
@@ -577,7 +585,7 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                     )
                     self._kpts_order_warned = True
                 points = list(by_name.values())
-                visibility = [2] * len(points)
+                visibility = [1 if name in difficult_names else 2 for name in by_name]
 
             # Clamp to image boundaries (tolerates FP imprecision at edges)
             points = self._clamp_abs_points(points, img_width, img_height)
@@ -634,8 +642,12 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
 
         return result
 
-    def write_one(self, image_ann: ImageAnnotation, output_dir: Path) -> AnnotationResult:
+    def write_one(
+        self, image_ann: ImageAnnotation, output_dir: Union[str, Path]
+    ) -> AnnotationResult:
         """Write annotations for a single image to LabelMe JSON."""
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
         result = AnnotationResult(success=False)
 
         try:
@@ -738,15 +750,18 @@ class LabelMeAnnotationHandler(BaseAnnotationHandler):
                     if v == 0:
                         continue
                     kpt_label = names[i] if names is not None else f"keypoint_{i}"
-                    shapes.append(
-                        {
-                            "label": kpt_label,
-                            "points": [[float(x), float(y)]],
-                            "group_id": group_id,
-                            "shape_type": "point",
-                            "flags": {},
-                        }
-                    )
+                    shape: Dict[str, Any] = {
+                        "label": kpt_label,
+                        "points": [[float(x), float(y)]],
+                        "group_id": group_id,
+                        "shape_type": "point",
+                        "flags": {},
+                    }
+                    if v == 1:
+                        # X-AnyLabeling convention: occluded keypoints are
+                        # marked difficult (spec_labelme_format.md §3.5)
+                        shape["difficult"] = True
+                    shapes.append(shape)
                 return shapes
 
             if obj.bbox:

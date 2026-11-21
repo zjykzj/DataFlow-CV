@@ -1,6 +1,6 @@
 # Convert Module Specification
 
-> **Version:** v8.0 | **Last Updated:** 2026-11-19
+> **Version:** v8.2 | **Last Updated:** 2026-11-21
 > **Status:** Draft — unified logging via `LogManager`
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
@@ -476,7 +476,7 @@ After reading and after writing, the converter emits INFO-level statistics:
 
 | Aspect | `verbose=False` (default) | `verbose=True` |
 |--------|--------------------------|----------------|
-| Console | Progress every 50 images (streaming) or read/write stats (batch); final result | Same as non-verbose, plus a header line with paths/mode/options |
+| Console | Progress every 50 images (streaming) or read/write stats (batch), plus a header line with paths/mode; final result | Same as non-verbose |
 | File output | None | Full DEBUG-level log (per-image details, handler internals) |
 | `log_path` in result | `None` | Set to log file path |
 
@@ -700,7 +700,7 @@ responsibility to:
 | `normalize_path(path, base_dir)` | Normalizes file paths |
 | `validate_conversion_chain(source_format, target_format, allowed_chains)` | Validates a (source, target) pair against a list of allowed conversion chains |
 | `create_conversion_chain(chain)` | Creates a multi-step conversion pipeline from a list of format names |
-| `resolve_image_paths(annotations, source_dir, target_dir)` | Resolves relative image paths |
+| `resolve_image_paths(annotations, source_dir, target_dir)` | Resolves relative image paths (dirs accept `str` or `Path`) |
 
 ### 5.1 RLE Accuracy Warning
 

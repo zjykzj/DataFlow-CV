@@ -258,8 +258,8 @@ class TestYoloToCocoPose(TestPoseConversionBase):
 
 class TestCocoToLabelMePose(TestPoseConversionBase):
     def test_pose_writes_rect_plus_points(self, temp_dir):
-        """COCO → LabelMe pose: rectangle + named point shapes; v=1 degrades
-        to v=2 with a warning (O2)."""
+        """COCO → LabelMe pose: rectangle + named point shapes; v=1 is marked
+        ``difficult: true`` (X-AnyLabeling convention, §3.7.4)."""
         coco = _make_coco_pose(temp_dir)
         converter = CocoAndLabelMeConverter(source_to_target=True)
         result = converter.convert(
@@ -276,11 +276,72 @@ class TestCocoToLabelMePose(TestPoseConversionBase):
         assert len(points) == 2
         labels = sorted(s["label"] for s in points)
         assert labels == ["left_eye", "nose"]
+        # v=1 → difficult: true; v=2 → no difficult key
+        left_eye = next(s for s in points if s["label"] == "left_eye")
+        nose = next(s for s in points if s["label"] == "nose")
+        assert left_eye.get("difficult") is True
+        assert "difficult" not in nose
         gids = {s["group_id"] for s in written["shapes"]}
         assert gids == {1}
 
 
 class TestLabelMeToCocoPose(TestPoseConversionBase):
+    def test_difficult_point_reads_as_v1(self, temp_dir):
+        """A point shape with ``difficult: true`` reads as v=1 (X-AnyLabeling
+        convention, spec_labelme_format.md §3.5)."""
+        label_dir = temp_dir / "labels"
+        label_dir.mkdir()
+        data = {
+            "version": "5.0.1",
+            "flags": {},
+            "shapes": [
+                {
+                    "label": "person",
+                    "points": [[100, 100], [160, 180]],
+                    "group_id": 1,
+                    "shape_type": "rectangle",
+                    "flags": {},
+                },
+                {
+                    "label": "nose",
+                    "points": [[130, 120]],
+                    "group_id": 1,
+                    "shape_type": "point",
+                    "flags": {},
+                    "difficult": True,
+                },
+                {
+                    "label": "left_eye",
+                    "points": [[125, 115]],
+                    "group_id": 1,
+                    "shape_type": "point",
+                    "flags": {},
+                },
+            ],
+            "imagePath": "test.jpg",
+            "imageData": None,
+            "imageHeight": 200,
+            "imageWidth": 300,
+        }
+        (label_dir / "test.json").write_text(json.dumps(data))
+        config = _write_kpts_config(temp_dir)
+        class_file = self._make_classes(temp_dir)
+
+        converter = CocoAndLabelMeConverter(source_to_target=False)
+        result = converter.convert(
+            str(label_dir),
+            str(temp_dir / "out.json"),
+            class_file=str(class_file),
+            pose=True,
+            kpts_config=str(config),
+        )
+        assert result.success is True
+        written = json.loads((temp_dir / "out.json").read_text(encoding="utf-8"))
+        ann = written["annotations"][0]
+        # nose: difficult → v=1; left_eye: plain → v=2; right_eye: absent → v=0
+        assert ann["keypoints"] == [130.0, 120.0, 1, 125.0, 115.0, 2, 0.0, 0.0, 0]
+        assert ann["num_keypoints"] == 2
+
     @pytest.fixture
     def sample_pose_dir(self, temp_dir):
         label_dir = temp_dir / "labels"
@@ -521,3 +582,35 @@ class TestConvertCLIPoseFlags(TestPoseConversionBase):
         assert result.exit_code == 0
         assert "--pose" in result.output
         assert "--save-kpts-config" in result.output
+
+
+class TestPoseSegDrop:
+    """Segmentation dropped at converter level for YOLO targets in pose mode
+    (contract: spec_conversion.md §3.7.1)."""
+
+    def test_labelme_to_yolo_pose_drops_segmentation(self):
+        from dataflow.label.models import (
+            BoundingBox,
+            ImageAnnotation,
+            Keypoints,
+            ObjectAnnotation,
+            Segmentation,
+        )
+
+        converter = LabelMeAndYoloConverter(source_to_target=True)
+        obj = ObjectAnnotation(
+            class_id=0,
+            class_name="person",
+            bbox=BoundingBox(x=10, y=10, width=100, height=200),
+            segmentation=Segmentation(points=[(10, 10), (110, 10), (110, 210)]),
+            keypoints=Keypoints(points=[(60, 100), (60, 80), (60, 60)], visibility=[2, 1, 0]),
+        )
+        img = ImageAnnotation(
+            width=300, height=200, objects=[obj], image_id="test", image_path="test.jpg"
+        )
+
+        out = converter._absolute_to_normalized_one(img, pose=True)
+
+        assert len(out.objects) == 1
+        assert out.objects[0].keypoints is not None
+        assert out.objects[0].segmentation is None

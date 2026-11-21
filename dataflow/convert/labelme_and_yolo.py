@@ -278,6 +278,7 @@ class LabelMeAndYoloConverter(BaseConverter):
 
         new_objects = []
         dropped_kpts = 0
+        dropped_seg = 0
         skipped_no_kpts = 0
         for obj in img.objects:
             if pose and obj.keypoints is None:
@@ -286,6 +287,11 @@ class LabelMeAndYoloConverter(BaseConverter):
             new_bbox, new_seg = absolute_pixel_to_yolo(
                 obj.bbox, obj.segmentation, img.width, img.height
             )
+            if pose and obj.segmentation is not None:
+                # Pose rows cannot carry segmentation (spec_conversion.md
+                # §3.7.1) — drop it at the converter level.
+                new_seg = None
+                dropped_seg += 1
             new_kpts = None
             if obj.keypoints is not None:
                 if pose:
@@ -312,6 +318,11 @@ class LabelMeAndYoloConverter(BaseConverter):
             self._log_warning(
                 f"Dropped keypoints from {dropped_kpts} object(s) in image "
                 f"'{img.image_id}' (pass pose=True to convert them)"
+            )
+        if dropped_seg:
+            self._log_warning(
+                f"Dropped segmentation from {dropped_seg} object(s) in image "
+                f"'{img.image_id}' (pose rows cannot carry it)"
             )
         if skipped_no_kpts:
             self._log_warning(

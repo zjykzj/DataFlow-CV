@@ -199,7 +199,7 @@ class CocoAndLabelMeConverter(BaseConverter):
 
                 if save_kpts_config:
                     ok, dropped = write_kpts_config_sidecar(
-                        source_cats, meta, str(save_kpts_config)
+                        source_cats, meta, str(save_kpts_config), logger=self.logger
                     )
                     if ok and dropped:
                         self.logger.warning(
@@ -311,7 +311,6 @@ class CocoAndLabelMeConverter(BaseConverter):
         new_objects = []
         dropped_kpts = 0
         skipped_no_kpts = 0
-        degraded_v1 = 0
         for obj in image_ann.objects:
             if pose and obj.keypoints is None:
                 skipped_no_kpts += 1
@@ -344,10 +343,6 @@ class CocoAndLabelMeConverter(BaseConverter):
                         points=list(obj.keypoints.points),
                         visibility=list(obj.keypoints.visibility),
                     )
-                    if self.source_format == "coco":
-                        # O2: v=1 is not representable in LabelMe — the
-                        # writer emits such points as ordinary (v=2) shapes.
-                        degraded_v1 += sum(1 for v in obj.keypoints.visibility if v == 1)
                 else:
                     dropped_kpts += 1
             new_objects.append(
@@ -371,11 +366,6 @@ class CocoAndLabelMeConverter(BaseConverter):
             self._log_warning(
                 f"Skipped {skipped_no_kpts} object(s) without keypoints in image "
                 f"'{image_ann.image_id}' (pose mode)"
-            )
-        if degraded_v1:
-            self._log_warning(
-                f"Degraded {degraded_v1} occluded (v=1) keypoint(s) to v=2 in image "
-                f"'{image_ann.image_id}' (LabelMe cannot represent v=1)"
             )
 
         return ImageAnnotation(
@@ -416,7 +406,7 @@ class CocoAndLabelMeConverter(BaseConverter):
             if cfg_path:
                 kpts_config = load_kpts_config(Path(cfg_path))
             target.dataset_info["categories_meta"] = build_categories_meta(
-                kpts_config, target.categories, self._pose_k or 0
+                kpts_config, target.categories, self._pose_k or 0, logger=self.logger
             )
 
         return target

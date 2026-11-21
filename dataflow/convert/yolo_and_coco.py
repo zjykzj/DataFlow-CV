@@ -234,7 +234,9 @@ class YoloAndCocoConverter(BaseConverter):
                 if self._source_annotations_for_target is not None:
                     source_cats = self._source_annotations_for_target.categories
                 meta = read_coco_categories_meta(self._source_path)
-                ok, dropped = write_kpts_config_sidecar(source_cats, meta, str(save_kpts_config))
+                ok, dropped = write_kpts_config_sidecar(
+                    source_cats, meta, str(save_kpts_config), logger=self.logger
+                )
                 if ok and dropped:
                     self.logger.warning(
                         f"Generated keypoint definition: {save_kpts_config} "
@@ -476,7 +478,7 @@ class YoloAndCocoConverter(BaseConverter):
             if cfg_path:
                 kpts_config = load_kpts_config(Path(cfg_path))
             target.dataset_info["categories_meta"] = build_categories_meta(
-                kpts_config, target.categories, self._pose_k or 0
+                kpts_config, target.categories, self._pose_k or 0, logger=self.logger
             )
 
         return target
