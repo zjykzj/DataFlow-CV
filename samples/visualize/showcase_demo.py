@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """README showcase image generator.
 
-Renders detection, segmentation, and pose visualizations for the README
-showcase section (``assets/showcase/det_demo.jpg``, ``seg_demo_*.jpg``,
-``pose_demo.jpg``) from real COCO val2017 images.  The script filters COCO
-JSONs down to the selected images, renders them headlessly via the COCO
-visualizer, and optionally copies the results into ``assets/showcase/``.
+Renders segmentation and pose visualizations for the README showcase
+section (``assets/showcase/seg_demo_*.jpg``, ``pose_demo.jpg``) from real
+COCO val2017 images.  The script filters COCO JSONs down to the selected
+images, renders them headlessly via the COCO visualizer, and optionally
+copies the results into ``assets/showcase/``.
 
 Example::
 
@@ -31,9 +31,12 @@ from dataflow.util import LogConfig
 
 # Default showcase images (COCO val2017) — clean scenes with few
 # medium-sized objects, selected for sharp/colorful imagery.
-DET_IDS = [554291]  # cat + dog living-room scene (det_demo.jpg)
-SEG_IDS = [357459, 329447]  # two diverse scenes (seg_demo_*.jpg)
+SEG_IDS = [357459]  # one diverse scene (seg_demo_2.jpg)
 POSE_IDS = [368212]  # single person, 17/17 keypoints (pose_demo.jpg)
+
+# The README showcases seg_demo_2.jpg — seg_demo_1.jpg was retired, so
+# renders continue the numbering from 2.
+SEG_INDEX_START = 2
 
 
 def filter_coco_json(coco_path: Path, ids: list[int], out_path: Path) -> None:
@@ -99,8 +102,8 @@ def main() -> None:
         "--ids",
         type=int,
         nargs="+",
-        default=DET_IDS + SEG_IDS,
-        help="Image ids for det/seg demos (default: one det + two seg scenes)",
+        default=SEG_IDS,
+        help="Image ids for the segmentation demos",
     )
     parser.add_argument(
         "--pose-ids",
@@ -123,20 +126,19 @@ def main() -> None:
     args = parser.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
+    for stale in args.out.glob("*_visualized.jpg"):
+        stale.unlink()  # idempotent reruns on the same output dir
     renders: dict[str, Path] = {}
 
-    # Detection demo — first of --ids.
-    det_filtered = args.out / "_showcase_det.json"
-    filter_coco_json(args.coco_json, args.ids[:1], det_filtered)
-    renders["det_demo"] = render(det_filtered, args.image_dir, args.out)[0]
-
-    # Segmentation demos — the remaining --ids (rendered in one pass).
+    # Segmentation demos (rendered in one pass).
     seg_filtered = args.out / "_showcase_seg.json"
-    filter_coco_json(args.coco_json, args.ids[1:], seg_filtered)
+    filter_coco_json(args.coco_json, args.ids, seg_filtered)
     renders.update(
         {
             f"seg_demo_{i}": p
-            for i, p in enumerate(render(seg_filtered, args.image_dir, args.out), start=1)
+            for i, p in enumerate(
+                render(seg_filtered, args.image_dir, args.out), start=SEG_INDEX_START
+            )
         }
     )
 

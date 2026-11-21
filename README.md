@@ -242,10 +242,8 @@ dataflow-cv visualize yolo --verbose --no-display images/ yolo_labels/ classes.t
 ```
 
 <p align="center">
-  <img src="assets/showcase/det_demo.jpg" width="45%" alt="Detection visualization demo">
   <img src="assets/showcase/pose_demo.jpg" width="45%" alt="Pose visualization demo">
-  <img src="assets/showcase/seg_demo_1.jpg" width="45%" alt="Segmentation visualization demo 1">
-  <img src="assets/showcase/seg_demo_2.jpg" width="45%" alt="Segmentation visualization demo 2">
+  <img src="assets/showcase/seg_demo_2.jpg" width="45%" alt="Segmentation visualization demo">
 </p>
 
 #### 📊 Evaluation
