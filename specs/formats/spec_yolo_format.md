@@ -1,6 +1,6 @@
 # YOLO Annotation Format Specification
 
-> **Version:** v1.3 | **Last Updated:** 2026-11-21
+> **Version:** v1.4 | **Last Updated:** 2026-11-21
 > **Status:** Canonical — this document defines the authoritative YOLO format contract for DataFlow-CV.
 
 ## 1. File Organization
@@ -197,6 +197,19 @@ pair + visibility flag):
 - `pv` ∈ {0, 1, 2}; a point with `pv == 0` is conventionally written as `0 0 0`
 - Pose prediction rows append a `confidence` token after the last `pv` (§2.4 rules apply)
 - The row carries no segmentation — segmentation cannot be represented in a pose row
+
+> **Official-format boundaries** (aligned with the Ultralytics pose docs):
+> - Ultralytics also documents a **2D pose variant without visibility**
+>   (`kpt_shape: [K, 2]`, rows of `5 + 2k` tokens). DataFlow-CV does **not**
+>   support it — 2D rows have no visibility channel and their token counts
+>   collide with segmentation rows; such rows are rejected or misparsed in
+>   det/seg mode and invalid in pose mode. Use the 3-channel (`[K, 3]`)
+>   variant.
+> - Ultralytics pose **predictions** write per-keypoint **confidence floats**
+>   in the third channel when saving model output. DataFlow-CV's prediction
+>   contract instead requires integer visibility {0, 1, 2} in that channel
+>   (house rule — convert model confidence channels to visibility before
+>   feeding `--prediction --pose`).
 
 ## 3. Coordinate System
 

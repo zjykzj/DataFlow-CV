@@ -1,6 +1,6 @@
 # COCO Annotation Format Specification
 
-> **Version:** v1.3 | **Last Updated:** 2026-11-19
+> **Version:** v1.4 | **Last Updated:** 2026-11-21
 > **Status:** Canonical — this document defines the authoritative COCO format contract for DataFlow-CV.
 
 ## 1. File Organization
@@ -321,7 +321,7 @@ model's confidence:
 | Evaluation role | Used as GT in `COCOeval` | Used as DT in `COCOeval` |
 | Loading method | `COCO(annotation_file)` | `COCO(annotation_file)` if full dict; `COCO.loadRes(annotation_file)` if plain list |
 
-The `loadRes()` method is pycocotools' designated API for loading prediction results. It accepts both a file path (to either a full COCO dict or a plain JSON list) and an in-memory list of annotation dicts. Unlike `COCO()`, it copies `images` and `categories` from the GT dataset and indexes the provided annotation list. This is the reason prediction files do not need to include `images`/`categories` arrays — `loadRes()` sources them from GT. |
+The `loadRes()` method is pycocotools' designated API for loading prediction results. It accepts an in-memory list of annotation dicts, or a file path whose root is a **plain JSON list** — a file whose root is a full COCO dict fails (`AssertionError: results in not an array of objects`). Unlike `COCO()`, it copies `images` and `categories` from the GT dataset and indexes the provided annotation list. This is the reason prediction files do not need to include `images`/`categories` arrays — `loadRes()` sources them from GT. |
 
 ### 9.4 Segmentation Predictions
 

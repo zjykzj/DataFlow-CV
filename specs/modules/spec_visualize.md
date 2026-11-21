@@ -1,6 +1,6 @@
 # Visualize Module Specification
 
-> **Version:** v4.9 | **Last Updated:** 2026-11-19
+> **Version:** v4.10 | **Last Updated:** 2026-11-21
 > **Status:** Draft — bidirectional nav; buffer limit; save dedup; h hints; s snapshot; keypoints & skeleton
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
@@ -395,7 +395,7 @@ first point.
 2. Create color mask × BGR color values
 3. Semi-transparent overlay with `cv2.addWeighted()` + `np.copyto()`
 
-Requires pycocotools — logs error and returns without drawing if unavailable.
+Requires pycocotools — logs a WARNING and returns without drawing if unavailable (visualization is read-only; warnings are the appropriate severity).
 
 #### `_draw_keypoints(image, keypoints, skeleton, color)`
 
