@@ -21,10 +21,11 @@ A computer vision dataset processing library — analyse, convert, visualize, an
 
 | | | |
 |:---|:---|:---|
-| 🔍 **Analyse** | Stats, train/val split, category filter, N-way partition & file sampling — format auto-detection; **keypoint labeling-rate stats for pose datasets** | `dataflow-cv analyse stats ...` |
-| 🔄 **Convert** | 6 directions: YOLO ↔ LabelMe ↔ COCO, plus model predictions; **pose conversion in all directions** (`--pose`) | `dataflow-cv convert yolo2coco ...` |
-| 🎨 **Visualize** | OpenCV rendering with color-coded classes, display & save modes; **keypoint + skeleton rendering** | `dataflow-cv visualize yolo ...` |
-| 📊 **Evaluate** | COCO mAP via pycocotools, single-threshold P/R/F1 per class; **pose evaluation via OKS** | `dataflow-cv evaluate detection ...` |
+| 🔍 **Analyse** | Stats, train/val split, category filter, N-way partition & file sampling — format auto-detection | `dataflow-cv analyse stats ...` |
+| 🔄 **Convert** | 6 directions: YOLO ↔ LabelMe ↔ COCO, plus model predictions | `dataflow-cv convert yolo2coco ...` |
+| 🎨 **Visualize** | OpenCV rendering with color-coded classes, display & save modes | `dataflow-cv visualize yolo ...` |
+| 📊 **Evaluate** | COCO mAP via pycocotools, single-threshold P/R/F1 per class | `dataflow-cv evaluate detection ...` |
+| 📋 **Task Types** | Detection, segmentation & pose (keypoints) supported by all four modules across all three formats — det/seg auto-detected, pose explicit (`--pose`) | `dataflow-cv convert yolo2coco --pose ...` |
 | 💻 **CLI + API** | Click-based CLI with rich `--help`; Python API for pipelines | `from dataflow.convert import ...` |
 | 🤖 **AI Skills** | Claude Code skill (`/dataflow:dataflow-cv`) for AI assistants — CLI/API reference & known gotchas | `claude plugin install dataflow@claude-skills` |
 

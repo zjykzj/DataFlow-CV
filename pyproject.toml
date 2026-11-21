@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dataflow-cv"
 version = "3.6.0"
-description = "A computer vision dataset processing library — analyse, convert, visualize, and evaluate annotations across YOLO, LabelMe, and COCO formats"
+description = "A computer vision dataset processing library — analyse, convert, visualize, and evaluate detection, segmentation, and pose (keypoint) annotations across YOLO, LabelMe, and COCO formats"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
     {name = "DataFlow-CV Team"}
 ]
-keywords = ["computer-vision", "dataset", "annotation", "label", "labelme", "yolo", "coco"]
+keywords = ["computer-vision", "dataset", "annotation", "label", "yolo", "labelme", "coco", "detection", "segmentation", "pose", "keypoints"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",

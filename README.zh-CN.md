@@ -21,10 +21,11 @@ DataFlow-CV 是一个计算机视觉数据集处理库 —— 在 YOLO、LabelMe
 
 | | | |
 |:---|:---|:---|
-| 🔍 **分析** | 统计、训练/验证集划分、类别过滤、N 路分区与文件抽样 —— 格式自动检测;**pose 数据集的关键点标注率统计** | `dataflow-cv analyse stats ...` |
-| 🔄 **转换** | 6 个方向:YOLO ↔ LabelMe ↔ COCO,外加模型预测文件;**全方向 pose 转换**(`--pose`) | `dataflow-cv convert yolo2coco ...` |
-| 🎨 **可视化** | OpenCV 渲染、按类别着色,支持显示与保存模式;**关键点 + 骨架渲染** | `dataflow-cv visualize yolo ...` |
-| 📊 **评估** | 基于 pycocotools 的 COCO mAP、按类别的单阈值 P/R/F1;**基于 OKS 的 pose 评估** | `dataflow-cv evaluate detection ...` |
+| 🔍 **分析** | 统计、训练/验证集划分、类别过滤、N 路分区与文件抽样 —— 格式自动检测 | `dataflow-cv analyse stats ...` |
+| 🔄 **转换** | 6 个方向:YOLO ↔ LabelMe ↔ COCO,外加模型预测文件 | `dataflow-cv convert yolo2coco ...` |
+| 🎨 **可视化** | OpenCV 渲染、按类别着色,支持显示与保存模式 | `dataflow-cv visualize yolo ...` |
+| 📊 **评估** | 基于 pycocotools 的 COCO mAP、按类别的单阈值 P/R/F1 | `dataflow-cv evaluate detection ...` |
+| 📋 **任务类型** | 四个模块 × 三种格式均支持检测、分割与姿态(关键点)—— det/seg 自动识别,姿态显式开启(`--pose`) | `dataflow-cv convert yolo2coco --pose ...` |
 | 💻 **CLI + API** | 基于 Click 的 CLI,带丰富的 `--help`;Python API 用于构建流水线 | `from dataflow.convert import ...` |
 | 🤖 **AI 助手技能** | 面向 AI 助手的 Claude Code 技能(`/dataflow:dataflow-cv`)—— CLI/API 参考与已知坑点 | `claude plugin install dataflow@claude-skills` |
 
