@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/COCO-.json-e74c3c?style=flat-square" alt="COCO">
 </p>
 
-DataFlow-CV 是一个计算机视觉数据集处理库 —— 支持在 YOLO、LabelMe 和 COCO 三种格式之间进行标注数据的分析、转换、可视化和评估。
+DataFlow-CV 是一个计算机视觉数据集处理库 —— 在 YOLO、LabelMe 和 COCO 三种格式之间,对检测、分割与姿态(关键点)标注进行分析、转换、可视化和评估。真实标注与模型预测文件均支持,可通过 CLI 或 Python API 使用。
 
 | | | |
 |:---|:---|:---|

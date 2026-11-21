@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/COCO-.json-e74c3c?style=flat-square" alt="COCO">
 </p>
 
-A computer vision dataset processing library — analyse, convert, visualize, and evaluate annotations across YOLO, LabelMe, and COCO formats.
+A computer vision dataset processing library — analyse, convert, visualize, and evaluate detection, segmentation, and pose (keypoint) annotations across YOLO, LabelMe, and COCO formats. Works with ground-truth labels and model predictions alike, from the CLI or Python API.
 
 | | | |
 |:---|:---|:---|
