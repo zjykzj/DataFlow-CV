@@ -91,6 +91,29 @@ car
 >
 > 通过 `--kpts-config` 传入(convert / visualize / analyse),或使用 `--save-kpts-config` 从 COCO 数据集导出一份。
 
+#### 📋 任务类型:检测 / 分割 / 姿态
+
+四个模块都围绕三种标注任务工作,且三种格式都能承载全部任务 —— 区别只在于每种任务在磁盘上的写法以及如何启用:
+
+| 任务 | YOLO(每图 `.txt`) | LabelMe(每图 `.json`) | COCO(单个 `.json`) | 启用方式 |
+|------|-------------------------|-----------------------------|-----------------------|------------|
+| 🔲 **检测** | `class_id cx cy w h` | `rectangle` shape | `bbox` 字段 | 自动 —— 无需 flag |
+| ✂️ **分割** | `class_id x1 y1 … xn yn` | `polygon` shape | `segmentation` 字段(polygon 或 RLE) | 自动 —— 无需 flag |
+| 🦴 **姿态(关键点)** | `class_id cx cy w h px1 py1 pv1 …`(5+3k 个 token) | `point` shapes + 一个共用 `group_id` 的 `rectangle` | `keypoints` 字段 + `categories[].keypoints`/`skeleton` | 显式 —— 见下表 |
+
+**检测与分割自动识别** —— 按行 token 数(YOLO)、shape 类型(LabelMe)或字段有无(COCO)判断,不存在任务开关。
+
+**姿态是显式的。** 仅凭 token 数无法把 YOLO pose 行与分割行区分开(11 个 token 既是 2 关键点的 pose 标签行,也是分割标签行),因此姿态处理需要显式开启:
+
+| 模块 | 如何启用姿态 | 说明 |
+|--------|---------------------|-------|
+| 🔍 **分析** | `--kpts-config kpts.yaml` | 增加逐关键点标注率统计;对 YOLO 源,该选项同时启用 pose 行解析 |
+| 🔄 **转换** | `--pose`(六个方向;模型输出用 `yolo2coco --prediction --pose`) | 不加时丢弃关键点(每张图一条警告;YOLO pose 行实际上必须加它);姿态模式下跳过不含关键点的对象 |
+| 🎨 **可视化** | `--pose`(YOLO)· 自动(LabelMe / COCO) | `--kpts-config` 补充骨架线(YOLO / LabelMe;COCO 从其 categories 读取)。v=2 实心绿点,v=1 空心橙点 |
+| 📊 **评估** | `evaluate keypoints` | 基于 OKS;`--kpts-config` 可选提供逐关键点 sigmas |
+
+关键点定义 YAML(`kpts.yaml`,见上)携带关键点名称、可选 `skeleton` 边与可选 `sigmas`;`coco2yolo` / `coco2labelme --save-kpts-config` 可从 COCO 数据集导出一份。
+
 #### 🔍 数据集分析
 
 ```bash

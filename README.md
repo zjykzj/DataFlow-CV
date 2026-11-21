@@ -91,6 +91,29 @@ car
 >
 > Pass it with `--kpts-config` (convert / visualize / analyse) or `--save-kpts-config` to export one from a COCO dataset.
 
+#### 📋 Task Types: Detection / Segmentation / Pose
+
+All four modules work on three annotation tasks, and every format can carry all three — what differs is how each task is written on disk and how it is enabled:
+
+| Task | YOLO (per-image `.txt`) | LabelMe (per-image `.json`) | COCO (single `.json`) | Enablement |
+|------|-------------------------|-----------------------------|-----------------------|------------|
+| 🔲 **Detection** | `class_id cx cy w h` | `rectangle` shape | `bbox` field | Automatic — no flag |
+| ✂️ **Segmentation** | `class_id x1 y1 … xn yn` | `polygon` shape | `segmentation` field (polygon or RLE) | Automatic — no flag |
+| 🦴 **Pose (keypoints)** | `class_id cx cy w h px1 py1 pv1 …` (5+3k tokens) | `point` shapes + one `rectangle` sharing a `group_id` | `keypoints` field + `categories[].keypoints`/`skeleton` | Explicit — see below |
+
+**Detection and segmentation are auto-detected** — from row token count (YOLO), shape type (LabelMe), or field presence (COCO). There is no task flag for them.
+
+**Pose is explicit.** A YOLO pose row cannot be distinguished from a segmentation row by token count alone (an 11-token row is both a 2-keypoint pose label and a segmentation label), so pose processing is opt-in:
+
+| Module | How pose is enabled | Notes |
+|--------|---------------------|-------|
+| 🔍 **Analyse** | `--kpts-config kpts.yaml` | Adds per-keypoint labeling-rate statistics; for YOLO sources this flag also enables pose-row parsing |
+| 🔄 **Convert** | `--pose` (all six directions; `yolo2coco --prediction --pose` for model output) | Without it, keypoints are dropped with one warning per image (YOLO pose rows effectively require it); in pose mode, objects without keypoints are skipped |
+| 🎨 **Visualize** | `--pose` (YOLO) · automatic (LabelMe / COCO) | `--kpts-config` adds skeleton lines (YOLO / LabelMe; COCO reads them from its categories). v=2 filled green, v=1 hollow orange |
+| 📊 **Evaluate** | `evaluate keypoints` | OKS-based; `--kpts-config` optionally supplies per-keypoint sigmas |
+
+The keypoint-definition YAML (`kpts.yaml`, see above) carries keypoint names, optional `skeleton` edges, and optional `sigmas`; `coco2yolo` / `coco2labelme --save-kpts-config` exports one from a COCO dataset.
+
 #### 🔍 Dataset Analysis
 
 ```bash
