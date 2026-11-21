@@ -13,7 +13,7 @@ never parsed, making it fast and dependency-free.
 import random
 import shutil
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 from .base import AnalysisResult, BaseAnalyser, SampleResult
 from .log_templates import (
@@ -62,13 +62,13 @@ class SampleAnalyser(BaseAnalyser):
 
     def analyse(
         self,
-        output_dir: Path,
+        output_dir: Union[str, Path],
         count: int,
-        label_dir: Optional[Path] = None,
-        image_dir: Optional[Path] = None,
+        label_dir: Optional[Union[str, Path]] = None,
+        image_dir: Optional[Union[str, Path]] = None,
         shuffle: bool = True,
         seed: int = 42,
-        class_file: Optional[Path] = None,
+        class_file: Optional[Union[str, Path]] = None,
         move: bool = False,
     ) -> AnalysisResult:
         """Collect *count* files from the dataset.
@@ -97,6 +97,13 @@ class SampleAnalyser(BaseAnalyser):
         - **images**: ``output_dir/*.jpg``
         - **both**: ``output_dir/labels/`` + ``output_dir/images/``
         """
+        output_dir = Path(output_dir)
+        if label_dir is not None:
+            label_dir = Path(label_dir)
+        if image_dir is not None:
+            image_dir = Path(image_dir)
+        if class_file is not None:
+            class_file = Path(class_file)
         result = self._create_result()
 
         # ------------------------------------------------------------------

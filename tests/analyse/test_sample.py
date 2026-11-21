@@ -17,6 +17,20 @@ class TestSampleAnalyser:
     # Labels-only mode
     # ------------------------------------------------------------------
 
+    def test_str_paths_accepted(self):
+        """str path arguments are coerced to Path (spec_analyse.md v2.3)."""
+        analyser = SampleAnalyser()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = analyser.analyse(
+                output_dir=str(Path(tmpdir) / "output"),
+                count=1,
+                seed=42,
+                label_dir=str(TEST_DATA / "det" / "yolo" / "labels"),
+            )
+            assert result.success
+            assert result.data is not None
+            assert result.data.count == 1
+
     def test_sample_yolo_labels_random(self):
         """YOLO labels-only random sampling collects N .txt files."""
         analyser = SampleAnalyser()

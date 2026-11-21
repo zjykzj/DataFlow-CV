@@ -322,7 +322,7 @@ class StatsAnalyser(BaseAnalyser):
         return dict(sorted(per_class.items(), key=key_fn))
 
     @staticmethod
-    def _normalize_paths(label_paths: Union[Path, List[Path]]) -> List[Path]:
+    def _normalize_paths(label_paths: Union[str, Path, List[Union[str, Path]]]) -> List[Path]:
         """Normalize input to a list of Paths.  Single Path → [Path]."""
         if isinstance(label_paths, (str, Path)):
             return [Path(label_paths)]
@@ -334,13 +334,13 @@ class StatsAnalyser(BaseAnalyser):
 
     def analyse(
         self,
-        label_paths: Union[Path, List[Path]],
-        class_file: Optional[Path] = None,
-        image_dir: Optional[Path] = None,
+        label_paths: Union[str, Path, List[Union[str, Path]]],
+        class_file: Optional[Union[str, Path]] = None,
+        image_dir: Optional[Union[str, Path]] = None,
         sort_by: str = "id",
         descending: bool = False,
         recursive: bool = False,
-        kpts_config: Optional[Path] = None,
+        kpts_config: Optional[Union[str, Path]] = None,
     ) -> AnalysisResult:
         """Compute statistics for one or more datasets.
 
@@ -367,6 +367,16 @@ class StatsAnalyser(BaseAnalyser):
         Returns:
             ``AnalysisResult`` with ``StatsResult`` in ``.data``.
         """
+        if isinstance(label_paths, (str, Path)):
+            label_paths = [Path(label_paths)]
+        else:
+            label_paths = [Path(p) for p in label_paths]
+        if class_file is not None:
+            class_file = Path(class_file)
+        if image_dir is not None:
+            image_dir = Path(image_dir)
+        if kpts_config is not None:
+            kpts_config = Path(kpts_config)
         result = self._create_result()
         paths = self._normalize_paths(label_paths)
 

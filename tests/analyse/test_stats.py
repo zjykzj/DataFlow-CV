@@ -31,6 +31,18 @@ class TestStatsAnalyser:
         assert stats.per_class["zebra"] == 3
         assert stats.per_class["elephant"] == 1
 
+    def test_str_paths_accepted(self):
+        """str path arguments are coerced to Path (spec_analyse.md v2.3)."""
+        analyser = StatsAnalyser()
+        result = analyser.analyse(
+            str(TEST_DATA / "det" / "yolo" / "labels"),
+            class_file=str(TEST_DATA / "det" / "yolo" / "classes.txt"),
+            image_dir=str(TEST_DATA / "det" / "yolo" / "images"),
+        )
+        assert result.success
+        assert result.data is not None
+        assert result.data.total_files == 2
+
     def test_stats_coco(self):
         """Stats on COCO test data returns correct counts."""
         analyser = StatsAnalyser()

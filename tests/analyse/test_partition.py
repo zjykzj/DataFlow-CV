@@ -17,6 +17,20 @@ class TestPartitionAnalyser:
     # Labels-only mode
     # ------------------------------------------------------------------
 
+    def test_str_paths_accepted(self):
+        """str path arguments are coerced to Path (spec_analyse.md v2.3)."""
+        analyser = PartitionAnalyser()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = analyser.analyse(
+                output_dir=str(Path(tmpdir) / "output"),
+                num=2,
+                label_dir=str(TEST_DATA / "det" / "yolo" / "labels"),
+                class_file=str(TEST_DATA / "det" / "yolo" / "classes.txt"),
+            )
+            assert result.success
+            assert result.data is not None
+            assert result.data.num_partitions == 2
+
     def test_partition_yolo_labels_only(self):
         """YOLO labels-only partition produces N part directories."""
         analyser = PartitionAnalyser()

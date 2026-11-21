@@ -9,7 +9,7 @@ The format is auto-detected from the label path.
 
 import shutil
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from .base import (
     AnalysisResult,
@@ -148,11 +148,11 @@ class FilterAnalyser(BaseAnalyser):
 
     def analyse(
         self,
-        label_path: Path,
-        original_class_file: Path,
-        new_class_file: Path,
-        output_dir: Path,
-        image_dir: Optional[Path] = None,
+        label_path: Union[str, Path],
+        original_class_file: Union[str, Path],
+        new_class_file: Union[str, Path],
+        output_dir: Union[str, Path],
+        image_dir: Optional[Union[str, Path]] = None,
     ) -> AnalysisResult:
         """Filter annotations, keeping only categories in ``new_class_file``.
 
@@ -170,6 +170,12 @@ class FilterAnalyser(BaseAnalyser):
         Returns:
             ``AnalysisResult`` with ``FilterResult`` in ``.data``.
         """
+        label_path = Path(label_path)
+        original_class_file = Path(original_class_file)
+        new_class_file = Path(new_class_file)
+        output_dir = Path(output_dir)
+        if image_dir is not None:
+            image_dir = Path(image_dir)
         result = self._create_result()
 
         # ---- 1. Validate both class files exist -----------------------

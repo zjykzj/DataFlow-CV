@@ -1,6 +1,6 @@
 # Analyse Module Specification
 
-> **Version:** v2.2 | **Last Updated:** 2026-11-19
+> **Version:** v2.3 | **Last Updated:** 2026-11-21
 > **Status:** Stable
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
@@ -203,13 +203,13 @@ class StatsAnalyser(BaseAnalyser):
 
     def analyse(
         self,
-        label_paths: List[Path],
-        class_file: Optional[Path] = None,
-        image_dir: Optional[Path] = None,
+        label_paths: List[Union[str, Path]],
+        class_file: Optional[Union[str, Path]] = None,
+        image_dir: Optional[Union[str, Path]] = None,
         sort_by: str = "id",
         descending: bool = False,
         recursive: bool = False,
-        kpts_config: Optional[Path] = None,
+        kpts_config: Optional[Union[str, Path]] = None,
     ) -> AnalysisResult:
         """Compute statistics for the datasets at ``label_paths``.
 
@@ -331,12 +331,12 @@ class SplitAnalyser(BaseAnalyser):
 
     def analyse(
         self,
-        output_dir: Path,
+        output_dir: Union[str, Path],
         ratio: float = 0.8,
         seed: int = 42,
-        label_dir: Optional[Path] = None,
-        image_dir: Optional[Path] = None,
-        class_file: Optional[Path] = None,
+        label_dir: Optional[Union[str, Path]] = None,
+        image_dir: Optional[Union[str, Path]] = None,
+        class_file: Optional[Union[str, Path]] = None,
         move: bool = False,
     ) -> AnalysisResult:
         """Split the dataset into train and val subsets.
@@ -422,11 +422,11 @@ class FilterAnalyser(BaseAnalyser):
 
     def analyse(
         self,
-        label_path: Path,
-        original_class_file: Path,
-        new_class_file: Path,
-        output_dir: Path,
-        image_dir: Optional[Path] = None,
+        label_path: Union[str, Path],
+        original_class_file: Union[str, Path],
+        new_class_file: Union[str, Path],
+        output_dir: Union[str, Path],
+        image_dir: Optional[Union[str, Path]] = None,
     ) -> AnalysisResult:
         """Filter annotations, keeping only categories listed in new_class_file.
 
@@ -509,13 +509,13 @@ class PartitionAnalyser(BaseAnalyser):
 
     def analyse(
         self,
-        output_dir: Path,
+        output_dir: Union[str, Path],
         num: int,
-        label_dir: Optional[Path] = None,
-        image_dir: Optional[Path] = None,
+        label_dir: Optional[Union[str, Path]] = None,
+        image_dir: Optional[Union[str, Path]] = None,
         shuffle: bool = False,
         seed: int = 42,
-        class_file: Optional[Path] = None,
+        class_file: Optional[Union[str, Path]] = None,
         move: bool = False,
     ) -> AnalysisResult:
         """Partition the dataset into ``num`` subsets.
@@ -657,13 +657,13 @@ class SampleAnalyser(BaseAnalyser):
 
     def analyse(
         self,
-        output_dir: Path,
+        output_dir: Union[str, Path],
         count: int,
-        label_dir: Optional[Path] = None,
-        image_dir: Optional[Path] = None,
+        label_dir: Optional[Union[str, Path]] = None,
+        image_dir: Optional[Union[str, Path]] = None,
         shuffle: bool = True,
         seed: int = 42,
-        class_file: Optional[Path] = None,
+        class_file: Optional[Union[str, Path]] = None,
         move: bool = False,
     ) -> AnalysisResult:
         """Collect *count* files from the dataset.

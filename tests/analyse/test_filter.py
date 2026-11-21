@@ -16,6 +16,22 @@ class TestFilterAnalyser:
     # YOLO
     # ------------------------------------------------------------------
 
+    def test_str_paths_accepted(self, tmp_path):
+        """str path arguments are coerced to Path (spec_analyse.md v2.3)."""
+        new_classes = tmp_path / "new_classes.txt"
+        new_classes.write_text("person\nzebra\n")
+
+        analyser = FilterAnalyser()
+        result = analyser.analyse(
+            str(TEST_DATA / "det" / "yolo" / "labels"),
+            original_class_file=str(TEST_DATA / "det" / "yolo" / "classes.txt"),
+            new_class_file=str(new_classes),
+            output_dir=str(tmp_path / "output"),
+        )
+        assert result.success
+        assert result.data is not None
+        assert {km.name for km in result.data.kept_categories} == {"person", "zebra"}
+
     def test_filter_yolo_subset(self, tmp_path):
         """Filter YOLO data keeping only person and zebra."""
         new_classes = tmp_path / "new_classes.txt"

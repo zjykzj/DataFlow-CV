@@ -13,6 +13,22 @@ TEST_DATA = Path(__file__).parent.parent.parent / "assets" / "test_data"
 class TestSplitAnalyser:
     """Tests for dataset train/val splitting."""
 
+    def test_str_paths_accepted(self):
+        """str path arguments are coerced to Path (spec_analyse.md v2.3)."""
+        analyser = SplitAnalyser()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = analyser.analyse(
+                output_dir=str(Path(tmpdir) / "output"),
+                ratio=0.5,
+                seed=42,
+                label_dir=str(TEST_DATA / "det" / "yolo" / "labels"),
+                class_file=str(TEST_DATA / "det" / "yolo" / "classes.txt"),
+            )
+            assert result.success
+            assert result.data is not None
+            assert result.data.train_count == 1
+            assert result.data.val_count == 1
+
     def test_split_yolo_labels_only(self):
         """YOLO labels-only split produces train/val with .txt files."""
         analyser = SplitAnalyser()
