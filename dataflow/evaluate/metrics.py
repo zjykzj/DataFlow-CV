@@ -16,6 +16,7 @@ from .utils import (
     _load_coco,
     _load_dt,
     _validate_coco_available,
+    _validate_dt_scores,
     _validate_kpt_data,
     _validate_segm_data,
     resolve_kpt_sigmas,
@@ -114,6 +115,14 @@ def compute_pr_f1(
         # Load data
         coco_gt = _load_coco(gt_source)
         coco_dt = _load_dt(dt_source, coco_gt)
+
+        # DT score requirement (spec_evaluate.md §5.2): missing score fails
+        # validation instead of silently matching at score 0.0.
+        try:
+            _validate_dt_scores(coco_dt)
+        except ValueError as score_err:
+            result.add_error(str(score_err))
+            return result
 
         # Segmentation data validation (mirrors BaseEvaluator._validate_segm_data):
         # mask IoU on bbox-only data would crash with a cryptic TypeError.

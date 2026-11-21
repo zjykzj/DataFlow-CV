@@ -7,7 +7,7 @@ and formatting helpers used by the Evaluate module.
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 # ---------------------------------------------------------------------------
 # pycocotools guard
@@ -523,6 +523,18 @@ def _validate_kpt_data(coco_gt: Any, coco_dt: Any) -> Tuple[List[str], List[str]
         )
 
     return errors, warnings
+
+
+def load_kpt_sigmas(config_path: Union[str, Path]) -> Optional[List[float]]:
+    """Load per-keypoint OKS sigmas from a keypoint-definition YAML.
+
+    Wraps ``dataflow.label.utils.load_kpts_config`` so callers above the
+    Label layer (e.g. the CLI, spec_cli.md §8 forbids CLI imports from
+    ``dataflow.label``) can obtain sigmas through the Evaluate module.
+    """
+    from dataflow.label.utils import load_kpts_config
+
+    return load_kpts_config(config_path).sigmas
 
 
 def resolve_kpt_sigmas(k: int, sigmas: Union[List[float], None]) -> Tuple[Any, Union[str, None]]:

@@ -297,7 +297,7 @@ def keypoints(
     DT_JSON: COCO format Prediction JSON file (annotations must include 'keypoints' + 'score').
     """
     from dataflow.evaluate import KeypointEvaluator, compute_pr_f1
-    from dataflow.label.utils import load_kpts_config
+    from dataflow.evaluate.utils import load_kpt_sigmas
 
     # Build log config
     log_config = LogConfig(
@@ -313,7 +313,7 @@ def keypoints(
     # Sigmas from the keypoint-definition YAML (spec_evaluate.md §3.4)
     sigmas = None
     if kpts_config:
-        sigmas = load_kpts_config(kpts_config).sigmas
+        sigmas = load_kpt_sigmas(kpts_config)
 
     if prf1:
         # Path B: P/R/F1 only — skip COCOeval entirely

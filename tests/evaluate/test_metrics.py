@@ -425,3 +425,20 @@ class TestComputePRF1Logging:
         assert "Computing P/R/F1" in log_text
         assert "Per-class 'cat'" in log_text
         assert "P/R/F1 complete" in log_text
+
+
+class TestPrf1DtScoreValidation:
+    """compute_pr_f1 DT score requirement (spec_evaluate.md §5.2)."""
+
+    def test_dt_missing_score_fails(self, gt_path, dt_path):
+        """A DT annotation without 'score' fails validation — never
+        silently matched at score 0.0."""
+        import json
+
+        dt_data = json.loads(dt_path.read_text(encoding="utf-8"))
+        for ann in dt_data.get("annotations", []):
+            ann.pop("score", None)
+
+        result = compute_pr_f1(str(gt_path), dt_data, iou_threshold=0.5)
+        assert result.success is False
+        assert any("missing 'score'" in e for e in result.errors)

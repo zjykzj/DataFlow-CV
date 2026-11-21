@@ -36,9 +36,12 @@ def format_eval_header(
     """
     lines: List[str] = []
     lines.append(format_divider())
-    lines.append(
-        f"Evaluate: {'Detection (bbox IoU)' if iou_type == 'bbox' else 'Segmentation (mask IoU)'}"
-    )
+    task_labels = {
+        "bbox": "Detection (bbox IoU)",
+        "segm": "Segmentation (mask IoU)",
+        "keypoints": "Pose (OKS)",
+    }
+    lines.append(f"Evaluate: {task_labels.get(iou_type, iou_type)}")
     lines.append(
         f"  GT:  {gt_stats.get('images', 0)} images, "
         f"{gt_stats.get('annotations', 0)} annotations, "

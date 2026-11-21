@@ -1,6 +1,6 @@
 # Evaluation Metrics Specification
 
-> **Version:** v1.3 | **Last Updated:** 2026-11-16
+> **Version:** v1.4 | **Last Updated:** 2026-11-21
 > **Status:** Canonical
 > **Layer:** Evaluate
 > **Dependencies:** `spec_evaluate_fundamentals.md` (IoU, matching, TP/FP/FN)
@@ -120,7 +120,8 @@ Output: per-class {P, R, F1, TP, FP, FN} + overall {P, R, F1, TP, FP, FN}
 | `dt_source` | str/Path/Dict/List/DatasetAnnotations | (required) | Detection/prediction COCO data. ``List`` is a plain JSON array of annotation dicts (Variant B per ``spec_coco_format.md`` §9.1). |
 | `iou_threshold` | float | 0.5 | IoU threshold for matching |
 | `confidence_threshold` | float | 0.0 | Minimum detection score |
-| `iou_type` | str | "bbox" | IoU type: ``"bbox"`` or ``"segm"`` |
+| `iou_type` | str | "bbox" | IoU type: ``"bbox"`` or ``"segm"`` or ``"keypoints"`` (OKS matching) |
+| `kpt_sigmas` | Optional[List[float]] | None | Per-keypoint OKS sigmas for ``iou_type="keypoints"`` (same resolution as ``KeypointEvaluator``, `spec_evaluate.md` §3.4) |
 | `method` | str | "macro" | Aggregation method: ``"macro"`` or ``"micro"`` |
 | `log_config` | Optional[LogConfig] | None | Logging configuration. Controls console and file output. Per-class progress is logged only when ``verbose=True`` in the config. |
 

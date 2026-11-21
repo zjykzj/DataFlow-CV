@@ -1,6 +1,6 @@
 # CLI Module Specification
 
-> **Version:** 2.12 | **Last Updated:** 2026-11-19
+> **Version:** 2.13 | **Last Updated:** 2026-11-21
 > **Layer:** Modules
 > **Dependencies:** Convert module + Visualize module + Evaluate module (public APIs only) + Logging module (LogConfig only)
 
@@ -47,7 +47,7 @@ dataflow-cv convert yolo2coco [OPTIONS] IMAGE_DIR LABEL_DIR CLASS_FILE OUTPUT_FI
 | Option | Description |
 |--------|-------------|
 | `--do-rle` | Use RLE encoding for COCO segmentation |
-| `--prediction` | Treat input as prediction format (with confidence). Output includes `score` fields. |
+| `--prediction` | Treat input as prediction format (with confidence). Output is a plain JSON list of annotation dicts (Variant B per `spec_coco_format.md` §9.1), each with `score`. |
 | `--pose` | Enable pose conversion (parse 5+3k pose rows; keypoint data is dropped with a warning otherwise) |
 | `--kpts-config` PATH | Keypoint-definition YAML — keypoint names + skeleton for the COCO categories |
 
@@ -429,8 +429,9 @@ CLI module imports FROM:
 │                                    PartitionAnalyser, SampleAnalyser)
 ├── dataflow.convert                (YoloAndCocoConverter, LabelMeAndYoloConverter, CocoAndLabelMeConverter)
 ├── dataflow.visualize              (YOLOVisualizer, COCOVisualizer, LabelMeVisualizer)
-├── dataflow.evaluate               (DetectionEvaluator, SegmentationEvaluator, compute_pr_f1)
-├── dataflow.evaluate.utils         (format_prf1_output, format_metric_table, format_per_class_table)
+├── dataflow.evaluate               (DetectionEvaluator, SegmentationEvaluator, KeypointEvaluator, compute_pr_f1)
+├── dataflow.evaluate.utils         (format_prf1_output, format_metric_table, format_per_class_table,
+│                                    load_kpt_sigmas)
 ├── dataflow.util.logging           (LogConfig only)
 ├── dataflow.cli.exceptions         (InputError, RuntimeCLIError)
 └── click                           (Framework)

@@ -1,6 +1,6 @@
 # Evaluation Task Specification
 
-> **Version:** v1.1 | **Last Updated:** 2026-07-30
+> **Version:** v1.2 | **Last Updated:** 2026-11-21
 > **Status:** Canonical
 > **Layer:** Evaluate
 > **Dependencies:** `spec_evaluate_fundamentals.md` (IoU, matching, TP/FP/FN), `spec_evaluate_metrics.md` (P/R/F1, AP/mAP, AR, scales)
@@ -101,6 +101,32 @@ Identical metric structure to detection — all 12 COCO standard metrics, per-cl
 | `segmentation` | **Yes** | `segmentation` | **Yes** |
 | `area` | **Yes** | `score` | **Yes** (DT only) |
 | `iscrowd` | Yes (crowd regions) | — | — |
+
+### 3.6 Task 3: Pose (Keypoint) Evaluation
+
+**Overview**: Evaluates predicted keypoints against ground truth using OKS
+(Object Keypoint Similarity, `iouType='keypoints'` in pycocotools). Per-keypoint
+sigmas resolve via explicit list → COCO 17-keypoint official values → uniform
+0.05 + WARNING (contract: `spec_evaluate.md` §3.4).
+
+**Matching method**: Greedy OKS matching with the same TP/FP/FN rules as
+detection — the "IoU" threshold is the OKS threshold (COCO standard: 0.5).
+
+**Input requirements**:
+
+| GT Annotation Field | Required | DT Annotation Field | Required |
+|--------------------|----------|--------------------|----------|
+| `image_id` | Yes | `image_id` | Yes |
+| `category_id` | Yes | `category_id` | Yes |
+| `bbox` | Yes (for area) | `bbox` | Yes (for area) |
+| `keypoints` (flat `[x, y, v, ...]` triplets) | **Yes** | `keypoints` | **Yes** |
+| `area` | **Yes** | `score` | **Yes** (DT only) |
+
+**Metrics produced**: 10 COCO stats (no small-area scale, `maxDets=20`) —
+AP / AP50 / AP75 / AP-medium / AP-large / AR@maxDets=20 / AR50 / AR75 /
+AR-medium / AR-large. The 12-field model maps them per `spec_evaluate.md` §2.1
+(`ar_max_20` carries the AR; small-scale and `maxDets=1/10/100` fields stay
+`-1.0`).
 
 ## 4. COCO Standard 12-Metric Table
 

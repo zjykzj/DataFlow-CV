@@ -1,6 +1,6 @@
 # Evaluation Fundamentals Specification
 
-> **Version:** v1.1 | **Last Updated:** 2026-07-30
+> **Version:** v1.2 | **Last Updated:** 2026-11-21
 > **Status:** Canonical
 > **Layer:** Evaluate
 > **Dependencies:** None (foundation document)
@@ -259,7 +259,7 @@ If the model outputs zero DT for a category:
 ### 7.3 Zero-Area Regions
 
 Bboxes with `w ≤ 0` or `h ≤ 0`, and masks with zero area:
-- **GT**: Treated as invalid — excluded from evaluation with a warning
+- **GT**: Cannot match — IoU with any DT is 0.0, so the GT counts as FN (consistent with pycocotools, which behaves identically)
 - **DT**: Skipped in matching (cannot have IoU ≥ threshold with any GT)
 
 ### 7.4 Crowd Annotations (`iscrowd=1`)
@@ -284,5 +284,5 @@ An evaluation session MUST verify before computing:
 3. DT JSON `image_id` values exist in GT JSON images
 4. DT JSON `category_id` values exist in GT JSON categories
 5. At least one category has both GT and DT annotations (otherwise all metrics are undefined)
-6. `iou_type` is one of `"bbox"` or `"segm"`
+6. `iou_type` is one of `"bbox"`, `"segm"`, or `"keypoints"` (OKS matching — the `iou_threshold` is the OKS threshold)
 7. If `iou_type="segm"`, segmentation data must be present in GT and DT annotations

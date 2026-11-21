@@ -1,6 +1,6 @@
 # Evaluate Module Specification
 
-> **Version:** v2.3 | **Last Updated:** 2026-11-19
+> **Version:** v2.4 | **Last Updated:** 2026-11-21
 > **Status:** Canonical
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager), pycocotools
@@ -436,10 +436,10 @@ The `validate_inputs()` method checks:
 5. DT `category_id` values are a subset of GT `category_id` values (warn on unknown categories)
 6. At least one shared category between GT and DT
    - Collects the set of category IDs that have both GT annotations and DT
-     annotations (after score filtering)
+     annotations
    - If this set is empty, there is nothing to evaluate — no matching can occur
    - Logged as an ERROR and evaluation aborts with
-     ``"No shared categories between GT and DT — nothing to evaluate"``
+     ``"No shared categories between GT and DT. GT categories: [...], DT categories: [...]."``
 7. If `iouType='segm'`, segmentation data is present on GT and DT annotations
    - Calls ``_validate_segm_data(coco_gt, coco_dt)`` which returns an
      ``(errors, warnings)`` tuple — errors are fatal (missing segmentation data
@@ -537,10 +537,11 @@ When `verbose=False`:
 ```
 Evaluate module imports FROM:
 ├── dataflow.label.models             (DatasetAnnotations, AnnotationFormat)
-├── dataflow.label.coco_handler       (CocoAnnotationHandler — for loading COCO files)
+├── dataflow.label.utils              (resolve_coco_image_ids, load_kpts_config — via public interface)
 ├── dataflow.util.logging             (LogConfig, LogManager)
 ├── pycocotools.coco                  (COCO)
 ├── pycocotools.cocoeval              (COCOeval)
+├── pycocotools.mask                  (mask IoU for compute_pr_f1)
 └── numpy                             (Array operations for per-class extraction)
 
 Evaluate module does NOT import FROM:
@@ -598,7 +599,7 @@ COCOeval.accumulate() fails → EvaluationResult(success=False, errors=[...])
 
 | Error | Behavior |
 |-------|----------|
-| GT/DT file not found | `EvaluationResult(success=False, errors=["File not found: ..."])` |
+| GT/DT file not found | `EvaluationResult(success=False, errors=["COCO JSON file not found: ..."]` / `errors=["DT file not found: ..."]`) |
 | DT missing `score` field | `EvaluationResult(success=False, errors=["N DT annotations missing 'score' field"])` |
 | No GT for any category | `EvaluationResult(success=False, errors=["GT contains no annotations"])` |
 | pycocotools not installed | `EvaluationResult(success=False, errors=["pycocotools is required for evaluation. Install with: pip install pycocotools"])` — the ImportError from `_validate_coco_available()` is caught by `evaluate()`'s exception handling, never raised to callers. Exception: `compute_pr_f1()` raises it directly. |
