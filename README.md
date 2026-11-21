@@ -264,7 +264,7 @@ For detailed developer guidance including advanced test commands, debugging, and
 
 ### 🧪 Testing
 
-**757 tests, 81% code coverage (6784 statements).**
+**774 tests, 82% code coverage (6864 statements).**
 
 ```bash
 pytest                                    # All tests
@@ -278,12 +278,12 @@ pytest tests/evaluate/test_evaluator.py     # Single module
 
 | Module | Coverage | Highlights |
 |--------|:--------:|------------|
-| `dataflow/label/` | 73% | models (88%), utils (86%), base (84%), coco_handler (75%), labelme_handler (73%), yolo_handler (64%) |
-| `dataflow/analyse/` | 85% | base (99%), log_templates (94%), sample (88%), split (88%), stats (86%), utils (84%), partition (79%), filter (76%) |
+| `dataflow/label/` | 74% | models (88%), utils (86%), base (84%), coco_handler (75%), labelme_handler (73%), yolo_handler (64%) |
+| `dataflow/analyse/` | 86% | base (99%), log_templates (94%), sample (89%), split (88%), stats (86%), utils (85%), partition (80%), filter (77%) |
 | `dataflow/convert/` | 86% | base (88%), labelme_and_yolo (87%), yolo_and_coco (87%), coco_and_labelme (86%), utils (86%), log_templates (85%), rle (80%) |
-| `dataflow/visualize/` | 82% | yolo_vis (100%), coco_vis (91%), labelme_vis (90%), base (79%) |
-| `dataflow/evaluate/` | 91% | log_templates (100%), result (100%), evaluator (98%), base (92%), utils (89%), metrics (87%) |
-| `dataflow/cli/` | 72% | main (96%), utils (88%), visualize cmd (87%), analyse cmd (71%), evaluate cmd (66%), convert cmd (64%) |
+| `dataflow/visualize/` | 83% | yolo_vis (100%), coco_vis (91%), labelme_vis (90%), base (79%) |
+| `dataflow/evaluate/` | 91% | log_templates (100%), result (100%), evaluator (98%), base (92%), utils (88%), metrics (88%) |
+| `dataflow/cli/` | 74% | main (96%), utils (88%), visualize cmd (87%), analyse cmd (71%), evaluate cmd (66%), convert cmd (64%) |
 | `dataflow/util/` | 100% | logging (100%) |
 
 </details>
@@ -320,7 +320,7 @@ dataflow/
 ├── evaluate/        # pycocotools-based metrics, log templates
 ├── util/            # Unified logging (LogManager + format helpers)
 └── cli/             # CLI entry point, commands, validation
-tests/               # Unit & integration tests (757 tests, conftest fixtures)
+tests/               # Unit & integration tests (774 tests, conftest fixtures)
 samples/             # Python API usage examples (analyse, convert, visualize, evaluate, cli)
 assets/              # Test data (det/seg by format)
 specs/               # Canonical specifications (evaluate/ + formats/ + modules/)

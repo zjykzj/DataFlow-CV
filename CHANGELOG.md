@@ -9,7 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **READMEs document the pose (keypoint) feature set**: both READMEs now cover pose data layouts, the keypoint-definition YAML, `--pose`/`--kpts-config`/`--save-kpts-config` usage across convert/visualize/analyse, OKS evaluation, and the updated test/coverage numbers.
+- **Python API accepts `str` paths everywhere**: `analyse` functions (`stats`/`split`/`filter`/`partition`/`sample`), `load_kpts_config`, handler `write_one`, and shared analyse/convert utilities now accept plain strings as well as `Path` objects.
+- **Bilingual user manual**: new `docs/en/` + `docs/zh/` handbook (CLI reference, Python API reference, FAQ) plus `CONTRIBUTING.md`; the READMEs are slimmed down to point at the manual instead of duplicating it.
+- **README overhaul**: task-type (det/seg/pose) overview including the pose feature set, re-abstracted feature table, support matrix, a single segmentation + pose showcase pair at original aspect ratio, and strictly same-language links; package description/keywords synced with the new summary.
+
+### Fixed
+
+- **LabelMe keypoint visibility round-trips**: v=1 (labeled but not visible) keypoints now round-trip through LabelMe via the `difficult` flag on point shapes instead of being lost.
+- **P/R/F1 validates DT scores**: predictions with missing or invalid `score` values now produce an error instead of silently passing validation.
+- **Evaluate labels show the correct IoU type**: the result block and per-task log lines now report the actual metric type (Detection bbox IoU / Segmentation mask IoU / Pose OKS).
+- **Converter gaps closed**: pose conversion drops segmentation for YOLO targets with a warning, keypoint-name/skeleton inconsistencies are flagged, and the obsolete LabelMe v=1 degradation warning is removed.
 
 ## [3.6.0] - 2026-11-19
 

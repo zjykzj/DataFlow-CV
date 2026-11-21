@@ -133,10 +133,19 @@ specs/
 
 ## Maestro Configuration
 
-{{AI_MODEL_NAME}} = DeepSeek-V4-Pro
+{{AI_MODEL_NAME}} = deepseek-v4-pro[1m]
 {{AI_MODEL_EMAIL}} = noreply@deepseek.com
 {{REPO_URL}} = https://github.com/zjykzj/DataFlow-CV
 {{PACKAGE_NAME}} = dataflow
+
+**Commit attribution**: the repo is developed by the deepseek-v4-pro[1m] + Claude Code combo — every commit body must end with both lines:
+
+```
+Co-Authored-By: deepseek-v4-pro[1m] <noreply@deepseek.com>
+Co-Authored-By: Claude Code <noreply@anthropic.com>
+```
+
+**Commit workflow**: follow the `/maestro:commit` conventions on every commit — invoke the skill (it maintains CHANGELOG and attribution automatically) or, for direct `git commit` calls, apply its rules manually: conventional commit type, both Co-Authored-By lines, and user-facing changes (feat/fix/docs/chore) must update `## [Unreleased]` in the same commit series.
 
 ### Version Bump Locations
 

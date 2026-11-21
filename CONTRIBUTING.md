@@ -52,7 +52,7 @@ mypy dataflow                                # Type check
 - **Manual page types** (`docs/`): `index` (manual home + TOC), `cli` (complete command inventory — every subcommand and option), `api` (Python API reference), `faq` (common errors and fixes). When one type grows past ~3 pages, give it a subdirectory with its own `README.md` (e.g. `docs/en/pipeline/`).
 - **README Quick Start stays slim**: concepts + the most common commands + pointers into the CLI reference; the end-to-end workflow is canonical and should not be trimmed.
 - **Spec files**: every spec starts with a `> **Version:** vX.Y | **Last Updated:** YYYY-MM-DD` header. Minor bump = new definitions; major bump = behavioral change; date-only = wording fix.
-- **CHANGELOG**: Keep a Changelog format — `## [Unreleased]` / `## [X.Y.Z] - date` sections with `### Added/Changed/Fixed` subsections and bold-lead bullets.
+- **CHANGELOG**: Keep a Changelog format — `## [Unreleased]` / `## [X.Y.Z] - date` sections with `### Added/Changed/Fixed` subsections and bold-lead bullets. Every feat/fix touching user-visible behavior updates `[Unreleased]` in the same commit series — never deferred to release time.
 - **No private paths in public docs**: never reference absolute machine paths or private repositories from `README`/`docs/`/`specs/`.
 
 ## Architecture

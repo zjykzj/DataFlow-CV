@@ -263,7 +263,7 @@ claude plugin install dataflow@claude-skills
 
 ### 🧪 测试
 
-**757 个测试,81% 代码覆盖率(6784 条语句)。**
+**774 个测试,82% 代码覆盖率(6864 条语句)。**
 
 ```bash
 pytest                                    # 全部测试
@@ -277,12 +277,12 @@ pytest tests/evaluate/test_evaluator.py     # 单个模块
 
 | 模块 | 覆盖率 | 亮点 |
 |--------|:--------:|------------|
-| `dataflow/label/` | 73% | models (88%), utils (86%), base (84%), coco_handler (75%), labelme_handler (73%), yolo_handler (64%) |
-| `dataflow/analyse/` | 85% | base (99%), log_templates (94%), sample (88%), split (88%), stats (86%), utils (84%), partition (79%), filter (76%) |
+| `dataflow/label/` | 74% | models (88%), utils (86%), base (84%), coco_handler (75%), labelme_handler (73%), yolo_handler (64%) |
+| `dataflow/analyse/` | 86% | base (99%), log_templates (94%), sample (89%), split (88%), stats (86%), utils (85%), partition (80%), filter (77%) |
 | `dataflow/convert/` | 86% | base (88%), labelme_and_yolo (87%), yolo_and_coco (87%), coco_and_labelme (86%), utils (86%), log_templates (85%), rle (80%) |
-| `dataflow/visualize/` | 82% | yolo_vis (100%), coco_vis (91%), labelme_vis (90%), base (79%) |
-| `dataflow/evaluate/` | 91% | log_templates (100%), result (100%), evaluator (98%), base (92%), utils (89%), metrics (87%) |
-| `dataflow/cli/` | 72% | main (96%), utils (88%), visualize cmd (87%), analyse cmd (71%), evaluate cmd (66%), convert cmd (64%) |
+| `dataflow/visualize/` | 83% | yolo_vis (100%), coco_vis (91%), labelme_vis (90%), base (79%) |
+| `dataflow/evaluate/` | 91% | log_templates (100%), result (100%), evaluator (98%), base (92%), utils (88%), metrics (88%) |
+| `dataflow/cli/` | 74% | main (96%), utils (88%), visualize cmd (87%), analyse cmd (71%), evaluate cmd (66%), convert cmd (64%) |
 | `dataflow/util/` | 100% | logging (100%) |
 
 </details>
@@ -319,7 +319,7 @@ dataflow/
 ├── evaluate/        # 基于 pycocotools 的指标计算、日志模板
 ├── util/            # 统一日志(LogManager + 格式化辅助)
 └── cli/             # CLI 入口、命令、校验
-tests/               # 单元与集成测试(757 个测试、conftest 夹具)
+tests/               # 单元与集成测试(774 个测试、conftest 夹具)
 samples/             # Python API 使用示例(analyse、convert、visualize、evaluate、cli)
 assets/              # 测试数据(按格式分类的 det/seg)
 specs/               # 权威规范(evaluate/ + formats/ + modules/)
