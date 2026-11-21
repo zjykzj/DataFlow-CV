@@ -1,6 +1,6 @@
 # Annotation Format Conversion Specification
 
-> **Version:** v5.0 | **Last Updated:** 2026-11-19
+> **Version:** v5.1 | **Last Updated:** 2026-11-21
 > **Status:** Draft — updated to reflect native-coordinate architecture
 
 ## 1. Conversion Architecture
@@ -228,9 +228,10 @@ Pose conversion is opt-in via `pose=True` (converter kwarg, CLI `--pose`):
 | Non-pose (default) | Keypoints **dropped**; bbox/segmentation converted as usual; one WARNING per image with the affected count | Converted as usual |
 | Pose (`pose=True`) | Keypoints converted; segmentation dropped for a YOLO target with a WARNING (pose rows cannot carry it) | **Skipped** with one WARNING per image naming the count (O3) |
 
-For YOLO **sources**, pose rows are unparseable in det/seg mode
-(`spec_yolo_format.md` §2.3) — `--pose` is effectively required for pose
-datasets; the non-pose drop rule applies to COCO/LabelMe sources.
+For YOLO **sources**, pose rows cannot be parsed correctly in det/seg mode
+(`spec_yolo_format.md` §2.3 — silently misparsed as segmentation when k is
+even, rejected as invalid when k is odd) — `--pose` is effectively required
+for pose datasets; the non-pose drop rule applies to COCO/LabelMe sources.
 
 #### 3.7.2 Keypoint Metadata Propagation
 

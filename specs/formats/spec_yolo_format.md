@@ -1,6 +1,6 @@
 # YOLO Annotation Format Specification
 
-> **Version:** v1.2 | **Last Updated:** 2026-11-19
+> **Version:** v1.3 | **Last Updated:** 2026-11-21
 > **Status:** Canonical — this document defines the authoritative YOLO format contract for DataFlow-CV.
 
 ## 1. File Organization
@@ -118,9 +118,11 @@ Format detection is **mode-sensitive**. The same token count has different meani
 | Any other | **Invalid** | **Invalid** |
 
 **Pose mode is explicit, never auto-detected.** A pose row has `5 + 3k` tokens (label) or
-`6 + 3k` (prediction); when 3k is even these lengths **collide** with segmentation rows —
-e.g., 11 tokens is both a 2-keypoint pose label row and a 3-point segmentation label row,
-and a 17-keypoint row (56 tokens) silently parses as a 29-point segmentation row. The
+`6 + 3k` (prediction). When 3k is even (k even), these lengths **collide** with segmentation
+rows and are silently misparsed — e.g., 11 tokens is both a 2-keypoint pose label row and a
+5-point segmentation label row, and an 18-keypoint row (59 tokens) parses as a 29-point
+segmentation row. When 3k is odd (k odd), the length is invalid in det/seg mode and is
+rejected with an error, never misparsed — e.g., a 17-keypoint row (56 tokens). The
 `pose` flag (handler parameter / CLI `--pose`) selects the interpretation; within one
 dataset k is fixed — the first valid row sets k, rows with a different k are invalid
 (strict: error; non-strict: skip with warning).

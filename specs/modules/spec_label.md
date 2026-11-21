@@ -1,6 +1,6 @@
 # Label Module Specification
 
-> **Version:** v5.1 | **Last Updated:** 2026-11-19
+> **Version:** v5.2 | **Last Updated:** 2026-11-21
 > **Status:** Draft — logger receives from caller's LogManager via `logger=` parameter
 > **Layer:** Modules
 > **Dependencies:** None (foundation module; logging via stdlib `logging.Logger` only)
@@ -448,13 +448,15 @@ Callers that need `DatasetAnnotations` (with format flags, full category dict) s
 
 | Mode | Pose row | Invalid |
 |------|----------|---------|
-| Label (`prediction=False`) | `len == 5 + 3k` for some k ≥ 1 | 5, 6, 8, 10, ... (det/seg row lengths) |
-| Prediction (`prediction=True`) | `len == 6 + 3k` for some k ≥ 1 | 6, 7, 8, 9, ... (det/seg row lengths) |
+| Label (`prediction=False`) | `len == 5 + 3k` for some k ≥ 1 (8, 11, 14, …) | Everything else (5, 6, 7, 9, 10, 12, …) |
+| Prediction (`prediction=True`) | `len == 6 + 3k` for some k ≥ 1 (9, 12, 15, …) | Everything else (6, 7, 8, 10, 11, 13, …) |
 
 Pose mode is **explicit** (`--pose`) — token-count auto-detection is impossible because
-pose row lengths collide with segmentation lengths whenever 3k is even (e.g., 11 tokens
-is both a 2-keypoint pose label row and a 3-point segmentation label row). Within a
-dataset, k is fixed: the first valid row sets k and rows with a different k are invalid.
+pose row lengths collide with segmentation lengths whenever 3k is even (k even) and are
+silently misparsed (e.g., 11 tokens is both a 2-keypoint pose label row and a 5-point
+segmentation label row); when 3k is odd (k odd) the length is invalid in det/seg mode and
+is rejected with an error. Within a dataset, k is fixed: the first valid row sets k and
+rows with a different k are invalid.
 
 **Strict mode**: In prediction mode, confidence values outside [0, 1] raise errors. In label mode, any line not matching the label format raises errors.
 

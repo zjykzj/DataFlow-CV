@@ -233,6 +233,43 @@ class TestYoloPose:
         assert result.success is True
         assert result.data.num_objects == 1
 
+    def test_even_k_pose_row_misparsed_as_seg_without_pose(self, sample_pose_data):
+        """Det/seg mode cannot see pose rows: an 11-token row (2-keypoint
+        pose) silently parses as a 5-point segmentation (contract:
+        spec_yolo_format.md §2.3)."""
+        (sample_pose_data["label_dir"] / "test.txt").write_text(
+            "0 0.5 0.5 0.2 0.2 0.48 0.45 0 0.52 0.45 1\n"
+        )
+        handler = YoloAnnotationHandler(
+            label_dir=str(sample_pose_data["label_dir"]),
+            class_file=str(sample_pose_data["class_file"]),
+            image_dir=str(sample_pose_data["image_dir"]),
+            strict_mode=True,
+        )
+        result = handler.read()
+        assert result.success is True
+        obj = result.data.images[0].objects[0]
+        assert obj.keypoints is None
+        assert obj.segmentation is not None
+        assert len(obj.segmentation.points) == 5
+
+    def test_odd_k_pose_row_rejected_without_pose(self, sample_pose_data):
+        """A 17-keypoint pose row (56 tokens, even) is invalid in det/seg
+        label mode and rejected — never silently misparsed (contract:
+        spec_yolo_format.md §2.3)."""
+        tokens = ["0", "0.5", "0.5", "0.2", "0.2"]
+        tokens += ["0.5", "0.5", "2"] * 17
+        (sample_pose_data["label_dir"] / "test.txt").write_text(" ".join(tokens) + "\n")
+        handler = YoloAnnotationHandler(
+            label_dir=str(sample_pose_data["label_dir"]),
+            class_file=str(sample_pose_data["class_file"]),
+            image_dir=str(sample_pose_data["image_dir"]),
+            strict_mode=True,
+        )
+        result = handler.read()
+        assert result.success is False
+        assert "Invalid YOLO label format" in result.message
+
     def test_det_row_invalid_in_pose_mode(self, sample_pose_data):
         (sample_pose_data["label_dir"] / "test.txt").write_text("0 0.5 0.5 0.2 0.2\n")
         handler = self._make_handler(sample_pose_data, strict_mode=True)
