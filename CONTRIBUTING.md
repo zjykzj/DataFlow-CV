@@ -44,8 +44,16 @@ mypy dataflow                                # Type check
 - **Format ordering**: when YOLO, LabelMe, and COCO appear together in any listing, use `YOLO → LabelMe → COCO`.
 - **Module ordering**: when Analyse, Convert, Visualize, and Evaluate appear together, use `Analyse → Convert → Visualize → Evaluate`.
 - **Zero cross-dependencies**: Analyse/Convert/Visualize/Evaluate modules must not import from each other.
-- **Bilingual docs**: `README.md` ↔ `README.zh-CN.md` and `docs/en/` ↔ `docs/zh/` are mirrors — update both sides of any change.
 - **Commits**: follow conventional commit style (`feat:`, `fix:`, `docs:`, `chore:`).
+
+## Documentation Conventions
+
+- **Bilingual mirroring**: `README.md` ↔ `README.zh-CN.md` and `docs/en/` ↔ `docs/zh/` are mirrors — every change updates both sides in the same commit, and pages link only to pages of the same language.
+- **Manual page types** (`docs/`): `index` (manual home + TOC), `cli` (complete command inventory — every subcommand and option), `api` (Python API reference), `faq` (common errors and fixes). When one type grows past ~3 pages, give it a subdirectory with its own `README.md` (e.g. `docs/en/pipeline/`).
+- **README Quick Start stays slim**: concepts + the most common commands + pointers into the CLI reference; the end-to-end workflow is canonical and should not be trimmed.
+- **Spec files**: every spec starts with a `> **Version:** vX.Y | **Last Updated:** YYYY-MM-DD` header. Minor bump = new definitions; major bump = behavioral change; date-only = wording fix.
+- **CHANGELOG**: Keep a Changelog format — `## [Unreleased]` / `## [X.Y.Z] - date` sections with `### Added/Changed/Fixed` subsections and bold-lead bullets.
+- **No private paths in public docs**: never reference absolute machine paths or private repositories from `README`/`docs/`/`specs/`.
 
 ## Architecture
 
