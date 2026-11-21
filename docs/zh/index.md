@@ -6,6 +6,7 @@ dataflow-cv 面向使用者的手册 —— 在 [README](../../README.zh-CN.md) 
 
 | 页面 | 内容 |
 |------|------|
+| [CLI 参考](cli.md) | 完整命令清单 —— 每个子命令与全部选项 |
 | [API 参考](api.md) | Python API —— handlers、analysers、converters、visualizers、evaluators、数据模型 |
 | [FAQ](faq.md) | 常见错误与解决方法 |
 

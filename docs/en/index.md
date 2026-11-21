@@ -7,6 +7,7 @@ quick start in the [README](../../README.md).
 
 | Page | Content |
 |------|---------|
+| [CLI Reference](cli.md) | Complete command inventory — every subcommand and option |
 | [API Reference](api.md) | Python API — handlers, analysers, converters, visualizers, evaluators, data models |
 | [FAQ](faq.md) | Common errors and their fixes |
 

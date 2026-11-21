@@ -53,7 +53,7 @@ cd DataFlow-CV && pip install .
 
 所有必需参数(图像目录、标签目录、类别文件、输出路径)均为位置参数,使用更便捷。在任意子命令后使用 `--help` 查看详细用法。
 
-#### 📐 格式支持
+#### 📂 数据速览
 
 | 模块 | YOLO | LabelMe | COCO |
 |--------|------|---------|------|
@@ -65,175 +65,76 @@ cd DataFlow-CV && pip install .
 
 ¹ 评估始终消费 COCO 格式的 GT/DT JSON —— 其他格式请先转换(`yolo2coco`、`labelme2coco`)。
 
-#### 📂 数据布局与 classes.txt
-
-输入数据需符合各格式的原生布局 —— dataflow-cv 会根据你传入的内容自动检测格式:
-
-| 格式 | 传入什么 | 期望布局 |
-|--------|---------------|-----------------|
-| **YOLO** | `labels/` 目录(+ `images/` 目录) | 每张图像一个 `.txt`:`labels/000001.txt` 与 `images/000001.jpg` 对应 —— 标签文件**必须与图像同名**。检测行格式为 `class_id cx cy w h`;分割行格式为 `class_id x1 y1 x2 y2 …`;pose 行格式为 `class_id cx cy w h px1 py1 pv1 …`(5+3k 个 token,k 在数据集内固定 —— 坐标全部归一化 [0,1],`pv` ∈ {0,1,2} 可见性)。 |
-| **LabelMe** | 一个 `.json` 文件目录 | 每张图像一个 `.json`(`shapes` 含 `label` + `points`)。Pose 约定:每个关键点一个 `point` shape(label = 关键点名称)+ 一个 `rectangle`(类别 + bbox)共用 `group_id`。 |
-| **COCO** | 单个 `.json` 文件 | 一个包含 `images`、`annotations`、`categories` 数组的文件。Pose 数据集携带 `annotations[].keypoints` + `num_keypoints` 以及 `categories[].keypoints`/`skeleton`。 |
-
-`classes.txt` 是 YOLO 相关命令使用的**类别名映射**。每行一个类别名 —— 行号即类别 id(0 开始):
-
-```
-person
-bicycle
-car
-```
-
-- **必需**:`yolo2coco`、`yolo2labelme`、`labelme2yolo`、`labelme2coco`、`visualize yolo`
-- **自动生成**:`coco2yolo` / `coco2labelme`(写在输出旁 —— 也可用 `-c` 传入自定义顺序)
-- `analyse stats -c` 用于显示类别名并启用严格类别校验
-
-> 💡 先从 COCO 转起?运行一次 `coco2yolo` —— 它会生成现成的 `classes.txt`。
-
-> 🦴 **Pose 数据集**使用**关键点定义 YAML** 保存名称/骨架元数据(`kpts.yaml`):
->
-> ```yaml
-> keypoints:           # 或按类别的 "classes:"(X-AnyLabeling 风格)
->   - nose
->   - left_eye
->   # ...
-> skeleton:            # 可选:以名称列表下标表示的边对
->   - [0, 1]
-> sigmas:              # 可选:每个关键点的 OKS sigmas(evaluate keypoints 使用)
->   - 0.026
-> ```
->
-> 通过 `--kpts-config` 传入(convert / visualize / analyse),或使用 `--save-kpts-config` 从 COCO 数据集导出一份。
-
-#### 📋 任务类型:检测 / 分割 / 姿态
-
-四个模块都围绕三种标注任务工作,且三种格式都能承载全部任务 —— 区别只在于每种任务在磁盘上的写法以及如何启用:
-
 | 任务 | YOLO(每图 `.txt`) | LabelMe(每图 `.json`) | COCO(单个 `.json`) | 启用方式 |
 |------|-------------------------|-----------------------------|-----------------------|------------|
 | 🔲 **检测** | `class_id cx cy w h` | `rectangle` shape | `bbox` 字段 | 自动 —— 无需 flag |
 | ✂️ **分割** | `class_id x1 y1 … xn yn` | `polygon` shape | `segmentation` 字段(polygon 或 RLE) | 自动 —— 无需 flag |
-| 🦴 **姿态(关键点)** | `class_id cx cy w h px1 py1 pv1 …`(5+3k 个 token) | `point` shapes + 一个共用 `group_id` 的 `rectangle` | `keypoints` 字段 + `categories[].keypoints`/`skeleton` | 显式 —— 见下表 |
+| 🦴 **姿态(关键点)** | `class_id cx cy w h px1 py1 pv1 …`(5+3k 个 token) | `point` shapes + 一个共用 `group_id` 的 `rectangle` | `keypoints` 字段 + `categories[].keypoints`/`skeleton` | 显式 —— `--pose` / `--kpts-config` |
 
-**检测与分割自动识别** —— 按行 token 数(YOLO)、shape 类型(LabelMe)或字段有无(COCO)判断,不存在任务开关。
+**要点:**
 
-**姿态是显式的。** 仅凭 token 数无法把 YOLO pose 行与分割行区分开(11 个 token 既是 2 关键点的 pose 标签行,也是分割标签行),因此姿态处理需要显式开启:
-
-| 模块 | 如何启用姿态 | 说明 |
-|--------|---------------------|-------|
-| 🔍 **分析** | `--kpts-config kpts.yaml` | 增加逐关键点标注率统计;对 YOLO 源,该选项同时启用 pose 行解析 |
-| 🔄 **转换** | `--pose`(六个方向;模型输出用 `yolo2coco --prediction --pose`) | 不加时丢弃关键点(每张图一条警告;YOLO pose 行实际上必须加它);姿态模式下跳过不含关键点的对象 |
-| 🎨 **可视化** | `--pose`(YOLO)· 自动(LabelMe / COCO) | `--kpts-config` 补充骨架线(YOLO / LabelMe;COCO 从其 categories 读取)。v=2 实心绿点,v=1 空心橙点 |
-| 📊 **评估** | `evaluate keypoints` | 基于 OKS;`--kpts-config` 可选提供逐关键点 sigmas |
-
-关键点定义 YAML(`kpts.yaml`,见上)携带关键点名称、可选 `skeleton` 边与可选 `sigmas`;`coco2yolo` / `coco2labelme --save-kpts-config` 可从 COCO 数据集导出一份。
+- **格式自动检测**:指向你的标签 —— 单个 `.json` → COCO,`.txt` 目录 → YOLO,`.json` 目录 → LabelMe(检测常见坑见 [FAQ](docs/zh/faq.md))。
+- **YOLO 标签必须与图像同名**(`labels/000001.txt` ↔ `images/000001.jpg`);坐标归一化 [0,1]。
+- **`classes.txt`**(每行一个类别名,行号即类别 id)**必需**于 `yolo2coco`、`yolo2labelme`、`labelme2yolo`、`labelme2coco`、`visualize yolo`;由 `coco2yolo` / `coco2labelme` **自动生成**(用 `-c` 控制顺序)。
+- **检测与分割自动识别** —— 按行 token 数(YOLO)、shape 类型(LabelMe)或字段有无(COCO)。**姿态是显式的**:仅凭 token 数无法区分 YOLO pose 行与分割行。各模块 flag:分析 `--kpts-config`、转换 `--pose`、可视化 `--pose`(YOLO)、评估 `keypoints` —— 详见 [CLI 参考](docs/zh/cli.md)。
+- 🦴 Pose 数据集使用**关键点定义 YAML**(`kpts.yaml` —— 名称 / 骨架 / sigmas,X-AnyLabeling 风格):用 `--kpts-config` 传入,或用 `--save-kpts-config` 从 COCO 数据集导出一份。
 
 #### 🔍 数据集分析
 
 ```bash
-# 数据集统计(自动检测 YOLO / LabelMe / COCO)
+# 统计(自动检测 YOLO / LabelMe / COCO)
 dataflow-cv analyse stats yolo_labels/ --image-dir images/ --class-file classes.txt
-dataflow-cv analyse stats labelme_json/
-dataflow-cv analyse stats coco_annotations.json
 
-# 多路径合并统计(需同格式); -R 递归子目录
-dataflow-cv analyse stats yolo_train/ yolo_val/ --recursive
-
-# 训练/测试集划分(仅 YOLO / LabelMe —— 标签 / 图像 / 两者模式)
-#   → outputs/train/ + outputs/val/(两者模式下各自含 labels/ + images/)
-dataflow-cv analyse split -l yolo_labels/ outputs/ --ratio 0.8 --seed 42 -c classes.txt
-dataflow-cv analyse split -i images/ outputs/ --ratio 0.8
-dataflow-cv analyse split -l yolo_labels/ -i images/ outputs/ --ratio 0.8
+# 训练/验证集划分(仅 YOLO / LabelMe —— 标签 / 图像 / 两者模式)
+dataflow-cv analyse split -l yolo_labels/ -i images/ -c classes.txt --ratio 0.8 --seed 42 outputs/
 
 # 类别过滤(保留类别子集,按新的 classes.txt 重映射 ID)
-#   → filtered/ 接收过滤后的标签 + 新的 classes.txt
 dataflow-cv analyse filter yolo_labels/ classes.txt classes_new.txt filtered/
-dataflow-cv analyse filter coco_annotations.json classes.txt classes_new.txt filtered/
 
-# N 路分区 —— 仅 YOLO / LabelMe(标签主导,图像按文件名主干跟随)
-#   → parts/part_1/ … parts/part_N/(两者模式下各自含 labels/ + images/)
+# N 路分区 / 文件抽样(仅 YOLO / LabelMe)
 dataflow-cv analyse partition -n 4 --label-dir yolo_labels/ --image-dir images/ parts/
-dataflow-cv analyse partition -n 4 --image-dir images/ --shuffle parts/
+dataflow-cv analyse sample -l yolo_labels/ output/ -n 10 --seed 42
 
-# 文件抽样 —— 收集 N 个文件(随机或顺序,标签 / 图像 / 两者模式)
-#   → 平铺文件至 output/(两者模式为 output/labels/ + output/images/)
-dataflow-cv analyse sample -l yolo_labels/ output/ -n 10
-dataflow-cv analyse sample -i images/ output/ -n 10 --no-shuffle
-dataflow-cv analyse sample -l yolo_labels/ -i images/ output/ -n 5 --seed 42
-
-# 按数量降序排序(默认:类别 ID 升序)
-dataflow-cv analyse stats --sort-by count --descending yolo_labels/
-
-# Pose:关键点统计(逐关键点标注率;YOLO pose 源必需 —— 该选项同时启用 pose 行解析)
+# Pose:关键点统计(--kpts-config 同时启用 YOLO pose 行解析)
 dataflow-cv analyse stats --kpts-config kpts.yaml yolo_pose_labels/
-
-# 详细日志
-dataflow-cv analyse stats --verbose yolo_labels/ --class-file classes.txt
 ```
+
+> 多路径合并、递归、排序与全部选项 → [CLI 参考](docs/zh/cli.md)
 
 #### 🔄 格式转换
 
 ```bash
-# YOLO → COCO                      → output.json:单个 COCO 文件
+# YOLO → COCO(GT:标注模式;DT 模型输出用 --prediction)
 dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt output.json
-
-# YOLO → COCO(RLE 编码)
-dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt output.json --do-rle
-
-# YOLO → LabelMe                   → labelme_json/:每图一个 .json
-dataflow-cv convert yolo2labelme images/ yolo_labels/ classes.txt labelme_json/
-
-# LabelMe → YOLO                   → yolo_labels/:每图一个 .txt + classes.txt
-dataflow-cv convert labelme2yolo labelme_json/ classes.txt yolo_labels/
-
-# LabelMe → COCO                   → output.json:单个 COCO 文件
-dataflow-cv convert labelme2coco labelme_json/ classes.txt output.json
-
-# COCO → YOLO                      → yolo_labels/labels/*.txt + classes.txt
-dataflow-cv convert coco2yolo input.json yolo_labels/
-
-# COCO → LabelMe                   → labelme_json/:每图一个 .json
-dataflow-cv convert coco2labelme input.json labelme_json/
-
-# iscrowd=1(crowd)标注在两个方向默认跳过;如需写成普通行/shape 需显式开启:
-dataflow-cv convert coco2yolo --save-crowd input.json yolo_labels/
-
-# YOLO 预测文件 → COCO(输出:纯 JSON 列表 —— 预测格式)
 dataflow-cv convert yolo2coco --prediction images/ yolo_preds/ classes.txt pred.json
 
+# COCO → YOLO / LabelMe(输出按图片文件名主干命名;classes.txt 自动生成)
+dataflow-cv convert coco2yolo input.json yolo_labels/
+dataflow-cv convert coco2labelme input.json labelme_json/
+
+# LabelMe → YOLO
+dataflow-cv convert labelme2yolo labelme_json/ classes.txt yolo_labels/
+
 # Pose:六个方向均可加 --pose
-dataflow-cv convert coco2yolo --pose coco_pose.json yolo_pose_labels/
 dataflow-cv convert yolo2coco --pose --kpts-config kpts.yaml images/ yolo_pose_labels/ classes.txt pose.json
-dataflow-cv convert coco2yolo --pose --save-kpts-config kpts.yaml coco_pose.json yolo_pose_labels/   # 导出定义 YAML
-
-# Pose 预测文件(yolo2coco --prediction --pose → keypoints + score)
-dataflow-cv convert yolo2coco --prediction --pose images/ yolo_pose_preds/ classes.txt pred.json
-
-# 选项
-dataflow-cv convert yolo2coco --verbose images/ labels/ classes.txt output.json
-dataflow-cv convert yolo2coco --no-strict images/ labels/ classes.txt output.json
 ```
 
-> 📂 **COCO→YOLO / COCO→LabelMe 输出命名**:每个 `.txt` / `.json` 以图片文件名主干命名 —— 保留前导零(`000001.jpg` → `000001.txt`)。转换器会生成 `labels/`(或 `.json` 文件)+ `classes.txt`;`images/` 目录会被创建但保持**为空** —— 图片不会被拷贝,请自行放入。
+> 全部六个方向(`yolo2labelme`、`labelme2coco` 等)、`--do-rle`、`--save-crowd`、pose 变体与输出命名细节 → [CLI 参考](docs/zh/cli.md)
 
 #### 🎨 可视化
 
 ```bash
-# 可视化 YOLO 标注
+# 可视化 YOLO / LabelMe / COCO 标注
 dataflow-cv visualize yolo images/ yolo_labels/ classes.txt --save visualized/
-
-# 可视化 LabelMe 标注
 dataflow-cv visualize labelme images/ labelme_json/ --save visualized/
-
-# 可视化 COCO 标注
 dataflow-cv visualize coco images/ coco_annotations.json --save visualized/
 
 # Pose:关键点 + 骨架渲染(v=2 实心绿点,v=1 空心橙点)
 dataflow-cv visualize yolo --pose --kpts-config kpts.yaml images/ yolo_pose_labels/ classes.txt --save visualized/
 dataflow-cv visualize coco images/ coco_pose.json --save visualized/   # 骨架来自 COCO categories
-
-# 详细日志 + 无界面模式
-dataflow-cv visualize yolo --verbose --no-display images/ yolo_labels/ classes.txt --save visualized/
 ```
+
+> 无界面模式(`--no-display`)、键盘控制与全部选项 → [CLI 参考](docs/zh/cli.md)
 
 <p align="center">
   <img src="assets/showcase/pose_demo.jpg" width="45%" alt="Pose visualization demo">
@@ -242,62 +143,23 @@ dataflow-cv visualize yolo --verbose --no-display images/ yolo_labels/ classes.t
 
 #### 📊 评估
 
-使用 COCO 标准指标评估目标检测、实例分割和姿态估计模型。需要两个 COCO 格式的 JSON 文件:
-
-| 文件 | 角色 | 格式 | 如何生成 |
-|------|------|--------|---------------|
-| **`anno.json`** | 真值 (GT) | 完整 COCO 字典(`images`、`annotations`、`categories`) | `yolo2coco`(标注模式) |
-| **`pred.json`** | 检测结果 (DT) | 纯 JSON 列表(含 `score`) | `yolo2coco --prediction` |
-
-##### ① 准备数据
+用 COCO 标准指标评估检测、分割与姿态模型。需要两个 COCO 格式的 JSON 文件 —— GT(完整 COCO 字典,`yolo2coco`)与 DT(含 `score` 的纯 JSON 列表,`yolo2coco --prediction`):
 
 ```bash
-# GT:YOLO 标注 → COCO
+# 1) 准备:YOLO 标注 → GT,YOLO 预测 → DT
 dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt anno.json
-
-# DT:YOLO 预测 → COCO(模型输出需加 --prediction)
 dataflow-cv convert yolo2coco --prediction images/ yolo_preds/ classes.txt pred.json
-```
 
-> ⚠️ YOLO 预测文件必须使用 `--prediction` —— 它们的每一行多一个 `confidence` token。该选项输出**纯 JSON 列表**(而非完整 COCO 字典),这是 `loadRes()` 的标准 DT 格式。只有 `yolo2coco` 支持 `--prediction`;`labelme2coco` 不需要它(LabelMe 没有标注与预测之分)。
-
-##### ② 运行评估
-
-```bash
-# 目标检测(bbox IoU)
+# 2) 评估 —— 检测(bbox IoU)/ 分割(mask IoU)/ 姿态(OKS)
 dataflow-cv evaluate detection anno.json pred.json
-dataflow-cv evaluate detection --verbose anno.json pred.json           # 按类别明细
-dataflow-cv evaluate detection --prf1 anno.json pred.json              # 仅 P/R/F1(跳过 mAP)
-dataflow-cv evaluate detection --prf1 --prf1-iou 0.75 --prf1-method micro anno.json pred.json
-
-# 实例分割(mask IoU)
 dataflow-cv evaluate segmentation anno.json pred.json
-dataflow-cv evaluate segmentation --verbose anno.json pred.json
-
-# 姿态估计(OKS)—— sigmas 取自定义 YAML;缺省时使用 COCO 17 关键点官方值
-#(其他 k 退化为均匀 0.05 + 警告)
 dataflow-cv evaluate keypoints --kpts-config kpts.yaml anno_pose.json pred_pose.json
-dataflow-cv evaluate keypoints --prf1 anno_pose.json pred_pose.json   # 基于 OKS 的 P/R/F1
 
-# 结果保存为 JSON
-dataflow-cv evaluate detection --output results.json anno.json pred.json
-
-# P/R/F1 结果保存为 JSON(阈值、聚合方式、整体与逐类指标)
-dataflow-cv evaluate detection --prf1 --output prf1_results.json anno.json pred.json
-
-# 自定义日志目录
-dataflow-cv evaluate detection --verbose --log-dir logs/eval/ anno.json pred.json
+# 3) 或快速单阈值 P/R/F1(替代 mAP)
+dataflow-cv evaluate detection --prf1 anno.json pred.json
 ```
 
-##### ③ 检测 vs 分割 vs 姿态
-
-三种评估模式,区别在于重叠程度的度量方式:
-
-- **目标检测** —— 边界框 IoU。GT 和 DT 需要 `bbox`;DT 还需要 `score`。
-- **实例分割** —— 掩码 IoU。GT 和 DT 需要 `bbox`、`segmentation`(多边形或 RLE)以及 `area`;DT 还需要 `score`。
-- **姿态估计** —— OKS(对象关键点相似度)。GT 和 DT 需要 `keypoints`(扁平 `[x, y, v, ...]` 三元组)和 `area`;DT 还需要 `score`。逐关键点 sigmas 依次来自 `--kpts-config`、COCO 17 关键点官方值、均匀回退值。
-
-`yolo2coco`(标注模式)和 `yolo2coco --prediction`(预测模式)会自动填充三种模式所需的全部字段 —— 无需手动编辑。
+> 各模式的 GT/DT 字段要求、`--prf1` 系列选项、`--output`、verbose 模式 → [CLI 参考](docs/zh/cli.md)
 
 #### 🔄 端到端工作流
 
@@ -376,8 +238,8 @@ claude plugin install dataflow@claude-skills
 | **[CLAUDE.md](CLAUDE.md)** | 架构概述、开发指南与已知坑点 |
 | **[CHANGELOG.md](CHANGELOG.md)** | 版本历史与破坏性变更 |
 | **[CONTRIBUTING.md](CONTRIBUTING.md)** | 贡献流程、规范优先规则、质量门禁 |
-| **[docs/en/](docs/en/)** | 英文用户手册 —— Python API 参考与 FAQ |
-| **[docs/zh/](docs/zh/)** | 中文用户手册 —— Python API 参考与 FAQ |
+| **[docs/en/](docs/en/)** | 英文用户手册 —— CLI 与 Python API 参考、FAQ |
+| **[docs/zh/](docs/zh/)** | 中文用户手册 —— CLI 与 Python API 参考、FAQ |
 | **[specs/evaluate/](specs/evaluate/)** | 评估指标契约 —— IoU、匹配、AP/mAP/AR |
 | **[specs/formats/](specs/formats/)** | 外部格式契约 —— YOLO、LabelMe、COCO、转换规则 |
 | **[specs/modules/](specs/modules/)** | 内部模块架构、接口契约、依赖约束 |

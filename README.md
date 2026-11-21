@@ -53,7 +53,7 @@ cd DataFlow-CV && pip install .
 
 All required parameters (image directories, label directories, class files, output paths) are positional arguments for better usability. Use `--help` on any subcommand for detailed usage.
 
-#### 📐 Format Support
+#### 📂 Data at a Glance
 
 | Module | YOLO | LabelMe | COCO |
 |--------|------|---------|------|
@@ -65,181 +65,76 @@ All required parameters (image directories, label directories, class files, outp
 
 ¹ Evaluate always consumes COCO-format GT/DT JSON — convert other formats first (`yolo2coco`, `labelme2coco`).
 
-#### 📂 Data Layout & classes.txt
-
-Input data must follow each format's native layout — dataflow-cv detects the format automatically from what you point it at:
-
-| Format | What you pass | Expected layout |
-|--------|---------------|-----------------|
-| **YOLO** | `labels/` directory (+ `images/` directory) | One `.txt` per image: `labels/000001.txt` next to `images/000001.jpg` — the label file **must share the image's file name**. Detection lines are `class_id cx cy w h`; segmentation lines are `class_id x1 y1 x2 y2 …`; pose lines are `class_id cx cy w h px1 py1 pv1 …` (5+3k tokens, k fixed per dataset — all coordinates normalized [0,1], `pv` ∈ {0,1,2} visibility). |
-| **LabelMe** | a directory of `.json` files | One `.json` per image (`shapes` with `label` + `points`). Pose convention: one `point` shape per keypoint (label = keypoint name) + a `rectangle` (class + bbox) sharing a `group_id`. |
-| **COCO** | a single `.json` file | One file containing `images`, `annotations`, `categories` arrays. Pose datasets carry `annotations[].keypoints` + `num_keypoints` and `categories[].keypoints`/`skeleton`. |
-
-`classes.txt` is the **class name mapping** used by YOLO-related commands. It is just one class name per line — the line number is the class id (0-indexed):
-
-```
-person
-bicycle
-car
-```
-
-- **Required** for: `yolo2coco`, `yolo2labelme`, `labelme2yolo`, `labelme2coco`, `visualize yolo`
-- **Auto-generated** for `coco2yolo` / `coco2labelme` (written next to the output — you can pass your own with `-c` to control the order)
-- Also used by `analyse stats -c` for display names and strict category validation
-
-> 💡 Converting a COCO dataset first? Run `coco2yolo` once — it writes a ready-to-use `classes.txt`.
-
-> 🦴 **Pose datasets** use a **keypoint-definition YAML** for names/skeleton metadata (`kpts.yaml`):
->
-> ```yaml
-> keypoints:           # or per-class "classes:" (X-AnyLabeling style)
->   - nose
->   - left_eye
->   # ...
-> skeleton:            # optional: edge pairs as indices into the name list
->   - [0, 1]
-> sigmas:              # optional: per-keypoint OKS sigmas (evaluate keypoints)
->   - 0.026
-> ```
->
-> Pass it with `--kpts-config` (convert / visualize / analyse) or `--save-kpts-config` to export one from a COCO dataset.
-
-#### 📋 Task Types: Detection / Segmentation / Pose
-
-All four modules work on three annotation tasks, and every format can carry all three — what differs is how each task is written on disk and how it is enabled:
-
 | Task | YOLO (per-image `.txt`) | LabelMe (per-image `.json`) | COCO (single `.json`) | Enablement |
 |------|-------------------------|-----------------------------|-----------------------|------------|
 | 🔲 **Detection** | `class_id cx cy w h` | `rectangle` shape | `bbox` field | Automatic — no flag |
 | ✂️ **Segmentation** | `class_id x1 y1 … xn yn` | `polygon` shape | `segmentation` field (polygon or RLE) | Automatic — no flag |
-| 🦴 **Pose (keypoints)** | `class_id cx cy w h px1 py1 pv1 …` (5+3k tokens) | `point` shapes + one `rectangle` sharing a `group_id` | `keypoints` field + `categories[].keypoints`/`skeleton` | Explicit — see below |
+| 🦴 **Pose (keypoints)** | `class_id cx cy w h px1 py1 pv1 …` (5+3k tokens) | `point` shapes + one `rectangle` sharing a `group_id` | `keypoints` field + `categories[].keypoints`/`skeleton` | Explicit — `--pose` / `--kpts-config` |
 
-**Detection and segmentation are auto-detected** — from row token count (YOLO), shape type (LabelMe), or field presence (COCO). There is no task flag for them.
+**Essentials:**
 
-**Pose is explicit.** A YOLO pose row cannot be distinguished from a segmentation row by token count alone (an 11-token row is both a 2-keypoint pose label and a segmentation label), so pose processing is opt-in:
-
-| Module | How pose is enabled | Notes |
-|--------|---------------------|-------|
-| 🔍 **Analyse** | `--kpts-config kpts.yaml` | Adds per-keypoint labeling-rate statistics; for YOLO sources this flag also enables pose-row parsing |
-| 🔄 **Convert** | `--pose` (all six directions; `yolo2coco --prediction --pose` for model output) | Without it, keypoints are dropped with one warning per image (YOLO pose rows effectively require it); in pose mode, objects without keypoints are skipped |
-| 🎨 **Visualize** | `--pose` (YOLO) · automatic (LabelMe / COCO) | `--kpts-config` adds skeleton lines (YOLO / LabelMe; COCO reads them from its categories). v=2 filled green, v=1 hollow orange |
-| 📊 **Evaluate** | `evaluate keypoints` | OKS-based; `--kpts-config` optionally supplies per-keypoint sigmas |
-
-The keypoint-definition YAML (`kpts.yaml`, see above) carries keypoint names, optional `skeleton` edges, and optional `sigmas`; `coco2yolo` / `coco2labelme --save-kpts-config` exports one from a COCO dataset.
+- **Format auto-detection**: point at your labels — a single `.json` → COCO, a directory of `.txt` → YOLO, a directory of `.json` → LabelMe (see the [FAQ](docs/en/faq.md) for detection pitfalls).
+- **YOLO labels must share the image's file name** (`labels/000001.txt` ↔ `images/000001.jpg`); coordinates are normalized [0,1].
+- **`classes.txt`** (one class name per line — the line number is the class id) is **required** for `yolo2coco`, `yolo2labelme`, `labelme2yolo`, `labelme2coco`, `visualize yolo`; **auto-generated** by `coco2yolo` / `coco2labelme` (pass `-c` to control the order).
+- **Detection and segmentation are auto-detected** — from row token count (YOLO), shape type (LabelMe), or field presence (COCO). **Pose is explicit**: a YOLO pose row cannot be told apart from a segmentation row by token count alone. Per-module flags: analyse `--kpts-config`, convert `--pose`, visualize `--pose` (YOLO), evaluate `keypoints` — details in the [CLI reference](docs/en/cli.md).
+- 🦴 Pose datasets use a **keypoint-definition YAML** (`kpts.yaml` — names / skeleton / sigmas, X-AnyLabeling style): pass it with `--kpts-config`, or `--save-kpts-config` to export one from a COCO dataset.
 
 #### 🔍 Dataset Analysis
 
 ```bash
-# Dataset statistics (auto-detects YOLO / LabelMe / COCO)
+# Statistics (auto-detects YOLO / LabelMe / COCO)
 dataflow-cv analyse stats yolo_labels/ --image-dir images/ --class-file classes.txt
-dataflow-cv analyse stats labelme_json/
-dataflow-cv analyse stats coco_annotations.json
 
-# Multiple paths merge into one report (same format); -R recurses subdirectories
-dataflow-cv analyse stats yolo_train/ yolo_val/ --recursive
+# Train / val split (YOLO / LabelMe — labels / images / both modes)
+dataflow-cv analyse split -l yolo_labels/ -i images/ -c classes.txt --ratio 0.8 --seed 42 outputs/
 
-# Train / test split (YOLO / LabelMe only — labels / images / both modes)
-#   → outputs/train/ + outputs/val/  (each with labels/ + images/ in both mode)
-dataflow-cv analyse split -l yolo_labels/ outputs/ --ratio 0.8 --seed 42 -c classes.txt
-dataflow-cv analyse split -i images/ outputs/ --ratio 0.8
-dataflow-cv analyse split -l yolo_labels/ -i images/ outputs/ --ratio 0.8
-
-# Category filter (keep a subset of categories, remap IDs per new classes.txt)
-#   → filtered/ receives the filtered labels + the new classes.txt
+# Category filter (keep a subset, remap IDs per the new classes.txt)
 dataflow-cv analyse filter yolo_labels/ classes.txt classes_new.txt filtered/
-dataflow-cv analyse filter coco_annotations.json classes.txt classes_new.txt filtered/
 
-# N-way partition — YOLO / LabelMe only (labels drive, images follow by stem)
-#   → parts/part_1/ … parts/part_N/  (each with labels/ + images/ in both mode)
+# N-way partition / file sampling (YOLO / LabelMe)
 dataflow-cv analyse partition -n 4 --label-dir yolo_labels/ --image-dir images/ parts/
-dataflow-cv analyse partition -n 4 --image-dir images/ --shuffle parts/
+dataflow-cv analyse sample -l yolo_labels/ output/ -n 10 --seed 42
 
-# File sampling — collect N files (random or sequential, labels / images / both modes)
-#   → flat files in output/  (or output/labels/ + output/images/ in both mode)
-dataflow-cv analyse sample -l yolo_labels/ output/ -n 10
-dataflow-cv analyse sample -i images/ output/ -n 10 --no-shuffle
-dataflow-cv analyse sample -l yolo_labels/ -i images/ output/ -n 5 --seed 42
-
-# Sort by count descending (default: class ID ascending)
-dataflow-cv analyse stats --sort-by count --descending yolo_labels/
-
-# Pose: keypoint statistics (per-keypoint labeling rates; required for
-# YOLO pose sources — it also enables pose-row parsing)
+# Pose: keypoint statistics (--kpts-config also enables YOLO pose-row parsing)
 dataflow-cv analyse stats --kpts-config kpts.yaml yolo_pose_labels/
-
-# Verbose logging
-dataflow-cv analyse stats --verbose yolo_labels/ --class-file classes.txt
 ```
+
+> Multiple paths, recursion, sorting and all options → [CLI reference](docs/en/cli.md)
 
 #### 🔄 Format Conversion
 
 ```bash
-# YOLO → COCO                      → output.json: single COCO file
+# YOLO → COCO  (GT: label mode; DT: --prediction for model output)
 dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt output.json
-
-# YOLO → COCO (with RLE encoding)
-dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt output.json --do-rle
-
-# YOLO → LabelMe                   → labelme_json/: one .json per image
-dataflow-cv convert yolo2labelme images/ yolo_labels/ classes.txt labelme_json/
-
-# LabelMe → YOLO                   → yolo_labels/: one .txt per image + classes.txt
-dataflow-cv convert labelme2yolo labelme_json/ classes.txt yolo_labels/
-
-# LabelMe → COCO                   → output.json: single COCO file
-dataflow-cv convert labelme2coco labelme_json/ classes.txt output.json
-
-# COCO → YOLO                      → yolo_labels/labels/*.txt + classes.txt
-dataflow-cv convert coco2yolo input.json yolo_labels/
-
-# COCO → LabelMe                   → labelme_json/: one .json per image
-dataflow-cv convert coco2labelme input.json labelme_json/
-
-# iscrowd=1 (crowd) annotations are skipped by default on both directions;
-# opt in to writing them as ordinary rows/shapes:
-dataflow-cv convert coco2yolo --save-crowd input.json yolo_labels/
-
-# YOLO predictions → COCO (output: plain JSON list — prediction format)
 dataflow-cv convert yolo2coco --prediction images/ yolo_preds/ classes.txt pred.json
 
+# COCO → YOLO / LabelMe  (outputs named by image file stem; classes.txt auto-generated)
+dataflow-cv convert coco2yolo input.json yolo_labels/
+dataflow-cv convert coco2labelme input.json labelme_json/
+
+# LabelMe → YOLO
+dataflow-cv convert labelme2yolo labelme_json/ classes.txt yolo_labels/
+
 # Pose: add --pose to any of the six directions
-dataflow-cv convert coco2yolo --pose coco_pose.json yolo_pose_labels/
 dataflow-cv convert yolo2coco --pose --kpts-config kpts.yaml images/ yolo_pose_labels/ classes.txt pose.json
-dataflow-cv convert coco2yolo --pose --save-kpts-config kpts.yaml coco_pose.json yolo_pose_labels/   # export the definition YAML
-
-# Pose predictions (yolo2coco --prediction --pose → keypoints + score)
-dataflow-cv convert yolo2coco --prediction --pose images/ yolo_pose_preds/ classes.txt pred.json
-
-# Options
-dataflow-cv convert yolo2coco --verbose images/ labels/ classes.txt output.json
-dataflow-cv convert yolo2coco --no-strict images/ labels/ classes.txt output.json
 ```
 
-> 📂 **COCO→YOLO / COCO→LabelMe output naming**: each `.txt` / `.json` is named by the
-> image file stem — leading zeros preserved (`000001.jpg` → `000001.txt`). The
-> converter generates `labels/` (or the `.json` files) + `classes.txt`; the
-> `images/` directory is created but left **empty** — images are never copied,
-> place your image files there yourself.
+> All six directions (`yolo2labelme`, `labelme2coco` too), `--do-rle`, `--save-crowd`, pose variants and output-naming details → [CLI reference](docs/en/cli.md)
 
 #### 🎨 Visualization
 
 ```bash
-# Visualize YOLO annotations
+# Visualize YOLO / LabelMe / COCO annotations
 dataflow-cv visualize yolo images/ yolo_labels/ classes.txt --save visualized/
-
-# Visualize LabelMe annotations
 dataflow-cv visualize labelme images/ labelme_json/ --save visualized/
-
-# Visualize COCO annotations
 dataflow-cv visualize coco images/ coco_annotations.json --save visualized/
 
 # Pose: keypoints + skeleton rendering (v=2 filled green, v=1 hollow orange)
 dataflow-cv visualize yolo --pose --kpts-config kpts.yaml images/ yolo_pose_labels/ classes.txt --save visualized/
 dataflow-cv visualize coco images/ coco_pose.json --save visualized/   # skeleton from COCO categories
-
-# Verbose logging + headless mode
-dataflow-cv visualize yolo --verbose --no-display images/ yolo_labels/ classes.txt --save visualized/
 ```
+
+> Headless mode (`--no-display`), keyboard controls and all options → [CLI reference](docs/en/cli.md)
 
 <p align="center">
   <img src="assets/showcase/pose_demo.jpg" width="45%" alt="Pose visualization demo">
@@ -248,62 +143,23 @@ dataflow-cv visualize yolo --verbose --no-display images/ yolo_labels/ classes.t
 
 #### 📊 Evaluation
 
-Evaluate object detection, instance segmentation, and pose estimation models with COCO-standard metrics. Two COCO-format JSON files are required:
-
-| File | Role | Format | How to create |
-|------|------|--------|---------------|
-| **`anno.json`** | Ground Truth (GT) | Full COCO dict (`images`, `annotations`, `categories`) | `yolo2coco` (label mode) |
-| **`pred.json`** | Detection (DT) | Plain JSON list (with `score`) | `yolo2coco --prediction` |
-
-##### ① Prepare Data
+Evaluate detection, segmentation, and pose models with COCO-standard metrics. Two COCO-format JSON files are required — GT (full COCO dict, `yolo2coco`) and DT (plain JSON list with `score`, `yolo2coco --prediction`):
 
 ```bash
-# GT: YOLO labels → COCO
+# 1) Prepare: YOLO labels → GT, YOLO predictions → DT
 dataflow-cv convert yolo2coco images/ yolo_labels/ classes.txt anno.json
-
-# DT: YOLO predictions → COCO (add --prediction for model output)
 dataflow-cv convert yolo2coco --prediction images/ yolo_preds/ classes.txt pred.json
-```
 
-> ⚠️ `--prediction` is required for YOLO prediction files — they have an extra `confidence` token per line. The flag outputs a **plain JSON list** (not a full COCO dict), which is the standard DT format for `loadRes()`. Only `yolo2coco` supports `--prediction`; `labelme2coco` does not need it (LabelMe has no label vs prediction distinction).
-
-##### ② Run Evaluation
-
-```bash
-# Object detection (bbox IoU)
+# 2) Evaluate — detection (bbox IoU) / segmentation (mask IoU) / pose (OKS)
 dataflow-cv evaluate detection anno.json pred.json
-dataflow-cv evaluate detection --verbose anno.json pred.json           # per-class breakdown
-dataflow-cv evaluate detection --prf1 anno.json pred.json              # P/R/F1 only (skip mAP)
-dataflow-cv evaluate detection --prf1 --prf1-iou 0.75 --prf1-method micro anno.json pred.json
-
-# Instance segmentation (mask IoU)
 dataflow-cv evaluate segmentation anno.json pred.json
-dataflow-cv evaluate segmentation --verbose anno.json pred.json
-
-# Pose estimation (OKS) — sigmas from the definition YAML, else COCO
-# 17-keypoint defaults (uniform 0.05 + warning for other k)
 dataflow-cv evaluate keypoints --kpts-config kpts.yaml anno_pose.json pred_pose.json
-dataflow-cv evaluate keypoints --prf1 anno_pose.json pred_pose.json   # OKS-based P/R/F1
 
-# Save results as JSON
-dataflow-cv evaluate detection --output results.json anno.json pred.json
-
-# Save P/R/F1 results as JSON (thresholds, method, overall + per-class values)
-dataflow-cv evaluate detection --prf1 --output prf1_results.json anno.json pred.json
-
-# Custom log directory
-dataflow-cv evaluate detection --verbose --log-dir logs/eval/ anno.json pred.json
+# 3) Or quick single-threshold P/R/F1 instead of mAP
+dataflow-cv evaluate detection --prf1 anno.json pred.json
 ```
 
-##### ③ Detection vs Segmentation vs Pose
-
-Three evaluation modes, distinguished by how overlap is measured:
-
-- **Object Detection** — bounding box IoU. GT and DT require `bbox`; DT additionally requires `score`.
-- **Instance Segmentation** — mask IoU. GT and DT require `bbox`, `segmentation` (polygon or RLE), and `area`; DT additionally requires `score`.
-- **Pose Estimation** — OKS (Object Keypoint Similarity). GT and DT require `keypoints` (flat `[x, y, v, ...]` triplets) and `area`; DT additionally requires `score`. Per-keypoint sigmas resolve via `--kpts-config`, the COCO 17-keypoint official values, or a uniform fallback.
-
-`yolo2coco` (label mode) and `yolo2coco --prediction` (prediction mode) automatically populate all required fields for all three modes — no manual editing needed.
+> GT/DT field requirements per mode, `--prf1` options, `--output`, verbose mode → [CLI reference](docs/en/cli.md)
 
 #### 🔄 End-to-End Workflow
 
@@ -383,8 +239,8 @@ Once installed, AI assistants load the skill on demand when working on dataset c
 | **[CLAUDE.md](CLAUDE.md)** | Architecture overview, development guide, and known gotchas |
 | **[CHANGELOG.md](CHANGELOG.md)** | Version history and breaking changes |
 | **[CONTRIBUTING.md](CONTRIBUTING.md)** | Contribution workflow, spec-first rules, quality gates |
-| **[docs/en/](docs/en/)** | English user manual — Python API reference & FAQ |
-| **[docs/zh/](docs/zh/)** | 中文用户手册 — Python API 参考与 FAQ |
+| **[docs/en/](docs/en/)** | English user manual — CLI & Python API references, FAQ |
+| **[docs/zh/](docs/zh/)** | 中文用户手册 — CLI 与 Python API 参考、FAQ |
 | **[specs/evaluate/](specs/evaluate/)** | Evaluation metric contracts — IoU, matching, AP/mAP/AR |
 | **[specs/formats/](specs/formats/)** | External format contracts — YOLO, LabelMe, COCO, conversion rules |
 | **[specs/modules/](specs/modules/)** | Internal module architecture, interface contracts, dependency constraints |
