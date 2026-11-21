@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-11-21
+
 ### Changed
 
 - **Python API accepts `str` paths everywhere**: `analyse` functions (`stats`/`split`/`filter`/`partition`/`sample`), `load_kpts_config`, handler `write_one`, and shared analyse/convert utilities now accept plain strings as well as `Path` objects.

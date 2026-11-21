@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dataflow-cv"
-version = "3.6.0"
+version = "4.0.0"
 description = "A computer vision dataset processing library — analyse, convert, visualize, and evaluate detection, segmentation, and pose (keypoint) annotations across YOLO, LabelMe, and COCO formats"
 readme = "README.md"
 requires-python = ">=3.8"
