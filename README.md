@@ -197,7 +197,7 @@ dataflow-cv visualize yolo --no-display data/split/val/images/ data/split/val/la
 
 ### 🐍 Python API
 
-Every CLI capability is also available as a Python API — see the full reference in the manual: **[docs/en/api.md](docs/en/api.md)** (中文手册: **[docs/zh/api.md](docs/zh/api.md)**).
+Every CLI capability is also available as a Python API — see the full reference in the manual: **[docs/en/api.md](docs/en/api.md)**.
 
 ```python
 from dataflow.analyse import StatsAnalyser
@@ -240,7 +240,7 @@ Once installed, AI assistants load the skill on demand when working on dataset c
 | **[CHANGELOG.md](CHANGELOG.md)** | Version history and breaking changes |
 | **[CONTRIBUTING.md](CONTRIBUTING.md)** | Contribution workflow, spec-first rules, quality gates |
 | **[docs/en/](docs/en/)** | English user manual — CLI & Python API references, FAQ |
-| **[docs/zh/](docs/zh/)** | 中文用户手册 — CLI 与 Python API 参考、FAQ |
+| **[docs/zh/](docs/zh/)** | Chinese user manual — CLI & Python API references, FAQ |
 | **[specs/evaluate/](specs/evaluate/)** | Evaluation metric contracts — IoU, matching, AP/mAP/AR |
 | **[specs/formats/](specs/formats/)** | External format contracts — YOLO, LabelMe, COCO, conversion rules |
 | **[specs/modules/](specs/modules/)** | Internal module architecture, interface contracts, dependency constraints |

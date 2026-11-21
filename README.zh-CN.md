@@ -196,7 +196,7 @@ dataflow-cv visualize yolo --no-display data/split/val/images/ data/split/val/la
 
 ### 🐍 Python API
 
-每个 CLI 能力都有对应的 Python API —— 完整参考见手册:**[docs/zh/api.md](docs/zh/api.md)** (English manual: **[docs/en/api.md](docs/en/api.md)**)。
+每个 CLI 能力都有对应的 Python API —— 完整参考见手册:**[docs/zh/api.md](docs/zh/api.md)**。
 
 ```python
 from dataflow.analyse import StatsAnalyser
