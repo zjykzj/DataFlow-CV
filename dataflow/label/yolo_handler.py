@@ -7,7 +7,7 @@ Supports both object detection and instance segmentation formats.
 
 import math
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 import cv2
 
@@ -819,8 +819,12 @@ class YoloAnnotationHandler(BaseAnnotationHandler):
 
         return result
 
-    def write_one(self, image_ann: ImageAnnotation, output_dir: Path) -> AnnotationResult:
+    def write_one(
+        self, image_ann: ImageAnnotation, output_dir: Union[str, Path]
+    ) -> AnnotationResult:
         """Write annotations for a single image to YOLO TXT file."""
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
         result = AnnotationResult(success=False)
 
         try:

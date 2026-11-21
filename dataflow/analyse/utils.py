@@ -13,7 +13,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
 
 from dataflow.label.utils import parse_yolo_class_id
 
@@ -40,7 +40,7 @@ def _cleanup_temp_files() -> None:
 atexit.register(_cleanup_temp_files)
 
 
-def detect_format(label_path: Path) -> str:
+def detect_format(label_path: Union[str, Path]) -> str:
     """Auto-detect annotation format from path.
 
     Detection rules (checked in order):
@@ -61,6 +61,7 @@ def detect_format(label_path: Path) -> str:
     Raises:
         ValueError: If format cannot be determined.
     """
+    label_path = Path(label_path)
     if not label_path.exists():
         raise ValueError(f"Label path does not exist: {label_path}")
 
@@ -194,15 +195,15 @@ def _auto_generate_class_file(label_dir: Path, recursive: bool = False) -> Path:
 
 
 def create_handler(
-    label_path: Path,
+    label_path: Union[str, Path],
     format: str,
-    class_file: Optional[Path] = None,
-    image_dir: Optional[Path] = None,
+    class_file: Optional[Union[str, Path]] = None,
+    image_dir: Optional[Union[str, Path]] = None,
     logger: Optional[logging.Logger] = None,
     skip_image_loading: bool = False,
     recursive: bool = False,
     pose: bool = False,
-    kpts_config: Optional[Path] = None,
+    kpts_config: Optional[Union[str, Path]] = None,
 ) -> "BaseAnnotationHandler":
     """Create the appropriate handler for the detected format.
 
@@ -233,6 +234,13 @@ def create_handler(
     Raises:
         ValueError: If format is unknown.
     """
+    label_path = Path(label_path)
+    if class_file is not None:
+        class_file = Path(class_file)
+    if image_dir is not None:
+        image_dir = Path(image_dir)
+    if kpts_config is not None:
+        kpts_config = Path(kpts_config)
     from dataflow.label.coco_handler import CocoAnnotationHandler
     from dataflow.label.labelme_handler import LabelMeAnnotationHandler
     from dataflow.label.yolo_handler import YoloAnnotationHandler
@@ -452,7 +460,7 @@ def _copy_or_move_file(
         return False
 
 
-def load_class_names(class_file: Path) -> Dict[int, str]:
+def load_class_names(class_file: Union[str, Path]) -> Dict[int, str]:
     """Parse classes.txt → ``{class_id: class_name}``.
 
     Format: one class name per line, 0-indexed.
@@ -468,6 +476,7 @@ def load_class_names(class_file: Path) -> Dict[int, str]:
         FileNotFoundError: If class_file does not exist.
         ValueError: If class_file is empty (no valid class names found).
     """
+    class_file = Path(class_file)
     if not class_file.exists():
         raise FileNotFoundError(f"Class file not found: {class_file}")
 

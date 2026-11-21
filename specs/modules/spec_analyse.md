@@ -1,6 +1,6 @@
 # Analyse Module Specification
 
-> **Version:** v2.3 | **Last Updated:** 2026-11-21
+> **Version:** v2.4 | **Last Updated:** 2026-11-21
 > **Status:** Stable
 > **Layer:** Modules
 > **Dependencies:** Label module (handlers + models) + Logging module (LogManager)
@@ -840,7 +840,7 @@ Collect N files from a dataset. Supports YOLO and LabelMe for label mode; images
 ### 4.6 Module-Level Utilities (`utils.py`)
 
 ```python
-def detect_format(label_path: Path) -> str:
+def detect_format(label_path: Union[str, Path]) -> str:
     """Auto-detect annotation format from path.
 
     Detection rules (checked in order):
@@ -864,13 +864,15 @@ def detect_format(label_path: Path) -> str:
     """
 
 def create_handler(
-    label_path: Path,
+    label_path: Union[str, Path],
     format: str,
-    class_file: Optional[Path] = None,
-    image_dir: Optional[Path] = None,
+    class_file: Optional[Union[str, Path]] = None,
+    image_dir: Optional[Union[str, Path]] = None,
     logger: Optional[logging.Logger] = None,
     skip_image_loading: bool = False,
     recursive: bool = False,
+    pose: bool = False,
+    kpts_config: Optional[Union[str, Path]] = None,
 ) -> BaseAnnotationHandler:
     """Create the appropriate handler for the detected format.
 
@@ -898,7 +900,7 @@ def _auto_generate_class_file(label_dir: Path, recursive: bool = False) -> Path:
     Uses parse_yolo_class_id() for float-tolerant parsing.
     """
 
-def load_class_names(class_file: Path) -> Dict[int, str]:
+def load_class_names(class_file: Union[str, Path]) -> Dict[int, str]:
     """Parse classes.txt → {class_id: class_name}.
 
     Format: one class name per line, 0-indexed.

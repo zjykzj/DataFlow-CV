@@ -1,6 +1,6 @@
 # Label Module Specification
 
-> **Version:** v5.3 | **Last Updated:** 2026-11-21
+> **Version:** v5.4 | **Last Updated:** 2026-11-21
 > **Status:** Draft — logger receives from caller's LogManager via `logger=` parameter
 > **Layer:** Modules
 > **Dependencies:** None (foundation module; logging via stdlib `logging.Logger` only)
@@ -234,7 +234,7 @@ class BaseAnnotationHandler(ABC):
     def write(self, annotations: DatasetAnnotations, *args, **kwargs) -> AnnotationResult: ...
 
     @abstractmethod
-    def write_one(self, image_ann: ImageAnnotation, output_dir: Path) -> AnnotationResult: ...
+    def write_one(self, image_ann: ImageAnnotation, output_dir: Union[str, Path]) -> AnnotationResult: ...
 
     @abstractmethod
     def validate(self, *args, **kwargs) -> bool: ...
@@ -333,13 +333,14 @@ Clamping is applied regardless of `strict_mode` — it is data normalization, no
 Writes annotation data for a **single image** to the target format. This is the per-image
 counterpart to `write()` — used by the Convert module's streaming pipeline
 (`stream_convert()`) to write each image immediately after conversion.
+The output directory is created if missing (`mkdir(parents=True)`) — same as `write()`.
 
 **Signature:**
 
 ```python
 @abstractmethod
 def write_one(
-    self, image_ann: ImageAnnotation, output_dir: Path
+    self, image_ann: ImageAnnotation, output_dir: Union[str, Path]
 ) -> AnnotationResult:
     """Write annotations for a single image.
 

@@ -184,6 +184,29 @@ class TestPathFunctions:
             # Second image (absolute) should just use filename
             assert updated.images[1].image_path == str(target_dir / "img2.jpg")
 
+    def test_resolve_image_paths_str_dirs(self):
+        """source_dir/target_dir accept str (spec_convert.md v8.1)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source_dir = Path(tmpdir) / "source"
+            target_dir = Path(tmpdir) / "target"
+            source_dir.mkdir()
+            target_dir.mkdir()
+
+            annotations = DatasetAnnotations(
+                images=[
+                    ImageAnnotation(
+                        width=10,
+                        height=10,
+                        objects=[],
+                        image_path="img1.jpg",
+                        image_id="img1",
+                    )
+                ]
+            )
+
+            updated = utils.resolve_image_paths(annotations, str(source_dir), str(target_dir))
+            assert updated.images[0].image_path == str(target_dir / "img1.jpg")
+
 
 class TestCocoFileNameToImageId:
     """Test COCO file_name → per-file output image_id derivation."""

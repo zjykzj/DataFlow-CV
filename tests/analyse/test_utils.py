@@ -34,6 +34,11 @@ class TestDetectFormat:
         fmt = detect_format(TEST_DATA / "det" / "coco" / "annotations.json")
         assert fmt == "coco"
 
+    def test_str_path_accepted(self):
+        """str paths are coerced to Path (spec_analyse.md v2.4)."""
+        fmt = detect_format(str(TEST_DATA / "det" / "coco" / "annotations.json"))
+        assert fmt == "coco"
+
     def test_detect_yolo_dir(self):
         """Directory with .txt files is detected as YOLO."""
         fmt = detect_format(TEST_DATA / "det" / "yolo" / "labels")
@@ -71,6 +76,11 @@ class TestDetectFormat:
 
 class TestLoadClassNames:
     """Tests for classes.txt parsing."""
+
+    def test_str_path_accepted(self):
+        """str paths are coerced to Path (spec_analyse.md v2.4)."""
+        names = load_class_names(str(TEST_DATA / "det" / "yolo" / "classes.txt"))
+        assert names[0] == "person"
 
     def test_standard_file(self):
         """Standard classes.txt with one name per line."""
@@ -117,6 +127,17 @@ class TestLoadClassNames:
 
 class TestCreateHandler:
     """Tests for handler factory."""
+
+    def test_str_paths_accepted(self):
+        """str paths are coerced to Path (spec_analyse.md v2.4)."""
+        handler = create_handler(
+            str(TEST_DATA / "det" / "yolo" / "labels"),
+            "yolo",
+            class_file=str(TEST_DATA / "det" / "yolo" / "classes.txt"),
+        )
+        from dataflow.label.yolo_handler import YoloAnnotationHandler
+
+        assert isinstance(handler, YoloAnnotationHandler)
 
     def test_creates_yolo_handler(self):
         """Handler created for YOLO format."""

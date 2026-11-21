@@ -672,6 +672,24 @@ class TestYoloAnnotationHandler:
         assert float(parts[3]) == pytest.approx(0.2, abs=1e-6)  # width
         assert float(parts[4]) == pytest.approx(0.2, abs=1e-6)  # height
 
+    def test_write_one_str_output_dir(self, sample_detection_data):
+        """write_one accepts a str output_dir (spec_label.md v5.4)."""
+        handler = YoloAnnotationHandler(
+            label_dir=str(sample_detection_data["label_dir"]),
+            class_file=str(sample_detection_data["class_file"]),
+            image_dir=str(sample_detection_data["image_dir"]),
+            strict_mode=True,
+        )
+        read_result = handler.read()
+        assert read_result.success is True
+
+        output_dir = sample_detection_data["label_dir"].parent / "output_one"
+        image_ann = read_result.data.images[0]
+        write_result = handler.write_one(image_ann, str(output_dir))
+
+        assert write_result.success is True
+        assert (output_dir / f"{image_ann.image_id}.txt").exists()
+
     def test_write_segmentation_success(self, sample_segmentation_data):
         """Test successful writing of segmentation annotations."""
         # First read the data
