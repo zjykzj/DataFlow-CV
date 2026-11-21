@@ -393,7 +393,7 @@ COCO prediction files exist in **two variants** (see `spec_coco_format.md` §9):
 - `main.py`: Entry point `cli` group with global `--version`/`-v` flag
 - `commands/convert.py`: 6 subcommands — `yolo2coco`, `yolo2labelme`, `labelme2yolo`, `labelme2coco`, `coco2yolo`, `coco2labelme`. `yolo2coco` supports `--prediction` for model output.
 - `commands/visualize.py`: 3 subcommands — `yolo`, `labelme`, `coco`
-- `commands/evaluate.py`: 2 subcommands — `detection`, `segmentation`. Both support `--prf1` (P/R/F1 only — skips COCOeval, mutually exclusive with mAP), `--prf1-iou`, `--prf1-conf`, and `--prf1-method` (macro|micro) options.
+- `commands/evaluate.py`: 3 subcommands — `detection`, `segmentation`, `keypoints`. All support `--prf1` (P/R/F1 only — skips COCOeval, mutually exclusive with mAP), `--prf1-iou`, `--prf1-conf`, and `--prf1-method` (macro|micro) options.
 - `commands/utils.py`: Shared decorators (`add_common_options`), validators, and `FormattedCommand` (custom Click Command with aligned argument display in --help). `add_visualize_options` lives in `commands/visualize.py`.
 - `exceptions.py`: Exception hierarchy with distinct exit codes:
   - `InputError` (exit 2), `RuntimeCLIError` (exit 4)
